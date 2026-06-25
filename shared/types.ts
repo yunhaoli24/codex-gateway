@@ -8,6 +8,8 @@ export interface HostRecord {
   port: number | null
   authMode: HostAuthMode
   privateKeyPath: string | null
+  privateKey?: string | null
+  password?: string | null
   hasPassword: boolean
   appServerMode: 'local' | 'stdio' | 'websocket'
   appServerUrl: string | null
@@ -31,6 +33,7 @@ export interface HostCreateInput {
   port?: number | null
   authMode: HostAuthMode
   privateKeyPath?: string | null
+  privateKey?: string | null
   password?: string | null
   appServerMode?: 'local' | 'stdio' | 'websocket'
   appServerUrl?: string | null
@@ -66,7 +69,19 @@ export interface GatewayEvent {
 export interface ThreadOpenResult {
   thread: unknown
   history: unknown
+  turnsPage: {
+    nextCursor: string | null
+    backwardsCursor: string | null
+  }
   recentEvents: GatewayEvent[]
+}
+
+export interface ThreadTurnsPageResult {
+  history: unknown
+  turnsPage: {
+    nextCursor: string | null
+    backwardsCursor: string | null
+  }
 }
 
 export interface GatewayStatus {
@@ -84,4 +99,26 @@ export interface RemoteDirectoryEntry {
   name: string
   path: string
   type: 'directory' | 'file' | 'other'
+}
+
+export interface PinnedThreadRecord {
+  hostId: number
+  projectId: number | null
+  threadId: string
+  title: string
+  subtitle?: string | null
+  hostName: string
+  projectName?: string | null
+  updatedAt?: number | null
+}
+
+export interface GatewayConfig {
+  version: 1
+  hosts: HostRecord[]
+  pinnedThreads: PinnedThreadRecord[]
+  lastOpenThread?: {
+    hostId: number
+    projectId: number | null
+    threadId: string
+  } | null
 }

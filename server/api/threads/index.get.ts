@@ -30,9 +30,9 @@ export default defineEventHandler(async (event) => {
       }
     }
   }
-
   return {
     ...(result as Record<string, unknown>),
+    data: threads,
     projects: persistence.listProjects(host.id),
   }
 })

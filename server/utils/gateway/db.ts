@@ -1,205 +1,196 @@
-import { mkdirSync } from 'node:fs'
-import { join } from 'node:path'
-import Database from 'better-sqlite3'
 import type {
   GatewayEvent,
+  GatewayConfig,
   HostCreateInput,
   HostRecord,
   ProjectCreateInput,
   ProjectRecord,
 } from '~~/shared/types'
 
-type SqliteDatabase = Database.Database
+type HostWithSecret = HostRecord
 
-let database: SqliteDatabase | null = null
+interface RuntimeState {
+  hosts: HostWithSecret[]
+  projects: ProjectRecord[]
+  lastOpenThread: GatewayConfig['lastOpenThread']
+  threadMetadata: Array<{
+    hostId: number
+    projectId: number | null
+    threadId: string
+    preview: string | null
+    cwd: string | null
+    updatedAt: string
+  }>
+  events: GatewayEvent[]
+  nextEventId: number
+}
+
+const state: RuntimeState = {
+  hosts: [],
+  projects: [],
+  lastOpenThread: null,
+  threadMetadata: [],
+  events: [],
+  nextEventId: 1,
+}
 
 function nowIso() {
   return new Date().toISOString()
 }
 
-function dataDir() {
-  if (process.env.CODEX_GATEWAY_DATA_DIR) {
-    mkdirSync(process.env.CODEX_GATEWAY_DATA_DIR, { recursive: true })
-    return process.env.CODEX_GATEWAY_DATA_DIR
-  }
-
-  const dir = join(process.cwd(), '.data')
-  mkdirSync(dir, { recursive: true })
-  return dir
+function nextId(records: Array<{ id: number }>) {
+  return records.reduce((max, record) => Math.max(max, record.id), 0) + 1
 }
 
-export function getDb() {
-  if (database) {
-    return database
-  }
-
-  database = new Database(join(dataDir(), 'gateway.sqlite'))
-  database.pragma('journal_mode = WAL')
-  database.exec(`
-    create table if not exists hosts (
-      id integer primary key autoincrement,
-      name text not null,
-      sshHost text not null,
-      username text,
-      port integer,
-      authMode text not null default 'agent',
-      privateKeyPath text,
-      password text,
-      appServerMode text not null default 'stdio',
-      appServerUrl text,
-      createdAt text not null,
-      updatedAt text not null
-    );
-
-    create table if not exists projects (
-      id integer primary key autoincrement,
-      hostId integer not null references hosts(id) on delete cascade,
-      name text not null,
-      remotePath text not null,
-      createdAt text not null,
-      updatedAt text not null,
-      unique(hostId, remotePath)
-    );
-
-    create table if not exists thread_metadata (
-      hostId integer not null,
-      projectId integer,
-      threadId text not null,
-      preview text,
-      cwd text,
-      updatedAt text not null,
-      primary key(hostId, threadId)
-    );
-
-    create table if not exists gateway_events (
-      id integer primary key autoincrement,
-      hostId integer not null,
-      threadId text not null,
-      method text not null,
-      payload text not null,
-      createdAt text not null
-    );
-
-    create index if not exists idx_gateway_events_thread
-      on gateway_events(hostId, threadId, id);
-  `)
-  ensureColumn(database, 'hosts', 'password', 'text')
-  return database
-}
-
-type HostRow = HostRecord & { password?: string | null }
-
-function sanitizeHost(row: HostRow): HostRecord {
-  const { password, ...host } = row
+function sanitizeHost(host: HostWithSecret): HostRecord {
   return {
     ...host,
-    hasPassword: Boolean(password),
+    hasPassword: Boolean(host.password),
   }
+}
+
+function normalizeHost(input: HostCreateInput, id = nextId(state.hosts)): HostWithSecret {
+  const timestamp = nowIso()
+  const existing = state.hosts.find((host) => host.id === id)
+  return {
+    id,
+    name: input.name.trim(),
+    sshHost: input.sshHost.trim(),
+    username: input.username?.trim() || null,
+    port: input.port || null,
+    authMode: input.authMode,
+    privateKeyPath: input.privateKeyPath?.trim() || null,
+    privateKey: input.privateKey || null,
+    password: input.authMode === 'password' ? input.password || null : input.password || null,
+    hasPassword: Boolean(input.password),
+    appServerMode: input.appServerMode || 'stdio',
+    appServerUrl: input.appServerUrl?.trim() || null,
+    createdAt: existing?.createdAt || timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+function normalizeProject(input: ProjectCreateInput, id = nextId(state.projects)): ProjectRecord {
+  const timestamp = nowIso()
+  const existing = state.projects.find((project) => project.id === id)
+  return {
+    id,
+    hostId: input.hostId,
+    name: input.name.trim(),
+    remotePath: input.remotePath.trim(),
+    createdAt: existing?.createdAt || timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+function ensureLocalHostRecord() {
+  const existing = state.hosts.find((host) => host.appServerMode === 'local')
+  if (existing) {
+    return existing
+  }
+  const local = normalizeHost({
+    name: '本机 Codex',
+    sshHost: 'local',
+    username: null,
+    port: null,
+    authMode: 'agent',
+    privateKeyPath: null,
+    privateKey: null,
+    password: null,
+    appServerMode: 'local',
+    appServerUrl: null,
+  })
+  state.hosts.push(local)
+  return local
 }
 
 export const persistence = {
+  replaceConfig(config: GatewayConfig) {
+    state.hosts = config.hosts.map((host) => ({
+      ...host,
+      hasPassword: Boolean(host.password),
+    }))
+    state.projects = []
+    state.lastOpenThread = config.lastOpenThread ?? null
+    state.threadMetadata = []
+    state.events = []
+    state.nextEventId = 1
+    ensureLocalHostRecord()
+  },
+
+  exportConfig(): GatewayConfig {
+    ensureLocalHostRecord()
+    return {
+      version: 1,
+      hosts: state.hosts.map((host) => ({ ...host, hasPassword: Boolean(host.password) })),
+      pinnedThreads: [],
+      lastOpenThread: state.lastOpenThread ?? null,
+    }
+  },
+
   listHosts(): HostRecord[] {
-    return (getDb().prepare('select * from hosts order by name asc').all() as HostRow[]).map(sanitizeHost)
+    ensureLocalHostRecord()
+    return state.hosts
+      .map(sanitizeHost)
+      .sort((left, right) => left.name.localeCompare(right.name))
   },
 
   getHost(id: number): HostRecord | null {
-    const row = getDb().prepare('select * from hosts where id = ?').get(id) as HostRow | undefined
-    return row ? sanitizeHost(row) : null
+    ensureLocalHostRecord()
+    const host = state.hosts.find((item) => item.id === id)
+    return host ? sanitizeHost(host) : null
   },
 
-  getHostWithSecret(id: number): HostRow | null {
-    return (getDb().prepare('select * from hosts where id = ?').get(id) as HostRow | undefined) ?? null
+  getHostWithSecret(id: number): HostWithSecret | null {
+    ensureLocalHostRecord()
+    return state.hosts.find((item) => item.id === id) ?? null
   },
 
   createHost(input: HostCreateInput): HostRecord {
-    const timestamp = nowIso()
-    const info = getDb()
-      .prepare(`
-        insert into hosts (
-          name, sshHost, username, port, authMode, privateKeyPath, password,
-          appServerMode, appServerUrl, createdAt, updatedAt
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .run(
-        input.name.trim(),
-        input.sshHost.trim(),
-        input.username?.trim() || null,
-        input.port || null,
-        input.authMode,
-        input.privateKeyPath?.trim() || null,
-        input.authMode === 'password' ? input.password || null : null,
-        input.appServerMode || 'stdio',
-        input.appServerUrl?.trim() || null,
-        timestamp,
-        timestamp,
-      )
-
-    return this.getHost(Number(info.lastInsertRowid))!
+    const host = normalizeHost(input)
+    state.hosts.push(host)
+    return sanitizeHost(host)
   },
 
   ensureLocalHost(): HostRecord {
-    const existing = getDb()
-      .prepare("select * from hosts where appServerMode = 'local' order by id asc limit 1")
-      .get() as HostRow | undefined
-
-    if (existing) {
-      return sanitizeHost(existing)
-    }
-
-    return this.createHost({
-      name: '本机 Codex',
-      sshHost: 'local',
-      username: null,
-      port: null,
-      authMode: 'agent',
-      privateKeyPath: null,
-      password: null,
-      appServerMode: 'local',
-      appServerUrl: null,
-    })
+    return sanitizeHost(ensureLocalHostRecord())
   },
 
   deleteHost(id: number) {
-    getDb().prepare('delete from hosts where id = ?').run(id)
+    state.hosts = state.hosts.filter((host) => host.id !== id)
+    state.projects = state.projects.filter((project) => project.hostId !== id)
+    state.threadMetadata = state.threadMetadata.filter((thread) => thread.hostId !== id)
+    state.events = state.events.filter((event) => event.hostId !== id)
   },
 
   listProjects(hostId?: number): ProjectRecord[] {
-    const sql = hostId
-      ? 'select * from projects where hostId = ? order by name asc'
-      : 'select * from projects order by hostId asc, name asc'
-    const params = hostId ? [hostId] : []
-    return getDb().prepare(sql).all(...params) as ProjectRecord[]
+    return state.projects
+      .filter((project) => !hostId || project.hostId === hostId)
+      .sort((left, right) => left.name.localeCompare(right.name))
   },
 
   getProject(id: number): ProjectRecord | null {
-    return (getDb().prepare('select * from projects where id = ?').get(id) as ProjectRecord | undefined) ?? null
+    return state.projects.find((project) => project.id === id) ?? null
   },
 
   createProject(input: ProjectCreateInput): ProjectRecord {
-    const timestamp = nowIso()
-    getDb()
-      .prepare(`
-        insert into projects (hostId, name, remotePath, createdAt, updatedAt)
-        values (?, ?, ?, ?, ?)
-        on conflict(hostId, remotePath) do update set
-          name = excluded.name,
-          updatedAt = excluded.updatedAt
-      `)
-      .run(input.hostId, input.name.trim(), input.remotePath.trim(), timestamp, timestamp)
-
-    const project = getDb()
-      .prepare('select * from projects where hostId = ? and remotePath = ?')
-      .get(input.hostId, input.remotePath.trim()) as ProjectRecord | undefined
-
-    if (!project) {
-      throw new Error(`Failed to save project for host ${input.hostId}: ${input.remotePath}`)
+    const remotePath = input.remotePath.trim()
+    const existing = state.projects.find((project) => project.hostId === input.hostId && project.remotePath === remotePath)
+    const project = normalizeProject(input, existing?.id)
+    if (existing) {
+      state.projects = state.projects.map((item) => item.id === existing.id ? project : item)
+    } else {
+      state.projects.push(project)
     }
-
     return project
   },
 
   ensureProjectForPath(hostId: number, remotePath: string): ProjectRecord {
     const normalizedPath = remotePath.trim()
+    const existing = state.projects.find((project) => project.hostId === hostId && project.remotePath === normalizedPath)
+    if (existing) {
+      return existing
+    }
     const name = normalizedPath.split('/').filter(Boolean).at(-1) || normalizedPath || 'root'
     return this.createProject({
       hostId,
@@ -209,85 +200,59 @@ export const persistence = {
   },
 
   recordThread(hostId: number, projectId: number | null, thread: any) {
-    const timestamp = nowIso()
-    getDb()
-      .prepare(`
-        insert into thread_metadata (hostId, projectId, threadId, preview, cwd, updatedAt)
-        values (?, ?, ?, ?, ?, ?)
-        on conflict(hostId, threadId) do update set
-          projectId = excluded.projectId,
-          preview = excluded.preview,
-          cwd = excluded.cwd,
-          updatedAt = excluded.updatedAt
-      `)
-      .run(
-        hostId,
-        projectId,
-        String(thread.id),
-        thread.preview ?? thread.name ?? null,
-        thread.cwd ?? null,
-        timestamp,
-      )
+    const threadId = String(thread.id)
+    const metadata = {
+      hostId,
+      projectId,
+      threadId,
+      preview: thread.preview ?? thread.name ?? null,
+      cwd: thread.cwd ?? null,
+      updatedAt: nowIso(),
+    }
+    const index = state.threadMetadata.findIndex((item) => item.hostId === hostId && item.threadId === threadId)
+    if (index >= 0) {
+      state.threadMetadata[index] = metadata
+    } else {
+      state.threadMetadata.push(metadata)
+    }
   },
 
   addGatewayEvent(hostId: number, threadId: string, method: string, payload: unknown): GatewayEvent {
-    const timestamp = nowIso()
-    const info = getDb()
-      .prepare(`
-        insert into gateway_events (hostId, threadId, method, payload, createdAt)
-        values (?, ?, ?, ?, ?)
-      `)
-      .run(hostId, threadId, method, JSON.stringify(payload), timestamp)
-
-    this.pruneGatewayEvents(hostId, threadId, 500)
-
-    return {
-      id: Number(info.lastInsertRowid),
+    const event = {
+      id: state.nextEventId++,
       hostId,
       threadId,
       method,
       payload: payload as GatewayEvent['payload'],
-      createdAt: timestamp,
+      createdAt: nowIso(),
     }
+    state.events.push(event)
+    this.pruneGatewayEvents(hostId, threadId, 500)
+    return event
   },
 
   listGatewayEvents(hostId: number, threadId: string, afterId = 0, limit = 200): GatewayEvent[] {
-    const rows = getDb()
-      .prepare(`
-        select * from gateway_events
-        where hostId = ? and threadId = ? and id > ?
-        order by id asc
-        limit ?
-      `)
-      .all(hostId, threadId, afterId, limit) as Array<Omit<GatewayEvent, 'payload'> & { payload: string }>
-
-    return rows.map((row) => ({ ...row, payload: JSON.parse(row.payload) }))
+    return state.events
+      .filter((event) => event.hostId === hostId && event.threadId === threadId && event.id > afterId)
+      .sort((left, right) => left.id - right.id)
+      .slice(0, limit)
   },
 
   pruneGatewayEvents(hostId: number, threadId: string, keep: number) {
-    getDb()
-      .prepare(`
-        delete from gateway_events
-        where hostId = ? and threadId = ? and id not in (
-          select id from gateway_events
-          where hostId = ? and threadId = ?
-          order by id desc
-          limit ?
-        )
-      `)
-      .run(hostId, threadId, hostId, threadId, keep)
+    const retained = state.events
+      .filter((event) => event.hostId === hostId && event.threadId === threadId)
+      .sort((left, right) => right.id - left.id)
+      .slice(0, keep)
+      .map((event) => event.id)
+    const retainedIds = new Set(retained)
+    state.events = state.events.filter((event) => event.hostId !== hostId || event.threadId !== threadId || retainedIds.has(event.id))
   },
 
   counts() {
-    const hosts = getDb().prepare('select count(*) as count from hosts').get() as { count: number }
-    const projects = getDb().prepare('select count(*) as count from projects').get() as { count: number }
-    return { hosts: hosts.count, projects: projects.count }
+    ensureLocalHostRecord()
+    return {
+      hosts: state.hosts.length,
+      projects: state.projects.length,
+    }
   },
-}
-
-function ensureColumn(db: SqliteDatabase, table: string, column: string, definition: string) {
-  const columns = db.prepare(`pragma table_info(${table})`).all() as Array<{ name: string }>
-  if (!columns.some((item) => item.name === column)) {
-    db.exec(`alter table ${table} add column ${column} ${definition}`)
-  }
 }

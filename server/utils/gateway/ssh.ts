@@ -5,7 +5,7 @@ import { Client } from 'ssh2'
 import type { HostRecord } from '~~/shared/types'
 import { codexRemoteAppServerVerifyPayload, remoteLoginShellCommand } from './remote-command'
 
-type HostWithSecret = HostRecord & { password?: string | null }
+type HostWithSecret = HostRecord
 
 export interface CommandResult {
   code: number | null
@@ -38,7 +38,9 @@ export class HostManager {
           port: host.port ?? resolved.port,
           agent: host.authMode === 'agent' ? process.env.SSH_AUTH_SOCK : undefined,
           password: host.authMode === 'password' ? host.password ?? undefined : undefined,
-          privateKey: resolved.privateKeyPath
+          privateKey: host.privateKey
+            ? Buffer.from(host.privateKey)
+            : resolved.privateKeyPath
             ? readFileSync(expandHome(resolved.privateKeyPath))
             : undefined,
           readyTimeout: 15_000,

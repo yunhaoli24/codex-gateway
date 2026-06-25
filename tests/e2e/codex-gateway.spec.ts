@@ -12,7 +12,7 @@ test('connects gateway to a local Codex app-server and lists/starts a thread', a
     await page.goto('/')
     await expect(page.getByTestId('app-ready')).toBeAttached()
     await expect(page.getByText('新聊天')).toBeVisible()
-    await expect(page.getByPlaceholder('输入后续修改要求')).toBeVisible()
+    await expect(page.getByPlaceholder('输入后续修改要求')).toBeHidden()
 
     await page.getByTestId('settings-toggle').click()
     await page.getByTestId('host-name-input').fill('local-codex')
@@ -30,6 +30,7 @@ test('connects gateway to a local Codex app-server and lists/starts a thread', a
     await page.getByTestId(`verify-host-button-${host.id}`).click()
     await expect(page.getByText(`Connected to ${codex.url}`)).toBeVisible()
 
+    await page.getByTestId('settings-toggle').click()
     await page.getByTestId('project-name-input').fill('codex-gateway')
     await page.getByTestId('project-path-input').fill(process.cwd())
     await page.getByTestId('add-project-button').click()

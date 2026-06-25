@@ -2,28 +2,56 @@
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
   Clock3Icon,
+  ComputerIcon,
   FolderIcon,
   GripIcon,
   LayoutPanelLeftIcon,
+  Loader2Icon,
   PencilIcon,
   SearchIcon,
+  ServerIcon,
   SettingsIcon,
+  StarIcon,
+  Trash2Icon,
+  WifiIcon,
 } from '@lucide/vue'
 import { storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useGatewayStore } from '@/stores/gateway'
 
 const store = useGatewayStore()
 const { t } = useI18n()
-const { threads, projects, selectedHostId, selectedProjectId, selectedThreadId } = storeToRefs(store)
+const { hosts, threads, projects, pinnedThreads, openingPinnedThreadKey, runningThreadKeySet, selectedHostId, selectedProjectId, selectedThreadId } = storeToRefs(store)
 const showSettings = ref(false)
+const verifyingHostId = ref<number | null>(null)
+const verifyResults = ref<Record<number, { ok?: boolean, message: string }>>({})
+const expandedHostIds = ref<Set<number>>(new Set())
+const expandedProjectIds = ref<Set<number>>(new Set())
+const renamingThreadId = ref<string | null>(null)
+const renameValue = ref('')
 
-const visibleProjects = computed(() => projects.value.filter((project) => project.hostId === selectedHostId.value))
-const projectThreads = computed(() => threads.value.slice(0, 20))
-
+const projectThreads = computed(() => threads.value.filter((thread) => !thread.pinned).slice(0, 20))
+const projectsByHost = computed(() => {
+  const byHost = new Map<number, typeof projects.value>()
+  for (const project of projects.value) {
+    const group = byHost.get(project.hostId) ?? []
+    group.push(project)
+    byHost.set(project.hostId, group)
+  }
+  return byHost
+})
 function formatRelative(seconds?: number | null) {
   if (!seconds) return ''
   const diff = Math.max(1, Math.floor(Date.now() / 1000 - seconds))
@@ -37,13 +65,130 @@ function openThread(threadId: string) {
   void store.openThread(threadId)
 }
 
-function selectProject(projectId: number) {
-  void store.selectProject(projectId)
+function openPinnedThread(thread: any) {
+  void store.openPinnedThread(thread)
 }
+
+function selectHost(hostId: number) {
+  const next = new Set(expandedHostIds.value)
+  if (next.has(hostId)) {
+    next.delete(hostId)
+  } else {
+    next.add(hostId)
+  }
+  expandedHostIds.value = next
+  if (hostId !== selectedHostId.value) {
+    void store.selectHost(hostId)
+  }
+}
+
+function selectProject(projectId: number) {
+  const next = new Set(expandedProjectIds.value)
+  if (next.has(projectId)) {
+    next.delete(projectId)
+  } else {
+    next.add(projectId)
+  }
+  expandedProjectIds.value = next
+  if (projectId !== selectedProjectId.value) {
+    void store.selectProject(projectId)
+  }
+}
+
+async function verifyHost(hostId: number) {
+  verifyingHostId.value = hostId
+  try {
+    const result = await store.verifyHost(hostId) as any
+    verifyResults.value[hostId] = {
+      ok: Boolean(result.ok),
+      message: result.stdout || result.stderr || (result.ok ? t('app.connected') : t('app.verifyFailed')),
+    }
+  } catch (error: any) {
+    verifyResults.value[hostId] = {
+      ok: false,
+      message: error?.data?.message || error?.message || t('app.verifyFailed'),
+    }
+  } finally {
+    verifyingHostId.value = null
+  }
+}
+
+async function deleteHost(hostId: number) {
+  await store.deleteHost(hostId)
+}
+
+function titleForThread(thread: any) {
+  return thread.title || thread.name || thread.preview || thread.id
+}
+
+function subtitleForPinnedThread(thread: any) {
+  return [thread.hostName, thread.projectName].filter(Boolean).join(' / ')
+}
+
+function pinnedThreadKey(thread: any) {
+  return `${thread.hostId}:${thread.threadId}`
+}
+
+function currentThreadKey(threadId: string) {
+  return selectedHostId.value ? `${selectedHostId.value}:${threadId}` : ''
+}
+
+function isPinnedOpeningOrRunning(thread: any) {
+  const key = pinnedThreadKey(thread)
+  return openingPinnedThreadKey.value === key || runningThreadKeySet.value.has(key)
+}
+
+function startInlineRename(thread: any) {
+  renamingThreadId.value = String(thread.threadId || thread.id)
+  renameValue.value = titleForThread(thread)
+  void nextTick(() => {
+    document.querySelector<HTMLInputElement>('[data-testid="rename-thread-input"]')?.focus()
+  })
+}
+
+async function submitRename() {
+  const threadId = renamingThreadId.value ?? ''
+  const name = renameValue.value.trim()
+  if (!threadId || !name) {
+    cancelRename()
+    return
+  }
+  const thread = threads.value.find((candidate) => String(candidate.id) === threadId)
+    || pinnedThreads.value.find((candidate) => String(candidate.threadId) === threadId)
+  if (thread && titleForThread(thread) === name) {
+    cancelRename()
+    return
+  }
+  await store.renameThread(threadId, name)
+  renamingThreadId.value = null
+  renameValue.value = ''
+}
+
+function cancelRename() {
+  renamingThreadId.value = null
+  renameValue.value = ''
+}
+
+function handleRenameKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    cancelRename()
+  }
+}
+
+watch(selectedHostId, (hostId) => {
+  if (!hostId) return
+  expandedHostIds.value = new Set(expandedHostIds.value).add(hostId)
+}, { immediate: true })
+
+watch(selectedProjectId, (projectId) => {
+  if (!projectId) return
+  expandedProjectIds.value = new Set(expandedProjectIds.value).add(projectId)
+}, { immediate: true })
 </script>
 
 <template>
-  <aside class="flex min-h-0 flex-col border-r border-black/10 bg-[#dcecf4]">
+  <aside class="relative flex min-h-0 flex-col border-r border-black/10 bg-[#dcecf4]">
     <div class="flex h-[62px] shrink-0 items-center gap-4 px-5 text-[#60676c]">
       <div class="flex gap-2">
         <span class="size-3.5 rounded-full bg-[#ff605c]" />
@@ -76,58 +221,214 @@ function selectProject(projectId: number) {
 
     <ScrollArea class="min-h-0 flex-1 px-3">
       <div class="space-y-5 pb-4">
-        <section>
-          <div class="px-2 pb-2 text-sm text-[#8c969c]">{{ t('app.projects') }}</div>
-          <Button
-            v-for="project in visibleProjects"
-            :key="project.id"
-            :data-testid="`project-button-${project.id}`"
-            variant="ghost"
-            class="h-10 w-full justify-between rounded-lg px-3 text-[15px] font-normal hover:bg-black/5"
-            :class="project.id === selectedProjectId ? 'bg-[#c7ddeb]' : ''"
-            @click="selectProject(project.id)"
-          >
-            <span class="flex min-w-0 items-center gap-2">
-              <FolderIcon class="size-4 shrink-0" />
-              <span class="truncate">{{ project.name }}</span>
-            </span>
-            <span class="size-2 rounded-full bg-emerald-500" />
-          </Button>
-          <div v-if="!visibleProjects.length" class="rounded-lg px-3 py-2 text-xs text-[#8c969c]">
-            {{ t('app.noProjects') }}
+        <section v-if="pinnedThreads.length">
+          <div class="px-2 pb-2 text-sm text-[#8c969c]">{{ t('app.pinned') }}</div>
+          <div class="space-y-1">
+            <template
+              v-for="thread in pinnedThreads"
+              :key="pinnedThreadKey(thread)"
+            >
+              <div v-if="renamingThreadId === String(thread.threadId)" class="rounded-lg px-3 py-2">
+                <Input
+                  v-model="renameValue"
+                  data-testid="rename-thread-input"
+                  class="h-7 min-w-0 bg-white/80"
+                  @keydown="handleRenameKeydown"
+                  @keydown.enter.prevent="submitRename"
+                  @blur="submitRename"
+                />
+              </div>
+              <ContextMenu v-else>
+                <ContextMenuTrigger as-child>
+                  <Button
+                    :data-testid="`pinned-thread-button-${thread.threadId}`"
+                    variant="ghost"
+                    class="h-auto min-h-10 w-full justify-between rounded-lg px-3 py-2 text-[14px] font-normal hover:bg-black/5"
+                    :class="thread.threadId === selectedThreadId && thread.hostId === selectedHostId ? 'bg-[#c7ddeb]' : ''"
+                    @click="openPinnedThread(thread)"
+                  >
+                    <span class="min-w-0 text-left">
+                      <span class="flex min-w-0 items-center gap-1.5">
+                        <StarIcon class="size-3.5 shrink-0 fill-current text-amber-500" />
+                        <span class="block truncate">{{ titleForThread(thread) }}</span>
+                      </span>
+                      <span class="block truncate text-xs text-[#7e878d]">{{ subtitleForPinnedThread(thread) || formatRelative(thread.updatedAt) }}</span>
+                    </span>
+                    <Loader2Icon v-if="isPinnedOpeningOrRunning(thread)" class="size-3.5 shrink-0 animate-spin text-[#7e878d]" />
+                  </Button>
+                </ContextMenuTrigger>
+                <ContextMenuContent class="w-40">
+                  <ContextMenuItem @select="store.setPinnedThread(thread, false)">
+                    {{ t('app.unpinThread') }}
+                  </ContextMenuItem>
+                  <ContextMenuItem @select="startInlineRename(thread)">
+                    {{ t('app.renameThread') }}
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+            </template>
           </div>
         </section>
 
         <section>
-          <div class="px-2 pb-2 text-sm text-[#8c969c]">{{ t('app.threadList') }}</div>
-          <Button
-            v-for="thread in projectThreads"
-            :key="thread.id"
-            :data-testid="`thread-button-${thread.id}`"
-            variant="ghost"
-            class="h-auto min-h-10 w-full justify-between rounded-lg px-3 py-2 text-[15px] font-normal hover:bg-black/5"
-            :class="thread.id === selectedThreadId ? 'bg-[#c7ddeb]' : ''"
-            @click="openThread(String(thread.id))"
-          >
-            <span class="min-w-0 text-left">
-              <span class="block truncate">{{ thread.name || thread.preview || thread.id }}</span>
-              <span class="block truncate text-xs text-[#7e878d]">{{ formatRelative(thread.updatedAt) }}</span>
-            </span>
-          </Button>
-          <div v-if="!projectThreads.length" class="rounded-lg px-3 py-2 text-xs leading-5 text-[#8c969c]">
-            <div>{{ selectedProjectId ? t('app.noThreads') : t('app.selectProjectFirst') }}</div>
-            <div>{{ t('app.refreshThreadsHint') }}</div>
+          <div class="px-2 pb-2 text-sm text-[#8c969c]">{{ t('app.hosts') }}</div>
+          <div class="space-y-1">
+            <div
+              v-for="host in hosts"
+              :key="host.id"
+              class="rounded-lg"
+            >
+              <div class="flex items-center gap-1">
+                <Button
+                  :data-testid="`host-button-${host.id}`"
+                  variant="ghost"
+                  class="h-11 min-w-0 flex-1 justify-start gap-2 rounded-lg px-3 text-left text-[15px] font-normal hover:bg-black/5"
+                  :class="host.id === selectedHostId ? 'bg-[#c7ddeb]' : ''"
+                  @click="selectHost(host.id)"
+                >
+                  <ChevronDownIcon v-if="expandedHostIds.has(host.id)" class="size-3.5 shrink-0 text-[#7e878d]" />
+                  <ChevronRightIcon v-else class="size-3.5 shrink-0 text-[#7e878d]" />
+                  <ComputerIcon v-if="host.appServerMode === 'local'" class="size-4 shrink-0" />
+                  <ServerIcon v-else class="size-4 shrink-0" />
+                  <span class="min-w-0">
+                    <span class="block truncate">{{ host.name }}</span>
+                    <span class="block truncate text-xs text-[#7e878d]">{{ host.sshHost }} · {{ host.appServerMode }}</span>
+                  </span>
+                </Button>
+                <Button
+                  :data-testid="`verify-host-button-${host.id}`"
+                  variant="ghost"
+                  size="sm"
+                  class="size-8 shrink-0 p-0"
+                  :aria-label="t('app.verifyHost')"
+                  :disabled="verifyingHostId === host.id"
+                  @click="verifyHost(host.id)"
+                >
+                  <Loader2Icon v-if="verifyingHostId === host.id" class="size-4 animate-spin" />
+                  <WifiIcon v-else class="size-4" />
+                </Button>
+                <Button
+                  v-if="host.appServerMode !== 'local'"
+                  variant="ghost"
+                  size="sm"
+                  class="size-8 shrink-0 p-0 text-red-600 hover:text-red-700"
+                  :aria-label="t('app.deleteHost')"
+                  @click="deleteHost(host.id)"
+                >
+                  <Trash2Icon class="size-4" />
+                </Button>
+              </div>
+              <div
+                v-if="verifyResults[host.id]"
+                class="truncate px-3 pb-2 text-[11px]"
+                :class="verifyResults[host.id].ok ? 'text-emerald-700' : 'text-red-700'"
+              >
+                {{ verifyResults[host.id].message }}
+              </div>
+
+              <div v-if="expandedHostIds.has(host.id)" class="mt-1 space-y-1 pl-5">
+                <div
+                  v-for="project in projectsByHost.get(host.id) ?? []"
+                  :key="project.id"
+                  class="space-y-1"
+                >
+                  <Button
+                    :data-testid="`project-button-${project.id}`"
+                    variant="ghost"
+                    class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[15px] font-normal hover:bg-black/5"
+                    :class="project.id === selectedProjectId ? 'bg-[#c7ddeb]' : ''"
+                    @click="selectProject(project.id)"
+                  >
+                    <ChevronDownIcon v-if="expandedProjectIds.has(project.id)" class="size-3.5 shrink-0 text-[#7e878d]" />
+                    <ChevronRightIcon v-else class="size-3.5 shrink-0 text-[#7e878d]" />
+                    <FolderIcon class="size-4 shrink-0" />
+                    <span class="truncate">{{ project.name }}</span>
+                    <span class="ml-auto size-2 shrink-0 rounded-full bg-emerald-500" />
+                  </Button>
+
+                  <div v-if="expandedProjectIds.has(project.id)" class="space-y-1 pl-7">
+                    <template v-if="project.id === selectedProjectId && projectThreads.length">
+                      <template
+                        v-for="thread in projectThreads"
+                        :key="thread.id"
+                      >
+                        <div v-if="renamingThreadId === String(thread.id)" class="rounded-lg px-3 py-1">
+                          <Input
+                            v-model="renameValue"
+                            data-testid="rename-thread-input"
+                            class="h-7 min-w-0 bg-white/80"
+                            @keydown="handleRenameKeydown"
+                            @keydown.enter.prevent="submitRename"
+                            @blur="submitRename"
+                          />
+                        </div>
+                        <ContextMenu v-else>
+                          <ContextMenuTrigger as-child>
+                            <Button
+                              :data-testid="`thread-button-${thread.id}`"
+                              variant="ghost"
+                              class="h-auto min-h-9 w-full justify-between rounded-lg px-3 py-2 text-[14px] font-normal hover:bg-black/5"
+                              :class="thread.id === selectedThreadId ? 'bg-[#c7ddeb]' : ''"
+                              @click="openThread(String(thread.id))"
+                            >
+                              <span class="min-w-0 text-left">
+                                <span class="flex min-w-0 items-center gap-1.5">
+                                  <StarIcon v-if="thread.pinned" class="size-3.5 shrink-0 fill-current text-amber-500" />
+                                  <span class="block truncate">{{ titleForThread(thread) }}</span>
+                                </span>
+                                <span class="block truncate text-xs text-[#7e878d]">{{ formatRelative(thread.updatedAt) }}</span>
+                              </span>
+                              <Loader2Icon v-if="runningThreadKeySet.has(currentThreadKey(String(thread.id)))" class="size-3.5 shrink-0 animate-spin text-[#7e878d]" />
+                            </Button>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent class="w-40">
+                            <ContextMenuItem @select="store.setThreadPinned(String(thread.id), !thread.pinned)">
+                              {{ thread.pinned ? t('app.unpinThread') : t('app.pinThread') }}
+                            </ContextMenuItem>
+                            <ContextMenuItem @select="startInlineRename(thread)">
+                              {{ t('app.renameThread') }}
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
+                      </template>
+                    </template>
+                    <div v-else-if="project.id === selectedProjectId" class="rounded-lg px-3 py-2 text-xs leading-5 text-[#8c969c]">
+                      <div>{{ t('app.noThreads') }}</div>
+                      <div>{{ t('app.refreshThreadsHint') }}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="!(projectsByHost.get(host.id) ?? []).length" class="rounded-lg px-3 py-2 text-xs text-[#8c969c]">
+                  {{ t('app.noProjects') }}
+                </div>
+              </div>
+            </div>
           </div>
         </section>
+
       </div>
     </ScrollArea>
 
-    <div class="shrink-0 space-y-2 border-t border-black/10 p-3">
+    <div class="shrink-0 border-t border-black/10 p-3">
       <Button data-testid="settings-toggle" variant="ghost" class="h-10 w-full justify-start gap-3 rounded-lg px-3 text-[15px] font-normal hover:bg-black/5" @click="showSettings = !showSettings">
         <SettingsIcon class="size-4" />
         {{ t('app.settings') }}
       </Button>
-      <SettingsPanel v-if="showSettings" />
     </div>
+
+    <button
+      v-if="showSettings"
+      type="button"
+      class="absolute inset-0 z-20 cursor-default bg-transparent"
+      aria-label="关闭设置"
+      @click="showSettings = false"
+    />
+    <SettingsPanel
+      v-if="showSettings"
+      class="absolute bottom-[68px] left-4 right-4 z-30 max-h-[min(760px,calc(100vh-92px))] overflow-y-auto"
+      @close="showSettings = false"
+    />
+
   </aside>
 </template>

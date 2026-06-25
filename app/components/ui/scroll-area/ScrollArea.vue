@@ -18,6 +18,7 @@ const delegatedProps = reactiveOmit(props, "class")
 <template>
   <ScrollAreaRoot
     data-slot="scroll-area"
+    type="always"
     v-bind="delegatedProps"
     :class="cn('relative', props.class)"
   >

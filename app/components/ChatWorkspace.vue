@@ -32,7 +32,10 @@ const {
   history,
   events,
   status,
+  initializing,
   loading,
+  loadingOlderTurns,
+  olderTurnsCursor,
   error,
 } = storeToRefs(store)
 
@@ -101,8 +104,26 @@ function scrollToBottom() {
   })
 }
 
+async function loadOlderTurns() {
+  const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value
+  const viewport = root?.querySelector?.('[data-slot="scroll-area-viewport"]') as HTMLElement | null
+  const previousHeight = viewport?.scrollHeight ?? 0
+  await store.loadOlderTurns()
+  await nextTick()
+  if (viewport) {
+    viewport.scrollTop += viewport.scrollHeight - previousHeight
+  }
+}
+
+function handleScroll(event: Event) {
+  const viewport = event.target as HTMLElement
+  if (viewport.scrollTop <= 80 && olderTurnsCursor.value && !loadingOlderTurns.value) {
+    void loadOlderTurns()
+  }
+}
+
 watch(
-  () => [selectedThreadId.value, threadItems.value.length, events.value.length],
+  () => [selectedThreadId.value, events.value.length],
   scrollToBottom,
   { flush: 'post' },
 )
@@ -130,9 +151,19 @@ watch(
     </header>
 
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <ScrollArea ref="scrollAreaRef" data-testid="chat-scroll-area" class="h-full min-h-0 flex-1 overflow-hidden">
+      <ScrollArea ref="scrollAreaRef" data-testid="chat-scroll-area" class="h-full min-h-0 flex-1 overflow-hidden" @scroll.capture="handleScroll">
         <div class="mx-auto flex min-h-[calc(100vh-260px)] max-w-[1020px] flex-col gap-8 px-8 py-12">
-          <div v-if="threadItems.length" class="space-y-8">
+          <div v-if="!initializing && selectedThreadId && olderTurnsCursor" class="flex justify-center">
+            <Button data-testid="load-older-turns-button" variant="outline" size="sm" :disabled="loadingOlderTurns" @click="loadOlderTurns">
+              {{ loadingOlderTurns ? t('app.loadingOlder') : t('app.loadOlder') }}
+            </Button>
+          </div>
+
+          <div v-if="initializing" class="mx-auto flex min-h-[320px] max-w-[760px] items-center justify-center text-[15px] text-[#7d858b]">
+            {{ t('app.loadingGateway') }}
+          </div>
+
+          <div v-else-if="threadItems.length" class="space-y-8">
             <ThreadItemView
               v-for="item in threadItems"
               :key="item.id || `${item.type}-${JSON.stringify(item).length}`"
@@ -143,12 +174,12 @@ watch(
           <div v-else class="ml-auto max-w-[760px] rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[15px] leading-7 text-[#202225]">
             <div class="mb-2 flex items-center gap-2 text-[#7d858b]">
               <FolderIcon class="size-4" />
-              {{ t('app.selectProjectFirst') }}
+              {{ selectedProjectId ? t('app.selectThreadFirst') : t('app.selectProjectFirst') }}
             </div>
-            {{ t('app.noThread') }}
+            {{ selectedProjectId ? t('app.noThread') : t('app.chooseProject') }}
           </div>
 
-          <div v-if="loading" class="max-w-[720px] text-[15px] text-[#a5a9ad]">
+          <div v-if="loading && !initializing && selectedThreadId" class="max-w-[720px] text-[15px] text-[#a5a9ad]">
             {{ t('app.thinking') }}
           </div>
 
@@ -158,7 +189,7 @@ watch(
         </div>
       </ScrollArea>
 
-      <div class="shrink-0 bg-gradient-to-t from-white via-white to-white/75 px-8 pb-5">
+      <div v-if="selectedThreadId" class="shrink-0 bg-gradient-to-t from-white via-white to-white/75 px-8 pb-5">
         <div class="mx-auto max-w-[760px]">
           <div v-if="activeEvents.length" class="mb-3 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-[#6f767d] shadow-sm">
             <CircleIcon class="size-3.5 text-sky-300" />

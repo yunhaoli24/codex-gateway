@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { FolderIcon, FolderOpenIcon, PlusIcon } from '@lucide/vue'
+import { ClipboardPasteIcon, EyeIcon, FolderIcon, FolderOpenIcon, PlusIcon } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import type { HTMLAttributes } from 'vue'
 import type { RemoteDirectoryEntry } from '~~/shared/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,8 +14,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 import { useGatewayStore } from '@/stores/gateway'
 
+const props = defineProps<{ class?: HTMLAttributes['class'] }>()
+const emit = defineEmits<{ close: [] }>()
 const store = useGatewayStore()
 const { selectedHostId } = storeToRefs(store)
 const { t } = useI18n()
@@ -26,12 +31,15 @@ const hostForm = ref({
   port: null as number | null,
   authMode: 'agent',
   privateKeyPath: '',
+  privateKey: '',
   password: '',
   appServerMode: 'stdio',
   appServerUrl: '',
 })
 
 const projectForm = ref({ name: '', remotePath: '' })
+const configText = ref('')
+const configError = ref('')
 const directoryPath = ref('~')
 const directories = ref<RemoteDirectoryEntry[]>([])
 const directoryError = ref('')
@@ -43,6 +51,7 @@ async function createHost() {
     ...hostForm.value,
     username: hostForm.value.username || null,
     privateKeyPath: hostForm.value.privateKeyPath || null,
+    privateKey: hostForm.value.privateKey || null,
     password: hostForm.value.password || null,
     port: hostForm.value.port ? Number(hostForm.value.port) : null,
     appServerUrl: hostForm.value.appServerUrl || null,
@@ -54,9 +63,26 @@ async function createHost() {
     port: null,
     authMode: 'agent',
     privateKeyPath: '',
+    privateKey: '',
     password: '',
     appServerMode: 'stdio',
     appServerUrl: '',
+  }
+  emit('close')
+}
+
+function showConfig() {
+  configError.value = ''
+  configText.value = store.exportConfigText()
+}
+
+async function importConfig() {
+  configError.value = ''
+  try {
+    await store.importConfigText(configText.value)
+    emit('close')
+  } catch (error: any) {
+    configError.value = error?.data?.message || error?.message || t('app.importConfigFailed')
   }
 }
 
@@ -68,6 +94,7 @@ async function createProject() {
     remotePath: projectForm.value.remotePath,
   })
   projectForm.value = { name: '', remotePath: '' }
+  emit('close')
 }
 
 async function browseDirectories() {
@@ -96,11 +123,7 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
 </script>
 
 <template>
-  <div class="space-y-4 rounded-xl bg-white/45 p-3 text-xs shadow-sm ring-1 ring-black/5">
-    <HostManagerPanel />
-
-    <Separator />
-
+  <div :class="cn('space-y-4 rounded-xl bg-white/90 p-3 text-xs shadow-xl ring-1 ring-black/10 backdrop-blur-md', props.class)">
     <div class="space-y-2">
       <div class="font-medium">{{ t('app.addHost') }}</div>
       <Input v-model="hostForm.name" data-testid="host-name-input" :aria-label="t('app.hostName')" :placeholder="t('app.hostName')" />
@@ -124,6 +147,13 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
         v-model="hostForm.privateKeyPath"
         :aria-label="t('app.privateKeyPath')"
         :placeholder="t('app.privateKeyPath')"
+      />
+      <Textarea
+        v-if="hostForm.authMode === 'privateKey'"
+        v-model="hostForm.privateKey"
+        class="min-h-20 bg-white/70 font-mono text-[11px]"
+        :aria-label="t('app.privateKey')"
+        :placeholder="t('app.privateKey')"
       />
       <Input
         v-if="hostForm.authMode === 'password'"
@@ -152,6 +182,29 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
         <PlusIcon class="size-3.5" />
         {{ t('app.addHost') }}
       </Button>
+    </div>
+
+    <Separator />
+
+    <div class="space-y-2">
+      <div class="font-medium">{{ t('app.configJson') }}</div>
+      <Textarea
+        v-model="configText"
+        data-testid="config-json-textarea"
+        class="min-h-28 bg-white/70 font-mono text-[11px]"
+        :placeholder="t('app.configJsonPlaceholder')"
+      />
+      <div v-if="configError" class="rounded-md bg-red-50 p-2 text-[11px] text-red-700">{{ configError }}</div>
+      <div class="grid grid-cols-2 gap-2">
+        <Button variant="secondary" size="sm" @click="showConfig">
+          <EyeIcon class="size-3.5" />
+          {{ t('app.viewConfig') }}
+        </Button>
+        <Button size="sm" :disabled="!configText.trim()" @click="importConfig">
+          <ClipboardPasteIcon class="size-3.5" />
+          {{ t('app.importConfig') }}
+        </Button>
+      </div>
     </div>
 
     <Separator />

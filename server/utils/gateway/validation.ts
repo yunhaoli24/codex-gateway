@@ -16,6 +16,7 @@ export const hostCreateSchema = z.object({
   ),
   authMode: z.enum(['agent', 'privateKey', 'password']).default('agent'),
   privateKeyPath: z.string().trim().nullable().optional(),
+  privateKey: z.string().nullable().optional(),
   password: z.string().nullable().optional(),
   appServerMode: z.enum(['local', 'stdio', 'websocket']).default('stdio'),
   appServerUrl: z.string().trim().nullable().optional(),
@@ -25,6 +26,31 @@ export const projectCreateSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   name: z.string().trim().min(1),
   remotePath: z.string().trim().min(1),
+})
+
+export const gatewayConfigSchema = z.object({
+  version: z.literal(1).default(1),
+  hosts: z.array(hostCreateSchema.extend({
+    id: z.coerce.number().int().positive(),
+    hasPassword: z.boolean().optional(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+  })).default([]),
+  pinnedThreads: z.array(z.object({
+    hostId: z.coerce.number().int().positive(),
+    projectId: optionalPositiveInt.nullable().optional(),
+    threadId: z.string().trim().min(1),
+    title: z.string().trim().min(1),
+    subtitle: z.string().trim().nullable().optional(),
+    hostName: z.string().trim().min(1),
+    projectName: z.string().trim().nullable().optional(),
+    updatedAt: z.coerce.number().nullable().optional(),
+  })).default([]),
+  lastOpenThread: z.object({
+    hostId: z.coerce.number().int().positive(),
+    projectId: optionalPositiveInt.nullable().optional(),
+    threadId: z.string().trim().min(1),
+  }).nullable().optional(),
 })
 
 export const remoteDirectoryListSchema = z.object({
@@ -45,11 +71,21 @@ export const threadOpenSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   projectId: optionalPositiveInt,
   threadId: z.string().trim().min(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 })
 
-export const threadReadSchema = z.object({
+export const threadTurnsListSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   threadId: z.string().trim().min(1),
+  cursor: z.string().trim().nullable().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  sortDirection: z.enum(['asc', 'desc']).default('desc'),
+})
+
+export const threadRenameSchema = z.object({
+  hostId: z.coerce.number().int().positive(),
+  threadId: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(200),
 })
 
 export const threadStartSchema = z.object({

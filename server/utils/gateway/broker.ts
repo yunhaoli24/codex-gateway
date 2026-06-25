@@ -4,6 +4,24 @@ import { CodexRpcClient } from './rpc'
 
 type Subscriber = (event: GatewayEvent) => void
 
+const DEFAULT_TURN_PAGE_LIMIT = 20
+
+interface TurnsPage {
+  data?: any[]
+  nextCursor?: string | null
+  backwardsCursor?: string | null
+}
+
+function pageToHistory(thread: any, page: TurnsPage) {
+  const turns = [...(page.data ?? [])].reverse()
+  return {
+    thread: {
+      ...thread,
+      turns,
+    },
+  }
+}
+
 class ThreadController {
   readonly client: CodexRpcClient
   readonly subscribers = new Set<Subscriber>()
@@ -111,14 +129,30 @@ class ThreadController {
 class ThreadBroker {
   private controllers = new Map<string, ThreadController>()
 
-  async openThread(host: HostRecord, threadId: string, projectId: number | null) {
+  async openThread(host: HostRecord, threadId: string, projectId: number | null, limit = DEFAULT_TURN_PAGE_LIMIT) {
     const controller = await this.getController(host, threadId)
-    const thread = await controller.enqueue(() => controller.client.request<any>('thread/resume', { threadId }))
+    const resume = await controller.enqueue(() => controller.client.request<any>('thread/resume', {
+      threadId,
+      excludeTurns: true,
+      initialTurnsPage: {
+        limit,
+        sortDirection: 'desc',
+        itemsView: 'full',
+      },
+    }))
+    const thread = resume.thread ?? resume
+    const initialTurnsPage = resume.initialTurnsPage
+    if (!initialTurnsPage) {
+      throw new Error('thread/resume did not return initialTurnsPage')
+    }
     persistence.recordThread(host.id, projectId, thread.thread ?? thread)
-    const history = await this.readHistoryOrEmpty(controller, thread.thread ?? thread)
     return {
-      thread: thread.thread ?? thread,
-      history,
+      thread,
+      history: pageToHistory(thread, initialTurnsPage),
+      turnsPage: {
+        nextCursor: initialTurnsPage.nextCursor ?? null,
+        backwardsCursor: initialTurnsPage.backwardsCursor ?? null,
+      },
       recentEvents: persistence.listGatewayEvents(host.id, threadId, 0, 200),
     }
   }
@@ -143,6 +177,10 @@ class ThreadBroker {
       return {
         thread,
         history: { thread: { ...thread, turns: thread.turns ?? [] } },
+        turnsPage: {
+          nextCursor: null,
+          backwardsCursor: null,
+        },
         recentEvents: persistence.listGatewayEvents(host.id, threadId, 0, 200).concat(controller.buffer),
       }
     } catch (error) {
@@ -171,9 +209,31 @@ class ThreadBroker {
     }
   }
 
-  async readThread(host: HostRecord, threadId: string) {
+  async renameThread(host: HostRecord, threadId: string, name: string) {
     const controller = await this.getController(host, threadId)
-    return controller.enqueue(() => controller.client.request('thread/read', { threadId, includeTurns: true }))
+    return controller.enqueue(() => controller.client.request('thread/name/set', { threadId, name }))
+  }
+
+  async listThreadTurns(host: HostRecord, threadId: string, params: {
+    cursor?: string | null
+    limit?: number
+    sortDirection?: 'asc' | 'desc'
+  }) {
+    const controller = await this.getController(host, threadId)
+    const page = await controller.enqueue(() => controller.client.request<TurnsPage>('thread/turns/list', {
+      threadId,
+      cursor: params.cursor ?? null,
+      limit: params.limit ?? DEFAULT_TURN_PAGE_LIMIT,
+      sortDirection: params.sortDirection ?? 'desc',
+      itemsView: 'full',
+    }))
+    return {
+      history: pageToHistory({ id: threadId }, page),
+      turnsPage: {
+        nextCursor: page.nextCursor ?? null,
+        backwardsCursor: page.backwardsCursor ?? null,
+      },
+    }
   }
 
   async getController(host: HostRecord, threadId: string) {
@@ -208,21 +268,6 @@ class ThreadBroker {
 
   private key(hostId: number, threadId: string) {
     return `${hostId}:${threadId}`
-  }
-
-  private async readHistoryOrEmpty(controller: ThreadController, thread: any) {
-    try {
-      return await controller.enqueue(() => controller.client.request<any>('thread/read', {
-        threadId: controller.threadId,
-        includeTurns: true,
-      }))
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.includes('no rollout found')) {
-        return { thread: { ...thread, turns: thread.turns ?? [] } }
-      }
-      throw error
-    }
   }
 }
 
