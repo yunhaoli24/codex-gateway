@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import {
   CircleIcon,
+  CheckIcon,
   FolderIcon,
   ListRestartIcon,
+  Loader2Icon,
   MoreHorizontalIcon,
   PinIcon,
   PlayIcon,
   PlusIcon,
   SendIcon,
   SettingsIcon,
-  SquareIcon,
 } from '@lucide/vue'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, watch } from 'vue'
@@ -38,6 +39,7 @@ const {
   olderTurnsCursor,
   error,
   scrollToLatestToken,
+  selectedThreadStatus,
 } = storeToRefs(store)
 
 const model = ref('')
@@ -64,6 +66,16 @@ const threadItems = computed(() => {
 
 const visibleEvents = computed(() => events.value.filter((event) => shouldShowEvent(event.method)))
 const activeEvents = computed(() => visibleEvents.value.slice(-8))
+const isThreadRunning = computed(() => selectedThreadStatus.value === 'running')
+const canSendTurn = computed(() => Boolean(selectedThreadId.value && turnText.value.trim() && !isThreadRunning.value))
+const sendButtonLabel = computed(() => {
+  if (isThreadRunning.value) return '运行中'
+  if (turnText.value.trim()) return t('app.send')
+  if (selectedThreadStatus.value === 'completed') return '已完成'
+  if (selectedThreadStatus.value === 'failed') return '失败'
+  if (selectedThreadStatus.value === 'interrupted') return '已中断'
+  return t('app.send')
+})
 
 function eventLabel(method: string) {
   if (method.includes('command') || method.includes('process')) return t('app.runningCommand')
@@ -232,7 +244,7 @@ watch(
               v-model="turnText"
               class="min-h-20 border-0 bg-transparent px-1 text-base shadow-none ring-0 focus-visible:ring-0"
               :placeholder="t('app.askFollowUp')"
-              :disabled="!selectedThreadId"
+              :disabled="!selectedThreadId || isThreadRunning"
               @keydown="handleComposerKeydown"
             />
             <div class="flex items-center justify-between pt-2">
@@ -246,12 +258,14 @@ watch(
                 <Button
                   data-testid="send-turn-button"
                   class="size-9 rounded-full bg-[#171b1f] p-0 hover:bg-[#171b1f]/90"
-                  :aria-label="t('app.send')"
-                  :disabled="!selectedThreadId || !turnText.trim()"
+                  :aria-label="sendButtonLabel"
+                  :disabled="!canSendTurn"
                   @click="sendTurn"
                 >
-                  <SendIcon v-if="turnText.trim()" class="size-4" />
-                  <SquareIcon v-else class="size-4 fill-white" />
+                  <Loader2Icon v-if="isThreadRunning" class="size-4 animate-spin" />
+                  <SendIcon v-else-if="turnText.trim()" class="size-4" />
+                  <CheckIcon v-else-if="selectedThreadStatus === 'completed'" class="size-4" />
+                  <SendIcon v-else class="size-4 opacity-60" />
                 </Button>
               </div>
             </div>

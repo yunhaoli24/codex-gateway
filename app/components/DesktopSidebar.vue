@@ -2,9 +2,12 @@
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  CheckCircle2Icon,
   ChevronDownIcon,
   ChevronRightIcon,
   Clock3Icon,
+  CircleAlertIcon,
+  CirclePauseIcon,
   FolderIcon,
   GripIcon,
   LayoutPanelLeftIcon,
@@ -28,11 +31,11 @@ import {
 } from '@/components/ui/context-menu'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useGatewayStore } from '@/stores/gateway'
+import { type ThreadRuntimeStatus, useGatewayStore } from '@/stores/gateway'
 
 const store = useGatewayStore()
 const { t } = useI18n()
-const { hosts, threads, projects, pinnedThreads, openingPinnedThreadKey, runningThreadKeySet, selectedHostId, selectedProjectId, selectedThreadId } = storeToRefs(store)
+const { hosts, threads, projects, pinnedThreads, openingPinnedThreadKey, threadStatuses, selectedHostId, selectedProjectId, selectedThreadId } = storeToRefs(store)
 const showSettings = ref(false)
 const verifyingHostId = ref<number | null>(null)
 const verifyResults = ref<Record<number, { ok?: boolean, message: string }>>({})
@@ -155,9 +158,32 @@ function threadKey(hostId: number, threadId: string) {
   return `${hostId}:${threadId}`
 }
 
-function isPinnedOpeningOrRunning(thread: any) {
+function threadRuntimeStatus(hostId: number, threadId: string): ThreadRuntimeStatus {
+  return threadStatuses.value[threadKey(hostId, threadId)] ?? 'idle'
+}
+
+function pinnedRuntimeStatus(thread: any): ThreadRuntimeStatus {
   const key = pinnedThreadKey(thread)
-  return openingPinnedThreadKey.value === key || runningThreadKeySet.value.has(key)
+  if (openingPinnedThreadKey.value === key) {
+    return 'running'
+  }
+  return threadRuntimeStatus(thread.hostId, String(thread.threadId))
+}
+
+function statusLabel(status: ThreadRuntimeStatus) {
+  if (status === 'running') return '运行中'
+  if (status === 'completed') return '已完成'
+  if (status === 'failed') return '失败'
+  if (status === 'interrupted') return '已中断'
+  return '空闲'
+}
+
+function statusClass(status: ThreadRuntimeStatus) {
+  if (status === 'running') return 'text-sky-600'
+  if (status === 'completed') return 'text-emerald-600'
+  if (status === 'failed') return 'text-red-600'
+  if (status === 'interrupted') return 'text-amber-600'
+  return 'text-[#9aa1a6]'
 }
 
 function startInlineRename(thread: any) {
@@ -286,7 +312,17 @@ watch(selectedThreadIsPinned, (isPinned) => {
                       </span>
                       <span class="block truncate text-xs text-[#7e878d]">{{ subtitleForPinnedThread(thread) || formatRelative(thread.updatedAt) }}</span>
                     </span>
-                    <Loader2Icon v-if="isPinnedOpeningOrRunning(thread)" class="size-3.5 shrink-0 animate-spin text-[#7e878d]" />
+                    <span
+                      class="ml-2 inline-flex size-4 shrink-0 items-center justify-center"
+                      :class="statusClass(pinnedRuntimeStatus(thread))"
+                      :aria-label="statusLabel(pinnedRuntimeStatus(thread))"
+                    >
+                      <Loader2Icon v-if="pinnedRuntimeStatus(thread) === 'running'" class="size-3.5 animate-spin" />
+                      <CheckCircle2Icon v-else-if="pinnedRuntimeStatus(thread) === 'completed'" class="size-3.5" />
+                      <CircleAlertIcon v-else-if="pinnedRuntimeStatus(thread) === 'failed'" class="size-3.5" />
+                      <CirclePauseIcon v-else-if="pinnedRuntimeStatus(thread) === 'interrupted'" class="size-3.5" />
+                      <span v-else class="size-2 rounded-full bg-current opacity-50" />
+                    </span>
                   </Button>
                 </ContextMenuTrigger>
                 <ContextMenuContent class="w-40">
@@ -408,7 +444,17 @@ watch(selectedThreadIsPinned, (isPinned) => {
                                 </span>
                                 <span class="block truncate text-xs text-[#7e878d]">{{ formatRelative(thread.updatedAt) }}</span>
                               </span>
-                              <Loader2Icon v-if="runningThreadKeySet.has(threadKey(project.hostId, String(thread.id)))" class="size-3.5 shrink-0 animate-spin text-[#7e878d]" />
+                              <span
+                                class="ml-2 inline-flex size-4 shrink-0 items-center justify-center"
+                                :class="statusClass(threadRuntimeStatus(project.hostId, String(thread.id)))"
+                                :aria-label="statusLabel(threadRuntimeStatus(project.hostId, String(thread.id)))"
+                              >
+                                <Loader2Icon v-if="threadRuntimeStatus(project.hostId, String(thread.id)) === 'running'" class="size-3.5 animate-spin" />
+                                <CheckCircle2Icon v-else-if="threadRuntimeStatus(project.hostId, String(thread.id)) === 'completed'" class="size-3.5" />
+                                <CircleAlertIcon v-else-if="threadRuntimeStatus(project.hostId, String(thread.id)) === 'failed'" class="size-3.5" />
+                                <CirclePauseIcon v-else-if="threadRuntimeStatus(project.hostId, String(thread.id)) === 'interrupted'" class="size-3.5" />
+                                <span v-else class="size-2 rounded-full bg-current opacity-50" />
+                              </span>
                             </Button>
                           </ContextMenuTrigger>
                           <ContextMenuContent class="w-40">

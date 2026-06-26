@@ -24,7 +24,11 @@ test('fans out a real remote app-server thread to multiple browser clients acros
 
   const firstMarker = `E2E 第一轮 ${Date.now()}`
   await sendTextTurn(page, firstMarker)
+  await expect(page.getByTestId('send-turn-button')).toHaveAttribute('aria-label', '运行中')
+  await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel('运行中')).toBeVisible()
   await expect(page.getByTestId('chat-scroll-area').getByText(firstMarker)).toBeVisible({ timeout: 120_000 })
+  await expect(page.getByTestId('send-turn-button')).toHaveAttribute('aria-label', '已完成', { timeout: 120_000 })
+  await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel('已完成')).toBeVisible()
 
   const second = await duplicateConfiguredPage(browser, page)
   try {
@@ -33,7 +37,9 @@ test('fans out a real remote app-server thread to multiple browser clients acros
     await expect(second.page.getByTestId(`project-thread-row-${threadId}`)).toBeVisible({ timeout: 30_000 })
     await second.page.getByTestId(`project-thread-row-${threadId}`).click()
     await expect(second.page.getByPlaceholder('输入后续修改要求')).toBeEnabled()
-    await expect(second.page.getByTestId('chat-scroll-area').getByText(firstMarker)).toBeVisible({ timeout: 120_000 })
+    await expect.poll(async () => second.page.getByTestId('chat-scroll-area').getByText(firstMarker).count(), {
+      timeout: 120_000,
+    }).toBeGreaterThan(0)
     await expect.poll(async () => second.page.getByTestId('chat-scroll-area').evaluate((root) => {
       const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null
       if (!viewport) return false

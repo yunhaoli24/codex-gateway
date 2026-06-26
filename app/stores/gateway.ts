@@ -14,6 +14,8 @@ import type {
 
 const CONFIG_STORAGE_KEY = 'codex-gateway-config'
 
+export type ThreadRuntimeStatus = 'idle' | 'running' | 'completed' | 'failed' | 'interrupted'
+
 interface ThreadListResponse {
   data?: Array<any>
   nextCursor?: string | null
@@ -81,6 +83,28 @@ function messageFromError(error: any, fallback: string) {
 
 function pinnedKey(hostId: number, threadId: string) {
   return `${hostId}:${threadId}`
+}
+
+function threadIdFromParams(params: any) {
+  return params?.threadId || params?.thread_id || params?.turn?.threadId || params?.turn?.thread_id
+}
+
+function isThreadActiveStatus(status: any) {
+  const value = typeof status === 'string' ? status : status?.type
+  return value === 'active' || value === 'inProgress' || value === 'running'
+}
+
+function terminalTurnStatus(status: any): ThreadRuntimeStatus {
+  const value = typeof status === 'string' ? status : status?.type
+  if (value === 'failed') return 'failed'
+  if (value === 'interrupted') return 'interrupted'
+  return 'completed'
+}
+
+function statusAfterThreadIdle(current: ThreadRuntimeStatus | undefined): ThreadRuntimeStatus {
+  if (!current) return 'idle'
+  if (current === 'running') return 'completed'
+  return current
 }
 
 function titleForThread(thread: any) {
@@ -287,6 +311,7 @@ export const useGatewayStore = defineStore('gateway', {
     gatewayConfig: defaultGatewayConfig(),
     openingPinnedThreadKey: null as string | null,
     runningThreadKeys: [] as string[],
+    threadStatuses: {} as Record<string, ThreadRuntimeStatus>,
     selectedHostId: null as number | null,
     selectedProjectId: null as number | null,
     selectedThreadId: null as string | null,
@@ -320,6 +345,13 @@ export const useGatewayStore = defineStore('gateway', {
 
     runningThreadKeySet(state) {
       return new Set(state.runningThreadKeys)
+    },
+
+    selectedThreadStatus(state): ThreadRuntimeStatus {
+      if (!state.selectedHostId || !state.selectedThreadId) {
+        return 'idle'
+      }
+      return state.threadStatuses[pinnedKey(state.selectedHostId, state.selectedThreadId)] ?? 'idle'
     },
   },
 
@@ -842,9 +874,17 @@ export const useGatewayStore = defineStore('gateway', {
     },
 
     setThreadRunning(hostId: number, threadId: string, running: boolean) {
+      this.setThreadStatus(hostId, threadId, running ? 'running' : 'completed')
+    },
+
+    setThreadStatus(hostId: number, threadId: string, status: ThreadRuntimeStatus) {
       const key = pinnedKey(hostId, threadId)
       const current = new Set(this.runningThreadKeys)
-      if (running) {
+      this.threadStatuses = {
+        ...this.threadStatuses,
+        [key]: status,
+      }
+      if (status === 'running') {
         current.add(key)
       } else {
         current.delete(key)
@@ -915,14 +955,24 @@ export const useGatewayStore = defineStore('gateway', {
       const payload = event.payload as any
       const params = payload?.params || {}
       if (event.method === 'thread/status/changed') {
-        const threadId = params.threadId || params.thread_id
+        const threadId = threadIdFromParams(params) || event.threadId
         if (threadId && event.hostId) {
-          this.setThreadRunning(event.hostId, String(threadId), params.status?.type === 'active')
+          const key = pinnedKey(event.hostId, String(threadId))
+          this.setThreadStatus(
+            event.hostId,
+            String(threadId),
+            isThreadActiveStatus(params.status) ? 'running' : statusAfterThreadIdle(this.threadStatuses[key]),
+          )
+        }
+      } else if (event.method === 'turn/started') {
+        const threadId = threadIdFromParams(params) || event.threadId || this.selectedThreadId
+        if (threadId && event.hostId) {
+          this.setThreadStatus(event.hostId, String(threadId), 'running')
         }
       } else if (event.method === 'turn/completed') {
-        const threadId = params.threadId || params.thread_id || this.selectedThreadId
+        const threadId = threadIdFromParams(params) || event.threadId || this.selectedThreadId
         if (threadId && event.hostId) {
-          this.setThreadRunning(event.hostId, String(threadId), false)
+          this.setThreadStatus(event.hostId, String(threadId), terminalTurnStatus(params.turn?.status))
         }
       }
 
