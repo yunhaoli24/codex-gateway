@@ -57,6 +57,12 @@ const historyTurns = computed(() => {
 const threadItems = computed(() => {
   return historyTurns.value.flatMap((turn: any) => turn.items || [])
 })
+const outputSignature = computed(() => {
+  return threadItems.value
+    .filter((item: any) => item?.type === 'commandExecution' || item?.type === 'fileChange')
+    .map((item: any) => `${item.id || ''}:${item.aggregatedOutput?.length || 0}:${item.status || ''}`)
+    .join('|')
+})
 
 function scrollViewport() {
   const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value
@@ -80,6 +86,7 @@ async function scrollToBottom() {
     requestAnimationFrame(() => {
       scroll()
       window.setTimeout(scroll, 80)
+      window.setTimeout(scroll, 250)
     })
   })
 }
@@ -112,7 +119,7 @@ watch(
 )
 
 watch(
-  () => [threadItems.value.length, events.value.length],
+  () => [threadItems.value.length, events.value.length, outputSignature.value],
   () => {
     if (followLatest.value) {
       void scrollToBottom()
@@ -135,7 +142,7 @@ watch(
         <Button data-testid="refresh-threads-button" variant="ghost" size="sm" :aria-label="t('app.refresh')" @click="store.listThreads('')">
           <ListRestartIcon class="size-4" />
         </Button>
-        <Button data-testid="new-thread-button" variant="ghost" size="sm" :disabled="!selectedHostId" @click="store.startThread({ model: defaultModel?.model || defaultModel?.id || undefined })">
+        <Button data-testid="new-thread-button" variant="ghost" size="sm" :disabled="!selectedProjectId" @click="store.startThread({ model: defaultModel?.model || defaultModel?.id || undefined })">
           <PlayIcon class="size-4" />
           {{ t('app.newThread') }}
         </Button>

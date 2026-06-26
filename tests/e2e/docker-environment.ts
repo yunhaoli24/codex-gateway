@@ -20,6 +20,8 @@ export async function startDockerEnvironment() {
   const container = `codex-gateway-e2e-${Date.now()}`
   const password = process.env.E2E_DOCKER_PASSWORD || 'codex'
   const port = process.env.E2E_DOCKER_SSH_PORT || '32222'
+  const initialCodexVersion = process.env.E2E_CODEX_CLI_VERSION || '0.142.0'
+  const latestCodexVersion = await readLatestCodexVersion()
   const uid = String(typeof process.getuid === 'function' ? process.getuid() : 1000)
   const gid = String(typeof process.getgid === 'function' ? process.getgid() : 1000)
   const sourceCodexHome = process.env.E2E_CODEX_HOME || process.env.CODEX_HOME || join(homedir(), '.codex')
@@ -28,6 +30,8 @@ export async function startDockerEnvironment() {
 
   await execFileAsync('docker', [
     'build',
+    '--build-arg',
+    `CODEX_CLI_VERSION=${initialCodexVersion}`,
     '--build-arg',
     `E2E_UID=${uid}`,
     '--build-arg',
@@ -71,11 +75,18 @@ export async function startDockerEnvironment() {
     password,
     projectPath: '/workspace/codex-gateway',
     imagePath,
+    initialCodexVersion,
+    latestCodexVersion,
     proxyUrl: null,
   }
   await writeFile(envFile, JSON.stringify(env, null, 2))
   await waitForSsh(env.host, env.port)
   return env
+}
+
+async function readLatestCodexVersion() {
+  const { stdout } = await execFileAsync('npm', ['view', '@openai/codex', 'version'], { maxBuffer: 1024 * 1024 })
+  return stdout.trim()
 }
 
 export async function stopDockerEnvironment() {

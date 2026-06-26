@@ -13,6 +13,7 @@ import {
   LayoutPanelLeftIcon,
   Loader2Icon,
   PencilIcon,
+  PlusIcon,
   SearchIcon,
   ServerIcon,
   SettingsIcon,
@@ -121,6 +122,15 @@ function selectProject(projectId: number) {
   }
 }
 
+function startThreadInProject(project: any) {
+  void store.startThread({
+    model: store.defaultModel?.model || store.defaultModel?.id || undefined,
+  }, {
+    hostId: project.hostId,
+    projectId: project.id,
+  })
+}
+
 async function verifyHost(hostId: number) {
   verifyingHostId.value = hostId
   try {
@@ -149,11 +159,15 @@ function subtitleForPinnedThread(thread: any) {
 }
 
 function pinnedThreadKey(thread: any) {
-  return `${thread.hostId}:${thread.threadId}`
+  return `${thread.hostId}:${pinnedThreadId(thread)}`
 }
 
 function isSelectedPinnedThread(thread: any) {
-  return String(thread.threadId) === String(selectedThreadId.value) && thread.hostId === selectedHostId.value
+  return pinnedThreadId(thread) === String(selectedThreadId.value) && thread.hostId === selectedHostId.value
+}
+
+function pinnedThreadId(thread: any) {
+  return String(thread.threadId ?? thread.id ?? '')
 }
 
 function currentThreadKey(threadId: string) {
@@ -198,6 +212,9 @@ function hostConnectionStatus(hostId: number) {
 
 function hostConnectionLabel(hostId: number) {
   const connection = hostConnectionStatus(hostId)
+  if (connection.status === 'checkingVersion') return connection.message || '检查版本中'
+  if (connection.status === 'upgrading') return connection.message || '升级中'
+  if (connection.status === 'restarting') return connection.message || '重启中'
   if (connection.status === 'connecting') return '连接中'
   if (connection.status === 'connected') return '已连接'
   if (connection.status === 'failed') return connection.message || '连接失败'
@@ -206,10 +223,15 @@ function hostConnectionLabel(hostId: number) {
 
 function hostConnectionClass(hostId: number) {
   const status = hostConnectionStatus(hostId).status
-  if (status === 'connecting') return 'text-sky-600'
+  if (status === 'checkingVersion' || status === 'upgrading' || status === 'restarting' || status === 'connecting') return 'text-sky-600'
   if (status === 'connected') return 'text-emerald-600'
   if (status === 'failed') return 'text-red-600'
   return 'text-[#9aa1a6]'
+}
+
+function hostConnectionIsBusy(hostId: number) {
+  const status = hostConnectionStatus(hostId).status
+  return status === 'checkingVersion' || status === 'upgrading' || status === 'restarting' || status === 'connecting'
 }
 
 function startInlineRename(thread: any) {
@@ -312,7 +334,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
               v-for="thread in pinnedThreads"
               :key="pinnedThreadKey(thread)"
             >
-              <div v-if="renamingThreadId === String(thread.threadId)" class="rounded-lg px-3 py-2">
+              <div v-if="renamingThreadId === pinnedThreadId(thread)" class="rounded-lg px-3 py-2">
                 <Input
                   v-model="renameValue"
                   data-testid="rename-thread-input"
@@ -325,7 +347,8 @@ watch(selectedThreadIsPinned, (isPinned) => {
               <ContextMenu v-else>
                 <ContextMenuTrigger as-child>
                   <Button
-                    :data-testid="`pinned-thread-button-${thread.threadId}`"
+                    :data-testid="`pinned-thread-button-${pinnedThreadId(thread)}`"
+                    :data-selected="isSelectedPinnedThread(thread) ? 'true' : 'false'"
                     variant="ghost"
                     class="h-auto min-h-10 w-full justify-between rounded-lg px-3 py-2 text-[14px] font-normal hover:bg-black/5"
                     :class="isSelectedPinnedThread(thread) ? 'bg-[#c7ddeb]' : ''"
@@ -393,7 +416,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                     :title="hostConnectionLabel(host.id)"
                     :aria-label="hostConnectionLabel(host.id)"
                   >
-                    <Loader2Icon v-if="hostConnectionStatus(host.id).status === 'connecting'" class="size-3.5 animate-spin" />
+                    <Loader2Icon v-if="hostConnectionIsBusy(host.id)" class="size-3.5 animate-spin" />
                     <CheckCircle2Icon v-else-if="hostConnectionStatus(host.id).status === 'connected'" class="size-3.5" />
                     <CircleAlertIcon v-else-if="hostConnectionStatus(host.id).status === 'failed'" class="size-3.5" />
                     <span v-else class="size-2 rounded-full bg-current opacity-50" />
@@ -435,19 +458,29 @@ watch(selectedThreadIsPinned, (isPinned) => {
                   :key="project.id"
                   class="space-y-1"
                 >
-                  <Button
-                    :data-testid="`project-button-${project.id}`"
-                    variant="ghost"
-                    class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[15px] font-normal hover:bg-black/5"
-                    :class="project.id === selectedProjectId ? 'bg-[#c7ddeb]' : ''"
-                    @click="selectProject(project.id)"
-                  >
-                    <ChevronDownIcon v-if="expandedProjectIds.has(project.id)" class="size-3.5 shrink-0 text-[#7e878d]" />
-                    <ChevronRightIcon v-else class="size-3.5 shrink-0 text-[#7e878d]" />
-                    <FolderIcon class="size-4 shrink-0" />
-                    <span class="truncate">{{ project.name }}</span>
-                    <span class="ml-auto size-2 shrink-0 rounded-full bg-emerald-500" />
-                  </Button>
+                  <ContextMenu>
+                    <ContextMenuTrigger as-child>
+                      <Button
+                        :data-testid="`project-button-${project.id}`"
+                        variant="ghost"
+                        class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[15px] font-normal hover:bg-black/5"
+                        :class="project.id === selectedProjectId ? 'bg-[#c7ddeb]' : ''"
+                        @click="selectProject(project.id)"
+                      >
+                        <ChevronDownIcon v-if="expandedProjectIds.has(project.id)" class="size-3.5 shrink-0 text-[#7e878d]" />
+                        <ChevronRightIcon v-else class="size-3.5 shrink-0 text-[#7e878d]" />
+                        <FolderIcon class="size-4 shrink-0" />
+                        <span class="truncate">{{ project.name }}</span>
+                        <span class="ml-auto size-2 shrink-0 rounded-full bg-emerald-500" />
+                      </Button>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent class="w-44">
+                      <ContextMenuItem @select="startThreadInProject(project)">
+                        <PlusIcon class="mr-2 size-4" />
+                        {{ t('app.newThread') }}
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
 
                   <div v-if="expandedProjectIds.has(project.id)" class="space-y-1 pl-7">
                     <template v-if="project.id === selectedProjectId && projectThreads.length">

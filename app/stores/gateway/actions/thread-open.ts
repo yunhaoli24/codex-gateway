@@ -1,11 +1,55 @@
 import type { ComposerTurnOptions, ThreadOpenResult } from '~~/shared/types'
 import type { GatewayStoreContext } from '../types'
-import { messageFromError, threadIdFromParams } from '../thread-utils'
+import { messageFromError, pinnedKey, runtimeStatusFromThreadState, threadIdFromParams } from '../thread-utils'
 import { writeGatewayRouteSelection } from '../route-state'
 import { normalizeTokenUsage } from './realtime'
 
 export function createThreadOpenActions(ctx: GatewayStoreContext) {
   return {
+    cacheSelectedThreadSnapshot() {
+      if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId || !ctx.state.currentThread || !ctx.state.history) {
+        return
+      }
+      ctx.state.threadSnapshots[pinnedKey(ctx.state.selectedHostId, ctx.state.selectedThreadId)] = {
+        hostId: ctx.state.selectedHostId,
+        projectId: ctx.state.selectedProjectId,
+        threadId: ctx.state.selectedThreadId,
+        currentThread: ctx.state.currentThread,
+        history: ctx.state.history,
+        events: [...ctx.state.events],
+        olderTurnsCursor: ctx.state.olderTurnsCursor,
+        newerTurnsCursor: ctx.state.newerTurnsCursor,
+        lastEventId: ctx.state.lastEventId,
+      }
+    },
+
+    restoreThreadSnapshot(hostId: number, threadId: string) {
+      const snapshot = ctx.state.threadSnapshots[pinnedKey(hostId, threadId)]
+      if (!snapshot) {
+        return false
+      }
+      ctx.state.selectedHostId = snapshot.hostId
+      ctx.state.selectedProjectId = snapshot.projectId
+      ctx.state.selectedThreadId = snapshot.threadId
+      ctx.state.currentThread = snapshot.currentThread
+      ctx.state.history = snapshot.history
+      ctx.state.events = [...snapshot.events]
+      ctx.state.olderTurnsCursor = snapshot.olderTurnsCursor
+      ctx.state.newerTurnsCursor = snapshot.newerTurnsCursor
+      ctx.state.lastEventId = snapshot.lastEventId
+      return true
+    },
+
+    clearCurrentThreadView() {
+      ctx.state.selectedThreadId = null
+      ctx.state.currentThread = null
+      ctx.state.history = null
+      ctx.state.events = []
+      ctx.state.olderTurnsCursor = null
+      ctx.state.newerTurnsCursor = null
+      ctx.state.lastEventId = 0
+    },
+
     rememberOpenThread(threadId: string) {
       if (!ctx.state.selectedHostId) {
         return
@@ -31,23 +75,14 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
     },
 
     async openThread(threadId: string, context?: { hostId?: number, projectId?: number | null, replaceRoute?: boolean }) {
+      ctx.cacheSelectedThreadSnapshot()
       if (context?.hostId && context.hostId !== ctx.state.selectedHostId) {
         ctx.state.selectedHostId = context.hostId
         ctx.state.selectedProjectId = context.projectId ?? null
-        ctx.state.selectedThreadId = null
-        ctx.state.currentThread = null
-        ctx.state.history = null
-        ctx.state.events = []
-        ctx.state.olderTurnsCursor = null
-        ctx.state.newerTurnsCursor = null
+        ctx.clearCurrentThreadView()
       } else if (context && 'projectId' in context && context.projectId !== ctx.state.selectedProjectId) {
         ctx.state.selectedProjectId = context.projectId ?? null
-        ctx.state.selectedThreadId = null
-        ctx.state.currentThread = null
-        ctx.state.history = null
-        ctx.state.events = []
-        ctx.state.olderTurnsCursor = null
-        ctx.state.newerTurnsCursor = null
+        ctx.clearCurrentThreadView()
       }
       if (!ctx.state.selectedHostId) {
         return
@@ -55,6 +90,14 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       if (ctx.state.selectedThreadId === threadId && ctx.state.currentThread && ctx.state.history) {
         ctx.rememberOpenThread(threadId)
         ctx.syncSelectedRoute({ replace: context?.replaceRoute })
+        ctx.connectEvents()
+        ctx.requestScrollToLatest()
+        return
+      }
+      if (ctx.restoreThreadSnapshot(ctx.state.selectedHostId, threadId)) {
+        ctx.rememberOpenThread(threadId)
+        ctx.syncSelectedRoute({ replace: context?.replaceRoute })
+        ctx.connectEvents()
         ctx.requestScrollToLatest()
         return
       }
@@ -91,9 +134,11 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         if (!result.tokenUsage) {
           syncTokenUsageFromRecentEvents(ctx, result.recentEvents)
         }
+        syncRuntimeStatusFromThread(ctx, ctx.state.selectedHostId, threadId, result.thread, result.history)
         for (const event of result.recentEvents) {
           ctx.applyLiveEvent(event)
         }
+        ctx.cacheSelectedThreadSnapshot()
         ctx.connectEvents()
         ctx.upsertPinnedMetadataFromThread(result.thread as any)
         ctx.rememberOpenThread(threadId)
@@ -111,13 +156,26 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       if (!last || !ctx.state.hosts.some((host) => host.id === last.hostId)) {
         return
       }
+      ctx.state.selectedHostId = last.hostId
+      ctx.state.selectedProjectId = last.projectId
+      ctx.state.selectedThreadId = last.threadId
       await ctx.openThread(last.threadId, {
         hostId: last.hostId,
         projectId: last.projectId,
+        replaceRoute: true,
       })
     },
 
-    async startThread(options: ComposerTurnOptions = {}) {
+    async startThread(options: ComposerTurnOptions = {}, context?: { hostId?: number, projectId?: number | null }) {
+      ctx.cacheSelectedThreadSnapshot()
+      if (context?.hostId) {
+        ctx.state.selectedHostId = context.hostId
+        ctx.state.selectedProjectId = context.projectId ?? null
+        ctx.clearCurrentThreadView()
+      } else if (context && 'projectId' in context) {
+        ctx.state.selectedProjectId = context.projectId ?? null
+        ctx.clearCurrentThreadView()
+      }
       if (!ctx.state.selectedHostId) {
         return
       }
@@ -139,17 +197,28 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       ctx.state.olderTurnsCursor = result.turnsPage.nextCursor
       ctx.state.newerTurnsCursor = result.turnsPage.backwardsCursor
       ctx.state.selectedThreadId = String(thread.id)
+      ctx.state.lastEventId = result.recentEvents.at(-1)?.id ?? 0
       ctx.setThreadSettings(ctx.state.selectedHostId, String(thread.id), result.threadSettings)
       if (result.tokenUsage) {
         ctx.setThreadTokenUsage(ctx.state.selectedHostId, String(thread.id), result.tokenUsage)
       } else {
         syncTokenUsageFromRecentEvents(ctx, result.recentEvents)
       }
+      syncRuntimeStatusFromThread(ctx, ctx.state.selectedHostId, String(thread.id), result.thread, result.history)
+      ctx.cacheSelectedThreadSnapshot()
       ctx.connectEvents()
       await ctx.listThreads()
+      ctx.cacheSelectedThreadSnapshot()
       ctx.rememberOpenThread(String(thread.id))
       ctx.syncSelectedRoute()
     },
+  }
+}
+
+function syncRuntimeStatusFromThread(ctx: GatewayStoreContext, hostId: number, threadId: string, thread: unknown, history: unknown) {
+  const status = runtimeStatusFromThreadState(thread, history)
+  if (status) {
+    ctx.setThreadStatus(hostId, threadId, status)
   }
 }
 
@@ -159,8 +228,8 @@ function syncTokenUsageFromRecentEvents(ctx: GatewayStoreContext, events: Thread
       continue
     }
     const params = (event.payload as any)?.params || {}
-    const threadId = threadIdFromParams(params) || event.threadId
-    const tokenUsage = normalizeTokenUsage(params.tokenUsage ?? params.token_usage)
+    const threadId = threadIdFromParams(params)
+    const tokenUsage = normalizeTokenUsage(params.tokenUsage)
     if (threadId && event.hostId && tokenUsage) {
       ctx.setThreadTokenUsage(event.hostId, String(threadId), tokenUsage)
     }

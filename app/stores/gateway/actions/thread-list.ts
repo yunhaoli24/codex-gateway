@@ -1,5 +1,5 @@
 import type { GatewayStoreContext, ThreadListResponse } from '../types'
-import { messageFromError, pinnedKey, sortThreads } from '../thread-utils'
+import { messageFromError, pinnedKey, runtimeStatusFromAppThreadStatus, sortThreads } from '../thread-utils'
 
 export function createThreadListActions(ctx: GatewayStoreContext) {
   return {
@@ -25,9 +25,10 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
           if (response.projects) {
             ctx.mergeProjects(response.projects)
           }
+          syncThreadStatusesFromList(ctx, host.id, response.data ?? [])
           ctx.state.hostConnectionStatuses = {
             ...ctx.state.hostConnectionStatuses,
-            [host.id]: { status: 'connected' },
+            [host.id]: { status: 'connected', message: '已连接' },
           }
         } catch (error: any) {
           ctx.state.hostConnectionStatuses = {
@@ -70,8 +71,9 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
         }
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
-          [ctx.state.selectedHostId]: { status: 'connected' },
+          [ctx.state.selectedHostId]: { status: 'connected', message: '已连接' },
         }
+        syncThreadStatusesFromList(ctx, ctx.state.selectedHostId, response.data ?? [])
         ctx.state.threads = sortThreads(ctx.decorateThreads(response.data ?? []))
         ctx.persistConfig()
       } catch (error: any) {
@@ -95,5 +97,14 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
         pinned: ctx.state.selectedHostId ? pinned.has(pinnedKey(ctx.state.selectedHostId, String(thread.id))) : false,
       }))
     },
+  }
+}
+
+function syncThreadStatusesFromList(ctx: GatewayStoreContext, hostId: number, threads: any[]) {
+  for (const thread of threads) {
+    if (!thread?.id || !thread.status) {
+      continue
+    }
+    ctx.setThreadStatus(hostId, String(thread.id), runtimeStatusFromAppThreadStatus(thread.status))
   }
 }

@@ -2,7 +2,11 @@ import { EventEmitter } from 'node:events'
 import WebSocket from 'ws'
 import type { HostRecord, RpcEnvelope } from '~~/shared/types'
 import { hostManager } from './ssh'
-import { codexRemoteAppServerProxyPayload, remoteLoginShellCommand } from './remote-command'
+import {
+  codexRemoteAppServerExistingProxyPayload,
+  codexRemoteAppServerProxyPayload,
+  remoteLoginShellCommand,
+} from './remote-command'
 
 interface PendingRequest {
   resolve: (value: unknown) => void
@@ -12,6 +16,11 @@ interface PendingRequest {
 
 export type RpcNotificationHandler = (message: RpcEnvelope) => void
 
+interface CodexRpcClientOptions {
+  skipVersionCheck?: boolean
+  skipDaemonStart?: boolean
+}
+
 export class CodexRpcClient extends EventEmitter {
   private nextId = 1
   private initialized = false
@@ -20,7 +29,7 @@ export class CodexRpcClient extends EventEmitter {
   private ws: WebSocket | null = null
   private stderrBuffer = ''
 
-  constructor(private readonly host: HostRecord) {
+  constructor(private readonly host: HostRecord, private readonly options: CodexRpcClientOptions = {}) {
     super()
   }
 
@@ -43,6 +52,10 @@ export class CodexRpcClient extends EventEmitter {
       return
     }
 
+    if (!this.options.skipVersionCheck) {
+      await hostManager.ensureCodexVersion(this.host)
+    }
+
     await this.connectRemoteProxyWebSocket()
 
     await this.request('initialize', {
@@ -57,6 +70,24 @@ export class CodexRpcClient extends EventEmitter {
     }, 30_000)
     this.notify('initialized', {})
     this.initialized = true
+  }
+
+  async probeRuntimeVersion() {
+    await this.connectRemoteProxyWebSocket()
+    try {
+      const result = await this.request<{ userAgent?: string }>('initialize', {
+        clientInfo: {
+          name: 'codex_gateway_probe',
+          title: 'Codex Gateway Probe',
+          version: '0.1.0',
+        },
+        capabilities: {},
+      }, 30_000)
+      this.notify('initialized', {})
+      return result.userAgent ?? null
+    } finally {
+      this.close()
+    }
   }
 
   request<T = unknown>(method: string, params: unknown = {}, timeoutMs = 120_000): Promise<T> {
@@ -97,7 +128,9 @@ export class CodexRpcClient extends EventEmitter {
   private async connectRemoteProxyWebSocket() {
     const channel = await hostManager.execChannel(
       this.host,
-      remoteLoginShellCommand(codexRemoteAppServerProxyPayload()),
+      remoteLoginShellCommand(this.options.skipDaemonStart
+        ? codexRemoteAppServerExistingProxyPayload()
+        : codexRemoteAppServerProxyPayload()),
     )
 
     channel.stderr.on('data', (chunk: Buffer) => {

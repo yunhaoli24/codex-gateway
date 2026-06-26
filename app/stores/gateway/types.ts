@@ -12,13 +12,25 @@ import type {
 import type { GatewayDomainEvents } from './domain-events'
 
 export type ThreadRuntimeStatus = 'idle' | 'running' | 'completed' | 'failed' | 'interrupted'
-export type HostConnectionStatus = 'idle' | 'connecting' | 'connected' | 'failed'
+export type HostConnectionStatus = 'idle' | 'checkingVersion' | 'upgrading' | 'restarting' | 'connecting' | 'connected' | 'failed'
 
 export interface ThreadListResponse {
   data?: Array<any>
   nextCursor?: string | null
   backwardsCursor?: string | null
   projects?: ProjectRecord[]
+}
+
+export interface ThreadSnapshot {
+  hostId: number
+  projectId: number | null
+  threadId: string
+  currentThread: unknown
+  history: unknown
+  events: GatewayEvent[]
+  olderTurnsCursor: string | null
+  newerTurnsCursor: string | null
+  lastEventId: number
 }
 
 export interface GatewayStoreState {
@@ -34,6 +46,7 @@ export interface GatewayStoreState {
   threadStatuses: Record<string, ThreadRuntimeStatus>
   threadSettingsByKey: Record<string, ThreadSettingsState>
   threadTokenUsageByKey: Record<string, ThreadTokenUsageState>
+  threadSnapshots: Record<string, ThreadSnapshot>
   selectedHostId: number | null
   selectedProjectId: number | null
   selectedThreadId: string | null
@@ -47,7 +60,10 @@ export interface GatewayStoreState {
   olderTurnsCursor: string | null
   newerTurnsCursor: string | null
   error: string | null
-  eventSource: EventSource | null
+  eventSources: Record<string, EventSource>
+  eventSourceCreatedAt: Record<string, number>
+  eventSourceHealthTimer: ReturnType<typeof window.setInterval> | null
+  hostLifecycleEventSource: EventSource | null
   lastEventId: number
   scrollToLatestToken: number
 }

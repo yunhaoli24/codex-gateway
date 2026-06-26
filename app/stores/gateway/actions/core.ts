@@ -71,6 +71,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       try {
         const routeSelection = readGatewayRouteSelection()
         ctx.hydrateConfig()
+        ctx.connectHostLifecycleEvents()
         ctx.state.projects = []
         ctx.state.threads = []
         ctx.state.models = []
@@ -87,7 +88,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
           ctx.state.selectedHostId = ctx.state.hosts[0]?.id ?? null
         }
         ctx.state.selectedProjectId = routeHostExists ? routeSelection.projectId : null
-        ctx.state.selectedThreadId = null
+        ctx.state.selectedThreadId = routeHostExists ? routeSelection.threadId : null
         ctx.state.currentThread = null
         ctx.state.history = null
         ctx.state.events = []

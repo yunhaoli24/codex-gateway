@@ -1,0 +1,13 @@
+services:
+  codex-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: codex-gateway
+    restart: unless-stopped
+    ports:
+      - "${CODEX_GATEWAY_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000

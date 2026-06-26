@@ -5,6 +5,7 @@ import {
   readRemoteEnv,
   sendTextTurn,
   startRemoteThread,
+  startRemoteThreadFromProjectMenu,
 } from './helpers/remote-codex'
 
 test('connects to a real SSH Codex host and lists a project thread created by app-server', async ({ page }) => {
@@ -22,6 +23,21 @@ test('connects to a real SSH Codex host and lists a project thread created by ap
 
   const threadId = await startRemoteThread(page)
   await expect(page.getByTestId(`thread-button-${threadId}`)).toBeVisible()
+  const secondThreadId = await startRemoteThreadFromProjectMenu(page, project.id)
+  await expect(page.getByTestId(`thread-button-${secondThreadId}`)).toBeVisible()
+
+  let openRequests = 0
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/threads/open') && request.method() === 'POST') {
+      openRequests += 1
+    }
+  })
+  await page.getByTestId(`thread-button-${threadId}`).click()
+  await page.getByTestId(`thread-button-${secondThreadId}`).click()
+  await page.getByTestId(`thread-button-${threadId}`).click()
+  await page.waitForTimeout(500)
+  expect(openRequests).toBe(0)
+
   const marker = `E2E 置顶恢复 ${Date.now()}`
   await sendTextTurn(page, marker)
   await expect(page.getByTestId('chat-scroll-area').getByText(marker)).toBeVisible({ timeout: 120_000 })
@@ -41,7 +57,7 @@ test('connects to a real SSH Codex host and lists a project thread created by ap
   await page.reload()
   await expect(page.getByTestId('app-ready')).toBeAttached()
   await expect(page.getByTestId(`pinned-thread-button-${threadId}`)).toBeVisible()
-  await expect(page.getByTestId(`pinned-thread-button-${threadId}`)).toHaveClass(/bg-\[#c7ddeb\]/)
+  await expect(page.getByTestId(`pinned-thread-button-${threadId}`)).toHaveAttribute('data-selected', 'true')
   await expect(page.getByTestId(`project-button-${project.id}`)).toBeHidden()
   await expect.poll(async () => page.getByTestId('chat-scroll-area').evaluate((root) => {
     const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null

@@ -5,12 +5,15 @@ export type GatewayDomainEvent =
   | { type: 'thread-status-detected', hostId: number, threadId: string, status: ThreadRuntimeStatus }
   | { type: 'thread-settings-detected', hostId: number, threadId: string, settings: ThreadSettingsState }
   | { type: 'thread-token-usage-detected', hostId: number, threadId: string, tokenUsage: ThreadTokenUsageState }
-  | { type: 'history-item-upsert', threadId: string, item: any }
-  | { type: 'history-agent-delta', threadId: string, params: any }
-  | { type: 'history-item-output-delta', threadId: string, params: any, fallbackType: string }
-  | { type: 'history-turn-diff-updated', threadId: string, params: any }
-  | { type: 'history-turn-appended', threadId: string, turn: any }
-  | { type: 'history-turn-synced', threadId: string, turn: any }
+  | { type: 'history-item-upsert', hostId: number, threadId: string, item: any }
+  | { type: 'history-agent-delta', hostId: number, threadId: string, params: any }
+  | { type: 'history-plan-delta', hostId: number, threadId: string, params: any }
+  | { type: 'history-reasoning-summary-delta', hostId: number, threadId: string, params: any }
+  | { type: 'history-reasoning-text-delta', hostId: number, threadId: string, params: any }
+  | { type: 'history-item-output-delta', hostId: number, threadId: string, params: any, itemType: 'commandExecution' | 'fileChange' }
+  | { type: 'history-turn-diff-updated', hostId: number, threadId: string, params: any }
+  | { type: 'history-turn-appended', hostId: number, threadId: string, turn: any }
+  | { type: 'history-turn-synced', hostId: number, threadId: string, turn: any }
 
 type EventType = GatewayDomainEvent['type']
 type EventFor<T extends EventType> = Extract<GatewayDomainEvent, { type: T }>

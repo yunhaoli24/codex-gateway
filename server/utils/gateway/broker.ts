@@ -1,8 +1,10 @@
 import type { ApprovalPolicy, GatewayEvent, HostRecord, ReasoningEffort, ThreadSettingsState, ThreadTokenUsageState } from '~~/shared/types'
+import { randomUUID } from 'node:crypto'
 import { persistence } from './db'
 import { CodexRpcClient } from './rpc'
 
 type Subscriber = (event: GatewayEvent) => void
+type CloseSubscriber = () => void
 
 const DEFAULT_TURN_PAGE_LIMIT = 20
 
@@ -95,7 +97,7 @@ function latestTokenUsageFromEvents(events: GatewayEvent[]): ThreadTokenUsageSta
     if (event.method !== 'thread/tokenUsage/updated') {
       continue
     }
-    const tokenUsage = normalizeTokenUsage((event.payload as any)?.params?.tokenUsage ?? (event.payload as any)?.params?.token_usage)
+    const tokenUsage = normalizeTokenUsage((event.payload as any)?.params?.tokenUsage)
     if (tokenUsage) {
       return tokenUsage
     }
@@ -109,16 +111,16 @@ function normalizeTokenUsage(value: any): ThreadTokenUsageState | null {
   if (!total || !last) {
     return null
   }
-  const modelContextWindow = numberOrNull(value?.modelContextWindow ?? value?.model_context_window)
+  const modelContextWindow = numberOrNull(value?.modelContextWindow)
   return { total, last, modelContextWindow }
 }
 
 function normalizeTokenBreakdown(value: any) {
-  const totalTokens = numberOrNull(value?.totalTokens ?? value?.total_tokens)
-  const inputTokens = numberOrNull(value?.inputTokens ?? value?.input_tokens)
-  const cachedInputTokens = numberOrNull(value?.cachedInputTokens ?? value?.cached_input_tokens)
-  const outputTokens = numberOrNull(value?.outputTokens ?? value?.output_tokens)
-  const reasoningOutputTokens = numberOrNull(value?.reasoningOutputTokens ?? value?.reasoning_output_tokens)
+  const totalTokens = numberOrNull(value?.totalTokens)
+  const inputTokens = numberOrNull(value?.inputTokens)
+  const cachedInputTokens = numberOrNull(value?.cachedInputTokens)
+  const outputTokens = numberOrNull(value?.outputTokens)
+  const reasoningOutputTokens = numberOrNull(value?.reasoningOutputTokens)
   if ([totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens].some((item) => item == null)) {
     return null
   }
@@ -133,6 +135,7 @@ function numberOrNull(value: unknown) {
 class ThreadController {
   readonly client: CodexRpcClient
   readonly subscribers = new Set<Subscriber>()
+  readonly closeSubscribers = new Set<CloseSubscriber>()
   readonly buffer: GatewayEvent[] = []
   private operationQueue: Promise<unknown> = Promise.resolve()
   private connected = false
@@ -174,8 +177,24 @@ class ThreadController {
       this.closed = true
       this.connected = false
       this.subscribed = false
+      for (const subscriber of this.closeSubscribers) {
+        subscriber()
+      }
+      this.closeSubscribers.clear()
       this.onClose?.()
     })
+  }
+
+  publish(method: string, payload: any) {
+    const event = persistence.addGatewayEvent(this.host.id, this.threadId, method, payload)
+    this.buffer.push(event)
+    if (this.buffer.length > 200) {
+      this.buffer.shift()
+    }
+    for (const subscriber of this.subscribers) {
+      subscriber(event)
+    }
+    return event
   }
 
   async ensureConnected() {
@@ -224,10 +243,16 @@ class ThreadController {
     return run
   }
 
-  subscribe(callback: Subscriber) {
+  subscribe(callback: Subscriber, onClose?: CloseSubscriber) {
     this.subscribers.add(callback)
+    if (onClose) {
+      this.closeSubscribers.add(onClose)
+    }
     return () => {
       this.subscribers.delete(callback)
+      if (onClose) {
+        this.closeSubscribers.delete(onClose)
+      }
     }
   }
 
@@ -241,7 +266,11 @@ class ThreadController {
     }
     this.subscribed = false
     this.client.close()
+    for (const subscriber of this.closeSubscribers) {
+      subscriber()
+    }
     this.subscribers.clear()
+    this.closeSubscribers.clear()
     this.onClose?.()
   }
 }
@@ -266,7 +295,7 @@ class ThreadBroker {
     const recentEvents = persistence.listGatewayEvents(host.id, threadId, 0, 200)
     return {
       thread,
-      history: pageToHistory(thread, initialTurnsPage),
+      history: this.pageToFullHistory(thread, initialTurnsPage),
       projectId: resolvedProjectId,
       project: resolvedProjectId ? persistence.getProject(resolvedProjectId) : null,
       turnsPage: {
@@ -319,15 +348,39 @@ class ThreadBroker {
   async startTurn(host: HostRecord, threadId: string, input: TurnStartInput) {
     const controller = await this.getController(host, threadId)
     await controller.ensureSubscribed()
-    return controller.enqueue(() => controller.client.request('turn/start', {
+    const clientUserMessageId = input.clientUserMessageId || `gateway-${randomUUID()}`
+    const result = await controller.enqueue(() => controller.client.request<any>('turn/start', {
       threadId,
-      clientUserMessageId: input.clientUserMessageId || undefined,
+      clientUserMessageId,
       input: buildUserInput(input),
       cwd: input.cwd || null,
       model: input.model || null,
       effort: input.effort || null,
       approvalPolicy: input.approvalPolicy || null,
     }))
+    if (result?.turn) {
+      controller.publish('turn/started', {
+        method: 'turn/started',
+        params: {
+          threadId,
+          turn: result.turn,
+        },
+      })
+      controller.publish('item/started', {
+        method: 'item/started',
+        params: {
+          threadId,
+          turnId: result.turn.id,
+          item: {
+            type: 'userMessage',
+            id: clientUserMessageId,
+            clientId: clientUserMessageId,
+            content: buildUserInput(input),
+          },
+        },
+      })
+    }
+    return result
   }
 
   async steerTurn(host: HostRecord, threadId: string, input: TurnSteerInput) {
@@ -392,10 +445,20 @@ class ThreadBroker {
       itemsView: 'full',
     }))
     return {
-      history: pageToHistory({ id: threadId }, page),
+      history: this.pageToFullHistory({ id: threadId }, page),
       turnsPage: {
         nextCursor: page.nextCursor ?? null,
         backwardsCursor: page.backwardsCursor ?? null,
+      },
+    }
+  }
+
+  private pageToFullHistory(thread: any, page: TurnsPage) {
+    const turns = [...(page.data ?? [])].reverse()
+    return {
+      thread: {
+        ...thread,
+        turns,
       },
     }
   }
@@ -415,10 +478,10 @@ class ThreadBroker {
     return controller
   }
 
-  async subscribe(host: HostRecord, threadId: string, callback: Subscriber) {
+  async subscribe(host: HostRecord, threadId: string, callback: Subscriber, onClose?: CloseSubscriber) {
     const controller = await this.getController(host, threadId)
     await controller.ensureSubscribed()
-    return controller.subscribe(callback)
+    return controller.subscribe(callback, onClose)
   }
 
   close(hostId: number, threadId: string) {

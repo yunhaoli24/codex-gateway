@@ -37,6 +37,8 @@ export default defineEventHandler(async (event) => {
       return
     }
     sendOnce(gatewayEvent)
+  }, () => {
+    response.end()
   })
 
   for (const replay of persistence.listGatewayEvents(hostId, threadId, afterId, 200)) {

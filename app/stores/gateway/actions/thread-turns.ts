@@ -8,24 +8,27 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
       if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
         return
       }
-      const clientUserMessageId = globalThis.crypto?.randomUUID?.() || `client-${Date.now()}`
       const shouldSteerActiveTurn = ctx.selectedThreadStatus === 'running'
+      const clientUserMessageId = `${shouldSteerActiveTurn ? 'steer' : 'turn'}-${globalThis.crypto?.randomUUID?.() || Date.now()}`
       if (!shouldSteerActiveTurn) {
         ctx.setThreadRunning(ctx.state.selectedHostId, ctx.state.selectedThreadId, true)
       }
-      const imageContent = (options.images ?? []).map((image) => image.url
-        ? { type: 'image', url: image.url, detail: image.detail }
-        : { type: 'localImage', path: image.path, detail: image.detail })
-      const optimisticContent = [
-        text ? { type: 'text', text, text_elements: [] } : null,
-        ...imageContent,
-      ].filter(Boolean)
-      ctx.state.history = mergeItemIntoLatestTurn(ctx.state.history, ctx.state.currentThread, ctx.state.selectedThreadId, {
-        type: 'userMessage',
-        id: clientUserMessageId,
-        clientId: clientUserMessageId,
-        content: optimisticContent,
-      })
+      if (!shouldSteerActiveTurn) {
+        const imageContent = (options.images ?? []).map((image) => image.url
+          ? { type: 'image', url: image.url, detail: image.detail }
+          : { type: 'localImage', path: image.path, detail: image.detail })
+        const optimisticContent = [
+          text ? { type: 'text', text, text_elements: [] } : null,
+          ...imageContent,
+        ].filter(Boolean)
+        ctx.state.history = mergeItemIntoLatestTurn(ctx.state.history, ctx.state.currentThread, ctx.state.selectedThreadId, {
+          type: 'userMessage',
+          id: clientUserMessageId,
+          clientId: clientUserMessageId,
+          content: optimisticContent,
+        })
+        ctx.cacheSelectedThreadSnapshot()
+      }
       ctx.state.loading = true
       ctx.state.error = null
       try {
@@ -34,7 +37,10 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
           : await startNewTurn(ctx, text, clientUserMessageId, options)
         if (result?.turn?.items?.length) {
           for (const item of result.turn.items) {
-            ctx.state.history = mergeItemIntoLatestTurn(ctx.state.history, ctx.state.currentThread, ctx.state.selectedThreadId, item)
+            ctx.state.history = mergeItemIntoLatestTurn(ctx.state.history, ctx.state.currentThread, ctx.state.selectedThreadId, {
+              ...item,
+              turnId: result.turn.id,
+            })
           }
         }
         if (!shouldSteerActiveTurn) {
@@ -74,6 +80,7 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
         ctx.state.history = mergeThreadTurns(ctx.state.history, ctx.state.currentThread, ctx.state.selectedThreadId, turns, 'prepend')
         ctx.state.olderTurnsCursor = result.turnsPage.nextCursor
         ctx.state.newerTurnsCursor = result.turnsPage.backwardsCursor ?? ctx.state.newerTurnsCursor
+        ctx.cacheSelectedThreadSnapshot()
       } catch (error: any) {
         ctx.setError(messageFromError(error, 'Failed to load older turns'))
       } finally {
@@ -124,7 +131,7 @@ function activeTurnId(history: unknown) {
   for (let index = turns.length - 1; index >= 0; index -= 1) {
     const turn = turns[index]
     const status = typeof turn?.status === 'string' ? turn.status : turn?.status?.type
-    if ((status === 'active' || status === 'inProgress' || status === 'running') && turn?.id) {
+    if (status === 'inProgress' && turn?.id) {
       return String(turn.id)
     }
   }

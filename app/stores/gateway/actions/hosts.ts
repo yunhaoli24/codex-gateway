@@ -36,6 +36,13 @@ export function createHostActions(ctx: GatewayStoreContext) {
 
     async deleteHost(hostId: number) {
       await $fetch(`/api/hosts/${hostId}`, { method: 'DELETE' })
+      for (const key of Object.keys(ctx.state.eventSources)) {
+        if (key.startsWith(`${hostId}:`)) {
+          ctx.state.eventSources[key]?.close()
+          delete ctx.state.eventSources[key]
+          delete ctx.state.eventSourceCreatedAt[key]
+        }
+      }
       ctx.state.hosts = ctx.state.hosts.filter((host) => host.id !== hostId)
       ctx.state.projects = ctx.state.projects.filter((project) => project.hostId !== hostId)
       const { [hostId]: _removedConnectionStatus, ...hostConnectionStatuses } = ctx.state.hostConnectionStatuses
@@ -66,6 +73,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
     },
 
     async selectHost(hostId: number) {
+      ctx.cacheSelectedThreadSnapshot()
       ctx.state.selectedHostId = hostId
       const currentProject = ctx.state.projects.find((project) => project.id === ctx.state.selectedProjectId)
       if (!currentProject || currentProject.hostId !== hostId) {
@@ -77,6 +85,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
       ctx.state.events = []
       ctx.state.olderTurnsCursor = null
       ctx.state.newerTurnsCursor = null
+      ctx.state.lastEventId = 0
       ctx.state.models = []
       writeGatewayRouteSelection({ hostId, projectId: null, threadId: null })
       await ctx.listModels()

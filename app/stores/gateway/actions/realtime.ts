@@ -1,15 +1,46 @@
 import type { GatewayEvent, ThreadTokenUsageState } from '~~/shared/types'
+import { toast } from 'vue-sonner'
 import type { GatewayStoreContext, ThreadRuntimeStatus } from '../types'
 import {
-  isThreadActiveStatus,
   pinnedKey,
-  statusAfterThreadIdle,
+  runtimeStatusFromAppThreadStatus,
   terminalTurnStatus,
   threadIdFromParams,
 } from '../thread-utils'
 
 export function createRealtimeActions(ctx: GatewayStoreContext) {
   return {
+    connectHostLifecycleEvents() {
+      if (!import.meta.client || ctx.state.hostLifecycleEventSource) {
+        return
+      }
+      const eventSource = new EventSource('/api/hosts/events')
+      ctx.state.hostLifecycleEventSource = eventSource
+      const notified = new Set<string>()
+      eventSource.onmessage = (message) => {
+        const event = JSON.parse(message.data) as {
+          hostId: number
+          status: 'checkingVersion' | 'upgrading' | 'restarting' | 'connecting' | 'connected' | 'failed'
+          message: string
+        }
+        ctx.state.hostConnectionStatuses = {
+          ...ctx.state.hostConnectionStatuses,
+          [event.hostId]: {
+            status: event.status,
+            message: event.message,
+          },
+        }
+        const notifyKey = `${event.hostId}:${event.status}:${event.message}`
+        if ((event.status === 'upgrading' || event.status === 'restarting') && !notified.has(notifyKey)) {
+          notified.add(notifyKey)
+          toast.info(event.message)
+        }
+      }
+      eventSource.onerror = () => {
+        // EventSource reconnects automatically.
+      }
+    },
+
     setThreadRunning(hostId: number, threadId: string, running: boolean) {
       ctx.setThreadStatus(hostId, threadId, running ? 'running' : 'completed')
     },
@@ -36,29 +67,115 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
       }
     },
 
-    connectEvents() {
-      ctx.state.eventSource?.close()
-      if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
+    connectEvents(hostId = ctx.state.selectedHostId, threadId = ctx.state.selectedThreadId) {
+      if (!hostId || !threadId) {
         return
       }
 
-      const url = `/api/events/${ctx.state.selectedHostId}/${encodeURIComponent(ctx.state.selectedThreadId)}?afterId=${ctx.state.lastEventId}`
-      ctx.state.eventSource = new EventSource(url)
-      ctx.state.eventSource.onmessage = (message) => {
+      const key = pinnedKey(hostId, threadId)
+      const existing = ctx.state.eventSources[key]
+      if (existing && existing.readyState !== EventSource.CLOSED) {
+        ctx.ensureEventSourceHealthCheck()
+        return
+      }
+      if (existing) {
+        const { [key]: _closed, ...eventSources } = ctx.state.eventSources
+        ctx.state.eventSources = eventSources
+      }
+      const afterId = ctx.state.threadSnapshots[key]?.lastEventId ?? (
+        hostId === ctx.state.selectedHostId && threadId === ctx.state.selectedThreadId ? ctx.state.lastEventId : 0
+      )
+      const url = `/api/events/${hostId}/${encodeURIComponent(threadId)}?afterId=${afterId}`
+      const eventSource = new EventSource(url)
+      ctx.state.eventSources = {
+        ...ctx.state.eventSources,
+        [key]: eventSource,
+      }
+      ctx.state.eventSourceCreatedAt = {
+        ...ctx.state.eventSourceCreatedAt,
+        [key]: Date.now(),
+      }
+      ctx.ensureEventSourceHealthCheck()
+      eventSource.onmessage = (message) => {
         const event = JSON.parse(message.data) as GatewayEvent
-        if (event.id <= ctx.state.lastEventId) {
+        const eventKey = pinnedKey(event.hostId, event.threadId)
+        const snapshotLastEventId = ctx.state.threadSnapshots[eventKey]?.lastEventId ?? 0
+        const currentLastEventId = event.hostId === ctx.state.selectedHostId && event.threadId === ctx.state.selectedThreadId
+          ? ctx.state.lastEventId
+          : 0
+        if (event.id <= Math.max(snapshotLastEventId, currentLastEventId)) {
           return
         }
-        ctx.state.lastEventId = event.id
-        ctx.state.events.push(event)
-        if (ctx.state.events.length > 500) {
-          ctx.state.events.shift()
+        if (event.hostId === ctx.state.selectedHostId && event.threadId === ctx.state.selectedThreadId) {
+          ctx.state.lastEventId = event.id
+          ctx.state.events.push(event)
+          if (ctx.state.events.length > 500) {
+            ctx.state.events.shift()
+          }
         }
+        ctx.recordThreadEvent(event)
         ctx.applyLiveEvent(event)
       }
-      ctx.state.eventSource.onerror = () => {
-        // EventSource reconnects by itself; surfacing each transient disconnect as a toast
-        // floods the UI during reloads or dev-server restarts.
+      eventSource.onerror = () => {
+        if (eventSource.readyState === EventSource.CLOSED) {
+          const { [key]: _closed, ...eventSources } = ctx.state.eventSources
+          const { [key]: _closedCreatedAt, ...eventSourceCreatedAt } = ctx.state.eventSourceCreatedAt
+          ctx.state.eventSources = eventSources
+          ctx.state.eventSourceCreatedAt = eventSourceCreatedAt
+          window.setTimeout(() => {
+            ctx.connectEvents(hostId, threadId)
+          }, 1000)
+        }
+      }
+    },
+
+    ensureEventSourceHealthCheck() {
+      if (!import.meta.client || ctx.state.eventSourceHealthTimer) {
+        return
+      }
+      ctx.state.eventSourceHealthTimer = window.setInterval(() => {
+        for (const [key, eventSource] of Object.entries(ctx.state.eventSources)) {
+          const age = Date.now() - (ctx.state.eventSourceCreatedAt[key] ?? 0)
+          if (eventSource.readyState === EventSource.OPEN || (eventSource.readyState === EventSource.CONNECTING && age < 30_000)) {
+            continue
+          }
+          const [hostIdRaw, threadId] = key.split(':')
+          const hostId = Number(hostIdRaw)
+          eventSource.close()
+          const { [key]: _closed, ...eventSources } = ctx.state.eventSources
+          const { [key]: _closedCreatedAt, ...eventSourceCreatedAt } = ctx.state.eventSourceCreatedAt
+          ctx.state.eventSources = eventSources
+          ctx.state.eventSourceCreatedAt = eventSourceCreatedAt
+          if (Number.isInteger(hostId) && threadId) {
+            ctx.connectEvents(hostId, threadId)
+          }
+        }
+      }, 3_000)
+    },
+
+    closeThreadEvents(hostId: number, threadId: string) {
+      const key = pinnedKey(hostId, threadId)
+      ctx.state.eventSources[key]?.close()
+      const { [key]: _closed, ...eventSources } = ctx.state.eventSources
+      const { [key]: _closedCreatedAt, ...eventSourceCreatedAt } = ctx.state.eventSourceCreatedAt
+      ctx.state.eventSources = eventSources
+      ctx.state.eventSourceCreatedAt = eventSourceCreatedAt
+    },
+
+    recordThreadEvent(event: GatewayEvent) {
+      const key = pinnedKey(event.hostId, event.threadId)
+      const snapshot = ctx.state.threadSnapshots[key]
+      if (!snapshot) {
+        return
+      }
+      if (event.id <= snapshot.lastEventId) {
+        return
+      }
+      const events = [...snapshot.events, event].slice(-500)
+      ctx.state.threadSnapshots[key] = {
+        ...snapshot,
+        events,
+        lastEventId: event.id,
       }
     },
 
@@ -66,24 +183,23 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
       const payload = event.payload as any
       const params = payload?.params || {}
       if (event.method === 'thread/status/changed') {
-        const threadId = threadIdFromParams(params) || event.threadId
-        if (threadId && event.hostId) {
-          const key = pinnedKey(event.hostId, String(threadId))
+        const threadId = threadIdFromParams(params)
+        if (threadId) {
           ctx.events.emit({
             type: 'thread-status-detected',
             hostId: event.hostId,
             threadId: String(threadId),
-            status: isThreadActiveStatus(params.status) ? 'running' : statusAfterThreadIdle(ctx.state.threadStatuses[key]),
+            status: runtimeStatusFromAppThreadStatus(params.status),
           })
         }
       } else if (event.method === 'turn/started') {
-        const threadId = threadIdFromParams(params) || event.threadId || ctx.state.selectedThreadId
-        if (threadId && event.hostId) {
+        const threadId = threadIdFromParams(params)
+        if (threadId) {
           ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId: String(threadId), status: 'running' })
         }
       } else if (event.method === 'turn/completed') {
-        const threadId = threadIdFromParams(params) || event.threadId || ctx.state.selectedThreadId
-        if (threadId && event.hostId) {
+        const threadId = threadIdFromParams(params)
+        if (threadId) {
           ctx.events.emit({
             type: 'thread-status-detected',
             hostId: event.hostId,
@@ -93,8 +209,8 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
         }
       }
       if (event.method === 'thread/settings/updated') {
-        const threadId = threadIdFromParams(params) || event.threadId
-        if (threadId && event.hostId) {
+        const threadId = threadIdFromParams(params)
+        if (threadId) {
           ctx.events.emit({
             type: 'thread-settings-detected',
             hostId: event.hostId,
@@ -108,9 +224,9 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
         }
       }
       if (event.method === 'thread/tokenUsage/updated') {
-        const threadId = threadIdFromParams(params) || event.threadId
-        const tokenUsage = normalizeTokenUsage(params.tokenUsage ?? params.token_usage)
-        if (threadId && event.hostId && tokenUsage) {
+        const threadId = threadIdFromParams(params)
+        const tokenUsage = normalizeTokenUsage(params.tokenUsage)
+        if (threadId && tokenUsage) {
           ctx.events.emit({
             type: 'thread-token-usage-detected',
             hostId: event.hostId,
@@ -120,32 +236,45 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
         }
       }
 
-      if (!ctx.state.selectedThreadId) {
+      const targetThreadId = threadIdFromParams(params) ?? event.threadId
+      if (!targetThreadId) {
         return
       }
-      if (params.threadId && String(params.threadId) !== ctx.state.selectedThreadId) {
-        return
-      }
+      const threadId = String(targetThreadId)
 
+      if (event.method === 'item/started') {
+        ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId, status: 'running' })
+      }
       if ((event.method === 'item/started' || event.method === 'item/completed') && params.item) {
         ctx.events.emit({
           type: 'history-item-upsert',
-          threadId: ctx.state.selectedThreadId,
+          hostId: event.hostId,
+          threadId,
           item: {
             ...params.item,
             turnId: params.turnId,
           },
         })
       } else if (event.method === 'item/agentMessage/delta') {
-        ctx.events.emit({ type: 'history-agent-delta', threadId: ctx.state.selectedThreadId, params })
+        ctx.events.emit({ type: 'history-agent-delta', hostId: event.hostId, threadId, params })
+      } else if (event.method === 'item/plan/delta') {
+        ctx.events.emit({ type: 'history-plan-delta', hostId: event.hostId, threadId, params })
+      } else if (event.method === 'item/reasoning/summaryTextDelta') {
+        ctx.events.emit({ type: 'history-reasoning-summary-delta', hostId: event.hostId, threadId, params })
+      } else if (event.method === 'item/reasoning/textDelta') {
+        ctx.events.emit({ type: 'history-reasoning-text-delta', hostId: event.hostId, threadId, params })
       } else if (event.method === 'item/commandExecution/outputDelta') {
-        ctx.events.emit({ type: 'history-item-output-delta', threadId: ctx.state.selectedThreadId, params, fallbackType: 'commandExecution' })
+        ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId, status: 'running' })
+        ctx.events.emit({ type: 'history-item-output-delta', hostId: event.hostId, threadId, params, itemType: 'commandExecution' })
       } else if (event.method === 'item/fileChange/outputDelta') {
-        ctx.events.emit({ type: 'history-item-output-delta', threadId: ctx.state.selectedThreadId, params, fallbackType: 'fileChange' })
+        ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId, status: 'running' })
+        ctx.events.emit({ type: 'history-item-output-delta', hostId: event.hostId, threadId, params, itemType: 'fileChange' })
       } else if (event.method === 'item/fileChange/patchUpdated') {
+        ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId, status: 'running' })
         ctx.events.emit({
           type: 'history-item-upsert',
-          threadId: ctx.state.selectedThreadId,
+          hostId: event.hostId,
+          threadId,
           item: {
             type: 'fileChange',
             id: params.itemId,
@@ -155,11 +284,24 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
           },
         })
       } else if (event.method === 'turn/diff/updated') {
-        ctx.events.emit({ type: 'history-turn-diff-updated', threadId: ctx.state.selectedThreadId, params })
+        ctx.events.emit({ type: 'history-turn-diff-updated', hostId: event.hostId, threadId, params })
+      } else if (event.method === 'turn/plan/updated') {
+        ctx.events.emit({
+          type: 'history-item-upsert',
+          hostId: event.hostId,
+          threadId,
+          item: {
+            type: 'turnPlan',
+            id: `${params.turnId}-plan`,
+            turnId: params.turnId,
+            explanation: params.explanation ?? null,
+            plan: Array.isArray(params.plan) ? params.plan : [],
+          },
+        })
       } else if (event.method === 'turn/started' && params.turn) {
-        ctx.events.emit({ type: 'history-turn-appended', threadId: ctx.state.selectedThreadId, turn: params.turn })
+        ctx.events.emit({ type: 'history-turn-appended', hostId: event.hostId, threadId, turn: params.turn })
       } else if (event.method === 'turn/completed' && params.turn) {
-        ctx.events.emit({ type: 'history-turn-synced', threadId: ctx.state.selectedThreadId, turn: params.turn })
+        ctx.events.emit({ type: 'history-turn-synced', hostId: event.hostId, threadId, turn: params.turn })
       }
     },
   }
@@ -171,7 +313,7 @@ export function normalizeTokenUsage(value: any): ThreadTokenUsageState | null {
   if (!total || !last) {
     return null
   }
-  const modelContextWindow = numberOrNull(value?.modelContextWindow ?? value?.model_context_window)
+  const modelContextWindow = numberOrNull(value?.modelContextWindow)
   return {
     total,
     last,
@@ -180,11 +322,11 @@ export function normalizeTokenUsage(value: any): ThreadTokenUsageState | null {
 }
 
 function normalizeTokenBreakdown(value: any) {
-  const totalTokens = numberOrNull(value?.totalTokens ?? value?.total_tokens)
-  const inputTokens = numberOrNull(value?.inputTokens ?? value?.input_tokens)
-  const cachedInputTokens = numberOrNull(value?.cachedInputTokens ?? value?.cached_input_tokens)
-  const outputTokens = numberOrNull(value?.outputTokens ?? value?.output_tokens)
-  const reasoningOutputTokens = numberOrNull(value?.reasoningOutputTokens ?? value?.reasoning_output_tokens)
+  const totalTokens = numberOrNull(value?.totalTokens)
+  const inputTokens = numberOrNull(value?.inputTokens)
+  const cachedInputTokens = numberOrNull(value?.cachedInputTokens)
+  const outputTokens = numberOrNull(value?.outputTokens)
+  const reasoningOutputTokens = numberOrNull(value?.reasoningOutputTokens)
   if ([totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens].some((item) => item == null)) {
     return null
   }

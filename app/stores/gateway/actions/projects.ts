@@ -6,6 +6,7 @@ import { messageFromError } from '../thread-utils'
 export function createProjectActions(ctx: GatewayStoreContext) {
   return {
     async selectProject(projectId: number) {
+      ctx.cacheSelectedThreadSnapshot()
       ctx.state.selectedProjectId = projectId
       ctx.state.selectedThreadId = null
       ctx.state.currentThread = null
@@ -13,6 +14,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       ctx.state.events = []
       ctx.state.olderTurnsCursor = null
       ctx.state.newerTurnsCursor = null
+      ctx.state.lastEventId = 0
       writeGatewayRouteSelection({
         hostId: ctx.state.selectedHostId,
         projectId,
@@ -66,6 +68,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
         ctx.state.projects.push(project)
       }
       ctx.persistConfig()
+      ctx.cacheSelectedThreadSnapshot()
       ctx.state.selectedProjectId = project.id
       ctx.state.selectedThreadId = null
       ctx.state.currentThread = null

@@ -19,12 +19,12 @@ const firstIntermediateIndex = computed(() => {
   const firstNonUser = items.value.findIndex((item: any) => item?.type !== 'userMessage')
   return firstNonUser >= 0 ? firstNonUser : items.value.length
 })
-const userItems = computed(() => hasFinalAnswer.value ? items.value.slice(0, firstIntermediateIndex.value) : items.value)
+const userItems = computed(() => items.value.slice(0, firstIntermediateIndex.value))
 const intermediateItems = computed(() => {
-  if (!hasFinalAnswer.value) {
-    return []
+  if (hasFinalAnswer.value) {
+    return items.value.slice(firstIntermediateIndex.value, finalAgentIndex.value)
   }
-  return items.value.slice(firstIntermediateIndex.value, finalAgentIndex.value)
+  return items.value.slice(firstIntermediateIndex.value)
 })
 const finalItems = computed(() => {
   if (!hasFinalAnswer.value) {
@@ -54,6 +54,21 @@ function findLastIndex<T>(list: T[], predicate: (item: T) => boolean) {
   }
   return -1
 }
+
+function userMessageVariant(item: any) {
+  if (item?.type !== 'userMessage') {
+    return 'normal'
+  }
+  if (typeof item.clientId === 'string' && item.clientId.startsWith('steer-')) {
+    return 'steer'
+  }
+  const itemIndex = items.value.findIndex((candidate: any) => candidate === item)
+  return firstNonUserIndex(itemIndex) >= 0 ? 'steer' : 'normal'
+}
+
+function firstNonUserIndex(beforeIndex: number) {
+  return items.value.findIndex((candidate: any, index) => index < beforeIndex && candidate?.type !== 'userMessage')
+}
 </script>
 
 <template>
@@ -63,6 +78,7 @@ function findLastIndex<T>(list: T[], predicate: (item: T) => boolean) {
       :key="item.id || item.clientId || `${item.type}-user-${JSON.stringify(item).length}`"
       :item="item"
       :host-id="hostId"
+      :user-message-variant="userMessageVariant(item)"
     />
 
     <Collapsible
@@ -84,6 +100,7 @@ function findLastIndex<T>(list: T[], predicate: (item: T) => boolean) {
             :key="item.id || `${item.type}-middle-${JSON.stringify(item).length}`"
             :item="item"
             :host-id="hostId"
+            :user-message-variant="userMessageVariant(item)"
           />
         </div>
       </CollapsibleContent>
@@ -94,6 +111,7 @@ function findLastIndex<T>(list: T[], predicate: (item: T) => boolean) {
       :key="item.id || `${item.type}-final-${JSON.stringify(item).length}`"
       :item="item"
       :host-id="hostId"
+      :user-message-variant="userMessageVariant(item)"
     />
   </div>
 </template>

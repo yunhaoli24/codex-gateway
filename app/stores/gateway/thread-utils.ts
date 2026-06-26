@@ -18,19 +18,87 @@ export function selectedThreadKey(hostId: number | null, threadId: string | null
 }
 
 export function threadIdFromParams(params: any) {
-  return params?.threadId || params?.thread_id || params?.turn?.threadId || params?.turn?.thread_id
+  return params?.threadId
 }
 
 export function isThreadActiveStatus(status: any) {
-  const value = typeof status === 'string' ? status : status?.type
+  const value = statusValue(status)
   return value === 'active' || value === 'inProgress' || value === 'running'
 }
 
+export function runtimeStatusFromAppThreadStatus(status: any): ThreadRuntimeStatus {
+  const value = statusValue(status)
+  if (value === 'active' || value === 'inProgress' || value === 'running') return 'running'
+  if (value === 'systemError' || value === 'failed') return 'failed'
+  if (value === 'interrupted') return 'interrupted'
+  return 'completed'
+}
+
 export function terminalTurnStatus(status: any): ThreadRuntimeStatus {
-  const value = typeof status === 'string' ? status : status?.type
+  const value = statusValue(status)
   if (value === 'failed') return 'failed'
   if (value === 'interrupted') return 'interrupted'
   return 'completed'
+}
+
+export function runtimeStatusFromThreadState(thread: unknown, history: unknown): ThreadRuntimeStatus | null {
+  const candidates: any[] = []
+  if (thread && typeof thread === 'object') {
+    candidates.push(thread)
+  }
+  if (history && typeof history === 'object') {
+    candidates.push((history as any).thread, history)
+  }
+
+  const turns = [
+    ...(Array.isArray((history as any)?.thread?.turns) ? (history as any).thread.turns : []),
+    ...(Array.isArray((history as any)?.turns) ? (history as any).turns : []),
+    ...(Array.isArray((thread as any)?.turns) ? (thread as any).turns : []),
+  ]
+  candidates.push(...turns)
+  for (const turn of turns) {
+    if (Array.isArray(turn?.items)) {
+      candidates.push(...turn.items)
+    }
+  }
+
+  const threadStatus = statusValue((thread as any)?.status ?? (history as any)?.thread?.status ?? (history as any)?.status)
+  if (threadStatus === 'idle' || threadStatus === 'notLoaded') {
+    return 'completed'
+  }
+  if (threadStatus === 'systemError') {
+    return 'failed'
+  }
+  if (threadStatus === 'active') {
+    return 'running'
+  }
+  if (turns.length) {
+    const latestTurn = turns.at(-1)
+    const latestTurnStatus = statusValue(latestTurn?.status)
+    if (latestTurnStatus === 'completed' || latestTurnStatus === 'failed' || latestTurnStatus === 'interrupted') {
+      return terminalTurnStatus(latestTurnStatus)
+    }
+    if (isThreadActiveStatus(latestTurnStatus)) {
+      return 'running'
+    }
+  }
+  if (candidates.some((candidate) => isThreadActiveStatus(candidate?.status))) {
+    return 'running'
+  }
+  if (candidates.some((candidate) => statusValue(candidate?.status) === 'failed')) {
+    return 'failed'
+  }
+  if (candidates.some((candidate) => statusValue(candidate?.status) === 'interrupted')) {
+    return 'interrupted'
+  }
+  if (candidates.some((candidate) => statusValue(candidate?.status) === 'completed')) {
+    return 'completed'
+  }
+  return null
+}
+
+function statusValue(status: any) {
+  return typeof status === 'string' ? status : status?.type
 }
 
 export function normalizeThreadSettings(settings: ThreadSettingsState | null | undefined): ThreadSettingsState {
@@ -49,12 +117,6 @@ export function mergeThreadSettings(current: ThreadSettingsState, next: ThreadSe
     effort: 'effort' in next ? next.effort ?? null : current.effort ?? null,
     approvalPolicy: 'approvalPolicy' in next ? next.approvalPolicy ?? null : current.approvalPolicy ?? null,
   }
-}
-
-export function statusAfterThreadIdle(current: ThreadRuntimeStatus | undefined): ThreadRuntimeStatus {
-  if (!current) return 'idle'
-  if (current === 'running') return 'completed'
-  return current
 }
 
 export function titleForThread(thread: any) {
@@ -110,6 +172,18 @@ function itemClientId(item: any) {
   return item?.clientId ? String(item.clientId) : ''
 }
 
+function turnId(turn: any) {
+  return turn?.id ? String(turn.id) : ''
+}
+
+function paramsTurnId(params: any) {
+  return params?.turnId ? String(params.turnId) : ''
+}
+
+function isClientOnlyItem(item: any) {
+  return item?.type === 'userMessage' && item?.clientId && !item?.turnId
+}
+
 function sameItem(left: any, right: any) {
   const leftId = itemId(left)
   const rightId = itemId(right)
@@ -135,8 +209,25 @@ function findTurnForItem(turns: any[], item: any) {
   return null
 }
 
+function mergeTurnItems(existingItems: any[], incomingItems: any[]) {
+  const nextItems = [...existingItems]
+  for (const incoming of incomingItems) {
+    const index = nextItems.findIndex((candidate) => sameItem(candidate, incoming))
+    if (index >= 0) {
+      nextItems[index] = { ...nextItems[index], ...incoming }
+    } else {
+      nextItems.push(incoming)
+    }
+  }
+  return nextItems
+}
+
 export function mergeItemIntoLatestTurn(history: unknown, currentThread: unknown, threadId: string, item: any) {
   if (!item || typeof item !== 'object') {
+    return history
+  }
+  const itemTurnId = item.turnId ? String(item.turnId) : ''
+  if (!itemTurnId && !isClientOnlyItem(item)) {
     return history
   }
 
@@ -150,16 +241,17 @@ export function mergeItemIntoLatestTurn(history: unknown, currentThread: unknown
     return nextHistory
   }
 
-  let turnIndex = item.turnId ? turns.findIndex((candidate: any) => candidate?.id === item.turnId) : -1
+  const clientTurnId = isClientOnlyItem(item) ? `client-${item.clientId}` : ''
+  const targetTurnId = itemTurnId || clientTurnId
+  let turnIndex = turns.findIndex((candidate: any) => turnId(candidate) === targetTurnId)
   let turn = turnIndex >= 0 ? turns[turnIndex] : null
   if (!turn) {
-    turn = turns.at(-1)
-    turnIndex = turns.length - 1
-  }
-  if (!turn || !Array.isArray(turn.items)) {
-    turn = { id: item.turnId || `live-${Date.now()}`, items: [], status: 'inProgress' }
+    turn = { id: targetTurnId, items: [], status: 'inProgress' }
     turns.push(turn)
     turnIndex = turns.length - 1
+  }
+  if (!Array.isArray(turn.items)) {
+    return history
   } else {
     turn.items = [...turn.items]
   }
@@ -177,21 +269,18 @@ export function mergeItemIntoLatestTurn(history: unknown, currentThread: unknown
 
 export function appendAgentDelta(history: unknown, currentThread: unknown, threadId: string, params: any) {
   const itemIdValue = params?.itemId ? String(params.itemId) : ''
+  const turnIdValue = paramsTurnId(params)
   const delta = params?.delta || ''
-  if (!itemIdValue || !delta) {
+  if (!itemIdValue || !turnIdValue || !delta) {
     return history
   }
 
   const nextHistory = ensureHistoryThread(history, currentThread, threadId)
   const turns = nextHistory.thread.turns
-  let turnIndex = params.turnId ? turns.findIndex((candidate: any) => candidate?.id === params.turnId) : -1
+  let turnIndex = turns.findIndex((candidate: any) => turnId(candidate) === turnIdValue)
   let turn = turnIndex >= 0 ? turns[turnIndex] : null
   if (!turn) {
-    turn = turns.at(-1)
-    turnIndex = turns.length - 1
-  }
-  if (!turn || !Array.isArray(turn.items)) {
-    turn = { id: params.turnId || `live-${Date.now()}`, items: [], status: 'inProgress' }
+    turn = { id: turnIdValue, items: [], status: 'inProgress' }
     turns.push(turn)
     turnIndex = turns.length - 1
   } else {
@@ -208,6 +297,7 @@ export function appendAgentDelta(history: unknown, currentThread: unknown, threa
       id: itemIdValue,
       text: delta,
       phase: 'final_answer',
+      turnId: turnIdValue,
     })
   }
   turns[turnIndex] = turn
@@ -215,42 +305,107 @@ export function appendAgentDelta(history: unknown, currentThread: unknown, threa
   return nextHistory
 }
 
-export function appendItemOutputDelta(history: unknown, currentThread: unknown, threadId: string, params: any, fallbackType: string) {
+export function appendPlanDelta(history: unknown, currentThread: unknown, threadId: string, params: any) {
+  return appendTextDelta(history, currentThread, threadId, params, 'plan', (item, delta) => ({
+    ...item,
+    text: `${item.text || ''}${delta}`,
+  }))
+}
+
+export function appendReasoningSummaryDelta(history: unknown, currentThread: unknown, threadId: string, params: any) {
+  return appendTextDelta(history, currentThread, threadId, params, 'reasoning', (item, delta) => {
+    const summary = Array.isArray(item.summary) ? [...item.summary] : []
+    const index = typeof params.summaryIndex === 'number' ? params.summaryIndex : summary.length
+    summary[index] = `${summary[index] || ''}${delta}`
+    return { ...item, summary }
+  })
+}
+
+export function appendReasoningTextDelta(history: unknown, currentThread: unknown, threadId: string, params: any) {
+  return appendTextDelta(history, currentThread, threadId, params, 'reasoning', (item, delta) => {
+    const content = Array.isArray(item.content) ? [...item.content] : []
+    const index = typeof params.contentIndex === 'number' ? params.contentIndex : content.length
+    content[index] = `${content[index] || ''}${delta}`
+    return { ...item, content }
+  })
+}
+
+function appendTextDelta(
+  history: unknown,
+  currentThread: unknown,
+  threadId: string,
+  params: any,
+  itemType: string,
+  update: (item: any, delta: string) => any,
+) {
   const itemIdValue = params?.itemId ? String(params.itemId) : ''
+  const turnIdValue = paramsTurnId(params)
   const delta = params?.delta || ''
-  if (!itemIdValue || !delta) {
+  if (!itemIdValue || !turnIdValue || !delta) {
     return history
   }
 
   const nextHistory = ensureHistoryThread(history, currentThread, threadId)
   const turns = nextHistory.thread.turns
-  let turnIndex = params.turnId ? turns.findIndex((candidate: any) => candidate?.id === params.turnId) : -1
+  let turnIndex = turns.findIndex((candidate: any) => turnId(candidate) === turnIdValue)
   let turn = turnIndex >= 0 ? turns[turnIndex] : null
   if (!turn) {
-    turn = turns.at(-1)
-    turnIndex = turns.length - 1
-  }
-  if (!turn || !Array.isArray(turn.items)) {
-    turn = { id: params.turnId || `live-${Date.now()}`, items: [], status: 'inProgress' }
+    turn = { id: turnIdValue, items: [], status: 'inProgress' }
     turns.push(turn)
     turnIndex = turns.length - 1
-  } else {
-    turn.items = [...turn.items]
   }
-
+  if (!Array.isArray(turn.items)) {
+    return history
+  }
+  turn = { ...turn, items: [...turn.items] }
   const index = turn.items.findIndex((candidate: any) => itemId(candidate) === itemIdValue)
   if (index >= 0) {
-    const item = turn.items[index]
-    turn.items[index] = { ...item, aggregatedOutput: `${item.aggregatedOutput || ''}${delta}` }
+    turn.items[index] = update(turn.items[index], delta)
   } else {
+    turn.items.push(update({ type: itemType, id: itemIdValue, turnId: turnIdValue }, delta))
+  }
+  turns[turnIndex] = turn
+  nextHistory.thread.turns = [...turns]
+  return nextHistory
+}
+
+export function appendItemOutputDelta(history: unknown, currentThread: unknown, threadId: string, params: any, itemType: 'commandExecution' | 'fileChange') {
+  const itemIdValue = params?.itemId ? String(params.itemId) : ''
+  const turnIdValue = paramsTurnId(params)
+  const delta = params?.delta || ''
+  if (!itemIdValue || !turnIdValue || !delta) {
+    return history
+  }
+
+  const nextHistory = ensureHistoryThread(history, currentThread, threadId)
+  const turns = nextHistory.thread.turns
+  let turnIndex = turns.findIndex((candidate: any) => turnId(candidate) === turnIdValue)
+  let turn = turnIndex >= 0 ? turns[turnIndex] : null
+  if (!turn) {
+    turn = { id: turnIdValue, items: [], status: 'inProgress' }
+    turns.push(turn)
+    turnIndex = turns.length - 1
+  }
+  if (!Array.isArray(turn.items)) {
+    return history
+  }
+
+  turn = { ...turn, items: [...turn.items] }
+  const index = turn.items.findIndex((candidate: any) => itemId(candidate) === itemIdValue)
+  if (index < 0) {
     turn.items.push({
-      type: fallbackType,
+      type: itemType,
       id: itemIdValue,
-      turnId: params.turnId,
+      turnId: turnIdValue,
       status: 'inProgress',
       aggregatedOutput: delta,
     })
+    turns[turnIndex] = turn
+    nextHistory.thread.turns = [...turns]
+    return nextHistory
   }
+  const item = turn.items[index]
+  turn.items[index] = { ...item, aggregatedOutput: `${item.aggregatedOutput || ''}${delta}` }
   turns[turnIndex] = turn
   nextHistory.thread.turns = [...turns]
   return nextHistory
@@ -265,8 +420,7 @@ export function updateTurnDiff(history: unknown, currentThread: unknown, threadI
   const turns = nextHistory.thread.turns
   let turn = turns.find((candidate: any) => candidate?.id === params.turnId)
   if (!turn) {
-    turn = { id: params.turnId, items: [], status: 'inProgress' }
-    turns.push(turn)
+    return history
   }
   turn.diff = params.diff
   nextHistory.thread.turns = [...turns]
@@ -282,10 +436,12 @@ export function syncCompletedTurn(history: unknown, currentThread: unknown, thre
   const turns = nextHistory.thread.turns
   const index = turns.findIndex((candidate: any) => candidate?.id === turn.id)
   if (index >= 0) {
+    const existingItems = Array.isArray(turns[index].items) ? turns[index].items : []
+    const incomingItems = Array.isArray(turn.items) ? turn.items : []
     turns[index] = {
       ...turns[index],
       ...turn,
-      items: Array.isArray(turn.items) && turn.items.length ? turn.items : turns[index].items,
+      items: mergeTurnItems(existingItems, incomingItems),
     }
   } else {
     turns.push(turn)
