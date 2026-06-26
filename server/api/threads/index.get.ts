@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
     cursor: query.cursor || null,
     cwd: query.cwd || undefined,
     searchTerm: query.searchTerm || undefined,
+    useStateDbOnly: query.useStateDbOnly ?? true,
   })
 
   const threads = Array.isArray((result as any)?.data) ? (result as any).data : []
@@ -30,9 +31,43 @@ export default defineEventHandler(async (event) => {
       }
     }
   }
+  const mergedThreads = mergeThreads(
+    threads,
+    persistence.listThreadMetadata(host.id, {
+      projectId: query.projectId ?? null,
+      cwd: query.cwd ?? null,
+    }),
+    query.searchTerm ?? null,
+  )
   return {
     ...(result as Record<string, unknown>),
-    data: threads,
+    data: mergedThreads,
     projects: persistence.listProjects(host.id),
   }
 })
+
+function mergeThreads(remoteThreads: any[], indexedThreads: any[], searchTerm: string | null) {
+  const byId = new Map<string, any>()
+  for (const thread of indexedThreads) {
+    byId.set(String(thread.id), thread)
+  }
+  for (const thread of remoteThreads) {
+    const id = String(thread.id)
+    byId.set(id, {
+      ...byId.get(id),
+      ...thread,
+    })
+  }
+
+  const normalizedSearch = searchTerm?.trim().toLowerCase() ?? ''
+  return Array.from(byId.values())
+    .filter((thread) => {
+      if (!normalizedSearch) {
+        return true
+      }
+      return [thread.id, thread.name, thread.preview, thread.cwd]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedSearch))
+    })
+    .sort((left, right) => Number(right.recencyAt || right.updatedAt || 0) - Number(left.recencyAt || left.updatedAt || 0))
+}

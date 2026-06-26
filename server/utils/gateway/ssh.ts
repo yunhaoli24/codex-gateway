@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { Client } from 'ssh2'
+import { Client, type ClientChannel } from 'ssh2'
 import type { HostRecord } from '~~/shared/types'
 import { codexRemoteAppServerVerifyPayload, remoteLoginShellCommand } from './remote-command'
 
@@ -52,55 +52,70 @@ export class HostManager {
   }
 
   async exec(host: HostWithSecret, command: string): Promise<CommandResult> {
+    const channel = await this.execChannel(host, command)
+
+    return new Promise((resolve, reject) => {
+      let stdout = ''
+      let stderr = ''
+      channel.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8')
+      })
+      channel.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf8')
+      })
+      channel.on('error', reject)
+      channel.on('close', (code: number | null) => {
+        resolve({ code, stdout, stderr })
+      })
+    })
+  }
+
+  async execChannel(host: HostWithSecret, command: string, retried = false): Promise<ClientChannel> {
     const client = await this.connect(host)
 
     return new Promise((resolve, reject) => {
       client.exec(command, (error, channel) => {
         if (error) {
+          this.disconnect(host.id)
+          if (!retried && isConnectionLevelSshError(error)) {
+            void this.execChannel(host, command, true).then(resolve, reject)
+            return
+          }
           reject(error)
           return
         }
-
-        let stdout = ''
-        let stderr = ''
-        channel.on('data', (chunk: Buffer) => {
-          stdout += chunk.toString('utf8')
-        })
-        channel.stderr.on('data', (chunk: Buffer) => {
-          stderr += chunk.toString('utf8')
-        })
-        channel.on('close', (code: number | null) => {
-          resolve({ code, stdout, stderr })
-        })
+        resolve(channel)
       })
     })
   }
 
   async verify(host: HostWithSecret) {
-    if (host.appServerMode === 'websocket') {
-      const { CodexRpcClient } = await import('./rpc')
-      const client = new CodexRpcClient(host)
-      try {
-        await client.connect()
-        const threads = await client.request('thread/list', { limit: 1 }, 30_000)
-        return {
-          ok: true,
-          code: 0,
-          stdout: `Connected to ${host.appServerUrl}`,
-          stderr: '',
-          threads,
-        }
-      } finally {
-        client.close()
+    const probe = await this.exec(host, remoteLoginShellCommand(codexRemoteAppServerVerifyPayload()))
+    if (probe.code !== 0) {
+      return {
+        ok: false,
+        code: probe.code,
+        stdout: probe.stdout.trim(),
+        stderr: probe.stderr.trim(),
       }
     }
 
-    const result = await this.exec(host, remoteLoginShellCommand(codexRemoteAppServerVerifyPayload()))
-    return {
-      ok: result.code === 0,
-      code: result.code,
-      stdout: result.stdout.trim(),
-      stderr: result.stderr.trim(),
+    const { CodexRpcClient } = await import('./rpc')
+    const client = new CodexRpcClient(host)
+    try {
+      await client.connect()
+      const threads = await client.request('thread/list', { limit: 1, useStateDbOnly: true }, 30_000)
+      return {
+        ok: true,
+        code: 0,
+        stdout: [probe.stdout.trim(), 'app-server RPC OK']
+          .filter(Boolean)
+          .join('\n'),
+        stderr: probe.stderr.trim(),
+        threads,
+      }
+    } finally {
+      client.close()
     }
   }
 
@@ -208,4 +223,9 @@ function hostPatternMatches(pattern: string, host: string) {
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`
+}
+
+function isConnectionLevelSshError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return /No response from server|Not connected|Connection lost|ECONNRESET|EPIPE/i.test(message)
 }

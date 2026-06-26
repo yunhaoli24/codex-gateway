@@ -18,8 +18,6 @@ export const hostCreateSchema = z.object({
   privateKeyPath: z.string().trim().nullable().optional(),
   privateKey: z.string().nullable().optional(),
   password: z.string().nullable().optional(),
-  appServerMode: z.enum(['local', 'stdio', 'websocket']).default('stdio'),
-  appServerUrl: z.string().trim().nullable().optional(),
 })
 
 export const projectCreateSchema = z.object({
@@ -65,6 +63,7 @@ export const threadListSchema = z.object({
   searchTerm: z.string().trim().nullable().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
   cursor: z.string().trim().nullable().optional(),
+  useStateDbOnly: z.coerce.boolean().optional(),
 })
 
 export const threadOpenSchema = z.object({
@@ -101,6 +100,10 @@ export const turnStartSchema = z.object({
   text: z.string().trim().min(1),
   clientUserMessageId: z.string().trim().nullable().optional(),
   cwd: z.string().trim().nullable().optional(),
+  images: z.array(z.object({
+    path: z.string().trim().min(1),
+    detail: z.enum(['low', 'high', 'auto', 'original']).optional(),
+  })).default([]),
 })
 
 export function requireRecord<T>(value: T | null | undefined, message: string): T {

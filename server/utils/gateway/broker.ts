@@ -12,6 +12,16 @@ interface TurnsPage {
   backwardsCursor?: string | null
 }
 
+interface TurnStartInput {
+  text: string
+  cwd?: string | null
+  clientUserMessageId?: string | null
+  images?: Array<{
+    path: string
+    detail?: 'low' | 'high' | 'auto' | 'original'
+  }>
+}
+
 function pageToHistory(thread: any, page: TurnsPage) {
   const turns = [...(page.data ?? [])].reverse()
   return {
@@ -29,6 +39,7 @@ class ThreadController {
   private idleTimer: NodeJS.Timeout | null = null
   private operationQueue: Promise<unknown> = Promise.resolve()
   private connected = false
+  private subscribed = false
   private closed = false
 
   constructor(
@@ -36,10 +47,12 @@ class ThreadController {
     readonly threadId: string,
     client?: CodexRpcClient,
     connected = false,
+    subscribed = false,
     private readonly onClose?: () => void,
   ) {
     this.client = client ?? new CodexRpcClient(host)
     this.connected = connected
+    this.subscribed = subscribed
     this.client.on('notification', (message: any) => {
       const method = message.method || 'notification'
       const event = persistence.addGatewayEvent(host.id, this.threadId, method, message)
@@ -62,6 +75,8 @@ class ThreadController {
     })
     this.client.on('close', () => {
       this.closed = true
+      this.connected = false
+      this.subscribed = false
       this.onClose?.()
     })
   }
@@ -78,6 +93,34 @@ class ThreadController {
 
   markConnected() {
     this.connected = true
+  }
+
+  async ensureSubscribed() {
+    await this.ensureConnected()
+    if (this.subscribed) {
+      return
+    }
+
+    await this.enqueue(() => this.client.request<any>('thread/resume', {
+      threadId: this.threadId,
+      excludeTurns: true,
+    }))
+    this.subscribed = true
+  }
+
+  async resumeWithInitialTurns(limit = DEFAULT_TURN_PAGE_LIMIT) {
+    await this.ensureConnected()
+    const resume = await this.enqueue(() => this.client.request<any>('thread/resume', {
+      threadId: this.threadId,
+      excludeTurns: true,
+      initialTurnsPage: {
+        limit,
+        sortDirection: 'desc',
+        itemsView: 'full',
+      },
+    }))
+    this.subscribed = true
+    return resume
   }
 
   enqueue<T>(operation: () => Promise<T>) {
@@ -104,6 +147,7 @@ class ThreadController {
     if (this.connected) {
       void this.client.request('thread/unsubscribe', { threadId: this.threadId }, 5_000).catch(() => {})
     }
+    this.subscribed = false
     this.client.close()
     this.subscribers.clear()
     this.onClose?.()
@@ -113,7 +157,7 @@ class ThreadController {
     if (this.subscribers.size > 0 || this.idleTimer) {
       return
     }
-    this.idleTimer = setTimeout(() => this.close(), 10 * 60_000)
+    this.idleTimer = setTimeout(() => this.close(), 30_000)
     this.idleTimer.unref()
   }
 
@@ -131,24 +175,23 @@ class ThreadBroker {
 
   async openThread(host: HostRecord, threadId: string, projectId: number | null, limit = DEFAULT_TURN_PAGE_LIMIT) {
     const controller = await this.getController(host, threadId)
-    const resume = await controller.enqueue(() => controller.client.request<any>('thread/resume', {
-      threadId,
-      excludeTurns: true,
-      initialTurnsPage: {
-        limit,
-        sortDirection: 'desc',
-        itemsView: 'full',
-      },
-    }))
+    const resume = await controller.resumeWithInitialTurns(limit)
     const thread = resume.thread ?? resume
     const initialTurnsPage = resume.initialTurnsPage
     if (!initialTurnsPage) {
       throw new Error('thread/resume did not return initialTurnsPage')
     }
-    persistence.recordThread(host.id, projectId, thread.thread ?? thread)
+    const threadRecord = thread.thread ?? thread
+    let resolvedProjectId = projectId
+    if (!resolvedProjectId && typeof threadRecord?.cwd === 'string' && threadRecord.cwd.trim()) {
+      resolvedProjectId = persistence.ensureProjectForPath(host.id, threadRecord.cwd).id
+    }
+    persistence.recordThread(host.id, resolvedProjectId, threadRecord)
     return {
       thread,
       history: pageToHistory(thread, initialTurnsPage),
+      projectId: resolvedProjectId,
+      project: resolvedProjectId ? persistence.getProject(resolvedProjectId) : null,
       turnsPage: {
         nextCursor: initialTurnsPage.nextCursor ?? null,
         backwardsCursor: initialTurnsPage.backwardsCursor ?? null,
@@ -162,12 +205,15 @@ class ThreadBroker {
     try {
       await client.connect()
       const result = await client.request<any>('thread/start', params)
-      const thread = result.thread ?? result
+      const thread = {
+        ...(result.thread ?? result),
+        cwd: (result.thread ?? result)?.cwd ?? params.cwd ?? null,
+      }
       persistence.recordThread(host.id, projectId, thread)
       const threadId = String(thread.id)
       const key = this.key(host.id, threadId)
       this.controllers.get(key)?.close()
-      const controller = new ThreadController(host, threadId, client, true, () => {
+      const controller = new ThreadController(host, threadId, client, true, true, () => {
         if (this.controllers.get(key) === controller) {
           this.controllers.delete(key)
         }
@@ -189,13 +235,22 @@ class ThreadBroker {
     }
   }
 
-  async startTurn(host: HostRecord, threadId: string, text: string, cwd?: string | null, clientUserMessageId?: string | null) {
+  async startTurn(host: HostRecord, threadId: string, input: TurnStartInput) {
     const controller = await this.getController(host, threadId)
+    await controller.ensureSubscribed()
+    const userInput: any[] = [{ type: 'text', text: input.text, text_elements: [] }]
+    for (const image of input.images ?? []) {
+      userInput.push({
+        type: 'localImage',
+        path: image.path,
+        detail: image.detail,
+      })
+    }
     return controller.enqueue(() => controller.client.request('turn/start', {
       threadId,
-      clientUserMessageId: clientUserMessageId || undefined,
-      input: [{ type: 'text', text, text_elements: [] }],
-      cwd: cwd || null,
+      clientUserMessageId: input.clientUserMessageId || undefined,
+      input: userInput,
+      cwd: input.cwd || null,
     }))
   }
 
@@ -211,6 +266,7 @@ class ThreadBroker {
 
   async renameThread(host: HostRecord, threadId: string, name: string) {
     const controller = await this.getController(host, threadId)
+    await controller.ensureSubscribed()
     return controller.enqueue(() => controller.client.request('thread/name/set', { threadId, name }))
   }
 
@@ -220,6 +276,7 @@ class ThreadBroker {
     sortDirection?: 'asc' | 'desc'
   }) {
     const controller = await this.getController(host, threadId)
+    await controller.ensureSubscribed()
     const page = await controller.enqueue(() => controller.client.request<TurnsPage>('thread/turns/list', {
       threadId,
       cursor: params.cursor ?? null,
@@ -240,7 +297,7 @@ class ThreadBroker {
     const key = this.key(host.id, threadId)
     let controller = this.controllers.get(key)
     if (!controller) {
-      controller = new ThreadController(host, threadId, undefined, false, () => {
+      controller = new ThreadController(host, threadId, undefined, false, false, () => {
         if (this.controllers.get(key) === controller) {
           this.controllers.delete(key)
         }
@@ -249,6 +306,12 @@ class ThreadBroker {
     }
     await controller.ensureConnected()
     return controller
+  }
+
+  async subscribe(host: HostRecord, threadId: string, callback: Subscriber) {
+    const controller = await this.getController(host, threadId)
+    await controller.ensureSubscribed()
+    return controller.subscribe(callback)
   }
 
   close(hostId: number, threadId: string) {

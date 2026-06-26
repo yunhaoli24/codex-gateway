@@ -5,7 +5,6 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   Clock3Icon,
-  ComputerIcon,
   FolderIcon,
   GripIcon,
   LayoutPanelLeftIcon,
@@ -61,8 +60,8 @@ function formatRelative(seconds?: number | null) {
   return `${Math.floor(diff / 604_800)}w`
 }
 
-function openThread(threadId: string) {
-  void store.openThread(threadId)
+function openThread(threadId: string, context?: { hostId?: number, projectId?: number | null }) {
+  void store.openThread(threadId, context)
 }
 
 function openPinnedThread(thread: any) {
@@ -131,6 +130,10 @@ function pinnedThreadKey(thread: any) {
 
 function currentThreadKey(threadId: string) {
   return selectedHostId.value ? `${selectedHostId.value}:${threadId}` : ''
+}
+
+function threadKey(hostId: number, threadId: string) {
+  return `${hostId}:${threadId}`
 }
 
 function isPinnedOpeningOrRunning(thread: any) {
@@ -288,11 +291,10 @@ watch(selectedProjectId, (projectId) => {
                 >
                   <ChevronDownIcon v-if="expandedHostIds.has(host.id)" class="size-3.5 shrink-0 text-[#7e878d]" />
                   <ChevronRightIcon v-else class="size-3.5 shrink-0 text-[#7e878d]" />
-                  <ComputerIcon v-if="host.appServerMode === 'local'" class="size-4 shrink-0" />
-                  <ServerIcon v-else class="size-4 shrink-0" />
+                  <ServerIcon class="size-4 shrink-0" />
                   <span class="min-w-0">
                     <span class="block truncate">{{ host.name }}</span>
-                    <span class="block truncate text-xs text-[#7e878d]">{{ host.sshHost }} · {{ host.appServerMode }}</span>
+                    <span class="block truncate text-xs text-[#7e878d]">{{ host.sshHost }}</span>
                   </span>
                 </Button>
                 <Button
@@ -308,7 +310,6 @@ watch(selectedProjectId, (projectId) => {
                   <WifiIcon v-else class="size-4" />
                 </Button>
                 <Button
-                  v-if="host.appServerMode !== 'local'"
                   variant="ghost"
                   size="sm"
                   class="size-8 shrink-0 p-0 text-red-600 hover:text-red-700"
@@ -369,7 +370,7 @@ watch(selectedProjectId, (projectId) => {
                               variant="ghost"
                               class="h-auto min-h-9 w-full justify-between rounded-lg px-3 py-2 text-[14px] font-normal hover:bg-black/5"
                               :class="thread.id === selectedThreadId ? 'bg-[#c7ddeb]' : ''"
-                              @click="openThread(String(thread.id))"
+                              @click="openThread(String(thread.id), { hostId: project.hostId, projectId: project.id })"
                             >
                               <span class="min-w-0 text-left">
                                 <span class="flex min-w-0 items-center gap-1.5">
@@ -378,7 +379,7 @@ watch(selectedProjectId, (projectId) => {
                                 </span>
                                 <span class="block truncate text-xs text-[#7e878d]">{{ formatRelative(thread.updatedAt) }}</span>
                               </span>
-                              <Loader2Icon v-if="runningThreadKeySet.has(currentThreadKey(String(thread.id)))" class="size-3.5 shrink-0 animate-spin text-[#7e878d]" />
+                              <Loader2Icon v-if="runningThreadKeySet.has(threadKey(project.hostId, String(thread.id)))" class="size-3.5 shrink-0 animate-spin text-[#7e878d]" />
                             </Button>
                           </ContextMenuTrigger>
                           <ContextMenuContent class="w-40">

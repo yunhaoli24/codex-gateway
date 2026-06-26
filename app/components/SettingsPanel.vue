@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ClipboardPasteIcon, EyeIcon, FolderIcon, FolderOpenIcon, PlusIcon } from '@lucide/vue'
+import { ClipboardPasteIcon, EyeIcon, FolderIcon, FolderOpenIcon, PlusIcon, XIcon } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { HTMLAttributes } from 'vue'
@@ -33,8 +33,6 @@ const hostForm = ref({
   privateKeyPath: '',
   privateKey: '',
   password: '',
-  appServerMode: 'stdio',
-  appServerUrl: '',
 })
 
 const projectForm = ref({ name: '', remotePath: '' })
@@ -54,7 +52,6 @@ async function createHost() {
     privateKey: hostForm.value.privateKey || null,
     password: hostForm.value.password || null,
     port: hostForm.value.port ? Number(hostForm.value.port) : null,
-    appServerUrl: hostForm.value.appServerUrl || null,
   })
   hostForm.value = {
     name: '',
@@ -65,8 +62,6 @@ async function createHost() {
     privateKeyPath: '',
     privateKey: '',
     password: '',
-    appServerMode: 'stdio',
-    appServerUrl: '',
   }
   emit('close')
 }
@@ -123,7 +118,14 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
 </script>
 
 <template>
-  <div :class="cn('space-y-4 rounded-xl bg-white/90 p-3 text-xs shadow-xl ring-1 ring-black/10 backdrop-blur-md', props.class)">
+  <div data-testid="settings-panel" :class="cn('space-y-4 rounded-xl bg-white/90 p-3 text-xs shadow-xl ring-1 ring-black/10 backdrop-blur-md', props.class)">
+    <div class="flex items-center justify-between gap-2">
+      <div class="font-medium">{{ t('app.settings') }}</div>
+      <Button data-testid="settings-close-button" variant="ghost" size="icon-sm" :aria-label="t('app.close')" @click="emit('close')">
+        <XIcon class="size-3.5" />
+      </Button>
+    </div>
+
     <div class="space-y-2">
       <div class="font-medium">{{ t('app.addHost') }}</div>
       <Input v-model="hostForm.name" data-testid="host-name-input" :aria-label="t('app.hostName')" :placeholder="t('app.hostName')" />
@@ -133,13 +135,13 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
         <Input v-model="hostForm.port" :aria-label="t('app.port')" type="number" :placeholder="t('app.port')" />
       </div>
       <Select v-model="hostForm.authMode">
-        <SelectTrigger class="w-full bg-white/70" :aria-label="t('app.auth')">
+        <SelectTrigger data-testid="host-auth-select" class="w-full bg-white/70" :aria-label="t('app.auth')">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="agent">{{ t('app.sshAgent') }}</SelectItem>
           <SelectItem value="privateKey">{{ t('app.privateKeyPath') }}</SelectItem>
-          <SelectItem value="password">密码</SelectItem>
+          <SelectItem data-testid="host-auth-password-option" value="password">密码</SelectItem>
         </SelectContent>
       </Select>
       <Input
@@ -161,22 +163,6 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
         aria-label="密码"
         type="password"
         placeholder="SSH 密码"
-      />
-      <Select v-model="hostForm.appServerMode">
-        <SelectTrigger class="w-full bg-white/70" :aria-label="t('app.appServer')">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="stdio">{{ t('app.sshStdio') }}</SelectItem>
-          <SelectItem data-testid="app-server-websocket-option" value="websocket">{{ t('app.webSocket') }}</SelectItem>
-        </SelectContent>
-      </Select>
-      <Input
-        v-if="hostForm.appServerMode === 'websocket'"
-        v-model="hostForm.appServerUrl"
-        data-testid="app-server-url-input"
-        :aria-label="t('app.webSocketUrl')"
-        :placeholder="t('app.webSocketUrl')"
       />
       <Button data-testid="add-host-button" class="w-full" size="sm" :disabled="!hostForm.name || !hostForm.sshHost" @click="createHost">
         <PlusIcon class="size-3.5" />

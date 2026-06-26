@@ -24,4 +24,5 @@ logs
 !.env.example
 test-results
 .data-e2e
+.e2e-runtime
 .data

@@ -17,9 +17,12 @@ interface RuntimeState {
     hostId: number
     projectId: number | null
     threadId: string
+    name: string | null
     preview: string | null
     cwd: string | null
-    updatedAt: string
+    status: unknown
+    recencyAt: number | null
+    updatedAt: number
   }>
   events: GatewayEvent[]
   nextEventId: number
@@ -63,8 +66,6 @@ function normalizeHost(input: HostCreateInput, id = nextId(state.hosts)): HostWi
     privateKey: input.privateKey || null,
     password: input.authMode === 'password' ? input.password || null : input.password || null,
     hasPassword: Boolean(input.password),
-    appServerMode: input.appServerMode || 'stdio',
-    appServerUrl: input.appServerUrl?.trim() || null,
     createdAt: existing?.createdAt || timestamp,
     updatedAt: timestamp,
   }
@@ -83,43 +84,20 @@ function normalizeProject(input: ProjectCreateInput, id = nextId(state.projects)
   }
 }
 
-function ensureLocalHostRecord() {
-  const existing = state.hosts.find((host) => host.appServerMode === 'local')
-  if (existing) {
-    return existing
-  }
-  const local = normalizeHost({
-    name: '本机 Codex',
-    sshHost: 'local',
-    username: null,
-    port: null,
-    authMode: 'agent',
-    privateKeyPath: null,
-    privateKey: null,
-    password: null,
-    appServerMode: 'local',
-    appServerUrl: null,
-  })
-  state.hosts.push(local)
-  return local
-}
-
 export const persistence = {
   replaceConfig(config: GatewayConfig) {
+    const hostIds = new Set(config.hosts.map((host) => host.id))
     state.hosts = config.hosts.map((host) => ({
       ...host,
       hasPassword: Boolean(host.password),
     }))
-    state.projects = []
+    state.projects = state.projects.filter((project) => hostIds.has(project.hostId))
     state.lastOpenThread = config.lastOpenThread ?? null
-    state.threadMetadata = []
-    state.events = []
-    state.nextEventId = 1
-    ensureLocalHostRecord()
+    state.threadMetadata = state.threadMetadata.filter((thread) => hostIds.has(thread.hostId))
+    state.events = state.events.filter((event) => hostIds.has(event.hostId))
   },
 
   exportConfig(): GatewayConfig {
-    ensureLocalHostRecord()
     return {
       version: 1,
       hosts: state.hosts.map((host) => ({ ...host, hasPassword: Boolean(host.password) })),
@@ -129,20 +107,17 @@ export const persistence = {
   },
 
   listHosts(): HostRecord[] {
-    ensureLocalHostRecord()
     return state.hosts
       .map(sanitizeHost)
       .sort((left, right) => left.name.localeCompare(right.name))
   },
 
   getHost(id: number): HostRecord | null {
-    ensureLocalHostRecord()
     const host = state.hosts.find((item) => item.id === id)
     return host ? sanitizeHost(host) : null
   },
 
   getHostWithSecret(id: number): HostWithSecret | null {
-    ensureLocalHostRecord()
     return state.hosts.find((item) => item.id === id) ?? null
   },
 
@@ -150,10 +125,6 @@ export const persistence = {
     const host = normalizeHost(input)
     state.hosts.push(host)
     return sanitizeHost(host)
-  },
-
-  ensureLocalHost(): HostRecord {
-    return sanitizeHost(ensureLocalHostRecord())
   },
 
   deleteHost(id: number) {
@@ -201,20 +172,58 @@ export const persistence = {
 
   recordThread(hostId: number, projectId: number | null, thread: any) {
     const threadId = String(thread.id)
+    const timestamp = Math.floor(Date.now() / 1000)
     const metadata = {
       hostId,
       projectId,
       threadId,
+      name: thread.name ?? null,
       preview: thread.preview ?? thread.name ?? null,
       cwd: thread.cwd ?? null,
-      updatedAt: nowIso(),
+      status: thread.status ?? null,
+      recencyAt: toTimestamp(thread.recencyAt ?? thread.updatedAt ?? thread.createdAt) ?? timestamp,
+      updatedAt: toTimestamp(thread.updatedAt ?? thread.recencyAt ?? thread.createdAt) ?? timestamp,
     }
     const index = state.threadMetadata.findIndex((item) => item.hostId === hostId && item.threadId === threadId)
     if (index >= 0) {
-      state.threadMetadata[index] = metadata
+      state.threadMetadata[index] = {
+        ...state.threadMetadata[index],
+        ...metadata,
+        projectId: projectId ?? state.threadMetadata[index].projectId,
+        cwd: metadata.cwd ?? state.threadMetadata[index].cwd,
+        preview: metadata.preview ?? state.threadMetadata[index].preview,
+        name: metadata.name ?? state.threadMetadata[index].name,
+        status: metadata.status ?? state.threadMetadata[index].status,
+      }
     } else {
       state.threadMetadata.push(metadata)
     }
+  },
+
+  listThreadMetadata(hostId: number, options: { projectId?: number | null, cwd?: string | null } = {}) {
+    return state.threadMetadata
+      .filter((thread) => {
+        if (thread.hostId !== hostId) {
+          return false
+        }
+        if (options.projectId != null && thread.projectId !== options.projectId) {
+          return false
+        }
+        if (options.cwd && thread.cwd && thread.cwd !== options.cwd) {
+          return false
+        }
+        return true
+      })
+      .map((thread) => ({
+        id: thread.threadId,
+        name: thread.name,
+        preview: thread.preview,
+        cwd: thread.cwd,
+        status: thread.status,
+        recencyAt: thread.recencyAt,
+        updatedAt: thread.updatedAt,
+      }))
+      .sort((left, right) => Number(right.recencyAt || right.updatedAt || 0) - Number(left.recencyAt || left.updatedAt || 0))
   },
 
   addGatewayEvent(hostId: number, threadId: string, method: string, payload: unknown): GatewayEvent {
@@ -249,10 +258,20 @@ export const persistence = {
   },
 
   counts() {
-    ensureLocalHostRecord()
     return {
       hosts: state.hosts.length,
       projects: state.projects.length,
     }
   },
+}
+
+function toTimestamp(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 1_000_000_000_000 ? Math.floor(value / 1000) : Math.floor(value)
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : null
+  }
+  return null
 }

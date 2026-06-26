@@ -13,7 +13,7 @@ export function codexRemoteAppServerStartPayload() {
 }
 
 export function codexRemoteAppServerProxyPayload() {
-  return codexRemotePayload('codex app-server proxy')
+  return codexRemotePayload('codex app-server daemon start >/dev/null && codex app-server proxy')
 }
 
 export function codexRemoteAppServerVerifyPayload() {

@@ -11,8 +11,6 @@ export interface HostRecord {
   privateKey?: string | null
   password?: string | null
   hasPassword: boolean
-  appServerMode: 'local' | 'stdio' | 'websocket'
-  appServerUrl: string | null
   createdAt: string
   updatedAt: string
 }
@@ -35,8 +33,6 @@ export interface HostCreateInput {
   privateKeyPath?: string | null
   privateKey?: string | null
   password?: string | null
-  appServerMode?: 'local' | 'stdio' | 'websocket'
-  appServerUrl?: string | null
 }
 
 export interface ProjectCreateInput {
@@ -69,6 +65,8 @@ export interface GatewayEvent {
 export interface ThreadOpenResult {
   thread: unknown
   history: unknown
+  projectId?: number | null
+  project?: ProjectRecord | null
   turnsPage: {
     nextCursor: string | null
     backwardsCursor: string | null

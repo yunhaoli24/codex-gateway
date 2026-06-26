@@ -126,13 +126,16 @@ function mergeItemIntoLatestTurn(history: unknown, currentThread: unknown, threa
     return nextHistory
   }
 
-  let turn = item.turnId ? turns.find((candidate: any) => candidate?.id === item.turnId) : null
+  let turnIndex = item.turnId ? turns.findIndex((candidate: any) => candidate?.id === item.turnId) : -1
+  let turn = turnIndex >= 0 ? turns[turnIndex] : null
   if (!turn) {
     turn = turns.at(-1)
+    turnIndex = turns.length - 1
   }
   if (!turn || !Array.isArray(turn.items)) {
     turn = { id: item.turnId || `live-${Date.now()}`, items: [], status: 'inProgress' }
     turns.push(turn)
+    turnIndex = turns.length - 1
   } else {
     turn.items = [...turn.items]
   }
@@ -143,7 +146,8 @@ function mergeItemIntoLatestTurn(history: unknown, currentThread: unknown, threa
   } else {
     turn.items.push(item)
   }
-  nextHistory.thread.turns = [...turns.slice(0, -1), turn]
+  turns[turnIndex] = turn
+  nextHistory.thread.turns = [...turns]
   return nextHistory
 }
 
@@ -156,13 +160,16 @@ function appendAgentDelta(history: unknown, currentThread: unknown, threadId: st
 
   const nextHistory = ensureHistoryThread(history, currentThread, threadId)
   const turns = nextHistory.thread.turns
-  let turn = params.turnId ? turns.find((candidate: any) => candidate?.id === params.turnId) : null
+  let turnIndex = params.turnId ? turns.findIndex((candidate: any) => candidate?.id === params.turnId) : -1
+  let turn = turnIndex >= 0 ? turns[turnIndex] : null
   if (!turn) {
     turn = turns.at(-1)
+    turnIndex = turns.length - 1
   }
   if (!turn || !Array.isArray(turn.items)) {
     turn = { id: params.turnId || `live-${Date.now()}`, items: [], status: 'inProgress' }
     turns.push(turn)
+    turnIndex = turns.length - 1
   } else {
     turn.items = [...turn.items]
   }
@@ -179,7 +186,87 @@ function appendAgentDelta(history: unknown, currentThread: unknown, threadId: st
       phase: 'final_answer',
     })
   }
-  nextHistory.thread.turns = [...turns.slice(0, -1), turn]
+  turns[turnIndex] = turn
+  nextHistory.thread.turns = [...turns]
+  return nextHistory
+}
+
+function appendItemOutputDelta(history: unknown, currentThread: unknown, threadId: string, params: any, fallbackType: string) {
+  const itemIdValue = params?.itemId ? String(params.itemId) : ''
+  const delta = params?.delta || ''
+  if (!itemIdValue || !delta) {
+    return history
+  }
+
+  const nextHistory = ensureHistoryThread(history, currentThread, threadId)
+  const turns = nextHistory.thread.turns
+  let turnIndex = params.turnId ? turns.findIndex((candidate: any) => candidate?.id === params.turnId) : -1
+  let turn = turnIndex >= 0 ? turns[turnIndex] : null
+  if (!turn) {
+    turn = turns.at(-1)
+    turnIndex = turns.length - 1
+  }
+  if (!turn || !Array.isArray(turn.items)) {
+    turn = { id: params.turnId || `live-${Date.now()}`, items: [], status: 'inProgress' }
+    turns.push(turn)
+    turnIndex = turns.length - 1
+  } else {
+    turn.items = [...turn.items]
+  }
+
+  const index = turn.items.findIndex((candidate: any) => itemId(candidate) === itemIdValue)
+  if (index >= 0) {
+    const item = turn.items[index]
+    turn.items[index] = { ...item, aggregatedOutput: `${item.aggregatedOutput || ''}${delta}` }
+  } else {
+    turn.items.push({
+      type: fallbackType,
+      id: itemIdValue,
+      turnId: params.turnId,
+      status: 'inProgress',
+      aggregatedOutput: delta,
+    })
+  }
+  turns[turnIndex] = turn
+  nextHistory.thread.turns = [...turns]
+  return nextHistory
+}
+
+function updateTurnDiff(history: unknown, currentThread: unknown, threadId: string, params: any) {
+  if (!params?.turnId || typeof params.diff !== 'string') {
+    return history
+  }
+
+  const nextHistory = ensureHistoryThread(history, currentThread, threadId)
+  const turns = nextHistory.thread.turns
+  let turn = turns.find((candidate: any) => candidate?.id === params.turnId)
+  if (!turn) {
+    turn = { id: params.turnId, items: [], status: 'inProgress' }
+    turns.push(turn)
+  }
+  turn.diff = params.diff
+  nextHistory.thread.turns = [...turns]
+  return nextHistory
+}
+
+function syncCompletedTurn(history: unknown, currentThread: unknown, threadId: string, turn: any) {
+  if (!turn?.id) {
+    return history
+  }
+
+  const nextHistory = ensureHistoryThread(history, currentThread, threadId)
+  const turns = nextHistory.thread.turns
+  const index = turns.findIndex((candidate: any) => candidate?.id === turn.id)
+  if (index >= 0) {
+    turns[index] = {
+      ...turns[index],
+      ...turn,
+      items: Array.isArray(turn.items) && turn.items.length ? turn.items : turns[index].items,
+    }
+  } else {
+    turns.push(turn)
+  }
+  nextHistory.thread.turns = [...turns]
   return nextHistory
 }
 
@@ -291,12 +378,14 @@ export const useGatewayStore = defineStore('gateway', {
       this.error = null
       try {
         this.hydrateConfig()
+        this.projects = []
+        this.threads = []
         await this.syncConfigToServer()
         const status = await $fetch<GatewayStatus>('/api/status')
         this.status = status
 
         if (!this.selectedHostId) {
-          this.selectedHostId = this.hosts.find((host) => host.appServerMode !== 'local')?.id ?? this.hosts[0]?.id ?? null
+          this.selectedHostId = this.hosts[0]?.id ?? null
         }
 
         await this.listThreads()
@@ -424,6 +513,7 @@ export const useGatewayStore = defineStore('gateway', {
         const query: Record<string, unknown> = {
           hostId: this.selectedHostId,
           limit: 50,
+          useStateDbOnly: true,
         }
         if (this.selectedProjectId) {
           query.projectId = this.selectedProjectId
@@ -486,7 +576,6 @@ export const useGatewayStore = defineStore('gateway', {
         this.events = []
         this.olderTurnsCursor = null
         this.newerTurnsCursor = null
-        await this.listThreads()
       } else if (context && 'projectId' in context && context.projectId !== this.selectedProjectId) {
         this.selectedProjectId = context.projectId ?? null
         this.selectedThreadId = null
@@ -495,9 +584,6 @@ export const useGatewayStore = defineStore('gateway', {
         this.events = []
         this.olderTurnsCursor = null
         this.newerTurnsCursor = null
-        if (this.selectedProjectId) {
-          await this.listThreads()
-        }
       }
       if (!this.selectedHostId) {
         return
@@ -521,10 +607,19 @@ export const useGatewayStore = defineStore('gateway', {
         this.selectedThreadId = threadId
         this.currentThread = result.thread
         this.history = result.history
+        if (result.projectId) {
+          this.selectedProjectId = result.projectId
+        }
+        if (result.project) {
+          this.mergeProjects([result.project])
+        }
         this.olderTurnsCursor = result.turnsPage.nextCursor
         this.newerTurnsCursor = result.turnsPage.backwardsCursor
         this.events = result.recentEvents
         this.lastEventId = result.recentEvents.at(-1)?.id ?? 0
+        for (const event of result.recentEvents) {
+          this.applyLiveEvent(event)
+        }
         this.connectEvents()
         this.upsertPinnedMetadataFromThread(result.thread as any)
         this.gatewayConfig.lastOpenThread = {
@@ -683,7 +778,7 @@ export const useGatewayStore = defineStore('gateway', {
       await this.listThreads()
     },
 
-    async sendTurn(text: string) {
+    async sendTurn(text: string, images: Array<{ path: string, detail?: 'low' | 'high' | 'auto' | 'original' }> = []) {
       if (!this.selectedHostId || !this.selectedThreadId) {
         return
       }
@@ -706,6 +801,7 @@ export const useGatewayStore = defineStore('gateway', {
             text,
             clientUserMessageId,
             cwd: this.selectedProject?.remotePath,
+            images,
           },
         })
         if (result?.turn?.items?.length) {
@@ -813,6 +909,24 @@ export const useGatewayStore = defineStore('gateway', {
         })
       } else if (event.method === 'item/agentMessage/delta') {
         this.history = appendAgentDelta(this.history, this.currentThread, this.selectedThreadId, params)
+      } else if (event.method === 'item/commandExecution/outputDelta') {
+        this.history = appendItemOutputDelta(this.history, this.currentThread, this.selectedThreadId, params, 'commandExecution')
+      } else if (event.method === 'item/fileChange/outputDelta') {
+        this.history = appendItemOutputDelta(this.history, this.currentThread, this.selectedThreadId, params, 'fileChange')
+      } else if (event.method === 'item/fileChange/patchUpdated') {
+        this.history = mergeItemIntoLatestTurn(this.history, this.currentThread, this.selectedThreadId, {
+          type: 'fileChange',
+          id: params.itemId,
+          turnId: params.turnId,
+          changes: params.changes ?? [],
+          status: 'inProgress',
+        })
+      } else if (event.method === 'turn/diff/updated') {
+        this.history = updateTurnDiff(this.history, this.currentThread, this.selectedThreadId, params)
+      } else if (event.method === 'turn/started' && params.turn) {
+        this.history = mergeThreadTurns(this.history, this.currentThread, this.selectedThreadId, [params.turn], 'append')
+      } else if (event.method === 'turn/completed' && params.turn) {
+        this.history = syncCompletedTurn(this.history, this.currentThread, this.selectedThreadId, params.turn)
       }
     },
   },

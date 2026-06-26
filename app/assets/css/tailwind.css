@@ -197,6 +197,38 @@
     @apply bg-transparent p-0 text-sm;
   }
 
+  .markdown-content pre.language-diff {
+    @apply overflow-x-auto rounded-none bg-white p-0 text-xs leading-5;
+  }
+
+  .markdown-content pre.language-diff code {
+    @apply block min-w-max;
+  }
+
+  .markdown-content .diff-line {
+    @apply block whitespace-pre px-3 text-[#3d4145];
+  }
+
+  .markdown-content .diff-line-add {
+    @apply bg-emerald-50 text-emerald-900;
+  }
+
+  .markdown-content .diff-line-remove {
+    @apply bg-red-50 text-red-900;
+  }
+
+  .markdown-content .diff-line-hunk {
+    @apply bg-sky-50 text-sky-900;
+  }
+
+  .markdown-content .diff-line-meta {
+    @apply bg-zinc-100 text-zinc-700;
+  }
+
+  .diff-markdown .markdown-content pre {
+    @apply m-0;
+  }
+
   .markdown-content table {
     @apply my-4 w-full border-collapse text-sm;
   }

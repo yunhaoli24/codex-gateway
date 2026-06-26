@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ComputerIcon, Loader2Icon, ServerIcon, Trash2Icon, WifiIcon } from '@lucide/vue'
+import { Loader2Icon, ServerIcon, Trash2Icon, WifiIcon } from '@lucide/vue'
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { Badge } from '@/components/ui/badge'
@@ -61,12 +61,11 @@ async function deleteHost(hostId: number) {
               class="min-w-0 flex-1 justify-start gap-2 px-2 text-left"
               @click="selectHost(host.id)"
             >
-              <ComputerIcon v-if="host.appServerMode === 'local'" class="size-4 shrink-0" />
-              <ServerIcon v-else class="size-4 shrink-0" />
+              <ServerIcon class="size-4 shrink-0" />
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm">{{ host.name }}</span>
                 <span class="block truncate text-[11px] text-[#79838a]">
-                  {{ host.sshHost }} · {{ host.appServerMode }}
+                  {{ host.sshHost }}
                 </span>
               </span>
             </Button>
@@ -83,7 +82,6 @@ async function deleteHost(hostId: number) {
               <WifiIcon v-else class="size-4" />
             </Button>
             <Button
-              v-if="host.appServerMode !== 'local'"
               variant="ghost"
               size="sm"
               class="size-8 p-0 text-red-600 hover:text-red-700"

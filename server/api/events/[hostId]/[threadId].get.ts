@@ -8,7 +8,6 @@ export default defineEventHandler(async (event) => {
   const threadId = String(getRouterParam(event, 'threadId') || '')
   const afterId = Number(getQuery(event).afterId || 0)
   const host = requireRecord(persistence.getHostWithSecret(hostId), 'Host not found')
-  const controller = await threadBroker.getController(host, threadId)
 
   setHeader(event, 'content-type', 'text/event-stream')
   setHeader(event, 'cache-control', 'no-cache, no-transform')
@@ -21,11 +20,34 @@ export default defineEventHandler(async (event) => {
     response.write(`data: ${JSON.stringify(data)}\n\n`)
   }
 
-  for (const replay of persistence.listGatewayEvents(hostId, threadId, afterId, 200)) {
-    send(replay)
+  let replaying = true
+  const liveQueue: GatewayEvent[] = []
+  const sentEventIds = new Set<number>()
+  const sendOnce = (gatewayEvent: GatewayEvent) => {
+    if (gatewayEvent.id <= afterId || sentEventIds.has(gatewayEvent.id)) {
+      return
+    }
+    sentEventIds.add(gatewayEvent.id)
+    send(gatewayEvent)
   }
 
-  const unsubscribe = controller.subscribe((gatewayEvent) => send(gatewayEvent))
+  const unsubscribe = await threadBroker.subscribe(host, threadId, (gatewayEvent) => {
+    if (replaying) {
+      liveQueue.push(gatewayEvent)
+      return
+    }
+    sendOnce(gatewayEvent)
+  })
+
+  for (const replay of persistence.listGatewayEvents(hostId, threadId, afterId, 200)) {
+    sendOnce(replay)
+  }
+  replaying = false
+  for (const liveEvent of liveQueue) {
+    sendOnce(liveEvent)
+  }
+  liveQueue.length = 0
+
   const heartbeat = setInterval(() => {
     response.write(': heartbeat\n\n')
   }, 20_000)
