@@ -40,6 +40,7 @@ const expandedHostIds = ref<Set<number>>(new Set())
 const expandedProjectIds = ref<Set<number>>(new Set())
 const renamingThreadId = ref<string | null>(null)
 const renameValue = ref('')
+const suppressTreeAutoExpand = ref(false)
 
 const projectThreads = computed(() => threads.value.filter((thread) => !thread.pinned).slice(0, 20))
 const projectsByHost = computed(() => {
@@ -65,7 +66,13 @@ function openThread(threadId: string, context?: { hostId?: number, projectId?: n
 }
 
 function openPinnedThread(thread: any) {
-  void store.openPinnedThread(thread)
+  suppressTreeAutoExpand.value = true
+  void store.openPinnedThread(thread).finally(async () => {
+    await nextTick()
+    expandedHostIds.value = new Set()
+    expandedProjectIds.value = new Set()
+    suppressTreeAutoExpand.value = false
+  })
 }
 
 function selectHost(hostId: number) {
@@ -180,11 +187,13 @@ function handleRenameKeydown(event: KeyboardEvent) {
 }
 
 watch(selectedHostId, (hostId) => {
+  if (suppressTreeAutoExpand.value) return
   if (!hostId) return
   expandedHostIds.value = new Set(expandedHostIds.value).add(hostId)
 }, { immediate: true })
 
 watch(selectedProjectId, (projectId) => {
+  if (suppressTreeAutoExpand.value) return
   if (!projectId) return
   expandedProjectIds.value = new Set(expandedProjectIds.value).add(projectId)
 }, { immediate: true })

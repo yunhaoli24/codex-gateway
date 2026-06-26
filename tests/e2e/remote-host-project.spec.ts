@@ -21,4 +21,11 @@ test('connects to a real SSH Codex host and lists a project thread created by ap
 
   const threadId = await startRemoteThread(page)
   await expect(page.getByTestId(`thread-button-${threadId}`)).toBeVisible()
+
+  await page.getByTestId(`thread-button-${threadId}`).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: /置顶/ }).click()
+  await expect(page.getByTestId(`pinned-thread-button-${threadId}`)).toBeVisible()
+
+  await page.getByTestId(`pinned-thread-button-${threadId}`).click()
+  await expect(page.getByTestId(`project-button-${project.id}`)).toBeHidden()
 })

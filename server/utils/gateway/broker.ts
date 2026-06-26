@@ -36,7 +36,6 @@ class ThreadController {
   readonly client: CodexRpcClient
   readonly subscribers = new Set<Subscriber>()
   readonly buffer: GatewayEvent[] = []
-  private idleTimer: NodeJS.Timeout | null = null
   private operationQueue: Promise<unknown> = Promise.resolve()
   private connected = false
   private subscribed = false
@@ -130,11 +129,9 @@ class ThreadController {
   }
 
   subscribe(callback: Subscriber) {
-    this.cancelIdleClose()
     this.subscribers.add(callback)
     return () => {
       this.subscribers.delete(callback)
-      this.scheduleIdleClose()
     }
   }
 
@@ -143,7 +140,6 @@ class ThreadController {
       return
     }
     this.closed = true
-    this.cancelIdleClose()
     if (this.connected) {
       void this.client.request('thread/unsubscribe', { threadId: this.threadId }, 5_000).catch(() => {})
     }
@@ -151,22 +147,6 @@ class ThreadController {
     this.client.close()
     this.subscribers.clear()
     this.onClose?.()
-  }
-
-  scheduleIdleClose() {
-    if (this.subscribers.size > 0 || this.idleTimer) {
-      return
-    }
-    this.idleTimer = setTimeout(() => this.close(), 30_000)
-    this.idleTimer.unref()
-  }
-
-  private cancelIdleClose() {
-    if (!this.idleTimer) {
-      return
-    }
-    clearTimeout(this.idleTimer)
-    this.idleTimer = null
   }
 }
 
@@ -219,7 +199,6 @@ class ThreadBroker {
         }
       })
       this.controllers.set(key, controller)
-      controller.scheduleIdleClose()
       return {
         thread,
         history: { thread: { ...thread, turns: thread.turns ?? [] } },

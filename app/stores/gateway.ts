@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { toast } from 'vue-sonner'
 import type {
   GatewayEvent,
   GatewayConfig,
@@ -68,6 +69,14 @@ function defaultGatewayConfig(): GatewayConfig {
     pinnedThreads: [],
     lastOpenThread: null,
   }
+}
+
+function messageFromError(error: any, fallback: string) {
+  return error?.data?.message
+    || error?.data?.statusMessage
+    || error?.statusMessage
+    || error?.message
+    || fallback
 }
 
 function pinnedKey(hostId: number, threadId: string) {
@@ -397,7 +406,7 @@ export const useGatewayStore = defineStore('gateway', {
           await this.restoreLastOpenThread()
         }
       } catch (error: any) {
-        this.error = error?.data?.message || error?.message || 'Failed to bootstrap gateway'
+        this.setError(messageFromError(error, 'Failed to bootstrap gateway'))
       } finally {
         this.loading = false
         this.initializing = false
@@ -533,7 +542,7 @@ export const useGatewayStore = defineStore('gateway', {
         this.threads = sortThreads(this.decorateThreads(response.data ?? []))
         this.persistConfig()
       } catch (error: any) {
-        this.error = error?.data?.message || error?.message || 'Failed to list threads'
+        this.setError(messageFromError(error, 'Failed to list threads'))
       } finally {
         this.loading = false
       }
@@ -629,7 +638,7 @@ export const useGatewayStore = defineStore('gateway', {
         }
         this.persistConfig()
       } catch (error: any) {
-        this.error = error?.data?.message || error?.message || 'Failed to open thread'
+        this.setError(messageFromError(error, 'Failed to open thread'))
       } finally {
         this.loading = false
       }
@@ -810,7 +819,7 @@ export const useGatewayStore = defineStore('gateway', {
           }
         }
       } catch (error: any) {
-        this.error = error?.data?.message || error?.message || 'Failed to send message'
+        this.setError(messageFromError(error, 'Failed to send message'))
         this.setThreadRunning(this.selectedHostId, this.selectedThreadId, false)
       } finally {
         this.loading = false
@@ -849,7 +858,7 @@ export const useGatewayStore = defineStore('gateway', {
         this.olderTurnsCursor = result.turnsPage.nextCursor
         this.newerTurnsCursor = result.turnsPage.backwardsCursor ?? this.newerTurnsCursor
       } catch (error: any) {
-        this.error = error?.data?.message || error?.message || 'Failed to load older turns'
+        this.setError(messageFromError(error, 'Failed to load older turns'))
       } finally {
         this.loadingOlderTurns = false
       }
@@ -876,7 +885,14 @@ export const useGatewayStore = defineStore('gateway', {
         this.applyLiveEvent(event)
       }
       this.eventSource.onerror = () => {
-        this.error = 'SSE connection interrupted. The browser will retry automatically.'
+        this.setError('SSE connection interrupted. The browser will retry automatically.')
+      }
+    },
+
+    setError(message: string) {
+      this.error = message
+      if (import.meta.client) {
+        toast.error(message)
       }
     },
 

@@ -41,7 +41,8 @@ const {
 
 const model = ref('')
 const turnText = ref('')
-const scrollAreaRef = ref<HTMLElement | null>(null)
+const scrollAreaRef = ref<any>(null)
+const followLatest = ref(true)
 
 const threadTitle = computed(() => {
   if (!selectedThreadId.value && selectedProject.value) {
@@ -94,19 +95,29 @@ function handleComposerKeydown(event: KeyboardEvent) {
   void sendTurn()
 }
 
-function scrollToBottom() {
-  void nextTick(() => {
-    const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value
-    const viewport = root?.querySelector?.('[data-slot="scroll-area-viewport"]') as HTMLElement | null
-    if (viewport) {
+function scrollViewport() {
+  const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value
+  return root?.querySelector?.('[data-slot="scroll-area-viewport"]') as HTMLElement | null
+}
+
+function isNearBottom(viewport: HTMLElement) {
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120
+}
+
+async function scrollToBottom() {
+  await nextTick()
+  requestAnimationFrame(() => {
+    const viewport = scrollViewport()
+    if (!viewport) return
+    viewport.scrollTop = viewport.scrollHeight
+    requestAnimationFrame(() => {
       viewport.scrollTop = viewport.scrollHeight
-    }
+    })
   })
 }
 
 async function loadOlderTurns() {
-  const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value
-  const viewport = root?.querySelector?.('[data-slot="scroll-area-viewport"]') as HTMLElement | null
+  const viewport = scrollViewport()
   const previousHeight = viewport?.scrollHeight ?? 0
   await store.loadOlderTurns()
   await nextTick()
@@ -117,14 +128,28 @@ async function loadOlderTurns() {
 
 function handleScroll(event: Event) {
   const viewport = event.target as HTMLElement
+  followLatest.value = isNearBottom(viewport)
   if (viewport.scrollTop <= 80 && olderTurnsCursor.value && !loadingOlderTurns.value) {
     void loadOlderTurns()
   }
 }
 
 watch(
-  () => [selectedThreadId.value, events.value.length],
-  scrollToBottom,
+  selectedThreadId,
+  () => {
+    followLatest.value = true
+    void scrollToBottom()
+  },
+  { flush: 'post' },
+)
+
+watch(
+  () => [threadItems.value.length, events.value.length],
+  () => {
+    if (followLatest.value) {
+      void scrollToBottom()
+    }
+  },
   { flush: 'post' },
 )
 </script>

@@ -34,6 +34,11 @@ test('fans out a real remote app-server thread to multiple browser clients acros
     await second.page.getByTestId(`project-thread-row-${threadId}`).click()
     await expect(second.page.getByPlaceholder('输入后续修改要求')).toBeEnabled()
     await expect(second.page.getByTestId('chat-scroll-area').getByText(firstMarker)).toBeVisible({ timeout: 120_000 })
+    await expect.poll(async () => second.page.getByTestId('chat-scroll-area').evaluate((root) => {
+      const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null
+      if (!viewport) return false
+      return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120
+    })).toBe(true)
 
     const secondMarker = `E2E 第二轮图片 ${Date.now()}`
     await sendImageTurnThroughGateway(second.page, {
