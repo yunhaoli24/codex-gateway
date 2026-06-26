@@ -1,4 +1,4 @@
-import type { GatewayEvent, HostRecord } from '~~/shared/types'
+import type { ApprovalPolicy, GatewayEvent, HostRecord, ReasoningEffort, ThreadSettingsState } from '~~/shared/types'
 import { persistence } from './db'
 import { CodexRpcClient } from './rpc'
 
@@ -16,9 +16,20 @@ interface TurnStartInput {
   text: string
   cwd?: string | null
   clientUserMessageId?: string | null
+  model?: string | null
+  effort?: ReasoningEffort | null
+  approvalPolicy?: ApprovalPolicy | null
   images?: Array<{
-    path: string
+    path?: string
+    url?: string
     detail?: 'low' | 'high' | 'auto' | 'original'
+  }>
+  files?: Array<{
+    path: string
+    name: string
+    mimeType?: string | null
+    size: number
+    isImage: boolean
   }>
 }
 
@@ -29,6 +40,19 @@ function pageToHistory(thread: any, page: TurnsPage) {
       ...thread,
       turns,
     },
+  }
+}
+
+function normalizeApprovalPolicy(value: unknown): ApprovalPolicy | null {
+  return value === 'untrusted' || value === 'on-request' || value === 'never' ? value : null
+}
+
+function extractThreadSettings(source: any): ThreadSettingsState {
+  const threadSettings = source?.threadSettings
+  return {
+    model: typeof (threadSettings?.model ?? source?.model) === 'string' ? (threadSettings?.model ?? source?.model) : null,
+    effort: typeof (threadSettings?.effort ?? source?.reasoningEffort) === 'string' ? (threadSettings?.effort ?? source?.reasoningEffort) : null,
+    approvalPolicy: normalizeApprovalPolicy(threadSettings?.approvalPolicy ?? source?.approvalPolicy),
   }
 }
 
@@ -176,6 +200,7 @@ class ThreadBroker {
         nextCursor: initialTurnsPage.nextCursor ?? null,
         backwardsCursor: initialTurnsPage.backwardsCursor ?? null,
       },
+      threadSettings: extractThreadSettings(resume),
       recentEvents: persistence.listGatewayEvents(host.id, threadId, 0, 200),
     }
   }
@@ -202,6 +227,7 @@ class ThreadBroker {
       return {
         thread,
         history: { thread: { ...thread, turns: thread.turns ?? [] } },
+        threadSettings: extractThreadSettings(result),
         turnsPage: {
           nextCursor: null,
           backwardsCursor: null,
@@ -217,20 +243,44 @@ class ThreadBroker {
   async startTurn(host: HostRecord, threadId: string, input: TurnStartInput) {
     const controller = await this.getController(host, threadId)
     await controller.ensureSubscribed()
-    const userInput: any[] = [{ type: 'text', text: input.text, text_elements: [] }]
+    const userInput: any[] = []
+    if (input.text.trim()) {
+      userInput.push({ type: 'text', text: input.text, text_elements: [] })
+    }
     for (const image of input.images ?? []) {
-      userInput.push({
-        type: 'localImage',
-        path: image.path,
-        detail: image.detail,
-      })
+      if (image.url) {
+        userInput.push({
+          type: 'image',
+          url: image.url,
+          detail: image.detail,
+        })
+      } else if (image.path) {
+        userInput.push({
+          type: 'localImage',
+          path: image.path,
+          detail: image.detail,
+        })
+      }
     }
     return controller.enqueue(() => controller.client.request('turn/start', {
       threadId,
       clientUserMessageId: input.clientUserMessageId || undefined,
       input: userInput,
       cwd: input.cwd || null,
+      model: input.model || null,
+      effort: input.effort || null,
+      approvalPolicy: input.approvalPolicy || null,
     }))
+  }
+
+  async updateThreadSettings(host: HostRecord, threadId: string, input: ThreadSettingsState) {
+    const controller = await this.getController(host, threadId)
+    await controller.ensureSubscribed()
+    const params: Record<string, unknown> = { threadId }
+    if ('model' in input) params.model = input.model
+    if ('effort' in input) params.effort = input.effort
+    if ('approvalPolicy' in input) params.approvalPolicy = input.approvalPolicy
+    return controller.enqueue(() => controller.client.request('thread/settings/update', params))
   }
 
   async listThreads(host: HostRecord, params: Record<string, unknown>) {
@@ -238,6 +288,16 @@ class ThreadBroker {
     await client.connect()
     try {
       return await client.request('thread/list', params)
+    } finally {
+      client.close()
+    }
+  }
+
+  async listModels(host: HostRecord, params: Record<string, unknown>) {
+    const client = new CodexRpcClient(host)
+    await client.connect()
+    try {
+      return await client.request('model/list', params)
     } finally {
       client.close()
     }

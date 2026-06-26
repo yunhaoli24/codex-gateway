@@ -56,6 +56,13 @@ export const remoteDirectoryListSchema = z.object({
   path: z.string().trim().default('~'),
 })
 
+export const remoteImageSchema = z.object({
+  hostId: z.coerce.number().int().positive(),
+  path: z.string().trim().min(1).refine((path) => path.startsWith('/'), {
+    message: 'Remote image path must be absolute',
+  }),
+})
+
 export const threadListSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   projectId: optionalPositiveInt,
@@ -87,23 +94,57 @@ export const threadRenameSchema = z.object({
   name: z.string().trim().min(1).max(200),
 })
 
+const threadSettingFields = {
+  model: z.string().trim().nullable().optional(),
+  effort: z.string().trim().min(1).nullable().optional(),
+  approvalPolicy: z.enum(['untrusted', 'on-request', 'never']).nullable().optional(),
+}
+
 export const threadStartSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   projectId: optionalPositiveInt,
   cwd: z.string().trim().nullable().optional(),
-  model: z.string().trim().nullable().optional(),
+  ...threadSettingFields,
+})
+
+export const threadSettingsUpdateSchema = z.object({
+  hostId: z.coerce.number().int().positive(),
+  threadId: z.string().trim().min(1),
+  ...threadSettingFields,
 })
 
 export const turnStartSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   threadId: z.string().trim().min(1),
-  text: z.string().trim().min(1),
+  text: z.string().trim().default(''),
   clientUserMessageId: z.string().trim().nullable().optional(),
   cwd: z.string().trim().nullable().optional(),
+  ...threadSettingFields,
   images: z.array(z.object({
-    path: z.string().trim().min(1),
+    path: z.string().trim().min(1).optional(),
+    url: z.string().trim().min(1).optional(),
     detail: z.enum(['low', 'high', 'auto', 'original']).optional(),
+  }).refine((image) => Boolean(image.path || image.url), {
+    message: 'Image must include path or url',
   })).default([]),
+  files: z.array(z.object({
+    path: z.string().trim().min(1),
+    name: z.string().trim().min(1),
+    mimeType: z.string().trim().nullable().optional(),
+    size: z.coerce.number().int().min(0),
+    isImage: z.boolean(),
+  })).default([]),
+})
+
+export const modelListSchema = z.object({
+  hostId: z.coerce.number().int().positive(),
+  includeHidden: z.coerce.boolean().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.string().trim().nullable().optional(),
+})
+
+export const uploadQuerySchema = z.object({
+  hostId: z.coerce.number().int().positive(),
 })
 
 export function requireRecord<T>(value: T | null | undefined, message: string): T {

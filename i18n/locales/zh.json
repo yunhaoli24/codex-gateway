@@ -71,6 +71,10 @@
     "stepSummary": "Step {step} / {total} · {files} 个文件变更",
     "askFollowUp": "输入后续修改要求",
     "custom": "自定义",
+    "attachFile": "附加文件或图片",
+    "approvalPolicy": "审批策略",
+    "reasoningEffort": "推理强度",
+    "loadingModels": "加载模型",
     "runningCommand": "正在运行命令",
     "readingFiles": "读取文件、搜索代码并列出文件",
     "filesChanged": "{count} 个文件已修改",
@@ -78,6 +82,15 @@
     "fileDeleted": "删除",
     "fileMoved": "移动",
     "fileUpdated": "修改",
-    "noDiff": "当前事件没有返回 diff"
+    "noDiff": "当前事件没有返回 diff",
+    "imageAttachment": "图片附件",
+    "openImagePreview": "查看大图",
+    "copyImage": "复制图片",
+    "imageCopied": "图片已复制",
+    "copyImageFailed": "复制图片失败",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "imageZoom": "图片缩放",
+    "resetImageView": "重置图片视图"
   }
 }

@@ -13,14 +13,17 @@ import {
 import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import MarkdownContent from '@/components/MarkdownContent.vue'
+import MarkdownContent from '@/components/common/MarkdownContent.vue'
+import ThreadImageAttachment from '@/components/thread/attachments/ThreadImageAttachment.vue'
 
 const props = defineProps<{
   item: Record<string, any>
+  hostId: number | null
 }>()
 
 const { t } = useI18n()
 const text = computed(() => itemText(props.item))
+const imageParts = computed(() => userImageParts(props.item))
 const title = computed(() => toolTitle(props.item))
 const output = computed(() => truncate(props.item.aggregatedOutput || props.item.result?.text || '', 1200))
 const fileChanges = computed(() => Array.isArray(props.item.changes) ? props.item.changes : [])
@@ -40,6 +43,35 @@ function itemText(item: Record<string, any>) {
   }
   if (item.type === 'hookPrompt') {
     return (item.fragments || []).map((fragment: any) => fragment?.text || '').filter(Boolean).join('\n')
+  }
+  return ''
+}
+
+function userImageParts(item: Record<string, any>) {
+  if (item.type !== 'userMessage' || !Array.isArray(item.content)) {
+    return []
+  }
+  return item.content
+    .filter((part: any) => part?.type === 'image' || part?.type === 'localImage')
+    .map((part: any, index: number) => ({
+      id: `${item.id || item.clientId || 'image'}-${index}`,
+      type: part.type,
+      url: typeof part.url === 'string' ? part.url : '',
+      path: typeof part.path === 'string' ? part.path : '',
+      detail: part.detail || null,
+    }))
+}
+
+function imageSource(image: { type: string, url: string, path: string }) {
+  if (image.type === 'image') {
+    return image.url
+  }
+  if (image.type === 'localImage' && props.hostId && image.path) {
+    const query = new URLSearchParams({
+      hostId: String(props.hostId),
+      path: image.path,
+    })
+    return `/api/remote/images?${query.toString()}`
   }
   return ''
 }
@@ -92,8 +124,18 @@ function diffMarkdown(change: Record<string, any>) {
 
 <template>
   <div v-if="item.type === 'userMessage'" class="flex justify-end">
-    <div class="max-w-[760px] rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[15px] leading-7 text-[#202225]">
-      <MarkdownContent :content="text" compact />
+    <div class="max-w-[760px] space-y-3 rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[15px] leading-7 text-[#202225]">
+      <div v-if="imageParts.length" class="grid max-w-[520px] grid-cols-1 gap-2 sm:grid-cols-2">
+        <template v-for="image in imageParts" :key="image.id">
+          <ThreadImageAttachment
+            v-if="imageSource(image)"
+            :source="imageSource(image)"
+            :label="image.path || null"
+            :detail="image.detail"
+          />
+        </template>
+      </div>
+      <MarkdownContent v-if="text" :content="text" compact />
     </div>
   </div>
 

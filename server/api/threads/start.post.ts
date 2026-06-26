@@ -9,5 +9,7 @@ export default defineEventHandler(async (event) => {
   return threadBroker.startThread(host, {
     cwd: input.cwd || undefined,
     model: input.model || undefined,
+    effort: input.effort || undefined,
+    approvalPolicy: input.approvalPolicy || undefined,
   }, input.projectId ?? null)
 })

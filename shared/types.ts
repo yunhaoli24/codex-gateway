@@ -65,6 +65,7 @@ export interface GatewayEvent {
 export interface ThreadOpenResult {
   thread: unknown
   history: unknown
+  threadSettings?: ThreadSettingsState | null
   projectId?: number | null
   project?: ProjectRecord | null
   turnsPage: {
@@ -80,6 +81,65 @@ export interface ThreadTurnsPageResult {
     nextCursor: string | null
     backwardsCursor: string | null
   }
+}
+
+export type ApprovalPolicy = 'untrusted' | 'on-request' | 'never'
+export type ReasoningEffort = string
+
+export interface ThreadSettingsState {
+  model?: string | null
+  effort?: ReasoningEffort | null
+  approvalPolicy?: ApprovalPolicy | null
+}
+
+export interface ModelRecord {
+  id: string
+  model: string
+  displayName: string
+  description?: string | null
+  hidden?: boolean
+  isDefault?: boolean
+  defaultReasoningEffort?: string | null
+  supportedReasoningEfforts?: Array<{
+    reasoningEffort: string
+    description?: string | null
+  }>
+  inputModalities?: string[]
+}
+
+export interface ComposerTurnOptions {
+  model?: string | null
+  effort?: ReasoningEffort | null
+  approvalPolicy?: ApprovalPolicy | null
+  images?: Array<{
+    path?: string
+    url?: string
+    detail?: 'low' | 'high' | 'auto' | 'original'
+  }>
+  files?: Array<{
+    path: string
+    name: string
+    mimeType?: string | null
+    size: number
+    isImage: boolean
+  }>
+}
+
+export interface ModelListResult {
+  data: ModelRecord[]
+  nextCursor?: string | null
+}
+
+export interface UploadedFileRecord {
+  name: string
+  path: string
+  mimeType?: string | null
+  size: number
+  isImage: boolean
+}
+
+export interface UploadResult {
+  files: UploadedFileRecord[]
 }
 
 export interface GatewayStatus {

@@ -74,7 +74,26 @@
     "stepSummary": "Step {step} / {total} · {files} files changed",
     "askFollowUp": "Ask for follow-up changes",
     "custom": "Custom",
+    "attachFile": "Attach files or images",
+    "approvalPolicy": "Approval policy",
+    "reasoningEffort": "Reasoning effort",
+    "loadingModels": "Loading models",
     "runningCommand": "Running command",
-    "readingFiles": "Reading files, searching code, and listing files"
+    "readingFiles": "Reading files, searching code, and listing files",
+    "filesChanged": "{count} files changed",
+    "fileAdded": "Added",
+    "fileDeleted": "Deleted",
+    "fileMoved": "Moved",
+    "fileUpdated": "Modified",
+    "noDiff": "This event did not include a diff",
+    "imageAttachment": "Image attachment",
+    "openImagePreview": "Open image preview",
+    "copyImage": "Copy image",
+    "imageCopied": "Image copied",
+    "copyImageFailed": "Failed to copy image",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "imageZoom": "Image zoom",
+    "resetImageView": "Reset image view"
   }
 }

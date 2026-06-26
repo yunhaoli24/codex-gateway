@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/context-menu'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import SettingsPanel from '@/components/settings/SettingsPanel.vue'
 import { type ThreadRuntimeStatus, useGatewayStore } from '@/stores/gateway'
 
 const store = useGatewayStore()

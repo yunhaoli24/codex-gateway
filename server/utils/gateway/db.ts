@@ -112,6 +112,10 @@ export const persistence = {
       .sort((left, right) => left.name.localeCompare(right.name))
   },
 
+  listHostsWithSecret(): HostWithSecret[] {
+    return [...state.hosts]
+  },
+
   getHost(id: number): HostRecord | null {
     const host = state.hosts.find((item) => item.id === id)
     return host ? sanitizeHost(host) : null

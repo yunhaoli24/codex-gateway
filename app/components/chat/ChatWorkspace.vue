@@ -1,25 +1,20 @@
 <script setup lang="ts">
 import {
-  CircleIcon,
-  CheckIcon,
   FolderIcon,
   ListRestartIcon,
-  Loader2Icon,
   MoreHorizontalIcon,
   PinIcon,
   PlayIcon,
-  PlusIcon,
-  SendIcon,
-  SettingsIcon,
 } from '@lucide/vue'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, watch } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Textarea } from '@/components/ui/textarea'
-import ProjectThreadList from '@/components/ProjectThreadList.vue'
+import ChatComposer from '@/components/chat/ChatComposer.vue'
+import ProjectThreadList from '@/components/chat/ProjectThreadList.vue'
+import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
+import ThreadItemView from '@/components/thread/ThreadItemView.vue'
 import { useGatewayStore } from '@/stores/gateway'
 
 const store = useGatewayStore()
@@ -39,11 +34,9 @@ const {
   olderTurnsCursor,
   error,
   scrollToLatestToken,
-  selectedThreadStatus,
+  defaultModel,
 } = storeToRefs(store)
 
-const model = ref('')
-const turnText = ref('')
 const scrollAreaRef = ref<any>(null)
 const followLatest = ref(true)
 
@@ -63,50 +56,6 @@ const historyTurns = computed(() => {
 const threadItems = computed(() => {
   return historyTurns.value.flatMap((turn: any) => turn.items || [])
 })
-
-const visibleEvents = computed(() => events.value.filter((event) => shouldShowEvent(event.method)))
-const activeEvents = computed(() => visibleEvents.value.slice(-8))
-const isThreadRunning = computed(() => selectedThreadStatus.value === 'running')
-const canSendTurn = computed(() => Boolean(selectedThreadId.value && turnText.value.trim() && !isThreadRunning.value))
-const sendButtonLabel = computed(() => {
-  if (isThreadRunning.value) return '运行中'
-  if (turnText.value.trim()) return t('app.send')
-  if (selectedThreadStatus.value === 'completed') return '已完成'
-  if (selectedThreadStatus.value === 'failed') return '失败'
-  if (selectedThreadStatus.value === 'interrupted') return '已中断'
-  return t('app.send')
-})
-
-function eventLabel(method: string) {
-  if (method.includes('command') || method.includes('process')) return t('app.runningCommand')
-  if (method.includes('file') || method.includes('fs')) return t('app.readingFiles')
-  if (method.includes('turn')) return method.replaceAll('/', ' ')
-  return method
-}
-
-function shouldShowEvent(method: string) {
-  return method.includes('command')
-    || method.includes('process')
-    || method.includes('file')
-    || method.includes('fs')
-    || method === 'turn/started'
-    || method === 'turn/completed'
-}
-
-async function sendTurn() {
-  const text = turnText.value.trim()
-  if (!text) return
-  turnText.value = ''
-  await store.sendTurn(text)
-}
-
-function handleComposerKeydown(event: KeyboardEvent) {
-  if (event.isComposing || event.key !== 'Enter' || event.shiftKey) {
-    return
-  }
-  event.preventDefault()
-  void sendTurn()
-}
 
 function scrollViewport() {
   const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value
@@ -185,7 +134,7 @@ watch(
         <Button data-testid="refresh-threads-button" variant="ghost" size="sm" :aria-label="t('app.refresh')" @click="store.listThreads('')">
           <ListRestartIcon class="size-4" />
         </Button>
-        <Button data-testid="new-thread-button" variant="ghost" size="sm" :disabled="!selectedHostId" @click="store.startThread(model)">
+        <Button data-testid="new-thread-button" variant="ghost" size="sm" :disabled="!selectedHostId" @click="store.startThread({ model: defaultModel?.model || defaultModel?.id || undefined })">
           <PlayIcon class="size-4" />
           {{ t('app.newThread') }}
         </Button>
@@ -211,6 +160,7 @@ watch(
               v-for="item in threadItems"
               :key="item.id || `${item.type}-${JSON.stringify(item).length}`"
               :item="item"
+              :host-id="selectedHostId"
             />
           </div>
           <ProjectThreadList v-else-if="selectedProjectId && !selectedThreadId" />
@@ -232,49 +182,7 @@ watch(
         </div>
       </ScrollArea>
 
-      <div v-if="selectedThreadId" class="shrink-0 bg-gradient-to-t from-white via-white to-white/75 px-8 pb-5">
-        <div class="mx-auto max-w-[760px]">
-          <div v-if="activeEvents.length" class="mb-3 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-[#6f767d] shadow-sm">
-            <CircleIcon class="size-3.5 text-sky-300" />
-            {{ eventLabel(activeEvents.at(-1)?.method || '') }}
-          </div>
-
-          <div class="rounded-2xl border border-black/10 bg-white p-3 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
-            <Textarea
-              v-model="turnText"
-              class="min-h-20 border-0 bg-transparent px-1 text-base shadow-none ring-0 focus-visible:ring-0"
-              :placeholder="t('app.askFollowUp')"
-              :disabled="!selectedThreadId || isThreadRunning"
-              @keydown="handleComposerKeydown"
-            />
-            <div class="flex items-center justify-between pt-2">
-              <div class="flex items-center gap-3 text-sm text-[#858b91]">
-                <PlusIcon class="size-4" />
-                <SettingsIcon class="size-4" />
-                <span>{{ t('app.custom') }}</span>
-              </div>
-              <div class="flex items-center gap-4">
-                <Input v-model="model" class="h-8 w-28 border-0 bg-transparent text-right text-sm" placeholder="5.5 High" />
-                <Button
-                  data-testid="send-turn-button"
-                  class="size-9 rounded-full bg-[#171b1f] p-0 hover:bg-[#171b1f]/90"
-                  :aria-label="sendButtonLabel"
-                  :disabled="!canSendTurn"
-                  @click="sendTurn"
-                >
-                  <Loader2Icon v-if="isThreadRunning" class="size-4 animate-spin" />
-                  <SendIcon v-else-if="turnText.trim()" class="size-4" />
-                  <CheckIcon v-else-if="selectedThreadStatus === 'completed'" class="size-4" />
-                  <SendIcon v-else class="size-4 opacity-60" />
-                </Button>
-              </div>
-            </div>
-          </div>
-          <p class="mt-2 text-center text-xs text-[#9aa1a6]">
-            {{ selectedThreadId ? t('app.ctrlEnter') : t('app.selectThreadFirst') }}
-          </p>
-        </div>
-      </div>
+      <ChatComposer v-if="selectedThreadId" />
     </div>
   </section>
 </template>

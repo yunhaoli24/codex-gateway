@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { ref } from 'vue'
+import ChatWorkspace from '@/components/chat/ChatWorkspace.vue'
+import DesktopSidebar from '@/components/sidebar/DesktopSidebar.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { useGatewayStore } from '@/stores/gateway'
 

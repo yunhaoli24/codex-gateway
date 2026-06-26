@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { createReadStream, existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Client, type ClientChannel } from 'ssh2'
@@ -13,25 +14,35 @@ export interface CommandResult {
   stderr: string
 }
 
+export interface RemoteFileResult {
+  path: string
+  size: number
+  data: Buffer
+}
+
 export class HostManager {
-  private clients = new Map<number, Promise<Client>>()
+  private clients = new Map<string, Promise<Client>>()
+  private hostKeys = new Map<number, string>()
 
   connect(host: HostWithSecret): Promise<Client> {
-    const existing = this.clients.get(host.id)
+    const resolved = resolveSshConfig(host)
+    const key = sshConnectionKey(host, resolved)
+    this.hostKeys.set(host.id, key)
+
+    const existing = this.clients.get(key)
     if (existing) {
       return existing
     }
 
-    const resolved = resolveSshConfig(host)
     const promise = new Promise<Client>((resolve, reject) => {
       const client = new Client()
       client
         .on('ready', () => resolve(client))
         .on('error', (error) => {
-          this.clients.delete(host.id)
+          this.clients.delete(key)
           reject(error)
         })
-        .on('close', () => this.clients.delete(host.id))
+        .on('close', () => this.clients.delete(key))
         .connect({
           host: resolved.hostName,
           username: host.username ?? resolved.username,
@@ -47,7 +58,7 @@ export class HostManager {
         })
     })
 
-    this.clients.set(host.id, promise)
+    this.clients.set(key, promise)
     return promise
   }
 
@@ -76,7 +87,7 @@ export class HostManager {
     return new Promise((resolve, reject) => {
       client.exec(command, (error, channel) => {
         if (error) {
-          this.disconnect(host.id)
+          this.disconnectHost(host)
           if (!retried && isConnectionLevelSshError(error)) {
             void this.execChannel(host, command, true).then(resolve, reject)
             return
@@ -147,9 +158,135 @@ console.log(JSON.stringify({ path: base, entries }));
     return JSON.parse(result.stdout) as { path: string, entries: Array<{ name: string, path: string, type: 'directory' | 'file' | 'other' }> }
   }
 
+  async uploadFile(host: HostWithSecret, localPath: string, remotePath: string) {
+    const client = await this.connect(host)
+    const directory = remotePath.split('/').slice(0, -1).join('/') || '.'
+    const mkdir = await this.exec(host, remoteLoginShellCommand(`mkdir -p ${shellQuote(directory)}`))
+    if (mkdir.code !== 0) {
+      throw new Error(mkdir.stderr || `Failed to create remote upload directory: ${directory}`)
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      client.sftp((error, sftp) => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        const reader = createReadStream(localPath)
+        const writer = sftp.createWriteStream(remotePath, { mode: 0o600 })
+        const cleanup = () => {
+          sftp.end()
+        }
+        reader.on('error', (streamError) => {
+          cleanup()
+          reject(streamError)
+        })
+        writer.on('error', (streamError) => {
+          cleanup()
+          reject(streamError)
+        })
+        writer.on('close', () => {
+          cleanup()
+          resolve()
+        })
+        reader.pipe(writer)
+      })
+    })
+
+    return remotePath
+  }
+
+  async readRemoteFile(host: HostWithSecret, remotePath: string, options: { maxSize: number }): Promise<RemoteFileResult> {
+    const path = remotePath.trim()
+    if (!path.startsWith('/')) {
+      throw new Error('Remote file path must be absolute')
+    }
+
+    const client = await this.connect(host)
+    return new Promise<RemoteFileResult>((resolve, reject) => {
+      client.sftp((error, sftp) => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        const cleanup = () => {
+          sftp.end()
+        }
+
+        sftp.stat(path, (statError, stats) => {
+          if (statError) {
+            cleanup()
+            reject(statError)
+            return
+          }
+          if (!stats.isFile()) {
+            cleanup()
+            reject(new Error('Remote path is not a file'))
+            return
+          }
+          if (stats.size > options.maxSize) {
+            cleanup()
+            reject(new Error(`Remote file exceeds ${options.maxSize} bytes`))
+            return
+          }
+
+          sftp.readFile(path, (readError, data) => {
+            cleanup()
+            if (readError) {
+              reject(readError)
+              return
+            }
+            resolve({ path, size: stats.size, data })
+          })
+        })
+      })
+    })
+  }
+
+  async createUploadDirectory(host: HostWithSecret) {
+    const script = 'root="${TMPDIR:-/tmp}/codex-gateway-uploads"; mkdir -p "$root"; mktemp -d "$root/upload.XXXXXXXXXX"'
+    const result = await this.exec(host, remoteLoginShellCommand(script))
+    if (result.code !== 0) {
+      throw new Error(result.stderr || 'Failed to create remote upload directory')
+    }
+    return result.stdout.trim()
+  }
+
+  syncHosts(hosts: HostWithSecret[]) {
+    const activeKeys = new Set<string>()
+    this.hostKeys.clear()
+    for (const host of hosts) {
+      const key = sshConnectionKey(host, resolveSshConfig(host))
+      activeKeys.add(key)
+      this.hostKeys.set(host.id, key)
+    }
+
+    for (const [key, client] of this.clients) {
+      if (!activeKeys.has(key)) {
+        this.clients.delete(key)
+        void client.then((connection) => connection.end()).catch(() => {})
+      }
+    }
+  }
+
+  disconnectHost(host: HostWithSecret) {
+    const key = this.hostKeys.get(host.id) ?? sshConnectionKey(host, resolveSshConfig(host))
+    this.disconnectKey(key)
+  }
+
   disconnect(hostId: number) {
-    const client = this.clients.get(hostId)
-    this.clients.delete(hostId)
+    const key = this.hostKeys.get(hostId)
+    if (key) {
+      this.disconnectKey(key)
+      this.hostKeys.delete(hostId)
+    }
+  }
+
+  private disconnectKey(key: string) {
+    const client = this.clients.get(key)
+    this.clients.delete(key)
     void client?.then((connection) => connection.end()).catch(() => {})
   }
 }
@@ -210,6 +347,26 @@ function resolveSshConfig(host: HostWithSecret) {
   return result
 }
 
+function sshConnectionKey(host: HostWithSecret, resolved: ReturnType<typeof resolveSshConfig>) {
+  const secretFingerprint = createHash('sha256')
+    .update(host.authMode)
+    .update('\0')
+    .update(host.authMode === 'password' ? host.password ?? '' : '')
+    .update('\0')
+    .update(host.privateKey ?? '')
+    .update('\0')
+    .update(resolved.privateKeyPath ?? '')
+    .digest('hex')
+
+  return [
+    resolved.hostName,
+    host.username ?? resolved.username ?? '',
+    host.port ?? resolved.port,
+    host.authMode,
+    secretFingerprint,
+  ].join('|')
+}
+
 function hostPatternMatches(pattern: string, host: string) {
   if (pattern.startsWith('!')) {
     return false
@@ -227,5 +384,5 @@ function shellQuote(value: string) {
 
 function isConnectionLevelSshError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
-  return /No response from server|Not connected|Connection lost|ECONNRESET|EPIPE/i.test(message)
+  return /No response from server|Not connected|Connection lost|Channel open failure|ECONNRESET|EPIPE/i.test(message)
 }
