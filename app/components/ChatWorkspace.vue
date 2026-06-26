@@ -37,6 +37,7 @@ const {
   loadingOlderTurns,
   olderTurnsCursor,
   error,
+  scrollToLatestToken,
 } = storeToRefs(store)
 
 const model = ref('')
@@ -106,12 +107,17 @@ function isNearBottom(viewport: HTMLElement) {
 
 async function scrollToBottom() {
   await nextTick()
-  requestAnimationFrame(() => {
+  const scroll = () => {
     const viewport = scrollViewport()
     if (!viewport) return
     viewport.scrollTop = viewport.scrollHeight
+  }
+  scroll()
+  requestAnimationFrame(() => {
+    scroll()
     requestAnimationFrame(() => {
-      viewport.scrollTop = viewport.scrollHeight
+      scroll()
+      window.setTimeout(scroll, 80)
     })
   })
 }
@@ -135,7 +141,7 @@ function handleScroll(event: Event) {
 }
 
 watch(
-  selectedThreadId,
+  () => [selectedThreadId.value, scrollToLatestToken.value],
   () => {
     followLatest.value = true
     void scrollToBottom()

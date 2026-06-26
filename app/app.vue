@@ -7,9 +7,12 @@ import { useGatewayStore } from '@/stores/gateway'
 const store = useGatewayStore()
 const ready = ref(false)
 
-onMounted(() => {
-  ready.value = true
-  void store.refresh()
+onMounted(async () => {
+  try {
+    await store.refresh()
+  } finally {
+    ready.value = true
+  }
 })
 </script>
 

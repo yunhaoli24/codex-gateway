@@ -43,6 +43,14 @@ const renameValue = ref('')
 const suppressTreeAutoExpand = ref(false)
 
 const projectThreads = computed(() => threads.value.filter((thread) => !thread.pinned).slice(0, 20))
+const selectedThreadIsPinned = computed(() => {
+  if (!selectedHostId.value || !selectedThreadId.value) {
+    return false
+  }
+  return pinnedThreads.value.some((thread) =>
+    thread.hostId === selectedHostId.value && String(thread.threadId) === String(selectedThreadId.value),
+  )
+})
 const projectsByHost = computed(() => {
   const byHost = new Map<number, typeof projects.value>()
   for (const project of projects.value) {
@@ -135,6 +143,10 @@ function pinnedThreadKey(thread: any) {
   return `${thread.hostId}:${thread.threadId}`
 }
 
+function isSelectedPinnedThread(thread: any) {
+  return String(thread.threadId) === String(selectedThreadId.value) && thread.hostId === selectedHostId.value
+}
+
 function currentThreadKey(threadId: string) {
   return selectedHostId.value ? `${selectedHostId.value}:${threadId}` : ''
 }
@@ -188,15 +200,23 @@ function handleRenameKeydown(event: KeyboardEvent) {
 
 watch(selectedHostId, (hostId) => {
   if (suppressTreeAutoExpand.value) return
+  if (selectedThreadIsPinned.value) return
   if (!hostId) return
   expandedHostIds.value = new Set(expandedHostIds.value).add(hostId)
 }, { immediate: true })
 
 watch(selectedProjectId, (projectId) => {
   if (suppressTreeAutoExpand.value) return
+  if (selectedThreadIsPinned.value) return
   if (!projectId) return
   expandedProjectIds.value = new Set(expandedProjectIds.value).add(projectId)
 }, { immediate: true })
+
+watch(selectedThreadIsPinned, (isPinned) => {
+  if (!isPinned) return
+  expandedHostIds.value = new Set()
+  expandedProjectIds.value = new Set()
+})
 </script>
 
 <template>
@@ -256,7 +276,7 @@ watch(selectedProjectId, (projectId) => {
                     :data-testid="`pinned-thread-button-${thread.threadId}`"
                     variant="ghost"
                     class="h-auto min-h-10 w-full justify-between rounded-lg px-3 py-2 text-[14px] font-normal hover:bg-black/5"
-                    :class="thread.threadId === selectedThreadId && thread.hostId === selectedHostId ? 'bg-[#c7ddeb]' : ''"
+                    :class="isSelectedPinnedThread(thread) ? 'bg-[#c7ddeb]' : ''"
                     @click="openPinnedThread(thread)"
                   >
                     <span class="min-w-0 text-left">

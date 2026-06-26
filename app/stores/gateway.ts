@@ -302,6 +302,7 @@ export const useGatewayStore = defineStore('gateway', {
     error: null as string | null,
     eventSource: null as EventSource | null,
     lastEventId: 0,
+    scrollToLatestToken: 0,
   }),
 
   getters: {
@@ -575,6 +576,22 @@ export const useGatewayStore = defineStore('gateway', {
       }))
     },
 
+    rememberOpenThread(threadId: string) {
+      if (!this.selectedHostId) {
+        return
+      }
+      this.gatewayConfig.lastOpenThread = {
+        hostId: this.selectedHostId,
+        projectId: this.selectedProjectId,
+        threadId,
+      }
+      this.persistConfig()
+    },
+
+    requestScrollToLatest() {
+      this.scrollToLatestToken += 1
+    },
+
     async openThread(threadId: string, context?: { hostId?: number, projectId?: number | null }) {
       if (context?.hostId && context.hostId !== this.selectedHostId) {
         this.selectedHostId = context.hostId
@@ -598,6 +615,8 @@ export const useGatewayStore = defineStore('gateway', {
         return
       }
       if (this.selectedThreadId === threadId && this.currentThread && this.history) {
+        this.rememberOpenThread(threadId)
+        this.requestScrollToLatest()
         return
       }
 
@@ -613,12 +632,12 @@ export const useGatewayStore = defineStore('gateway', {
             limit: 20,
           },
         })
-        this.selectedThreadId = threadId
         this.currentThread = result.thread
         this.history = result.history
         if (result.projectId) {
           this.selectedProjectId = result.projectId
         }
+        this.selectedThreadId = threadId
         if (result.project) {
           this.mergeProjects([result.project])
         }
@@ -631,12 +650,8 @@ export const useGatewayStore = defineStore('gateway', {
         }
         this.connectEvents()
         this.upsertPinnedMetadataFromThread(result.thread as any)
-        this.gatewayConfig.lastOpenThread = {
-          hostId: this.selectedHostId,
-          projectId: this.selectedProjectId,
-          threadId,
-        }
-        this.persistConfig()
+        this.rememberOpenThread(threadId)
+        this.requestScrollToLatest()
       } catch (error: any) {
         this.setError(messageFromError(error, 'Failed to open thread'))
       } finally {
