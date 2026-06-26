@@ -7,6 +7,7 @@ import type {
   PinnedThreadRecord,
   ProjectRecord,
   ThreadSettingsState,
+  ThreadTokenUsageState,
 } from '~~/shared/types'
 import type { GatewayDomainEvents } from './domain-events'
 
@@ -30,6 +31,7 @@ export interface GatewayStoreState {
   runningThreadKeys: string[]
   threadStatuses: Record<string, ThreadRuntimeStatus>
   threadSettingsByKey: Record<string, ThreadSettingsState>
+  threadTokenUsageByKey: Record<string, ThreadTokenUsageState>
   selectedHostId: number | null
   selectedProjectId: number | null
   selectedThreadId: string | null
@@ -58,5 +60,6 @@ export interface GatewayStoreContext {
   selectedThreadStatus: ThreadRuntimeStatus
   defaultModel: ModelRecord | null
   selectedThreadSettings: ThreadSettingsState
+  selectedThreadTokenUsage: ThreadTokenUsageState | null
   [action: string]: any
 }

@@ -58,7 +58,7 @@ export function statusAfterThreadIdle(current: ThreadRuntimeStatus | undefined):
 }
 
 export function titleForThread(thread: any) {
-  return thread?.name || thread?.preview || thread?.id || 'Untitled'
+  return thread?.title || thread?.name || thread?.preview || thread?.id || 'Untitled'
 }
 
 export function sortThreads(threads: any[]) {

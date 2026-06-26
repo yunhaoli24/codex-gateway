@@ -13,6 +13,7 @@ export function createGatewayState(): GatewayStoreState {
     runningThreadKeys: [],
     threadStatuses: {},
     threadSettingsByKey: {},
+    threadTokenUsageByKey: {},
     selectedHostId: null,
     selectedProjectId: null,
     selectedThreadId: null,

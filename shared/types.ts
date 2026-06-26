@@ -10,6 +10,7 @@ export interface HostRecord {
   privateKeyPath: string | null
   privateKey?: string | null
   password?: string | null
+  proxyUrl: string | null
   hasPassword: boolean
   createdAt: string
   updatedAt: string
@@ -33,7 +34,10 @@ export interface HostCreateInput {
   privateKeyPath?: string | null
   privateKey?: string | null
   password?: string | null
+  proxyUrl?: string | null
 }
+
+export type HostUpdateInput = HostCreateInput
 
 export interface ProjectCreateInput {
   hostId: number
@@ -66,6 +70,7 @@ export interface ThreadOpenResult {
   thread: unknown
   history: unknown
   threadSettings?: ThreadSettingsState | null
+  tokenUsage?: ThreadTokenUsageState | null
   projectId?: number | null
   project?: ProjectRecord | null
   turnsPage: {
@@ -90,6 +95,20 @@ export interface ThreadSettingsState {
   model?: string | null
   effort?: ReasoningEffort | null
   approvalPolicy?: ApprovalPolicy | null
+}
+
+export interface TokenUsageBreakdown {
+  totalTokens: number
+  inputTokens: number
+  cachedInputTokens: number
+  outputTokens: number
+  reasoningOutputTokens: number
+}
+
+export interface ThreadTokenUsageState {
+  total: TokenUsageBreakdown
+  last: TokenUsageBreakdown
+  modelContextWindow: number | null
 }
 
 export interface ModelRecord {
@@ -165,7 +184,6 @@ export interface PinnedThreadRecord {
   threadId: string
   title: string
   subtitle?: string | null
-  hostName: string
   projectName?: string | null
   updatedAt?: number | null
 }

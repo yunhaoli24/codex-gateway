@@ -9,6 +9,7 @@ export interface RemoteCodexEnv {
   password: string
   projectPath: string
   imagePath: string
+  proxyUrl?: string | null
 }
 
 export interface UiHost {
@@ -24,11 +25,14 @@ export async function readRemoteEnv() {
 }
 
 export async function addRemoteHost(page: Page, remote: RemoteCodexEnv, name = `docker-codex-${Date.now()}`) {
-  await openSettings(page)
+  await openSettingsTab(page, '主机')
   await page.getByTestId('host-name-input').fill(name)
   await page.getByTestId('host-ssh-input').fill(remote.host)
   await page.getByPlaceholder('用户').fill(remote.username)
   await page.getByPlaceholder('端口').fill(remote.port)
+  if (remote.proxyUrl !== undefined) {
+    await page.getByTestId('host-proxy-url-input').fill(remote.proxyUrl ?? '')
+  }
   await page.getByTestId('host-auth-select').click()
   await page.getByTestId('host-auth-password-option').click()
   await page.getByPlaceholder('SSH 密码').fill(remote.password)
@@ -44,7 +48,7 @@ export async function addRemoteHost(page: Page, remote: RemoteCodexEnv, name = `
 }
 
 export async function addRemoteProject(page: Page, remote: RemoteCodexEnv, hostId: number, name = `remote-project-${Date.now()}`) {
-  await openSettings(page)
+  await openSettingsTab(page, '项目')
   await page.getByTestId('project-name-input').fill(name)
   await page.getByTestId('project-path-input').fill(remote.projectPath)
 
@@ -126,6 +130,11 @@ async function openSettings(page: Page) {
   }
   await page.getByTestId('settings-toggle').click()
   await expect(page.getByTestId('settings-panel')).toBeVisible()
+}
+
+async function openSettingsTab(page: Page, tabName: string) {
+  await openSettings(page)
+  await page.getByRole('tab', { name: tabName }).click()
 }
 
 async function closeSettings(page: Page) {

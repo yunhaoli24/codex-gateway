@@ -28,6 +28,7 @@
     "pinia": "^3.0.4",
     "reka-ui": "^2.10.0",
     "shadcn-nuxt": "^2.7.4",
+    "socks": "^2.8.9",
     "ssh2": "^1.17.0",
     "tailwind-merge": "^3.6.0",
     "vaul-vue": "^0.4.1",

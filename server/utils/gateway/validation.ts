@@ -6,7 +6,7 @@ const optionalPositiveInt = z.preprocess(
   z.coerce.number().int().positive().optional(),
 )
 
-export const hostCreateSchema = z.object({
+const hostBaseSchema = z.object({
   name: z.string().trim().min(1),
   sshHost: z.string().trim().min(1),
   username: z.string().trim().nullable().optional(),
@@ -18,7 +18,32 @@ export const hostCreateSchema = z.object({
   privateKeyPath: z.string().trim().nullable().optional(),
   privateKey: z.string().nullable().optional(),
   password: z.string().nullable().optional(),
-})
+  proxyUrl: z.string().trim().nullable().optional().default('socks5h://127.0.0.1:7890'),
+}).strict()
+
+function validateHostProxy(host: z.infer<typeof hostBaseSchema>, ctx: z.RefinementCtx) {
+  if (!host.proxyUrl) {
+    return
+  }
+  try {
+    const url = new URL(host.proxyUrl)
+    if (url.protocol !== 'socks5:' && url.protocol !== 'socks5h:') {
+      throw new Error('Unsupported proxy protocol')
+    }
+    if (!url.hostname || !url.port) {
+      throw new Error('Proxy host and port are required')
+    }
+  } catch {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['proxyUrl'],
+      message: 'Proxy URL must look like socks5h://127.0.0.1:7890',
+    })
+  }
+}
+
+export const hostCreateSchema = hostBaseSchema.superRefine(validateHostProxy)
+export const hostUpdateSchema = hostBaseSchema.superRefine(validateHostProxy)
 
 export const projectCreateSchema = z.object({
   hostId: z.coerce.number().int().positive(),
@@ -28,28 +53,27 @@ export const projectCreateSchema = z.object({
 
 export const gatewayConfigSchema = z.object({
   version: z.literal(1).default(1),
-  hosts: z.array(hostCreateSchema.extend({
+  hosts: z.array(hostBaseSchema.extend({
     id: z.coerce.number().int().positive(),
     hasPassword: z.boolean().optional(),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional(),
-  })).default([]),
+  }).superRefine(validateHostProxy)).default([]),
   pinnedThreads: z.array(z.object({
     hostId: z.coerce.number().int().positive(),
     projectId: optionalPositiveInt.nullable().optional(),
     threadId: z.string().trim().min(1),
     title: z.string().trim().min(1),
     subtitle: z.string().trim().nullable().optional(),
-    hostName: z.string().trim().min(1),
     projectName: z.string().trim().nullable().optional(),
     updatedAt: z.coerce.number().nullable().optional(),
-  })).default([]),
+  }).strict()).default([]),
   lastOpenThread: z.object({
     hostId: z.coerce.number().int().positive(),
     projectId: optionalPositiveInt.nullable().optional(),
     threadId: z.string().trim().min(1),
-  }).nullable().optional(),
-})
+  }).strict().nullable().optional(),
+}).strict()
 
 export const remoteDirectoryListSchema = z.object({
   hostId: z.coerce.number().int().positive(),
@@ -133,6 +157,21 @@ export const turnStartSchema = z.object({
     mimeType: z.string().trim().nullable().optional(),
     size: z.coerce.number().int().min(0),
     isImage: z.boolean(),
+  })).default([]),
+})
+
+export const turnSteerSchema = z.object({
+  hostId: z.coerce.number().int().positive(),
+  threadId: z.string().trim().min(1),
+  expectedTurnId: z.string().trim().min(1),
+  text: z.string().trim().default(''),
+  clientUserMessageId: z.string().trim().nullable().optional(),
+  images: z.array(z.object({
+    path: z.string().trim().min(1).optional(),
+    url: z.string().trim().min(1).optional(),
+    detail: z.enum(['low', 'high', 'auto', 'original']).optional(),
+  }).refine((image) => Boolean(image.path || image.url), {
+    message: 'Image must include path or url',
   })).default([]),
 })
 

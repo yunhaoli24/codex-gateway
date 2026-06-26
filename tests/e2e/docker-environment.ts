@@ -71,6 +71,7 @@ export async function startDockerEnvironment() {
     password,
     projectPath: '/workspace/codex-gateway',
     imagePath,
+    proxyUrl: null,
   }
   await writeFile(envFile, JSON.stringify(env, null, 2))
   await waitForSsh(env.host, env.port)

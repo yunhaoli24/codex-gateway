@@ -2,19 +2,29 @@
 import {
   BrainIcon,
   CheckCircle2Icon,
+  CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  CopyIcon,
   FilePenIcon,
   ListChecksIcon,
   TerminalIcon,
   WrenchIcon,
   XCircleIcon,
 } from '@lucide/vue'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { toast } from 'vue-sonner'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Button } from '@/components/ui/button'
 import MarkdownContent from '@/components/common/MarkdownContent.vue'
 import ThreadImageAttachment from '@/components/thread/attachments/ThreadImageAttachment.vue'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 const props = defineProps<{
   item: Record<string, any>
@@ -27,6 +37,7 @@ const imageParts = computed(() => userImageParts(props.item))
 const title = computed(() => toolTitle(props.item))
 const output = computed(() => truncate(props.item.aggregatedOutput || props.item.result?.text || '', 1200))
 const fileChanges = computed(() => Array.isArray(props.item.changes) ? props.item.changes : [])
+const copiedAgentText = ref(false)
 
 function itemText(item: Record<string, any>) {
   if (item.type === 'userMessage') {
@@ -120,6 +131,22 @@ function diffMarkdown(change: Record<string, any>) {
   const diff = changeDiff(change)
   return diff ? `\`\`\`diff\n${diff.replaceAll('```', '``\\`')}\n\`\`\`` : ''
 }
+
+async function copyAgentText() {
+  if (!text.value) {
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(text.value)
+    copiedAgentText.value = true
+    toast.success(t('app.agentOutputCopied'))
+    window.setTimeout(() => {
+      copiedAgentText.value = false
+    }, 1200)
+  } catch {
+    toast.error(t('app.copyAgentOutputFailed'))
+  }
+}
 </script>
 
 <template>
@@ -139,8 +166,28 @@ function diffMarkdown(change: Record<string, any>) {
     </div>
   </div>
 
-  <div v-else-if="item.type === 'agentMessage'" class="max-w-[840px] text-[15px] leading-8 text-[#202225]">
+  <div v-else-if="item.type === 'agentMessage'" class="group max-w-[840px] text-[15px] leading-8 text-[#202225]">
     <MarkdownContent :content="text" />
+    <div v-if="text" class="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              class="size-8 p-0 text-[#8d9499] hover:bg-black/[0.04] hover:text-[#202225]"
+              :aria-label="t('app.copyAgentOutput')"
+              @click="copyAgentText"
+            >
+              <CheckIcon v-if="copiedAgentText" class="size-4 text-emerald-600" />
+              <CopyIcon v-else class="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{{ t('app.copyAgentOutput') }}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
   </div>
 
   <div v-else-if="item.type === 'plan'" class="max-w-[840px] text-[15px] leading-8 text-[#202225]">
@@ -167,7 +214,16 @@ function diffMarkdown(change: Record<string, any>) {
       <CheckCircle2Icon v-if="item.exitCode === 0" class="size-4 text-emerald-600" />
       <XCircleIcon v-else-if="item.exitCode" class="size-4 text-red-600" />
     </div>
-    <pre v-if="output" class="mt-2 max-h-56 overflow-auto rounded-lg bg-[#f6f6f6] p-3 text-xs leading-5 text-[#3d4145]">{{ output }}</pre>
+    <Collapsible v-if="output" v-slot="{ open }" class="mt-2 rounded-lg border border-black/10 bg-[#fbfbfb]">
+      <CollapsibleTrigger class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/[0.03]">
+        <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-[#9aa1a6]" />
+        <ChevronRightIcon v-else class="size-4 shrink-0 text-[#9aa1a6]" />
+        <span class="min-w-0 flex-1 truncate text-[#5f6970]">{{ t('app.commandOutput') }}</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <pre class="max-h-56 overflow-auto border-t border-black/10 bg-[#f6f6f6] p-3 text-xs leading-5 text-[#3d4145]">{{ output }}</pre>
+      </CollapsibleContent>
+    </Collapsible>
   </div>
 
   <div v-else-if="item.type === 'fileChange'" class="max-w-[840px] text-[#5f6970]">

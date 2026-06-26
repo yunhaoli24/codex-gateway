@@ -18,7 +18,11 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps<DialogContentProps & { class?: HTMLAttributes["class"], showCloseButton?: boolean }>(), {
+const props = withDefaults(defineProps<DialogContentProps & {
+  class?: HTMLAttributes["class"]
+  showCloseButton?: boolean
+  closeButtonTestId?: string
+}>(), {
   showCloseButton: true,
 })
 const emits = defineEmits<DialogContentEmits>()
@@ -43,7 +47,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
         data-slot="dialog-close"
         as-child
       >
-        <Button variant="ghost" class="absolute top-2 right-2" size="icon-sm">
+        <Button variant="ghost" class="absolute top-2 right-2" size="icon-sm" :data-testid="closeButtonTestId">
           <XIcon />
           <span class="sr-only">Close</span>
         </Button>

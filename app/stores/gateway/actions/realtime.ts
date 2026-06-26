@@ -1,4 +1,4 @@
-import type { GatewayEvent } from '~~/shared/types'
+import type { GatewayEvent, ThreadTokenUsageState } from '~~/shared/types'
 import type { GatewayStoreContext, ThreadRuntimeStatus } from '../types'
 import {
   isThreadActiveStatus,
@@ -29,6 +29,13 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
       ctx.state.runningThreadKeys = [...current]
     },
 
+    setThreadTokenUsage(hostId: number, threadId: string, tokenUsage: ThreadTokenUsageState) {
+      ctx.state.threadTokenUsageByKey = {
+        ...ctx.state.threadTokenUsageByKey,
+        [pinnedKey(hostId, threadId)]: tokenUsage,
+      }
+    },
+
     connectEvents() {
       ctx.state.eventSource?.close()
       if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
@@ -50,7 +57,8 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
         ctx.applyLiveEvent(event)
       }
       ctx.state.eventSource.onerror = () => {
-        ctx.setError('SSE connection interrupted. The browser will retry automatically.')
+        // EventSource reconnects by itself; surfacing each transient disconnect as a toast
+        // floods the UI during reloads or dev-server restarts.
       }
     },
 
@@ -99,6 +107,18 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
           })
         }
       }
+      if (event.method === 'thread/tokenUsage/updated') {
+        const threadId = threadIdFromParams(params) || event.threadId
+        const tokenUsage = normalizeTokenUsage(params.tokenUsage ?? params.token_usage)
+        if (threadId && event.hostId && tokenUsage) {
+          ctx.events.emit({
+            type: 'thread-token-usage-detected',
+            hostId: event.hostId,
+            threadId: String(threadId),
+            tokenUsage,
+          })
+        }
+      }
 
       if (!ctx.state.selectedThreadId) {
         return
@@ -143,4 +163,41 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
       }
     },
   }
+}
+
+export function normalizeTokenUsage(value: any): ThreadTokenUsageState | null {
+  const total = normalizeTokenBreakdown(value?.total)
+  const last = normalizeTokenBreakdown(value?.last)
+  if (!total || !last) {
+    return null
+  }
+  const modelContextWindow = numberOrNull(value?.modelContextWindow ?? value?.model_context_window)
+  return {
+    total,
+    last,
+    modelContextWindow,
+  }
+}
+
+function normalizeTokenBreakdown(value: any) {
+  const totalTokens = numberOrNull(value?.totalTokens ?? value?.total_tokens)
+  const inputTokens = numberOrNull(value?.inputTokens ?? value?.input_tokens)
+  const cachedInputTokens = numberOrNull(value?.cachedInputTokens ?? value?.cached_input_tokens)
+  const outputTokens = numberOrNull(value?.outputTokens ?? value?.output_tokens)
+  const reasoningOutputTokens = numberOrNull(value?.reasoningOutputTokens ?? value?.reasoning_output_tokens)
+  if ([totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens].some((item) => item == null)) {
+    return null
+  }
+  return {
+    totalTokens,
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+    reasoningOutputTokens,
+  }
+}
+
+function numberOrNull(value: unknown) {
+  const numberValue = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(numberValue) ? numberValue : null
 }

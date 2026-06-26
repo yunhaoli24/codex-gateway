@@ -1,6 +1,8 @@
 import type { ComposerTurnOptions, ThreadOpenResult } from '~~/shared/types'
 import type { GatewayStoreContext } from '../types'
-import { messageFromError } from '../thread-utils'
+import { messageFromError, threadIdFromParams } from '../thread-utils'
+import { writeGatewayRouteSelection } from '../route-state'
+import { normalizeTokenUsage } from './realtime'
 
 export function createThreadOpenActions(ctx: GatewayStoreContext) {
   return {
@@ -20,7 +22,15 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       ctx.state.scrollToLatestToken += 1
     },
 
-    async openThread(threadId: string, context?: { hostId?: number, projectId?: number | null }) {
+    syncSelectedRoute(options: { replace?: boolean } = {}) {
+      writeGatewayRouteSelection({
+        hostId: ctx.state.selectedHostId,
+        projectId: ctx.state.selectedProjectId,
+        threadId: ctx.state.selectedThreadId,
+      }, options)
+    },
+
+    async openThread(threadId: string, context?: { hostId?: number, projectId?: number | null, replaceRoute?: boolean }) {
       if (context?.hostId && context.hostId !== ctx.state.selectedHostId) {
         ctx.state.selectedHostId = context.hostId
         ctx.state.selectedProjectId = context.projectId ?? null
@@ -44,6 +54,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       }
       if (ctx.state.selectedThreadId === threadId && ctx.state.currentThread && ctx.state.history) {
         ctx.rememberOpenThread(threadId)
+        ctx.syncSelectedRoute({ replace: context?.replaceRoute })
         ctx.requestScrollToLatest()
         return
       }
@@ -72,14 +83,21 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         ctx.state.olderTurnsCursor = result.turnsPage.nextCursor
         ctx.state.newerTurnsCursor = result.turnsPage.backwardsCursor
         ctx.setThreadSettings(ctx.state.selectedHostId, threadId, result.threadSettings)
+        if (result.tokenUsage) {
+          ctx.setThreadTokenUsage(ctx.state.selectedHostId, threadId, result.tokenUsage)
+        }
         ctx.state.events = result.recentEvents
         ctx.state.lastEventId = result.recentEvents.at(-1)?.id ?? 0
+        if (!result.tokenUsage) {
+          syncTokenUsageFromRecentEvents(ctx, result.recentEvents)
+        }
         for (const event of result.recentEvents) {
           ctx.applyLiveEvent(event)
         }
         ctx.connectEvents()
         ctx.upsertPinnedMetadataFromThread(result.thread as any)
         ctx.rememberOpenThread(threadId)
+        ctx.syncSelectedRoute({ replace: context?.replaceRoute })
         ctx.requestScrollToLatest()
       } catch (error: any) {
         ctx.setError(messageFromError(error, 'Failed to open thread'))
@@ -122,8 +140,29 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       ctx.state.newerTurnsCursor = result.turnsPage.backwardsCursor
       ctx.state.selectedThreadId = String(thread.id)
       ctx.setThreadSettings(ctx.state.selectedHostId, String(thread.id), result.threadSettings)
+      if (result.tokenUsage) {
+        ctx.setThreadTokenUsage(ctx.state.selectedHostId, String(thread.id), result.tokenUsage)
+      } else {
+        syncTokenUsageFromRecentEvents(ctx, result.recentEvents)
+      }
       ctx.connectEvents()
       await ctx.listThreads()
+      ctx.rememberOpenThread(String(thread.id))
+      ctx.syncSelectedRoute()
     },
+  }
+}
+
+function syncTokenUsageFromRecentEvents(ctx: GatewayStoreContext, events: ThreadOpenResult['recentEvents']) {
+  for (const event of events) {
+    if (event.method !== 'thread/tokenUsage/updated') {
+      continue
+    }
+    const params = (event.payload as any)?.params || {}
+    const threadId = threadIdFromParams(params) || event.threadId
+    const tokenUsage = normalizeTokenUsage(params.tokenUsage ?? params.token_usage)
+    if (threadId && event.hostId && tokenUsage) {
+      ctx.setThreadTokenUsage(event.hostId, String(threadId), tokenUsage)
+    }
   }
 }

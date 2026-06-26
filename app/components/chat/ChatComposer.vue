@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import {
   CheckIcon,
+  ChevronDownIcon,
   CircleIcon,
   FileIcon,
+  HandIcon,
   ImageIcon,
   Loader2Icon,
   PlusIcon,
   SendIcon,
   SettingsIcon,
+  ShieldAlertIcon,
+  ShieldCheckIcon,
   XIcon,
 } from '@lucide/vue'
 import { storeToRefs } from 'pinia'
@@ -15,8 +19,18 @@ import { computed, nextTick, ref, watch } from 'vue'
 import type { ApprovalPolicy, ReasoningEffort, UploadedFileRecord } from '~~/shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useGatewayStore } from '@/stores/gateway'
 
@@ -28,6 +42,7 @@ const {
   events,
   selectedThreadStatus,
   selectedThreadSettings,
+  selectedThreadTokenUsage,
   models,
   loadingModels,
   defaultModel,
@@ -36,48 +51,76 @@ const {
 const turnText = ref('')
 const selectedModel = ref('')
 const selectedEffort = ref<ReasoningEffort | 'default'>('default')
-const selectedApprovalPolicy = ref<ApprovalPolicy>('on-request')
+const selectedApprovalMode = ref<ApprovalPolicy | 'custom'>('custom')
 const attachedFiles = ref<Array<UploadedFileRecord & { id: string, dataUrl?: string }>>([])
 const uploadInputRef = ref<HTMLInputElement | null>(null)
 const uploadingAttachments = ref(false)
 
-const approvalOptions: Array<{ value: ApprovalPolicy, label: string }> = [
-  { value: 'on-request', label: '按需审批' },
-  { value: 'untrusted', label: '非信任操作审批' },
-  { value: 'never', label: '永不审批' },
+const approvalOptions: Array<{ value: ApprovalPolicy | 'custom', icon: any, labelKey: string, shortLabelKey: string, descriptionKey: string }> = [
+  { value: 'untrusted', icon: HandIcon, labelKey: 'approvalAsk', shortLabelKey: 'approvalAskShort', descriptionKey: 'approvalAskDescription' },
+  { value: 'on-request', icon: ShieldCheckIcon, labelKey: 'approvalAuto', shortLabelKey: 'approvalAutoShort', descriptionKey: 'approvalAutoDescription' },
+  { value: 'never', icon: ShieldAlertIcon, labelKey: 'approvalFullAccess', shortLabelKey: 'approvalFullAccessShort', descriptionKey: 'approvalFullAccessDescription' },
+  { value: 'custom', icon: SettingsIcon, labelKey: 'approvalCustom', shortLabelKey: 'approvalCustomShort', descriptionKey: 'approvalCustomDescription' },
 ]
 
-const defaultEffortOptions: Array<{ value: ReasoningEffort | 'default', label: string }> = [
-  { value: 'default', label: '默认推理' },
-]
 let syncingSettings = false
 
 const visibleEvents = computed(() => events.value.filter((event) => shouldShowEvent(event.method)))
 const activeEvents = computed(() => visibleEvents.value.slice(-8))
 const isThreadRunning = computed(() => selectedThreadStatus.value === 'running')
-const canSendTurn = computed(() => Boolean(selectedThreadId.value && (turnText.value.trim() || attachedFiles.value.length) && !isThreadRunning.value && !uploadingAttachments.value))
+const hasComposerInput = computed(() => Boolean(turnText.value.trim() || attachedFiles.value.length))
+const canSendTurn = computed(() => Boolean(selectedThreadId.value && hasComposerInput.value && !uploadingAttachments.value))
 const activeModel = computed(() => selectedModel.value || defaultModel.value?.model || defaultModel.value?.id || '')
 const activeModelRecord = computed(() => models.value.find((candidate) => candidate.model === activeModel.value || candidate.id === activeModel.value))
 const activeModelLabel = computed(() => {
   const model = activeModelRecord.value
   return model?.displayName || model?.model || activeModel.value || '模型'
 })
+const activeEffortValue = computed(() => {
+  return selectedEffort.value !== 'default'
+    ? selectedEffort.value
+    : activeModelRecord.value?.defaultReasoningEffort || ''
+})
 const effortOptions = computed(() => {
   const supportedEfforts = activeModelRecord.value?.supportedReasoningEfforts ?? []
   const options = supportedEfforts.map((option) => ({
     value: option.reasoningEffort,
-    label: option.description || option.reasoningEffort,
+    label: option.reasoningEffort,
   }))
   if (selectedEffort.value !== 'default' && !options.some((option) => option.value === selectedEffort.value)) {
     options.unshift({ value: selectedEffort.value, label: selectedEffort.value })
   }
-  return [...defaultEffortOptions, ...options]
+  return options
 })
-const activeEffortLabel = computed(() => effortOptions.value.find((option) => option.value === selectedEffort.value)?.label || '默认推理')
-const activeApprovalLabel = computed(() => approvalOptions.find((option) => option.value === selectedApprovalPolicy.value)?.label || '按需审批')
+const activeEffortLabel = computed(() => labelEffortOption(effortOptions.value.find((option) => option.value === selectedEffort.value)))
+const activeEffortCompactLabel = computed(() => compactEffortLabel(activeEffortValue.value))
+const activeApprovalOption = computed(() => approvalOptions.find((option) => option.value === selectedApprovalMode.value) ?? approvalOptions.at(-1)!)
+const BASELINE_CONTEXT_TOKENS = 12000
+const contextRemainingPercent = computed(() => {
+  const usage = selectedThreadTokenUsage.value
+  const totalTokens = usage?.total?.totalTokens
+  const contextWindow = usage?.modelContextWindow
+  if (!totalTokens || !contextWindow) {
+    return null
+  }
+  if (contextWindow <= BASELINE_CONTEXT_TOKENS) {
+    return 0
+  }
+  const effectiveWindow = contextWindow - BASELINE_CONTEXT_TOKENS
+  const used = Math.max(0, totalTokens - BASELINE_CONTEXT_TOKENS)
+  const remaining = Math.max(0, effectiveWindow - used)
+  return Math.min(100, Math.max(0, Math.round((remaining / effectiveWindow) * 100)))
+})
+const contextUsageStyle = computed(() => {
+  const percent = contextRemainingPercent.value ?? 0
+  return {
+    background: `conic-gradient(#8f969d ${percent}%, #d8dde1 0)`,
+  }
+})
+const contextUsageLabel = computed(() => contextRemainingPercent.value == null ? null : `${contextRemainingPercent.value}%`)
 const sendButtonLabel = computed(() => {
+  if (hasComposerInput.value) return t('app.send')
   if (isThreadRunning.value) return '运行中'
-  if (turnText.value.trim() || attachedFiles.value.length) return t('app.send')
   if (selectedThreadStatus.value === 'completed') return '已完成'
   if (selectedThreadStatus.value === 'failed') return '失败'
   if (selectedThreadStatus.value === 'interrupted') return '已中断'
@@ -100,11 +143,49 @@ function shouldShowEvent(method: string) {
     || method === 'turn/completed'
 }
 
+function compactEffortLabel(value: string) {
+  if (!value) return ''
+  const normalized = value.toLowerCase().replaceAll('_', '-')
+  const knownLabels: Record<string, string> = {
+    low: 'Light',
+    light: 'Light',
+    medium: 'Medium',
+    high: 'High',
+    'extra-high': 'Extra High',
+    xhigh: 'Extra High',
+  }
+  if (knownLabels[normalized]) {
+    return knownLabels[normalized]
+  }
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function labelEffortOption(option: { value: ReasoningEffort, label?: string } | undefined) {
+  if (!option) return activeEffortCompactLabel.value || t('app.reasoningDefault')
+  return compactEffortLabel(option.label || option.value)
+}
+
+function modelOptionValue(modelOption: { model?: string, id: string }) {
+  return modelOption.model || modelOption.id
+}
+
+function setSelectedModel(model: string) {
+  selectedModel.value = model
+}
+
+function setSelectedEffort(effort: ReasoningEffort) {
+  selectedEffort.value = effort
+}
+
 function syncComposerFromThreadSettings() {
   syncingSettings = true
   selectedModel.value = selectedThreadSettings.value.model || defaultModel.value?.model || defaultModel.value?.id || ''
   selectedEffort.value = selectedThreadSettings.value.effort || 'default'
-  selectedApprovalPolicy.value = selectedThreadSettings.value.approvalPolicy || 'on-request'
+  selectedApprovalMode.value = selectedThreadSettings.value.approvalPolicy || 'custom'
   void nextTick(() => {
     syncingSettings = false
   })
@@ -137,11 +218,11 @@ watch(selectedEffort, (effort) => {
   void store.saveSelectedThreadSettings({ effort: effort === 'default' ? null : effort })
 })
 
-watch(selectedApprovalPolicy, (approvalPolicy) => {
+watch(selectedApprovalMode, (approvalPolicy) => {
   if (syncingSettings || !selectedThreadId.value) {
     return
   }
-  void store.saveSelectedThreadSettings({ approvalPolicy })
+  void store.saveSelectedThreadSettings({ approvalPolicy: approvalPolicy === 'custom' ? null : approvalPolicy })
 })
 
 async function sendTurn() {
@@ -160,7 +241,7 @@ async function sendTurn() {
   await store.sendTurn(message, {
     model: activeModel.value || undefined,
     effort: selectedEffort.value === 'default' ? undefined : selectedEffort.value,
-    approvalPolicy: selectedApprovalPolicy.value,
+    approvalPolicy: selectedApprovalMode.value === 'custom' ? undefined : selectedApprovalMode.value,
     images: attachedImages
       .map((file) => ({ url: file.dataUrl, detail: 'auto' as const }))
       .filter((image): image is { url: string, detail: 'auto' } => Boolean(image.url)),
@@ -249,6 +330,10 @@ function handlePaste(event: ClipboardEvent) {
 function removeAttachment(id: string) {
   attachedFiles.value = attachedFiles.value.filter((file) => file.id !== id)
 }
+
+function selectApprovalMode(value: ApprovalPolicy | 'custom') {
+  selectedApprovalMode.value = value
+}
 </script>
 
 <template>
@@ -259,7 +344,7 @@ function removeAttachment(id: string) {
         {{ eventLabel(activeEvents.at(-1)?.method || '') }}
       </div>
 
-      <div class="rounded-2xl border border-black/10 bg-white p-3 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+      <div class="rounded-[28px] border border-black/10 bg-white p-3 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
         <input
           ref="uploadInputRef"
           class="hidden"
@@ -284,86 +369,123 @@ function removeAttachment(id: string) {
         </div>
         <Textarea
           v-model="turnText"
-          class="min-h-24 border-0 bg-transparent px-1 text-[17px] leading-7 shadow-none ring-0 focus-visible:ring-0"
+          class="min-h-28 border-0 bg-transparent px-1 !text-xl !leading-8 shadow-none ring-0 placeholder:!text-xl placeholder:!text-[#9aa1a6] focus-visible:ring-0 md:!text-xl"
           :placeholder="t('app.askFollowUp')"
-          :disabled="!selectedThreadId || isThreadRunning"
+          :disabled="!selectedThreadId"
           @keydown="handleComposerKeydown"
           @paste="handlePaste"
         />
         <div class="flex items-center justify-between pt-2">
-          <div class="flex items-center gap-2 text-sm text-[#858b91]">
+          <div class="flex items-center gap-1 text-xl text-[#858b91]">
             <Button
               type="button"
               variant="ghost"
-              size="sm"
-              class="h-8 px-2"
-              :disabled="uploadingAttachments || isThreadRunning"
+              size="icon-lg"
+              class="text-[#858b91] hover:bg-black/[0.04] hover:text-[#4f575e]"
+              :disabled="uploadingAttachments || !selectedThreadId"
               :aria-label="t('app.attachFile')"
               @click="openAttachmentPicker"
             >
-              <Loader2Icon v-if="uploadingAttachments" class="size-4 animate-spin" />
-              <PlusIcon v-else class="size-4" />
+              <Loader2Icon v-if="uploadingAttachments" class="size-5 animate-spin" />
+              <PlusIcon v-else class="size-5" />
             </Button>
             <Popover>
               <PopoverTrigger as-child>
-                <Button type="button" variant="ghost" size="sm" class="h-8 gap-2 px-2">
-                  <SettingsIcon class="size-4" />
-                  <span>{{ activeApprovalLabel }}</span>
+                <Button type="button" variant="ghost" size="lg" class="h-10 gap-2 px-2 text-xl font-normal text-[#858b91] hover:bg-black/[0.04] hover:text-[#4f575e]">
+                  <SettingsIcon class="size-5" />
+                  <span>{{ t(`app.${activeApprovalOption.shortLabelKey}`) }}</span>
+                  <ChevronDownIcon class="size-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="start" class="w-72 gap-3">
-                <div class="space-y-1">
-                  <div class="text-xs font-medium text-[#202225]">{{ t('app.approvalPolicy') }}</div>
-                  <Select v-model="selectedApprovalPolicy">
-                    <SelectTrigger class="h-8 w-full justify-between">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem v-for="option in approvalOptions" :key="option.value" :value="option.value">
-                        {{ option.label }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+              <PopoverContent align="start" class="w-[560px] gap-1 rounded-[22px] p-2 shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
+                <div class="flex items-center gap-4 px-3 py-2 text-base text-[#858b91]">
+                  <span>{{ t('app.approvalQuestion') }}</span>
+                  <button type="button" class="underline underline-offset-4 hover:text-[#202225]">
+                    {{ t('app.learnMore') }}
+                  </button>
                 </div>
-                <div class="space-y-1">
-                  <div class="text-xs font-medium text-[#202225]">{{ t('app.reasoningEffort') }}</div>
-                  <Select v-model="selectedEffort">
-                    <SelectTrigger class="h-8 w-full justify-between">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem v-for="option in effortOptions" :key="option.value" :value="option.value">
-                        {{ option.label }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <button
+                  v-for="option in approvalOptions"
+                  :key="option.value"
+                  type="button"
+                  class="grid w-full grid-cols-[32px_1fr_24px] items-center gap-4 rounded-xl px-3 py-2.5 text-left hover:bg-black/[0.04]"
+                  :class="option.value === selectedApprovalMode ? 'bg-black/[0.04]' : ''"
+                  @click="selectApprovalMode(option.value)"
+                >
+                  <component :is="option.icon" class="size-5 text-[#5f6970]" />
+                  <span class="min-w-0">
+                    <span class="block text-lg leading-6 text-[#202225]">{{ t(`app.${option.labelKey}`) }}</span>
+                    <span class="block truncate text-base leading-6 text-[#858b91]">{{ t(`app.${option.descriptionKey}`) }}</span>
+                  </span>
+                  <CheckIcon v-if="option.value === selectedApprovalMode" class="size-5 text-[#202225]" />
+                </button>
               </PopoverContent>
             </Popover>
-            <span class="hidden text-xs text-[#a5a9ad] sm:inline">{{ activeEffortLabel }}</span>
           </div>
-          <div class="flex items-center gap-3">
-            <Select v-model="selectedModel" :disabled="loadingModels || !models.length">
-              <SelectTrigger data-testid="model-select" class="h-8 max-w-44 justify-between border-0 bg-transparent px-2 text-sm">
-                <SelectValue :placeholder="loadingModels ? t('app.loadingModels') : activeModelLabel" />
-              </SelectTrigger>
-              <SelectContent align="end" class="max-h-80 min-w-60">
-                <SelectItem v-for="modelOption in models" :key="modelOption.id" :value="modelOption.model || modelOption.id">
-                  {{ modelOption.displayName || modelOption.model || modelOption.id }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+          <div class="flex items-center gap-2">
+            <div v-if="contextUsageLabel" class="flex items-center gap-2 text-xl text-[#858b91]" :title="t('app.contextUsage', { percent: contextRemainingPercent })">
+              <div
+                class="flex size-6 items-center justify-center rounded-full"
+                :style="contextUsageStyle"
+              >
+                <div class="size-3.5 rounded-full bg-white" />
+              </div>
+              <span>{{ contextUsageLabel }}</span>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button type="button" variant="ghost" size="lg" class="h-10 gap-2.5 px-2 text-xl font-normal text-[#4f575e] hover:bg-black/[0.04]" data-testid="model-select" :disabled="loadingModels || !models.length">
+                  <span class="text-[#202225]">{{ loadingModels ? t('app.loadingModels') : activeModelLabel }}</span>
+                  <span v-if="activeEffortCompactLabel" class="text-[#858b91]">{{ activeEffortCompactLabel }}</span>
+                  <ChevronDownIcon class="size-4 text-[#858b91]" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" class="w-[300px] rounded-[22px] p-2 shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
+                <DropdownMenuLabel class="px-3 pb-2 pt-1 text-lg font-normal leading-7 text-[#858b91]">
+                  {{ t('app.reasoningEffort') }}
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  v-for="option in effortOptions"
+                  :key="option.value"
+                  class="h-14 rounded-xl px-3 text-xl leading-none text-[#202225] focus:bg-black/[0.04]"
+                  @select="setSelectedEffort(option.value)"
+                >
+                  <span>{{ labelEffortOption(option) }}</span>
+                  <CheckIcon v-if="option.value === activeEffortValue" class="ml-auto size-5 text-[#5f6970]" />
+                </DropdownMenuItem>
+                <DropdownMenuSeparator class="mx-3 my-2" />
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger class="h-14 rounded-xl px-3 text-xl leading-none text-[#202225] data-open:bg-black/[0.04] focus:bg-black/[0.04] [&>svg]:size-5 [&>svg]:text-[#858b91]">
+                    <span>{{ activeModelLabel }}</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent class="w-[330px] rounded-[22px] p-2 shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
+                    <DropdownMenuLabel class="px-3 pb-2 pt-1 text-lg font-normal leading-7 text-[#858b91]">
+                      {{ t('app.model') }}
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      v-for="modelOption in models"
+                      :key="modelOption.id"
+                      class="h-14 rounded-xl px-3 text-xl leading-none text-[#202225] focus:bg-black/[0.04]"
+                      @select="setSelectedModel(modelOptionValue(modelOption))"
+                    >
+                      <span class="truncate">{{ modelOption.displayName || modelOption.model || modelOption.id }}</span>
+                      <CheckIcon v-if="modelOptionValue(modelOption) === activeModel" class="ml-auto size-5 text-[#5f6970]" />
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               data-testid="send-turn-button"
-              class="size-9 rounded-full bg-[#171b1f] p-0 hover:bg-[#171b1f]/90"
+              class="size-12 rounded-full bg-[#171b1f] p-0 hover:bg-[#171b1f]/90"
               :aria-label="sendButtonLabel"
               :disabled="!canSendTurn"
               @click="sendTurn"
             >
-              <Loader2Icon v-if="isThreadRunning || uploadingAttachments" class="size-4 animate-spin" />
-              <SendIcon v-else-if="turnText.trim() || attachedFiles.length" class="size-4" />
-              <CheckIcon v-else-if="selectedThreadStatus === 'completed'" class="size-4" />
-              <SendIcon v-else class="size-4 opacity-60" />
+              <Loader2Icon v-if="uploadingAttachments" class="size-5 animate-spin" />
+              <SendIcon v-else-if="hasComposerInput" class="size-5" />
+              <CheckIcon v-else-if="selectedThreadStatus === 'completed'" class="size-5" />
+              <SendIcon v-else class="size-5 opacity-60" />
             </Button>
           </div>
         </div>

@@ -33,6 +33,10 @@ export const useGatewayStore = defineStore('gateway', () => {
     const key = selectedThreadKey(state.selectedHostId, state.selectedThreadId)
     return key ? state.threadSettingsByKey[key] ?? {} : {}
   })
+  const selectedThreadTokenUsage = computed(() => {
+    const key = selectedThreadKey(state.selectedHostId, state.selectedThreadId)
+    return key ? state.threadTokenUsageByKey[key] ?? null : null
+  })
 
   const ctx = {} as GatewayStoreContext
   Object.assign(ctx, {
@@ -45,6 +49,7 @@ export const useGatewayStore = defineStore('gateway', () => {
     get selectedThreadStatus() { return selectedThreadStatus.value },
     get defaultModel() { return defaultModel.value },
     get selectedThreadSettings() { return selectedThreadSettings.value },
+    get selectedThreadTokenUsage() { return selectedThreadTokenUsage.value },
   })
 
   const actions = {
@@ -66,6 +71,7 @@ export const useGatewayStore = defineStore('gateway', () => {
     selectedThreadStatus,
     defaultModel,
     selectedThreadSettings,
+    selectedThreadTokenUsage,
     ...actions,
   }
 })

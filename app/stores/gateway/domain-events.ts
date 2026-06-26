@@ -1,9 +1,10 @@
-import type { ThreadSettingsState } from '~~/shared/types'
+import type { ThreadSettingsState, ThreadTokenUsageState } from '~~/shared/types'
 import type { ThreadRuntimeStatus } from './types'
 
 export type GatewayDomainEvent =
   | { type: 'thread-status-detected', hostId: number, threadId: string, status: ThreadRuntimeStatus }
   | { type: 'thread-settings-detected', hostId: number, threadId: string, settings: ThreadSettingsState }
+  | { type: 'thread-token-usage-detected', hostId: number, threadId: string, tokenUsage: ThreadTokenUsageState }
   | { type: 'history-item-upsert', threadId: string, item: any }
   | { type: 'history-agent-delta', threadId: string, params: any }
   | { type: 'history-item-output-delta', threadId: string, params: any, fallbackType: string }

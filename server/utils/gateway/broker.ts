@@ -1,4 +1,4 @@
-import type { ApprovalPolicy, GatewayEvent, HostRecord, ReasoningEffort, ThreadSettingsState } from '~~/shared/types'
+import type { ApprovalPolicy, GatewayEvent, HostRecord, ReasoningEffort, ThreadSettingsState, ThreadTokenUsageState } from '~~/shared/types'
 import { persistence } from './db'
 import { CodexRpcClient } from './rpc'
 
@@ -33,6 +33,17 @@ interface TurnStartInput {
   }>
 }
 
+interface TurnSteerInput {
+  text: string
+  expectedTurnId: string
+  clientUserMessageId?: string | null
+  images?: Array<{
+    path?: string
+    url?: string
+    detail?: 'low' | 'high' | 'auto' | 'original'
+  }>
+}
+
 function pageToHistory(thread: any, page: TurnsPage) {
   const turns = [...(page.data ?? [])].reverse()
   return {
@@ -41,6 +52,29 @@ function pageToHistory(thread: any, page: TurnsPage) {
       turns,
     },
   }
+}
+
+function buildUserInput(input: { text: string, images?: TurnStartInput['images'] }) {
+  const userInput: any[] = []
+  if (input.text.trim()) {
+    userInput.push({ type: 'text', text: input.text, text_elements: [] })
+  }
+  for (const image of input.images ?? []) {
+    if (image.url) {
+      userInput.push({
+        type: 'image',
+        url: image.url,
+        detail: image.detail,
+      })
+    } else if (image.path) {
+      userInput.push({
+        type: 'localImage',
+        path: image.path,
+        detail: image.detail,
+      })
+    }
+  }
+  return userInput
 }
 
 function normalizeApprovalPolicy(value: unknown): ApprovalPolicy | null {
@@ -54,6 +88,46 @@ function extractThreadSettings(source: any): ThreadSettingsState {
     effort: typeof (threadSettings?.effort ?? source?.reasoningEffort) === 'string' ? (threadSettings?.effort ?? source?.reasoningEffort) : null,
     approvalPolicy: normalizeApprovalPolicy(threadSettings?.approvalPolicy ?? source?.approvalPolicy),
   }
+}
+
+function latestTokenUsageFromEvents(events: GatewayEvent[]): ThreadTokenUsageState | null {
+  for (const event of [...events].sort((left, right) => right.id - left.id)) {
+    if (event.method !== 'thread/tokenUsage/updated') {
+      continue
+    }
+    const tokenUsage = normalizeTokenUsage((event.payload as any)?.params?.tokenUsage ?? (event.payload as any)?.params?.token_usage)
+    if (tokenUsage) {
+      return tokenUsage
+    }
+  }
+  return null
+}
+
+function normalizeTokenUsage(value: any): ThreadTokenUsageState | null {
+  const total = normalizeTokenBreakdown(value?.total)
+  const last = normalizeTokenBreakdown(value?.last)
+  if (!total || !last) {
+    return null
+  }
+  const modelContextWindow = numberOrNull(value?.modelContextWindow ?? value?.model_context_window)
+  return { total, last, modelContextWindow }
+}
+
+function normalizeTokenBreakdown(value: any) {
+  const totalTokens = numberOrNull(value?.totalTokens ?? value?.total_tokens)
+  const inputTokens = numberOrNull(value?.inputTokens ?? value?.input_tokens)
+  const cachedInputTokens = numberOrNull(value?.cachedInputTokens ?? value?.cached_input_tokens)
+  const outputTokens = numberOrNull(value?.outputTokens ?? value?.output_tokens)
+  const reasoningOutputTokens = numberOrNull(value?.reasoningOutputTokens ?? value?.reasoning_output_tokens)
+  if ([totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens].some((item) => item == null)) {
+    return null
+  }
+  return { totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens }
+}
+
+function numberOrNull(value: unknown) {
+  const numberValue = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(numberValue) ? numberValue : null
 }
 
 class ThreadController {
@@ -126,7 +200,6 @@ class ThreadController {
 
     await this.enqueue(() => this.client.request<any>('thread/resume', {
       threadId: this.threadId,
-      excludeTurns: true,
     }))
     this.subscribed = true
   }
@@ -135,7 +208,6 @@ class ThreadController {
     await this.ensureConnected()
     const resume = await this.enqueue(() => this.client.request<any>('thread/resume', {
       threadId: this.threadId,
-      excludeTurns: true,
       initialTurnsPage: {
         limit,
         sortDirection: 'desc',
@@ -191,6 +263,7 @@ class ThreadBroker {
       resolvedProjectId = persistence.ensureProjectForPath(host.id, threadRecord.cwd).id
     }
     persistence.recordThread(host.id, resolvedProjectId, threadRecord)
+    const recentEvents = persistence.listGatewayEvents(host.id, threadId, 0, 200)
     return {
       thread,
       history: pageToHistory(thread, initialTurnsPage),
@@ -201,7 +274,8 @@ class ThreadBroker {
         backwardsCursor: initialTurnsPage.backwardsCursor ?? null,
       },
       threadSettings: extractThreadSettings(resume),
-      recentEvents: persistence.listGatewayEvents(host.id, threadId, 0, 200),
+      tokenUsage: latestTokenUsageFromEvents(recentEvents),
+      recentEvents,
     }
   }
 
@@ -224,15 +298,17 @@ class ThreadBroker {
         }
       })
       this.controllers.set(key, controller)
+      const recentEvents = persistence.listGatewayEvents(host.id, threadId, 0, 200).concat(controller.buffer)
       return {
         thread,
         history: { thread: { ...thread, turns: thread.turns ?? [] } },
         threadSettings: extractThreadSettings(result),
+        tokenUsage: latestTokenUsageFromEvents(recentEvents),
         turnsPage: {
           nextCursor: null,
           backwardsCursor: null,
         },
-        recentEvents: persistence.listGatewayEvents(host.id, threadId, 0, 200).concat(controller.buffer),
+        recentEvents,
       }
     } catch (error) {
       client.close()
@@ -243,33 +319,25 @@ class ThreadBroker {
   async startTurn(host: HostRecord, threadId: string, input: TurnStartInput) {
     const controller = await this.getController(host, threadId)
     await controller.ensureSubscribed()
-    const userInput: any[] = []
-    if (input.text.trim()) {
-      userInput.push({ type: 'text', text: input.text, text_elements: [] })
-    }
-    for (const image of input.images ?? []) {
-      if (image.url) {
-        userInput.push({
-          type: 'image',
-          url: image.url,
-          detail: image.detail,
-        })
-      } else if (image.path) {
-        userInput.push({
-          type: 'localImage',
-          path: image.path,
-          detail: image.detail,
-        })
-      }
-    }
     return controller.enqueue(() => controller.client.request('turn/start', {
       threadId,
       clientUserMessageId: input.clientUserMessageId || undefined,
-      input: userInput,
+      input: buildUserInput(input),
       cwd: input.cwd || null,
       model: input.model || null,
       effort: input.effort || null,
       approvalPolicy: input.approvalPolicy || null,
+    }))
+  }
+
+  async steerTurn(host: HostRecord, threadId: string, input: TurnSteerInput) {
+    const controller = await this.getController(host, threadId)
+    await controller.ensureSubscribed()
+    return controller.enqueue(() => controller.client.request('turn/steer', {
+      threadId,
+      expectedTurnId: input.expectedTurnId,
+      clientUserMessageId: input.clientUserMessageId || undefined,
+      input: buildUserInput(input),
     }))
   }
 

@@ -3,6 +3,7 @@ import type { GatewayConfig, GatewayStatus } from '~~/shared/types'
 import { CONFIG_STORAGE_KEY, defaultGatewayConfig } from '../config'
 import type { GatewayStoreContext } from '../types'
 import { messageFromError } from '../thread-utils'
+import { hasGatewayRouteSelection, readGatewayRouteSelection, writeGatewayRouteSelection } from '../route-state'
 
 export function createCoreActions(ctx: GatewayStoreContext) {
   return {
@@ -52,15 +53,14 @@ export function createCoreActions(ctx: GatewayStoreContext) {
 
     async importConfigText(text: string) {
       const config = JSON.parse(text) as GatewayConfig
-      ctx.state.gatewayConfig = {
-        ...defaultGatewayConfig(),
-        ...config,
-        pinnedThreads: Array.isArray(config.pinnedThreads) ? config.pinnedThreads : [],
-      }
+      const syncedConfig = await $fetch<GatewayConfig>('/api/config/sync', {
+        method: 'POST',
+        body: { ...defaultGatewayConfig(), ...config },
+      })
+      ctx.state.gatewayConfig = { ...defaultGatewayConfig(), ...syncedConfig }
       ctx.state.hosts = ctx.state.gatewayConfig.hosts
       ctx.state.projects = []
       ctx.persistConfig()
-      await ctx.syncConfigToServer()
       await ctx.refresh()
     },
 
@@ -69,6 +69,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       ctx.state.loading = true
       ctx.state.error = null
       try {
+        const routeSelection = readGatewayRouteSelection()
         ctx.hydrateConfig()
         ctx.state.projects = []
         ctx.state.threads = []
@@ -77,18 +78,44 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         const status = await $fetch<GatewayStatus>('/api/status')
         ctx.state.status = status
 
-        if (!ctx.state.selectedHostId) {
+        const routeHostExists = routeSelection.hostId
+          ? ctx.state.hosts.some((host) => host.id === routeSelection.hostId)
+          : false
+        if (routeHostExists) {
+          ctx.state.selectedHostId = routeSelection.hostId
+        } else if (!ctx.state.selectedHostId) {
           ctx.state.selectedHostId = ctx.state.hosts[0]?.id ?? null
         }
+        ctx.state.selectedProjectId = routeHostExists ? routeSelection.projectId : null
+        ctx.state.selectedThreadId = null
+        ctx.state.currentThread = null
+        ctx.state.history = null
+        ctx.state.events = []
+        ctx.state.olderTurnsCursor = null
+        ctx.state.newerTurnsCursor = null
 
         await ctx.listModels()
         await ctx.listThreads()
-        ctx.ensureSelectedProject()
+        if (!ctx.state.selectedProjectId) {
+          ctx.ensureSelectedProject()
+        }
         if (ctx.state.selectedProjectId) {
           await ctx.listThreads()
         }
-        if (ctx.state.gatewayConfig.lastOpenThread?.hostId) {
+        if (routeHostExists && routeSelection.threadId) {
+          await ctx.openThread(routeSelection.threadId, {
+            hostId: routeSelection.hostId,
+            projectId: routeSelection.projectId,
+            replaceRoute: true,
+          })
+        } else if (!hasGatewayRouteSelection(routeSelection) && ctx.state.gatewayConfig.lastOpenThread?.hostId) {
           await ctx.restoreLastOpenThread()
+        } else {
+          writeGatewayRouteSelection({
+            hostId: ctx.state.selectedHostId,
+            projectId: ctx.state.selectedProjectId,
+            threadId: null,
+          }, { replace: true })
         }
       } catch (error: any) {
         ctx.setError(messageFromError(error, 'Failed to bootstrap gateway'))

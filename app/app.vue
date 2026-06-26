@@ -1,13 +1,25 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import ChatWorkspace from '@/components/chat/ChatWorkspace.vue'
 import DesktopSidebar from '@/components/sidebar/DesktopSidebar.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { useGatewayStore } from '@/stores/gateway'
+import { titleForThread } from '@/stores/gateway/thread-utils'
 
 const store = useGatewayStore()
+const { currentThread, selectedThreadId } = storeToRefs(store)
 const ready = ref(false)
+const pageTitle = computed(() => {
+  if (!selectedThreadId.value || !currentThread.value) {
+    return 'Codex Gateway'
+  }
+  return `${titleForThread(currentThread.value)} - Codex Gateway`
+})
+
+useHead({
+  title: pageTitle,
+})
 
 onMounted(async () => {
   try {

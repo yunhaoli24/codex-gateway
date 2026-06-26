@@ -15,6 +15,7 @@ export type RpcNotificationHandler = (message: RpcEnvelope) => void
 export class CodexRpcClient extends EventEmitter {
   private nextId = 1
   private initialized = false
+  private connectPromise: Promise<void> | null = null
   private pending = new Map<number, PendingRequest>()
   private ws: WebSocket | null = null
   private stderrBuffer = ''
@@ -24,6 +25,20 @@ export class CodexRpcClient extends EventEmitter {
   }
 
   async connect() {
+    if (this.initialized) {
+      return
+    }
+    if (this.connectPromise) {
+      return this.connectPromise
+    }
+
+    this.connectPromise = this.doConnect().finally(() => {
+      this.connectPromise = null
+    })
+    return this.connectPromise
+  }
+
+  private async doConnect() {
     if (this.initialized) {
       return
     }
@@ -70,6 +85,7 @@ export class CodexRpcClient extends EventEmitter {
 
   close() {
     this.initialized = false
+    this.connectPromise = null
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer)
       pending.reject(new Error('Codex RPC client closed'))
@@ -130,6 +146,9 @@ export class CodexRpcClient extends EventEmitter {
   private send(message: RpcEnvelope) {
     if (!this.ws) {
       throw new Error('Codex RPC transport is not connected')
+    }
+    if (this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error(`Codex RPC transport is not open: readyState ${this.ws.readyState}`)
     }
     this.ws.send(JSON.stringify(message))
   }

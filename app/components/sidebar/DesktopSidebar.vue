@@ -29,6 +29,13 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import SettingsPanel from '@/components/settings/SettingsPanel.vue'
@@ -73,7 +80,7 @@ function formatRelative(seconds?: number | null) {
   return `${Math.floor(diff / 604_800)}w`
 }
 
-function openThread(threadId: string, context?: { hostId?: number, projectId?: number | null }) {
+function openThread(threadId: string, context?: { hostId?: number, projectId?: number | null, replaceRoute?: boolean }) {
   void store.openThread(threadId, context)
 }
 
@@ -108,7 +115,7 @@ function selectProject(projectId: number) {
     next.add(projectId)
   }
   expandedProjectIds.value = next
-  if (projectId !== selectedProjectId.value) {
+  if (projectId !== selectedProjectId.value || selectedThreadId.value) {
     void store.selectProject(projectId)
   }
 }
@@ -140,7 +147,8 @@ function titleForThread(thread: any) {
 }
 
 function subtitleForPinnedThread(thread: any) {
-  return [thread.hostName, thread.projectName].filter(Boolean).join(' / ')
+  const hostName = hosts.value.find((host) => host.id === thread.hostId)?.name
+  return [hostName, thread.projectName].filter(Boolean).join(' / ')
 }
 
 function pinnedThreadKey(thread: any) {
@@ -494,18 +502,21 @@ watch(selectedThreadIsPinned, (isPinned) => {
       </Button>
     </div>
 
-    <button
-      v-if="showSettings"
-      type="button"
-      class="absolute inset-0 z-20 cursor-default bg-transparent"
-      aria-label="关闭设置"
-      @click="showSettings = false"
-    />
-    <SettingsPanel
-      v-if="showSettings"
-      class="absolute bottom-[68px] left-4 right-4 z-30 max-h-[min(760px,calc(100vh-92px))] overflow-y-auto"
-      @close="showSettings = false"
-    />
+    <Dialog v-model:open="showSettings">
+      <DialogContent
+        class="max-h-[min(860px,calc(100vh-48px))] w-[min(1120px,calc(100vw-48px))] !max-w-[min(1120px,calc(100vw-48px))] overflow-hidden p-0"
+        data-testid="settings-dialog"
+        close-button-test-id="settings-close-button"
+      >
+        <DialogHeader class="border-b border-black/10 px-6 py-5">
+          <DialogTitle class="text-lg">{{ t('app.settings') }}</DialogTitle>
+          <DialogDescription>{{ t('app.settingsDescription') }}</DialogDescription>
+        </DialogHeader>
+        <div class="flex min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <SettingsPanel @close="showSettings = false" />
+        </div>
+      </DialogContent>
+    </Dialog>
 
   </aside>
 </template>

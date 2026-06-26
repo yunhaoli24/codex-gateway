@@ -8,19 +8,17 @@ export function createThreadPinningActions(ctx: GatewayStoreContext) {
       if (!ctx.state.selectedHostId) {
         return
       }
-      const host = ctx.state.hosts.find((candidate) => candidate.id === ctx.state.selectedHostId)
       const project = ctx.state.projects.find((candidate) => candidate.id === ctx.state.selectedProjectId) as ProjectRecord | undefined
       const thread = ctx.state.threads.find((candidate) => String(candidate.id) === threadId)
       const key = pinnedKey(ctx.state.selectedHostId, threadId)
       ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.filter((item) => pinnedKey(item.hostId, item.threadId) !== key)
-      if (pinned && host) {
+      if (pinned) {
         ctx.state.gatewayConfig.pinnedThreads.unshift({
           hostId: ctx.state.selectedHostId,
           projectId: ctx.state.selectedProjectId,
           threadId,
           title: titleForThread(thread),
           subtitle: project?.remotePath ?? null,
-          hostName: host.name,
           projectName: project?.name ?? null,
           updatedAt: Number(thread?.recencyAt || thread?.updatedAt || Math.floor(Date.now() / 1000)),
         })
@@ -67,12 +65,10 @@ export function createThreadPinningActions(ctx: GatewayStoreContext) {
       if (index < 0) {
         return
       }
-      const host = ctx.state.hosts.find((candidate) => candidate.id === ctx.state.selectedHostId)
       const project = ctx.state.projects.find((candidate) => candidate.id === ctx.state.selectedProjectId)
       ctx.state.gatewayConfig.pinnedThreads[index] = {
         ...ctx.state.gatewayConfig.pinnedThreads[index],
         title: titleForThread(thread),
-        hostName: host?.name || ctx.state.gatewayConfig.pinnedThreads[index].hostName,
         projectName: project?.name ?? ctx.state.gatewayConfig.pinnedThreads[index].projectName,
         subtitle: project?.remotePath ?? ctx.state.gatewayConfig.pinnedThreads[index].subtitle,
         updatedAt: Number(thread.recencyAt || thread.updatedAt || ctx.state.gatewayConfig.pinnedThreads[index].updatedAt || Math.floor(Date.now() / 1000)),

@@ -1,5 +1,6 @@
 import type { ModelListResult, ProjectRecord, RemoteDirectoryEntry } from '~~/shared/types'
 import type { GatewayStoreContext } from '../types'
+import { writeGatewayRouteSelection } from '../route-state'
 import { messageFromError } from '../thread-utils'
 
 export function createProjectActions(ctx: GatewayStoreContext) {
@@ -12,6 +13,11 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       ctx.state.events = []
       ctx.state.olderTurnsCursor = null
       ctx.state.newerTurnsCursor = null
+      writeGatewayRouteSelection({
+        hostId: ctx.state.selectedHostId,
+        projectId,
+        threadId: null,
+      })
       await ctx.listThreads()
     },
 
@@ -61,6 +67,15 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       }
       ctx.persistConfig()
       ctx.state.selectedProjectId = project.id
+      ctx.state.selectedThreadId = null
+      ctx.state.currentThread = null
+      ctx.state.history = null
+      ctx.state.events = []
+      writeGatewayRouteSelection({
+        hostId: project.hostId,
+        projectId: project.id,
+        threadId: null,
+      })
       await ctx.listThreads()
       return project
     },

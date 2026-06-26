@@ -15,6 +15,9 @@ export function registerGatewayDomainSubscribers(ctx: GatewayStoreContext) {
   ctx.events.on('thread-settings-detected', (event) => {
     ctx.setThreadSettings(event.hostId, event.threadId, event.settings)
   })
+  ctx.events.on('thread-token-usage-detected', (event) => {
+    ctx.setThreadTokenUsage(event.hostId, event.threadId, event.tokenUsage)
+  })
   ctx.events.on('history-item-upsert', (event) => {
     ctx.state.history = mergeItemIntoLatestTurn(ctx.state.history, ctx.state.currentThread, event.threadId, event.item)
   })

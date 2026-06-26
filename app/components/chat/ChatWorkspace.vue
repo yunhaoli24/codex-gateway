@@ -14,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import ProjectThreadList from '@/components/chat/ProjectThreadList.vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
-import ThreadItemView from '@/components/thread/ThreadItemView.vue'
+import ThreadTurnView from '@/components/thread/ThreadTurnView.vue'
 import { useGatewayStore } from '@/stores/gateway'
 
 const store = useGatewayStore()
@@ -155,11 +155,11 @@ watch(
             {{ t('app.loadingGateway') }}
           </div>
 
-          <div v-else-if="threadItems.length" class="space-y-8">
-            <ThreadItemView
-              v-for="item in threadItems"
-              :key="item.id || `${item.type}-${JSON.stringify(item).length}`"
-              :item="item"
+          <div v-else-if="historyTurns.length" class="space-y-8">
+            <ThreadTurnView
+              v-for="turn in historyTurns"
+              :key="turn.id || `turn-${JSON.stringify(turn).length}`"
+              :turn="turn"
               :host-id="selectedHostId"
             />
           </div>

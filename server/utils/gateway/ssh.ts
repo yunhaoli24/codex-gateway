@@ -3,6 +3,7 @@ import { createReadStream, existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Client, type ClientChannel } from 'ssh2'
+import { SocksClient } from 'socks'
 import type { HostRecord } from '~~/shared/types'
 import { codexRemoteAppServerVerifyPayload, remoteLoginShellCommand } from './remote-command'
 
@@ -34,28 +35,41 @@ export class HostManager {
       return existing
     }
 
-    const promise = new Promise<Client>((resolve, reject) => {
+    const promise = (async () => {
+      const sock = resolved.proxy
+        ? await createProxySocket({
+            proxy: resolved.proxy,
+            targetHost: resolved.hostName,
+            targetPort: host.port ?? resolved.port,
+          })
+        : undefined
       const client = new Client()
-      client
-        .on('ready', () => resolve(client))
-        .on('error', (error) => {
-          this.clients.delete(key)
-          reject(error)
-        })
-        .on('close', () => this.clients.delete(key))
-        .connect({
-          host: resolved.hostName,
-          username: host.username ?? resolved.username,
-          port: host.port ?? resolved.port,
-          agent: host.authMode === 'agent' ? process.env.SSH_AUTH_SOCK : undefined,
-          password: host.authMode === 'password' ? host.password ?? undefined : undefined,
-          privateKey: host.privateKey
-            ? Buffer.from(host.privateKey)
-            : resolved.privateKeyPath
-            ? readFileSync(expandHome(resolved.privateKeyPath))
-            : undefined,
-          readyTimeout: 15_000,
-        })
+      return await new Promise<Client>((resolve, reject) => {
+        client
+          .on('ready', () => resolve(client))
+          .on('error', (error) => {
+            this.clients.delete(key)
+            reject(error)
+          })
+          .on('close', () => this.clients.delete(key))
+          .connect({
+            host: sock ? undefined : resolved.hostName,
+            sock,
+            username: host.username ?? resolved.username,
+            port: sock ? undefined : host.port ?? resolved.port,
+            agent: host.authMode === 'agent' ? process.env.SSH_AUTH_SOCK : undefined,
+            password: host.authMode === 'password' ? host.password ?? undefined : undefined,
+            privateKey: host.privateKey
+              ? Buffer.from(host.privateKey)
+              : resolved.privateKeyPath
+              ? readFileSync(expandHome(resolved.privateKeyPath))
+              : undefined,
+            readyTimeout: 15_000,
+          })
+      })
+    })().catch((error) => {
+      this.clients.delete(key)
+      throw error
     })
 
     this.clients.set(key, promise)
@@ -304,6 +318,7 @@ function resolveSshConfig(host: HostWithSecret) {
     username: host.username ?? undefined,
     port: host.port ?? 22,
     privateKeyPath: host.authMode === 'privateKey' ? host.privateKeyPath ?? undefined : undefined,
+    proxy: parseProxyUrl(host.proxyUrl),
   }
 
   if (!existsSync(configPath)) {
@@ -362,9 +377,55 @@ function sshConnectionKey(host: HostWithSecret, resolved: ReturnType<typeof reso
     resolved.hostName,
     host.username ?? resolved.username ?? '',
     host.port ?? resolved.port,
+    resolved.proxy?.raw ?? '',
     host.authMode,
     secretFingerprint,
   ].join('|')
+}
+
+function parseProxyUrl(proxyUrl?: string | null) {
+  const raw = proxyUrl?.trim()
+  if (!raw) {
+    return null
+  }
+  const url = new URL(raw)
+  if (url.protocol !== 'socks5:' && url.protocol !== 'socks5h:') {
+    throw new Error(`Unsupported SSH proxy protocol: ${url.protocol}`)
+  }
+  const port = Number(url.port)
+  if (!url.hostname || !Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error(`Invalid SSH proxy URL: ${raw}`)
+  }
+  return {
+    raw,
+    host: url.hostname,
+    port,
+    username: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+  }
+}
+
+async function createProxySocket(options: {
+  proxy: NonNullable<ReturnType<typeof parseProxyUrl>>
+  targetHost: string
+  targetPort: number
+}) {
+  const { socket } = await SocksClient.createConnection({
+    command: 'connect',
+    timeout: 10_000,
+    proxy: {
+      host: options.proxy.host,
+      port: options.proxy.port,
+      type: 5,
+      userId: options.proxy.username || undefined,
+      password: options.proxy.password || undefined,
+    },
+    destination: {
+      host: options.targetHost,
+      port: options.targetPort,
+    },
+  })
+  return socket
 }
 
 function hostPatternMatches(pattern: string, host: string) {

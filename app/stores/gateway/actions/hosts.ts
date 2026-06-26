@@ -1,5 +1,6 @@
 import type { HostRecord } from '~~/shared/types'
 import type { GatewayStoreContext } from '../types'
+import { writeGatewayRouteSelection } from '../route-state'
 
 export function createHostActions(ctx: GatewayStoreContext) {
   return {
@@ -9,6 +10,11 @@ export function createHostActions(ctx: GatewayStoreContext) {
       ctx.persistConfig()
       ctx.state.selectedHostId = host.id
       ctx.state.selectedProjectId = null
+      ctx.state.selectedThreadId = null
+      ctx.state.currentThread = null
+      ctx.state.history = null
+      ctx.state.events = []
+      writeGatewayRouteSelection({ hostId: host.id, projectId: null, threadId: null })
       await ctx.listThreads()
       ctx.ensureSelectedProject()
       if (ctx.state.selectedProjectId) {
@@ -19,6 +25,13 @@ export function createHostActions(ctx: GatewayStoreContext) {
 
     async verifyHost(hostId: number) {
       return $fetch(`/api/hosts/${hostId}/verify`, { method: 'POST' })
+    },
+
+    async updateHost(hostId: number, input: Record<string, unknown>) {
+      const host = await $fetch<HostRecord>(`/api/hosts/${hostId}`, { method: 'PATCH', body: input })
+      ctx.state.hosts = ctx.state.hosts.map((candidate) => candidate.id === hostId ? host : candidate)
+      ctx.persistConfig()
+      return host
     },
 
     async deleteHost(hostId: number) {
@@ -38,6 +51,11 @@ export function createHostActions(ctx: GatewayStoreContext) {
         ctx.state.olderTurnsCursor = null
         ctx.state.newerTurnsCursor = null
         ctx.state.models = []
+        writeGatewayRouteSelection({
+          hostId: ctx.state.selectedHostId,
+          projectId: null,
+          threadId: null,
+        }, { replace: true })
         if (ctx.state.selectedHostId) {
           await ctx.listModels()
           await ctx.listThreads()
@@ -58,6 +76,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
       ctx.state.olderTurnsCursor = null
       ctx.state.newerTurnsCursor = null
       ctx.state.models = []
+      writeGatewayRouteSelection({ hostId, projectId: null, threadId: null })
       await ctx.listModels()
       await ctx.listThreads()
       ctx.ensureSelectedProject()

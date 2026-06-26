@@ -3,6 +3,7 @@ import type {
   GatewayConfig,
   HostCreateInput,
   HostRecord,
+  HostUpdateInput,
   ProjectCreateInput,
   ProjectRecord,
 } from '~~/shared/types'
@@ -65,6 +66,7 @@ function normalizeHost(input: HostCreateInput, id = nextId(state.hosts)): HostWi
     privateKeyPath: input.privateKeyPath?.trim() || null,
     privateKey: input.privateKey || null,
     password: input.authMode === 'password' ? input.password || null : input.password || null,
+    proxyUrl: input.proxyUrl?.trim() || null,
     hasPassword: Boolean(input.password),
     createdAt: existing?.createdAt || timestamp,
     updatedAt: timestamp,
@@ -89,6 +91,7 @@ export const persistence = {
     const hostIds = new Set(config.hosts.map((host) => host.id))
     state.hosts = config.hosts.map((host) => ({
       ...host,
+      proxyUrl: host.proxyUrl?.trim() || null,
       hasPassword: Boolean(host.password),
     }))
     state.projects = state.projects.filter((project) => hostIds.has(project.hostId))
@@ -128,6 +131,16 @@ export const persistence = {
   createHost(input: HostCreateInput): HostRecord {
     const host = normalizeHost(input)
     state.hosts.push(host)
+    return sanitizeHost(host)
+  },
+
+  updateHost(id: number, input: HostUpdateInput): HostRecord | null {
+    const existing = state.hosts.find((host) => host.id === id)
+    if (!existing) {
+      return null
+    }
+    const host = normalizeHost(input, id)
+    state.hosts = state.hosts.map((item) => item.id === id ? host : item)
     return sanitizeHost(host)
   },
 
