@@ -44,7 +44,7 @@ import { titleForThread } from '@/stores/gateway/thread-utils'
 
 const store = useGatewayStore()
 const { t } = useI18n()
-const { hosts, threads, projects, pinnedThreads, openingPinnedThreadKey, threadStatuses, selectedHostId, selectedProjectId, selectedThreadId } = storeToRefs(store)
+const { hosts, threads, projects, pinnedThreads, openingPinnedThreadKey, threadStatuses, hostConnectionStatuses, selectedHostId, selectedProjectId, selectedThreadId } = storeToRefs(store)
 const showSettings = ref(false)
 const verifyingHostId = ref<number | null>(null)
 const verifyResults = ref<Record<number, { ok?: boolean, message: string }>>({})
@@ -189,6 +189,26 @@ function statusClass(status: ThreadRuntimeStatus) {
   if (status === 'completed') return 'text-emerald-600'
   if (status === 'failed') return 'text-red-600'
   if (status === 'interrupted') return 'text-amber-600'
+  return 'text-[#9aa1a6]'
+}
+
+function hostConnectionStatus(hostId: number) {
+  return hostConnectionStatuses.value[hostId] ?? { status: 'idle' as const, message: null }
+}
+
+function hostConnectionLabel(hostId: number) {
+  const connection = hostConnectionStatus(hostId)
+  if (connection.status === 'connecting') return '连接中'
+  if (connection.status === 'connected') return '已连接'
+  if (connection.status === 'failed') return connection.message || '连接失败'
+  return '未连接'
+}
+
+function hostConnectionClass(hostId: number) {
+  const status = hostConnectionStatus(hostId).status
+  if (status === 'connecting') return 'text-sky-600'
+  if (status === 'connected') return 'text-emerald-600'
+  if (status === 'failed') return 'text-red-600'
   return 'text-[#9aa1a6]'
 }
 
@@ -366,6 +386,17 @@ watch(selectedThreadIsPinned, (isPinned) => {
                   <span class="min-w-0">
                     <span class="block truncate">{{ host.name }}</span>
                     <span class="block truncate text-xs text-[#7e878d]">{{ host.sshHost }}</span>
+                  </span>
+                  <span
+                    class="ml-auto inline-flex size-4 shrink-0 items-center justify-center"
+                    :class="hostConnectionClass(host.id)"
+                    :title="hostConnectionLabel(host.id)"
+                    :aria-label="hostConnectionLabel(host.id)"
+                  >
+                    <Loader2Icon v-if="hostConnectionStatus(host.id).status === 'connecting'" class="size-3.5 animate-spin" />
+                    <CheckCircle2Icon v-else-if="hostConnectionStatus(host.id).status === 'connected'" class="size-3.5" />
+                    <CircleAlertIcon v-else-if="hostConnectionStatus(host.id).status === 'failed'" class="size-3.5" />
+                    <span v-else class="size-2 rounded-full bg-current opacity-50" />
                   </span>
                 </Button>
                 <Button

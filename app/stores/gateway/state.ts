@@ -8,6 +8,7 @@ export function createGatewayState(): GatewayStoreState {
     threads: [],
     models: [],
     loadingModels: false,
+    hostConnectionStatuses: {},
     gatewayConfig: defaultGatewayConfig(),
     openingPinnedThreadKey: null,
     runningThreadKeys: [],

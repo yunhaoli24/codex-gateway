@@ -12,6 +12,7 @@ import type {
 import type { GatewayDomainEvents } from './domain-events'
 
 export type ThreadRuntimeStatus = 'idle' | 'running' | 'completed' | 'failed' | 'interrupted'
+export type HostConnectionStatus = 'idle' | 'connecting' | 'connected' | 'failed'
 
 export interface ThreadListResponse {
   data?: Array<any>
@@ -26,6 +27,7 @@ export interface GatewayStoreState {
   threads: Array<any>
   models: ModelRecord[]
   loadingModels: boolean
+  hostConnectionStatuses: Record<number, { status: HostConnectionStatus, message?: string | null }>
   gatewayConfig: GatewayConfig
   openingPinnedThreadKey: string | null
   runningThreadKeys: string[]

@@ -94,6 +94,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         ctx.state.olderTurnsCursor = null
         ctx.state.newerTurnsCursor = null
 
+        await ctx.connectAllHosts()
         await ctx.listModels()
         await ctx.listThreads()
         if (!ctx.state.selectedProjectId) {

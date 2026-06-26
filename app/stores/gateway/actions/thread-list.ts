@@ -3,6 +3,45 @@ import { messageFromError, pinnedKey, sortThreads } from '../thread-utils'
 
 export function createThreadListActions(ctx: GatewayStoreContext) {
   return {
+    async connectAllHosts() {
+      const hosts = [...ctx.state.hosts]
+      if (!hosts.length) {
+        return
+      }
+
+      await Promise.all(hosts.map(async (host) => {
+        ctx.state.hostConnectionStatuses = {
+          ...ctx.state.hostConnectionStatuses,
+          [host.id]: { status: 'connecting' },
+        }
+        try {
+          const response = await $fetch<ThreadListResponse>('/api/threads', {
+            query: {
+              hostId: host.id,
+              limit: 50,
+              useStateDbOnly: true,
+            },
+          })
+          if (response.projects) {
+            ctx.mergeProjects(response.projects)
+          }
+          ctx.state.hostConnectionStatuses = {
+            ...ctx.state.hostConnectionStatuses,
+            [host.id]: { status: 'connected' },
+          }
+        } catch (error: any) {
+          ctx.state.hostConnectionStatuses = {
+            ...ctx.state.hostConnectionStatuses,
+            [host.id]: {
+              status: 'failed',
+              message: messageFromError(error, 'Failed to connect host'),
+            },
+          }
+        }
+      }))
+      ctx.persistConfig()
+    },
+
     async listThreads(searchTerm = '') {
       if (!ctx.state.selectedHostId) {
         return
@@ -29,9 +68,20 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
         if (response.projects) {
           ctx.mergeProjects(response.projects)
         }
+        ctx.state.hostConnectionStatuses = {
+          ...ctx.state.hostConnectionStatuses,
+          [ctx.state.selectedHostId]: { status: 'connected' },
+        }
         ctx.state.threads = sortThreads(ctx.decorateThreads(response.data ?? []))
         ctx.persistConfig()
       } catch (error: any) {
+        ctx.state.hostConnectionStatuses = {
+          ...ctx.state.hostConnectionStatuses,
+          [ctx.state.selectedHostId]: {
+            status: 'failed',
+            message: messageFromError(error, 'Failed to list threads'),
+          },
+        }
         ctx.setError(messageFromError(error, 'Failed to list threads'))
       } finally {
         ctx.state.loading = false

@@ -51,6 +51,7 @@ export class HostManager {
             this.clients.delete(key)
             reject(error)
           })
+          .on('end', () => this.clients.delete(key))
           .on('close', () => this.clients.delete(key))
           .connect({
             host: sock ? undefined : resolved.hostName,
@@ -65,6 +66,8 @@ export class HostManager {
               ? readFileSync(expandHome(resolved.privateKeyPath))
               : undefined,
             readyTimeout: 15_000,
+            keepaliveInterval: 15_000,
+            keepaliveCountMax: 3,
           })
       })
     })().catch((error) => {
