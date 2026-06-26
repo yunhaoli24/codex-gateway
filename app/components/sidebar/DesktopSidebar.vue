@@ -40,6 +40,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import SettingsPanel from '@/components/settings/SettingsPanel.vue'
 import { type ThreadRuntimeStatus, useGatewayStore } from '@/stores/gateway'
+import { titleForThread } from '@/stores/gateway/thread-utils'
 
 const store = useGatewayStore()
 const { t } = useI18n()
@@ -140,10 +141,6 @@ async function verifyHost(hostId: number) {
 
 async function deleteHost(hostId: number) {
   await store.deleteHost(hostId)
-}
-
-function titleForThread(thread: any) {
-  return thread.title || thread.name || thread.preview || thread.id
 }
 
 function subtitleForPinnedThread(thread: any) {

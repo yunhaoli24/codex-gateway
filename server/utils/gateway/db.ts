@@ -18,6 +18,7 @@ interface RuntimeState {
     hostId: number
     projectId: number | null
     threadId: string
+    title: string | null
     name: string | null
     preview: string | null
     cwd: string | null
@@ -194,6 +195,7 @@ export const persistence = {
       hostId,
       projectId,
       threadId,
+      title: thread.title ?? thread.name ?? null,
       name: thread.name ?? null,
       preview: thread.preview ?? thread.name ?? null,
       cwd: thread.cwd ?? null,
@@ -209,6 +211,7 @@ export const persistence = {
         projectId: projectId ?? state.threadMetadata[index].projectId,
         cwd: metadata.cwd ?? state.threadMetadata[index].cwd,
         preview: metadata.preview ?? state.threadMetadata[index].preview,
+        title: metadata.title ?? state.threadMetadata[index].title,
         name: metadata.name ?? state.threadMetadata[index].name,
         status: metadata.status ?? state.threadMetadata[index].status,
       }
@@ -233,6 +236,7 @@ export const persistence = {
       })
       .map((thread) => ({
         id: thread.threadId,
+        title: thread.title,
         name: thread.name,
         preview: thread.preview,
         cwd: thread.cwd,

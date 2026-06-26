@@ -16,6 +16,7 @@ import ProjectThreadList from '@/components/chat/ProjectThreadList.vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import ThreadTurnView from '@/components/thread/ThreadTurnView.vue'
 import { useGatewayStore } from '@/stores/gateway'
+import { titleForThread } from '@/stores/gateway/thread-utils'
 
 const store = useGatewayStore()
 const { t } = useI18n()
@@ -45,7 +46,7 @@ const threadTitle = computed(() => {
     return selectedProject.value.name
   }
   const thread = currentThread.value as any
-  return thread?.name || thread?.preview || selectedThreadId.value || 'codex-gateway'
+  return titleForThread(thread || { id: selectedThreadId.value }) || 'codex-gateway'
 })
 
 const historyTurns = computed(() => {

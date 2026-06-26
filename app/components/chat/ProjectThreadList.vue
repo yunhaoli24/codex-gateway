@@ -5,17 +5,21 @@ import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useGatewayStore } from '@/stores/gateway'
+import { titleForThread } from '@/stores/gateway/thread-utils'
 
 const store = useGatewayStore()
 const { t } = useI18n()
-const { loading, selectedProject, threads } = storeToRefs(store)
+const { loading, selectedProject, selectedThreadId, currentThread, threads } = storeToRefs(store)
 
 const sortedThreads = computed(() => {
   return [...threads.value].sort((a, b) => Number(b.recencyAt || b.updatedAt || 0) - Number(a.recencyAt || a.updatedAt || 0))
 })
 
 function titleFor(thread: any) {
-  return thread.name || thread.preview || thread.id
+  if (String(thread.id) === String(selectedThreadId.value) && currentThread.value) {
+    return titleForThread({ ...thread, ...(currentThread.value as Record<string, unknown>) })
+  }
+  return titleForThread(thread)
 }
 
 function formatDate(seconds?: number | null) {

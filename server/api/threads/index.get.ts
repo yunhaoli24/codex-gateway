@@ -65,7 +65,7 @@ function mergeThreads(remoteThreads: any[], indexedThreads: any[], searchTerm: s
       if (!normalizedSearch) {
         return true
       }
-      return [thread.id, thread.name, thread.preview, thread.cwd]
+      return [thread.id, thread.title, thread.name, thread.preview, thread.cwd]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalizedSearch))
     })
