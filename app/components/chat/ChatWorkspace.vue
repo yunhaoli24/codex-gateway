@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import {
-  FolderIcon,
-  ListRestartIcon,
-  MoreHorizontalIcon,
-  PinIcon,
-  PlayIcon,
-} from '@lucide/vue'
+import { FolderIcon } from '@lucide/vue'
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, watch } from 'vue'
 import { Badge } from '@/components/ui/badge'
@@ -35,7 +29,6 @@ const {
   olderTurnsCursor,
   error,
   scrollToLatestToken,
-  defaultModel,
 } = storeToRefs(store)
 
 const scrollAreaRef = ref<any>(null)
@@ -131,35 +124,26 @@ watch(
 
 <template>
   <section class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-white">
-    <header class="flex h-[62px] shrink-0 items-center justify-between border-b border-black/10 px-6">
+    <header class="flex min-h-16 shrink-0 items-center justify-between border-b border-black/10 px-[clamp(1rem,2.5vw,1.5rem)]">
       <div class="flex min-w-0 items-center gap-3">
-        <PinIcon class="size-4 text-[#7d858b]" />
-        <h1 class="truncate text-[15px] font-semibold">{{ threadTitle }}</h1>
-        <MoreHorizontalIcon class="size-4 text-[#9aa1a6]" />
+        <h1 class="truncate text-[0.9375rem] font-semibold">{{ threadTitle }}</h1>
       </div>
       <div class="flex items-center gap-2 text-[#7d858b]">
         <LanguageSwitcher />
-        <Button data-testid="refresh-threads-button" variant="ghost" size="sm" :aria-label="t('app.refresh')" @click="store.listThreads('')">
-          <ListRestartIcon class="size-4" />
-        </Button>
-        <Button data-testid="new-thread-button" variant="ghost" size="sm" :disabled="!selectedProjectId" @click="store.startThread({ model: defaultModel?.model || defaultModel?.id || undefined })">
-          <PlayIcon class="size-4" />
-          {{ t('app.newThread') }}
-        </Button>
         <Badge variant="secondary">{{ status?.activeControllers.length || 0 }} {{ t('app.active') }}</Badge>
       </div>
     </header>
 
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ScrollArea ref="scrollAreaRef" data-testid="chat-scroll-area" class="h-full min-h-0 flex-1 overflow-hidden" @scroll.capture="handleScroll">
-        <div class="mx-auto flex min-h-[calc(100vh-260px)] max-w-[1020px] flex-col gap-8 px-8 py-12">
+        <div class="mx-auto flex min-h-[calc(100vh-16rem)] w-full max-w-5xl flex-col gap-8 px-[clamp(1rem,4vw,2rem)] py-[clamp(2rem,6vh,3rem)]">
           <div v-if="!initializing && selectedThreadId && olderTurnsCursor" class="flex justify-center">
             <Button data-testid="load-older-turns-button" variant="outline" size="sm" :disabled="loadingOlderTurns" @click="loadOlderTurns">
               {{ loadingOlderTurns ? t('app.loadingOlder') : t('app.loadOlder') }}
             </Button>
           </div>
 
-          <div v-if="initializing" class="mx-auto flex min-h-[320px] max-w-[760px] items-center justify-center text-[15px] text-[#7d858b]">
+          <div v-if="initializing" class="mx-auto flex min-h-80 max-w-3xl items-center justify-center text-[0.9375rem] text-[#7d858b]">
             {{ t('app.loadingGateway') }}
           </div>
 
@@ -172,7 +156,7 @@ watch(
             />
           </div>
           <ProjectThreadList v-else-if="selectedProjectId && !selectedThreadId" />
-          <div v-else class="ml-auto max-w-[760px] rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[15px] leading-7 text-[#202225]">
+          <div v-else class="ml-auto max-w-3xl rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[0.9375rem] leading-7 text-[#202225]">
             <div class="mb-2 flex items-center gap-2 text-[#7d858b]">
               <FolderIcon class="size-4" />
               {{ selectedProjectId ? t('app.selectThreadFirst') : t('app.selectProjectFirst') }}
@@ -180,11 +164,11 @@ watch(
             {{ selectedProjectId ? t('app.noThread') : t('app.chooseProject') }}
           </div>
 
-          <div v-if="loading && !initializing && selectedThreadId" class="max-w-[720px] text-[15px] text-[#a5a9ad]">
+          <div v-if="loading && !initializing && selectedThreadId" class="max-w-3xl text-[0.9375rem] text-[#a5a9ad]">
             {{ t('app.thinking') }}
           </div>
 
-          <div v-if="error" class="mx-auto max-w-[760px] rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div v-if="error" class="mx-auto max-w-3xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {{ error }}
           </div>
         </div>

@@ -10,8 +10,8 @@ const title = computed(() => props.item.agentPath || props.item.agentThreadId ||
 </script>
 
 <template>
-  <div class="max-w-[840px] text-[#5f6970]">
-    <div class="flex items-center gap-2 text-[15px]">
+  <div class="max-w-4xl text-[#5f6970]">
+    <div class="flex items-center gap-2 text-[0.9375rem]">
       <GitBranchIcon class="size-4 text-[#8d9499]" />
       <span class="min-w-0 truncate">{{ title }}</span>
       <Badge v-if="item.kind" variant="secondary">{{ item.kind }}</Badge>

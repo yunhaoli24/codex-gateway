@@ -12,7 +12,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
       await Promise.all(hosts.map(async (host) => {
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
-          [host.id]: { status: 'connecting' },
+          [host.id]: { status: 'connecting', updatedAt: Date.now() },
         }
         try {
           const response = await $fetch<ThreadListResponse>('/api/threads', {
@@ -28,7 +28,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
           syncThreadStatusesFromList(ctx, host.id, response.data ?? [])
           ctx.state.hostConnectionStatuses = {
             ...ctx.state.hostConnectionStatuses,
-            [host.id]: { status: 'connected', message: '已连接' },
+            [host.id]: { status: 'connected', message: '已连接', updatedAt: Date.now() },
           }
         } catch (error: any) {
           ctx.state.hostConnectionStatuses = {
@@ -36,6 +36,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
             [host.id]: {
               status: 'failed',
               message: messageFromError(error, 'Failed to connect host'),
+              updatedAt: Date.now(),
             },
           }
         }
@@ -71,7 +72,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
         }
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
-          [ctx.state.selectedHostId]: { status: 'connected', message: '已连接' },
+          [ctx.state.selectedHostId]: { status: 'connected', message: '已连接', updatedAt: Date.now() },
         }
         syncThreadStatusesFromList(ctx, ctx.state.selectedHostId, response.data ?? [])
         ctx.state.threads = sortThreads(ctx.decorateThreads(response.data ?? []))
@@ -82,6 +83,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
           [ctx.state.selectedHostId]: {
             status: 'failed',
             message: messageFromError(error, 'Failed to list threads'),
+            updatedAt: Date.now(),
           },
         }
         ctx.setError(messageFromError(error, 'Failed to list threads'))

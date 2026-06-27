@@ -17,8 +17,8 @@ const isInProgress = computed(() => {
 </script>
 
 <template>
-  <div class="max-w-[840px] text-[#8d9499]">
-    <div class="flex items-center gap-2 text-[15px]">
+  <div class="max-w-4xl text-[#8d9499]">
+    <div class="flex items-center gap-2 text-[0.9375rem]">
       <TerminalIcon class="size-4" />
       <span class="truncate">{{ title }}</span>
       <Badge variant="secondary">{{ item.status }}</Badge>

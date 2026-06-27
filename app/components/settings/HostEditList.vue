@@ -127,7 +127,7 @@ async function saveHost(host: HostRecord) {
       <CollapsibleContent class="space-y-3 border-t border-black/10 p-3">
         <Input v-model="forms[host.id].name" :aria-label="t('app.hostName')" :placeholder="t('app.hostName')" />
         <Input v-model="forms[host.id].sshHost" :aria-label="t('app.sshHost')" :placeholder="t('app.sshHost')" />
-        <div class="grid grid-cols-[1fr_120px] gap-2">
+        <div class="grid grid-cols-[minmax(0,1fr)_minmax(6rem,8rem)] gap-2">
           <Input v-model="forms[host.id].username" :aria-label="t('app.user')" :placeholder="t('app.user')" />
           <Input v-model="forms[host.id].port" :aria-label="t('app.port')" type="number" :placeholder="t('app.port')" />
         </div>

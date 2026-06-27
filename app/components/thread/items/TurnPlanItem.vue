@@ -14,8 +14,8 @@ function stepStatus(step: Record<string, any>) {
 </script>
 
 <template>
-  <div class="max-w-[840px] rounded-lg border border-black/10 bg-[#fbfbfb] px-4 py-3 text-[#3d4145]">
-    <div class="mb-3 flex items-center gap-2 text-[15px] font-medium text-[#5f6970]">
+  <div class="max-w-4xl rounded-lg border border-black/10 bg-[#fbfbfb] px-4 py-3 text-[#3d4145]">
+    <div class="mb-3 flex items-center gap-2 text-[0.9375rem] font-medium text-[#5f6970]">
       <ListTodoIcon class="size-4" />
       <span>{{ t('app.todoPlan') }}</span>
     </div>

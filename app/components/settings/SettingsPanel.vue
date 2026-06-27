@@ -128,14 +128,14 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
       <TabsTrigger value="projects">{{ t('app.projects') }}</TabsTrigger>
     </TabsList>
 
-    <TabsContent value="config" class="min-h-0 flex-1 space-y-3">
-      <div class="text-sm text-[#6f767d]">{{ t('app.configJsonPlaceholder') }}</div>
+    <TabsContent value="config" class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <div class="shrink-0 text-sm text-[#6f767d]">{{ t('app.configJsonPlaceholder') }}</div>
       <ConfigJsonEditor
         v-model="configText"
         :placeholder="t('app.configJsonPlaceholder')"
       />
-      <div v-if="configError" class="rounded-md bg-red-50 p-3 text-sm text-red-700">{{ configError }}</div>
-      <div class="flex justify-end gap-2">
+      <div v-if="configError" class="shrink-0 rounded-md bg-red-50 p-3 text-sm text-red-700">{{ configError }}</div>
+      <div class="flex shrink-0 justify-end gap-2">
         <Button variant="secondary" @click="showConfig">
           <EyeIcon class="size-4" />
           {{ t('app.viewConfig') }}
@@ -147,13 +147,13 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
       </div>
     </TabsContent>
 
-    <TabsContent value="hosts" class="min-h-0 flex-1">
+    <TabsContent value="hosts" class="min-h-0 flex-1 overflow-y-auto">
       <div class="grid gap-4 md:grid-cols-2">
         <div class="space-y-3">
           <div class="font-medium">{{ t('app.addHost') }}</div>
           <Input v-model="hostForm.name" data-testid="host-name-input" :aria-label="t('app.hostName')" :placeholder="t('app.hostName')" />
           <Input v-model="hostForm.sshHost" data-testid="host-ssh-input" :aria-label="t('app.sshHost')" :placeholder="t('app.sshHost')" />
-          <div class="grid grid-cols-[1fr_120px] gap-2">
+          <div class="grid grid-cols-[minmax(0,1fr)_minmax(6rem,8rem)] gap-2">
             <Input v-model="hostForm.username" :aria-label="t('app.user')" :placeholder="t('app.user')" />
             <Input v-model="hostForm.port" :aria-label="t('app.port')" type="number" :placeholder="t('app.port')" />
           </div>
@@ -202,7 +202,7 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
       </div>
     </TabsContent>
 
-    <TabsContent value="projects" class="min-h-0 flex-1 space-y-3">
+    <TabsContent value="projects" class="min-h-0 flex-1 space-y-3 overflow-y-auto">
       <div class="font-medium">{{ t('app.addProject') }}</div>
       <div class="grid grid-cols-[1fr_auto] gap-2">
         <Input v-model="directoryPath" data-testid="project-browse-path-input" :aria-label="t('app.remotePath')" :placeholder="t('app.remotePath')" />

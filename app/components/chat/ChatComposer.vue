@@ -337,14 +337,14 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
 </script>
 
 <template>
-  <div class="shrink-0 bg-gradient-to-t from-white via-white to-white/75 px-8 pb-5">
-    <div class="mx-auto max-w-[760px]">
+  <div class="shrink-0 bg-gradient-to-t from-white via-white to-white/75 px-[clamp(1rem,3vw,2rem)] pb-[clamp(0.5rem,1.4vh,1rem)]">
+    <div class="mx-auto w-full max-w-3xl">
       <div v-if="activeEvents.length" class="mb-3 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm text-[#6f767d] shadow-sm">
         <CircleIcon class="size-3.5 text-sky-300" />
         {{ eventLabel(activeEvents.at(-1)?.method || '') }}
       </div>
 
-      <div class="rounded-[28px] border border-black/10 bg-white p-3 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+      <div class="rounded-3xl border border-black/10 bg-white p-[clamp(0.45rem,1vw,0.7rem)] shadow-lg shadow-black/10">
         <input
           ref="uploadInputRef"
           class="hidden"
@@ -369,14 +369,14 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
         </div>
         <Textarea
           v-model="turnText"
-          class="min-h-28 border-0 bg-transparent px-1 !text-xl !leading-8 shadow-none ring-0 placeholder:!text-xl placeholder:!text-[#9aa1a6] focus-visible:ring-0 md:!text-xl"
+          class="max-h-[min(24vh,12rem)] min-h-[clamp(3.75rem,10vh,6rem)] border-0 bg-transparent px-1 text-base leading-7 shadow-none ring-0 placeholder:text-base placeholder:text-[#9aa1a6] focus-visible:ring-0 md:text-base"
           :placeholder="t('app.askFollowUp')"
           :disabled="!selectedThreadId"
           @keydown="handleComposerKeydown"
           @paste="handlePaste"
         />
-        <div class="flex items-center justify-between pt-2">
-          <div class="flex items-center gap-1 text-xl text-[#858b91]">
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1.5">
+          <div class="flex min-w-0 items-center gap-1 text-base text-[#858b91]">
             <Button
               type="button"
               variant="ghost"
@@ -391,13 +391,13 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
             </Button>
             <Popover>
               <PopoverTrigger as-child>
-                <Button type="button" variant="ghost" size="lg" class="h-10 gap-2 px-2 text-xl font-normal text-[#858b91] hover:bg-black/[0.04] hover:text-[#4f575e]">
+                <Button type="button" variant="ghost" size="lg" class="gap-2 px-2 text-base font-normal text-[#858b91] hover:bg-black/[0.04] hover:text-[#4f575e]">
                   <SettingsIcon class="size-5" />
                   <span>{{ t(`app.${activeApprovalOption.shortLabelKey}`) }}</span>
                   <ChevronDownIcon class="size-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="start" class="w-[560px] gap-1 rounded-[22px] p-2 shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
+              <PopoverContent align="start" class="w-[min(92vw,theme(maxWidth.xl))] gap-1 rounded-2xl p-2 shadow-xl shadow-slate-900/15">
                 <div class="flex items-center gap-4 px-3 py-2 text-base text-[#858b91]">
                   <span>{{ t('app.approvalQuestion') }}</span>
                   <button type="button" class="underline underline-offset-4 hover:text-[#202225]">
@@ -408,7 +408,7 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
                   v-for="option in approvalOptions"
                   :key="option.value"
                   type="button"
-                  class="grid w-full grid-cols-[32px_1fr_24px] items-center gap-4 rounded-xl px-3 py-2.5 text-left hover:bg-black/[0.04]"
+                  class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 rounded-xl px-3 py-2.5 text-left hover:bg-black/[0.04]"
                   :class="option.value === selectedApprovalMode ? 'bg-black/[0.04]' : ''"
                   @click="selectApprovalMode(option.value)"
                 >
@@ -423,7 +423,7 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
             </Popover>
           </div>
           <div class="flex items-center gap-2">
-            <div v-if="contextUsageLabel" class="flex items-center gap-2 text-xl text-[#858b91]" :title="t('app.contextUsage', { percent: contextRemainingPercent })">
+            <div v-if="contextUsageLabel" class="flex items-center gap-2 text-base text-[#858b91]" :title="t('app.contextUsage', { percent: contextRemainingPercent })">
               <div
                 class="flex size-6 items-center justify-center rounded-full"
                 :style="contextUsageStyle"
@@ -434,20 +434,20 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
-                <Button type="button" variant="ghost" size="lg" class="h-10 gap-2.5 px-2 text-xl font-normal text-[#4f575e] hover:bg-black/[0.04]" data-testid="model-select" :disabled="loadingModels || !models.length">
+                <Button type="button" variant="ghost" size="lg" class="gap-2.5 px-2 text-base font-normal text-[#4f575e] hover:bg-black/[0.04]" data-testid="model-select" :disabled="loadingModels || !models.length">
                   <span class="text-[#202225]">{{ loadingModels ? t('app.loadingModels') : activeModelLabel }}</span>
                   <span v-if="activeEffortCompactLabel" class="text-[#858b91]">{{ activeEffortCompactLabel }}</span>
                   <ChevronDownIcon class="size-4 text-[#858b91]" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" class="w-[300px] rounded-[22px] p-2 shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
+              <DropdownMenuContent align="end" class="w-[min(92vw,theme(maxWidth.sm))] rounded-2xl p-2 shadow-xl shadow-slate-900/15">
                 <DropdownMenuLabel class="px-3 pb-2 pt-1 text-lg font-normal leading-7 text-[#858b91]">
                   {{ t('app.reasoningEffort') }}
                 </DropdownMenuLabel>
                 <DropdownMenuItem
                   v-for="option in effortOptions"
                   :key="option.value"
-                  class="h-14 rounded-xl px-3 text-xl leading-none text-[#202225] focus:bg-black/[0.04]"
+                  class="min-h-12 rounded-xl px-3 text-base leading-none text-[#202225] focus:bg-black/[0.04]"
                   @select="setSelectedEffort(option.value)"
                 >
                   <span>{{ labelEffortOption(option) }}</span>
@@ -455,10 +455,10 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator class="mx-3 my-2" />
                 <DropdownMenuSub>
-                  <DropdownMenuSubTrigger data-testid="model-submenu-trigger" class="h-14 rounded-xl px-3 text-xl leading-none text-[#202225] data-open:bg-black/[0.04] focus:bg-black/[0.04] [&>svg]:size-5 [&>svg]:text-[#858b91]">
+                  <DropdownMenuSubTrigger data-testid="model-submenu-trigger" class="min-h-12 rounded-xl px-3 text-base leading-none text-[#202225] data-open:bg-black/[0.04] focus:bg-black/[0.04] [&>svg]:size-5 [&>svg]:text-[#858b91]">
                     <span>{{ activeModelLabel }}</span>
                   </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent class="w-[330px] rounded-[22px] p-2 shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
+                  <DropdownMenuSubContent class="w-[min(92vw,theme(maxWidth.sm))] rounded-2xl p-2 shadow-xl shadow-slate-900/15">
                     <DropdownMenuLabel class="px-3 pb-2 pt-1 text-lg font-normal leading-7 text-[#858b91]">
                       {{ t('app.model') }}
                     </DropdownMenuLabel>
@@ -466,7 +466,7 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
                       v-for="modelOption in models"
                       :key="modelOption.id"
                       :data-testid="`model-option-${modelOptionValue(modelOption)}`"
-                      class="h-14 rounded-xl px-3 text-xl leading-none text-[#202225] focus:bg-black/[0.04]"
+                      class="min-h-12 rounded-xl px-3 text-base leading-none text-[#202225] focus:bg-black/[0.04]"
                       @select="setSelectedModel(modelOptionValue(modelOption))"
                     >
                       <span class="truncate">{{ modelOption.displayName || modelOption.model || modelOption.id }}</span>
@@ -478,7 +478,7 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
             </DropdownMenu>
             <Button
               data-testid="send-turn-button"
-              class="size-12 rounded-full bg-[#171b1f] p-0 hover:bg-[#171b1f]/90"
+              class="size-11 rounded-full bg-[#171b1f] p-0 hover:bg-[#171b1f]/90"
               :aria-label="sendButtonLabel"
               :disabled="!canSendTurn"
               @click="sendTurn"

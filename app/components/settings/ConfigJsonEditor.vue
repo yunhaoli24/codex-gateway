@@ -59,7 +59,7 @@ function escapeHtml(value: string) {
 </script>
 
 <template>
-  <div class="relative h-[520px] overflow-hidden rounded-md border border-input bg-white">
+  <div class="relative min-h-0 flex-1 overflow-hidden rounded-md border border-input bg-white">
     <pre
       ref="highlightRef"
       aria-hidden="true"

@@ -40,8 +40,8 @@ function diffMarkdown(change: Record<string, any>) {
 </script>
 
 <template>
-  <div class="max-w-[840px] text-[#5f6970]">
-    <div class="flex items-center gap-2 text-[15px]">
+  <div class="max-w-4xl text-[#5f6970]">
+    <div class="flex items-center gap-2 text-[0.9375rem]">
       <FilePenIcon class="size-4" />
       <span>{{ title }}</span>
       <Badge variant="secondary">{{ item.status }}</Badge>
@@ -56,11 +56,11 @@ function diffMarkdown(change: Record<string, any>) {
         <CollapsibleTrigger class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/[0.03]">
           <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-[#9aa1a6]" />
           <ChevronRightIcon v-else class="size-4 shrink-0 text-[#9aa1a6]" />
-          <span class="min-w-0 flex-1 truncate font-mono text-[13px] text-[#31363a]">{{ changePath(change) }}</span>
+          <span class="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-[#31363a]">{{ changePath(change) }}</span>
           <Badge variant="outline">{{ changeKindLabel(change) }}</Badge>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div v-if="changeDiff(change)" class="diff-markdown max-h-[420px] overflow-auto border-t border-black/10 bg-white">
+          <div v-if="changeDiff(change)" class="diff-markdown max-h-[min(55vh,26rem)] overflow-auto border-t border-black/10 bg-white">
             <MarkdownContent :content="diffMarkdown(change)" compact />
           </div>
           <div v-else class="border-t border-black/10 px-3 py-2 text-sm text-[#9aa1a6]">

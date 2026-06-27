@@ -29,7 +29,7 @@ async function copyText() {
 </script>
 
 <template>
-  <div class="group max-w-[840px] text-[15px] leading-8 text-[#202225]">
+  <div class="group max-w-4xl text-[0.9375rem] leading-8 text-[#202225]">
     <MarkdownContent :content="text" />
     <div v-if="text" class="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
       <TooltipProvider>

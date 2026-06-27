@@ -1,6 +1,7 @@
 import type { HostRecord } from '~~/shared/types'
 import type { GatewayStoreContext } from '../types'
 import { writeGatewayRouteSelection } from '../route-state'
+import { messageFromError } from '../thread-utils'
 
 export function createHostActions(ctx: GatewayStoreContext) {
   return {
@@ -24,7 +25,32 @@ export function createHostActions(ctx: GatewayStoreContext) {
     },
 
     async verifyHost(hostId: number) {
-      return $fetch(`/api/hosts/${hostId}/verify`, { method: 'POST' })
+      ctx.state.hostConnectionStatuses = {
+        ...ctx.state.hostConnectionStatuses,
+        [hostId]: { status: 'connecting', updatedAt: Date.now() },
+      }
+      try {
+        const result = await $fetch<any>(`/api/hosts/${hostId}/verify`, { method: 'POST' })
+        ctx.state.hostConnectionStatuses = {
+          ...ctx.state.hostConnectionStatuses,
+          [hostId]: {
+            status: result?.ok === false ? 'failed' : 'connected',
+            message: result?.ok === false ? result.stderr || result.stdout || '连接失败' : '已连接',
+            updatedAt: Date.now(),
+          },
+        }
+        return result
+      } catch (error) {
+        ctx.state.hostConnectionStatuses = {
+          ...ctx.state.hostConnectionStatuses,
+          [hostId]: {
+            status: 'failed',
+            message: messageFromError(error, 'Failed to verify host'),
+            updatedAt: Date.now(),
+          },
+        }
+        throw error
+      }
     },
 
     async updateHost(hostId: number, input: Record<string, unknown>) {

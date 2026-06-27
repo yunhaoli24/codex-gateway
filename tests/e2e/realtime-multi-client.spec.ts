@@ -6,7 +6,7 @@ import {
   readRemoteEnv,
   sendImageTurnThroughGateway,
   sendTextTurn,
-  startRemoteThread,
+  startRemoteThreadFromProjectMenu,
 } from './helpers/remote-codex'
 
 test.describe.configure({ mode: 'serial' })
@@ -20,7 +20,7 @@ test('fans out a real remote app-server thread to multiple browser clients acros
   const host = await addRemoteHost(page, remote)
   const project = await addRemoteProject(page, remote, host.id)
   await expect(page.getByTestId('project-thread-list')).toBeVisible()
-  const threadId = await startRemoteThread(page)
+  const threadId = await startRemoteThreadFromProjectMenu(page, project.id)
 
   const firstMarker = `E2E 第一轮 ${Date.now()}`
   await sendTextTurn(page, firstMarker)

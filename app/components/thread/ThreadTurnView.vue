@@ -84,7 +84,7 @@ function firstNonUserIndex(beforeIndex: number) {
     <Collapsible
       v-if="intermediateItems.length"
       v-slot="{ open }"
-      class="max-w-[840px] rounded-lg border border-black/10 bg-[#fbfbfb] text-[#5f6970]"
+      class="max-w-4xl rounded-lg border border-black/10 bg-[#fbfbfb] text-[#5f6970]"
     >
       <CollapsibleTrigger class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/[0.03]">
         <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-[#9aa1a6]" />

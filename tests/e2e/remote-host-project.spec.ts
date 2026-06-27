@@ -4,7 +4,6 @@ import {
   addRemoteProject,
   readRemoteEnv,
   sendTextTurn,
-  startRemoteThread,
   startRemoteThreadFromProjectMenu,
 } from './helpers/remote-codex'
 
@@ -21,7 +20,7 @@ test('connects to a real SSH Codex host and lists a project thread created by ap
   await expect(page.getByTestId('project-thread-list')).toBeVisible()
   await expect(page.getByTestId('project-thread-list').getByRole('heading', { name: project.name })).toBeVisible()
 
-  const threadId = await startRemoteThread(page)
+  const threadId = await startRemoteThreadFromProjectMenu(page, project.id)
   await expect(page.getByTestId(`thread-button-${threadId}`)).toBeVisible()
   const secondThreadId = await startRemoteThreadFromProjectMenu(page, project.id)
   await expect(page.getByTestId(`thread-button-${secondThreadId}`)).toBeVisible()

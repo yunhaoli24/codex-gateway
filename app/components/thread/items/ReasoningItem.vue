@@ -9,7 +9,7 @@ const text = computed(() => threadItemText(props.item))
 </script>
 
 <template>
-  <div class="max-w-[840px] text-[15px] leading-7 text-[#9aa1a6]">
+  <div class="max-w-4xl text-[0.9375rem] leading-7 text-[#9aa1a6]">
     <div class="flex items-start gap-2">
       <BrainIcon class="size-4" />
       <MarkdownContent v-if="text" :content="text" compact />

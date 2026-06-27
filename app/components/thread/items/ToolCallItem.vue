@@ -53,8 +53,8 @@ const detailSections = computed(() => {
 </script>
 
 <template>
-  <div class="max-w-[840px] text-[#8d9499]">
-    <div class="flex items-center gap-2 text-[15px]">
+  <div class="max-w-4xl text-[#8d9499]">
+    <div class="flex items-center gap-2 text-[0.9375rem]">
       <SearchIcon v-if="iconType === 'search'" class="size-4" />
       <TimerIcon v-else-if="iconType === 'timer'" class="size-4" />
       <ImageIcon v-else-if="iconType === 'image'" class="size-4" />

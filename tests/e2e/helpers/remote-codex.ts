@@ -138,19 +138,6 @@ export async function addRemoteProject(page: Page, remote: RemoteCodexEnv, hostI
   return project
 }
 
-export async function startRemoteThread(page: Page) {
-  const startThreadResponsePromise = page.waitForResponse((response) =>
-    response.url().endsWith('/api/threads/start') && response.request().method() === 'POST',
-  )
-  await page.getByTestId('new-thread-button').click()
-  const startThread = await (await startThreadResponsePromise).json()
-  const threadId = String(startThread.thread.id)
-  await expect(page.getByPlaceholder('输入后续修改要求')).toBeEnabled()
-  await expect(page.getByTestId(`thread-button-${threadId}`)).toBeVisible({ timeout: 30_000 })
-  await expect.poll(async () => (await currentRouteSelection(page)).threadId, { timeout: 10_000 }).toBe(threadId)
-  return threadId
-}
-
 export async function startRemoteThreadFromProjectMenu(page: Page, projectId: number) {
   const startThreadResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith('/api/threads/start') && response.request().method() === 'POST',

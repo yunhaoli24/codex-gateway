@@ -48,12 +48,12 @@ function imageSource(image: { type: string, url: string, path: string }) {
     <div
       v-if="variant === 'steer'"
       data-testid="steered-conversation-item"
-      class="max-w-[760px] space-y-3 rounded-xl border border-sky-200 bg-sky-50/70 px-5 py-4 text-[15px] leading-7 text-[#202225]"
+      class="max-w-3xl space-y-3 rounded-xl border border-sky-200 bg-sky-50/70 px-5 py-4 text-[0.9375rem] leading-7 text-[#202225]"
     >
       <div class="flex items-center gap-2 text-sm font-medium text-sky-700">
         <Badge variant="outline" class="border-sky-300 bg-white/60 text-sky-700">{{ t('app.steeredConversation') }}</Badge>
       </div>
-      <div v-if="imageParts.length" class="grid max-w-[520px] grid-cols-1 gap-2 sm:grid-cols-2">
+      <div v-if="imageParts.length" class="grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
         <template v-for="image in imageParts" :key="image.id">
           <ThreadImageAttachment
             v-if="imageSource(image)"
@@ -65,8 +65,8 @@ function imageSource(image: { type: string, url: string, path: string }) {
       </div>
       <MarkdownContent v-if="text" :content="text" compact />
     </div>
-    <div v-else class="max-w-[760px] space-y-3 rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[15px] leading-7 text-[#202225]">
-      <div v-if="imageParts.length" class="grid max-w-[520px] grid-cols-1 gap-2 sm:grid-cols-2">
+    <div v-else class="max-w-3xl space-y-3 rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[0.9375rem] leading-7 text-[#202225]">
+      <div v-if="imageParts.length" class="grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
         <template v-for="image in imageParts" :key="image.id">
           <ThreadImageAttachment
             v-if="imageSource(image)"

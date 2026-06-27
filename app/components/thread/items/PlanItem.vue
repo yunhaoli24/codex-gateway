@@ -9,7 +9,7 @@ const text = computed(() => threadItemText(props.item))
 </script>
 
 <template>
-  <div class="max-w-[840px] text-[15px] leading-8 text-[#202225]">
+  <div class="max-w-4xl text-[0.9375rem] leading-8 text-[#202225]">
     <div class="mb-2 flex items-center gap-2 text-[#9aa1a6]">
       <ListChecksIcon class="size-4" />
       <span>Plan</span>

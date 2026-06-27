@@ -39,7 +39,7 @@ export interface GatewayStoreState {
   threads: Array<any>
   models: ModelRecord[]
   loadingModels: boolean
-  hostConnectionStatuses: Record<number, { status: HostConnectionStatus, message?: string | null }>
+  hostConnectionStatuses: Record<number, { status: HostConnectionStatus, message?: string | null, updatedAt?: number }>
   gatewayConfig: GatewayConfig
   openingPinnedThreadKey: string | null
   runningThreadKeys: string[]

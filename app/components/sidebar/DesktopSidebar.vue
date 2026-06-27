@@ -1,20 +1,13 @@
 <script setup lang="ts">
 import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
   CheckCircle2Icon,
   ChevronDownIcon,
   ChevronRightIcon,
-  Clock3Icon,
   CircleAlertIcon,
   CirclePauseIcon,
   FolderIcon,
-  GripIcon,
-  LayoutPanelLeftIcon,
   Loader2Icon,
-  PencilIcon,
   PlusIcon,
-  SearchIcon,
   ServerIcon,
   SettingsIcon,
   StarIcon,
@@ -295,38 +288,8 @@ watch(selectedThreadIsPinned, (isPinned) => {
 
 <template>
   <aside class="relative flex min-h-0 flex-col border-r border-black/10 bg-[#dcecf4]">
-    <div class="flex h-[62px] shrink-0 items-center gap-4 px-5 text-[#60676c]">
-      <div class="flex gap-2">
-        <span class="size-3.5 rounded-full bg-[#ff605c]" />
-        <span class="size-3.5 rounded-full bg-[#ffbd44]" />
-        <span class="size-3.5 rounded-full bg-[#00ca4e]" />
-      </div>
-      <LayoutPanelLeftIcon class="size-4" />
-      <ArrowLeftIcon class="size-4" />
-      <ArrowRightIcon class="size-4 opacity-40" />
-    </div>
-
-    <nav class="shrink-0 space-y-1 px-4 pb-5 text-[15px]">
-      <Button variant="ghost" class="h-10 w-full justify-start gap-3 px-2 text-[15px] font-normal hover:bg-black/5">
-        <PencilIcon class="size-4" />
-        {{ t('app.newChat') }}
-      </Button>
-      <Button variant="ghost" class="h-10 w-full justify-start gap-3 px-2 text-[15px] font-normal hover:bg-black/5" @click="store.listThreads('')">
-        <SearchIcon class="size-4" />
-        {{ t('app.search') }}
-      </Button>
-      <Button variant="ghost" class="h-10 w-full justify-start gap-3 px-2 text-[15px] font-normal hover:bg-black/5">
-        <GripIcon class="size-4" />
-        {{ t('app.plugins') }}
-      </Button>
-      <Button variant="ghost" class="h-10 w-full justify-start gap-3 px-2 text-[15px] font-normal hover:bg-black/5">
-        <Clock3Icon class="size-4" />
-        {{ t('app.automations') }}
-      </Button>
-    </nav>
-
     <ScrollArea class="min-h-0 flex-1 px-3">
-      <div class="space-y-5 pb-4">
+      <div class="space-y-5 py-4">
         <section v-if="pinnedThreads.length">
           <div class="px-2 pb-2 text-sm text-[#8c969c]">{{ t('app.pinned') }}</div>
           <div class="space-y-1">
@@ -350,7 +313,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                     :data-testid="`pinned-thread-button-${pinnedThreadId(thread)}`"
                     :data-selected="isSelectedPinnedThread(thread) ? 'true' : 'false'"
                     variant="ghost"
-                    class="h-auto min-h-10 w-full justify-between rounded-lg px-3 py-2 text-[14px] font-normal hover:bg-black/5"
+                    class="h-auto min-h-10 w-full justify-between rounded-lg px-3 py-2 text-sm font-normal hover:bg-black/5"
                     :class="isSelectedPinnedThread(thread) ? 'bg-[#c7ddeb]' : ''"
                     @click="openPinnedThread(thread)"
                   >
@@ -399,7 +362,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                 <Button
                   :data-testid="`host-button-${host.id}`"
                   variant="ghost"
-                  class="h-11 min-w-0 flex-1 justify-start gap-2 rounded-lg px-3 text-left text-[15px] font-normal hover:bg-black/5"
+                  class="h-11 min-w-0 flex-1 justify-start gap-2 rounded-lg px-3 text-left text-[0.9375rem] font-normal hover:bg-black/5"
                   :class="host.id === selectedHostId ? 'bg-[#c7ddeb]' : ''"
                   @click="selectHost(host.id)"
                 >
@@ -446,7 +409,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
               </div>
               <div
                 v-if="verifyResults[host.id]"
-                class="truncate px-3 pb-2 text-[11px]"
+                class="truncate px-3 pb-2 text-[0.6875rem]"
                 :class="verifyResults[host.id].ok ? 'text-emerald-700' : 'text-red-700'"
               >
                 {{ verifyResults[host.id].message }}
@@ -463,7 +426,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                       <Button
                         :data-testid="`project-button-${project.id}`"
                         variant="ghost"
-                        class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[15px] font-normal hover:bg-black/5"
+                        class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-black/5"
                         :class="project.id === selectedProjectId ? 'bg-[#c7ddeb]' : ''"
                         @click="selectProject(project.id)"
                       >
@@ -503,7 +466,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                             <Button
                               :data-testid="`thread-button-${thread.id}`"
                               variant="ghost"
-                              class="h-auto min-h-9 w-full justify-between rounded-lg px-3 py-2 text-[14px] font-normal hover:bg-black/5"
+                              class="h-auto min-h-9 w-full justify-between rounded-lg px-3 py-2 text-sm font-normal hover:bg-black/5"
                               :class="thread.id === selectedThreadId ? 'bg-[#c7ddeb]' : ''"
                               @click="openThread(String(thread.id), { hostId: project.hostId, projectId: project.id })"
                             >
@@ -557,7 +520,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
     </ScrollArea>
 
     <div class="shrink-0 border-t border-black/10 p-3">
-      <Button data-testid="settings-toggle" variant="ghost" class="h-10 w-full justify-start gap-3 rounded-lg px-3 text-[15px] font-normal hover:bg-black/5" @click="showSettings = !showSettings">
+      <Button data-testid="settings-toggle" variant="ghost" class="h-10 w-full justify-start gap-3 rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-black/5" @click="showSettings = !showSettings">
         <SettingsIcon class="size-4" />
         {{ t('app.settings') }}
       </Button>
@@ -565,7 +528,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
 
     <Dialog v-model:open="showSettings">
       <DialogContent
-        class="max-h-[min(860px,calc(100vh-48px))] w-[min(1120px,calc(100vw-48px))] !max-w-[min(1120px,calc(100vw-48px))] overflow-hidden p-0"
+        class="flex h-[min(54rem,calc(100vh-3rem))] w-[min(70rem,calc(100vw-3rem))] !max-w-[min(70rem,calc(100vw-3rem))] flex-col overflow-hidden p-0"
         data-testid="settings-dialog"
         close-button-test-id="settings-close-button"
       >
@@ -573,7 +536,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
           <DialogTitle class="text-lg">{{ t('app.settings') }}</DialogTitle>
           <DialogDescription>{{ t('app.settingsDescription') }}</DialogDescription>
         </DialogHeader>
-        <div class="flex min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div class="flex min-h-0 flex-1 overflow-hidden px-6 py-5">
           <SettingsPanel @close="showSettings = false" />
         </div>
       </DialogContent>

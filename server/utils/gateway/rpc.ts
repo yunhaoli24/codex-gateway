@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import WebSocket from 'ws'
 import type { HostRecord, RpcEnvelope } from '~~/shared/types'
 import { hostManager } from './ssh'
+import { hostLifecycleBus } from './host-events'
 import {
   codexRemoteAppServerExistingProxyPayload,
   codexRemoteAppServerProxyPayload,
@@ -70,6 +71,11 @@ export class CodexRpcClient extends EventEmitter {
     }, 30_000)
     this.notify('initialized', {})
     this.initialized = true
+    hostLifecycleBus.emit({
+      hostId: this.host.id,
+      status: 'connected',
+      message: `${this.host.name || this.host.sshHost} 已连接`,
+    })
   }
 
   async probeRuntimeVersion() {

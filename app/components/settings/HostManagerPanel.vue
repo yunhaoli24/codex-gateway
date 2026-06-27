@@ -103,7 +103,7 @@ function hostStatusClass(hostId: number) {
               <ServerIcon class="size-4 shrink-0" />
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm">{{ host.name }}</span>
-                <span class="block truncate text-[11px] text-[#79838a]">
+                <span class="block truncate text-[0.6875rem] text-[#79838a]">
                   {{ host.sshHost }}
                 </span>
               </span>
@@ -132,7 +132,7 @@ function hostStatusClass(hostId: number) {
           </div>
           <div
             v-if="hostStatusMessage(host.id)"
-            class="truncate px-2 pb-1 text-[11px]"
+            class="truncate px-2 pb-1 text-[0.6875rem]"
             :class="hostStatusClass(host.id)"
           >
             {{ hostStatusMessage(host.id) }}

@@ -35,7 +35,7 @@ onMounted(async () => {
   <span v-if="ready" data-testid="app-ready" class="sr-only">ready</span>
   <Toaster rich-colors position="top-right" />
   <main class="h-screen overflow-hidden bg-[#f7f7f5] text-[#2b2d2f]">
-    <div class="grid h-full min-h-0 grid-cols-[324px_1fr] overflow-hidden">
+    <div class="grid h-full min-h-0 grid-cols-[clamp(18rem,22vw,21rem)_minmax(0,1fr)] overflow-hidden">
       <DesktopSidebar />
       <ChatWorkspace />
     </div>

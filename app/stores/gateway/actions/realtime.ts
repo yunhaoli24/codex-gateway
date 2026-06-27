@@ -22,12 +22,19 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
           hostId: number
           status: 'checkingVersion' | 'upgrading' | 'restarting' | 'connecting' | 'connected' | 'failed'
           message: string
+          createdAt?: string
+        }
+        const eventTime = event.createdAt ? Date.parse(event.createdAt) : Date.now()
+        const current = ctx.state.hostConnectionStatuses[event.hostId]
+        if (current?.updatedAt && Number.isFinite(eventTime) && eventTime < current.updatedAt) {
+          return
         }
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
           [event.hostId]: {
             status: event.status,
             message: event.message,
+            updatedAt: Number.isFinite(eventTime) ? eventTime : Date.now(),
           },
         }
         const notifyKey = `${event.hostId}:${event.status}:${event.message}`
