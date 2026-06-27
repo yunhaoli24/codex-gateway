@@ -1,13 +1,9 @@
 import { expect, type Browser, type Page } from '@playwright/test'
-import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
-import { promisify } from 'node:util'
+import { Client } from 'ssh2'
 import { envFile } from '../docker-environment'
 
-const execFileAsync = promisify(execFile)
-
 export interface RemoteCodexEnv {
-  container?: string
   host: string
   port: string
   username: string
@@ -15,7 +11,9 @@ export interface RemoteCodexEnv {
   projectPath: string
   imagePath: string
   initialCodexVersion?: string
-  latestCodexVersion?: string
+  supportedCodexVersion?: string
+  testModel?: string
+  codexBin?: string
   proxyUrl?: string | null
 }
 
@@ -25,6 +23,8 @@ export interface UiHost {
 
 export interface UiProject {
   id: number
+  hostId: number
+  remotePath: string
 }
 
 export async function readRemoteEnv() {
@@ -34,6 +34,49 @@ export async function readRemoteEnv() {
 export async function readContainerCodexVersion(remote: RemoteCodexEnv) {
   return await runRemoteCodexVersion(remote)
 }
+
+export async function execRemoteSsh(remote: RemoteCodexEnv, command: string) {
+  const connection = await connectRemoteSsh(remote)
+  try {
+    return await execSsh(connection, command)
+  } finally {
+    connection.end()
+  }
+}
+
+export async function resetRemoteAppServer(remote: RemoteCodexEnv) {
+  const codexBin = remoteCodexCommand(remote)
+  await execRemoteSsh(remote, `
+set -eu
+socket="\${CODEX_HOME:-$HOME/.codex}/app-server-control/app-server-control.sock"
+daemon_dir="\${CODEX_HOME:-$HOME/.codex}/app-server-daemon"
+${codexBin} app-server daemon stop >/dev/null 2>&1 || true
+pids="$(ps -eo pid=,args= | awk -v self="$$" '
+  $1 != self && index($0, "codex app-server") && !index($0, "awk") { print $1 }
+')"
+if [ -n "$pids" ]; then
+  kill -TERM $pids >/dev/null 2>&1 || true
+fi
+for i in $(seq 1 100); do
+  if ! ps -eo pid=,args= | awk -v self="$$" '
+    $1 != self && index($0, "codex app-server") && !index($0, "awk") { found = 1 }
+    END { exit found ? 0 : 1 }
+  '; then
+    break
+  fi
+  sleep 0.1
+done
+pids="$(ps -eo pid=,args= | awk -v self="$$" '
+  $1 != self && index($0, "codex app-server") && !index($0, "awk") { print $1 }
+')"
+if [ -n "$pids" ]; then
+  kill -KILL $pids >/dev/null 2>&1 || true
+fi
+rm -f "$socket"
+rm -f "$daemon_dir"/app-server.pid "$daemon_dir"/app-server.pid.lock "$daemon_dir"/app-server.stderr.log
+`)
+}
+
 
 export async function addRemoteHost(page: Page, remote: RemoteCodexEnv, name = `docker-codex-${Date.now()}`) {
   await openSettingsTab(page, '主机')
@@ -53,24 +96,28 @@ export async function addRemoteHost(page: Page, remote: RemoteCodexEnv, name = `
   )
   await page.getByTestId('add-host-button').click()
   const host = await (await hostResponsePromise).json() as UiHost
+  await closeSettings(page)
   const verifyResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith(`/api/hosts/${host.id}/verify`) && response.request().method() === 'POST',
   )
   await page.getByTestId(`verify-host-button-${host.id}`).click()
-  const verifyResult = await (await verifyResponsePromise).json() as {
+  const verifyResponse = await verifyResponsePromise
+  const verifyResult = await verifyResponse.json() as {
     ok?: boolean
     stdout?: string
+    statusMessage?: string
+    message?: string
     codexVersion?: string
-    latestCodexVersion?: string
+    supportedCodexVersion?: string
     upgraded?: boolean
   }
-  expect(verifyResult.ok).toBe(true)
+  expect(verifyResult.ok, `verify host failed: HTTP ${verifyResponse.status()} ${JSON.stringify(verifyResult)}`).toBe(true)
   await expect(page.getByText(/codex-cli|app-server RPC OK/)).toBeVisible({ timeout: 60_000 })
-  if (remote.initialCodexVersion && remote.latestCodexVersion && remote.initialCodexVersion !== remote.latestCodexVersion) {
-    expect(verifyResult.codexVersion).toBe(remote.latestCodexVersion)
-    await expect(page.getByText(new RegExp(`codex-cli ${escapeRegExp(remote.latestCodexVersion)}`))).toBeVisible({ timeout: 120_000 })
+  if (remote.initialCodexVersion && remote.supportedCodexVersion && remote.initialCodexVersion !== remote.supportedCodexVersion) {
+    expect(verifyResult.codexVersion).toBe(remote.supportedCodexVersion)
+    await expect(page.getByText(new RegExp(`codex-cli ${escapeRegExp(remote.supportedCodexVersion)}`))).toBeVisible({ timeout: 120_000 })
     const upgradedVersionResponse = await runRemoteCodexVersion(remote)
-    expect(upgradedVersionResponse).toContain(remote.latestCodexVersion)
+    expect(upgradedVersionResponse).toContain(remote.supportedCodexVersion)
   }
   return host
 }
@@ -100,6 +147,7 @@ export async function startRemoteThread(page: Page) {
   const threadId = String(startThread.thread.id)
   await expect(page.getByPlaceholder('输入后续修改要求')).toBeEnabled()
   await expect(page.getByTestId(`thread-button-${threadId}`)).toBeVisible({ timeout: 30_000 })
+  await expect.poll(async () => (await currentRouteSelection(page)).threadId, { timeout: 10_000 }).toBe(threadId)
   return threadId
 }
 
@@ -113,6 +161,7 @@ export async function startRemoteThreadFromProjectMenu(page: Page, projectId: nu
   const threadId = String(startThread.thread.id)
   await expect(page.getByPlaceholder('输入后续修改要求')).toBeEnabled()
   await expect(page.getByTestId(`thread-button-${threadId}`)).toBeVisible({ timeout: 30_000 })
+  await expect.poll(async () => (await currentRouteSelection(page)).threadId, { timeout: 10_000 }).toBe(threadId)
   return threadId
 }
 
@@ -131,7 +180,10 @@ export async function duplicateConfiguredPage(browser: Browser, sourcePage: Page
   return { context, page }
 }
 
-export async function sendTextTurn(page: Page, marker: string) {
+export async function sendTextTurn(page: Page, marker: string, context?: { hostId: number, threadId: string, cwd?: string }) {
+  if (context) {
+    await expect.poll(async () => (await currentRouteSelection(page)).threadId, { timeout: 10_000 }).toBe(context.threadId)
+  }
   await page.getByPlaceholder('输入后续修改要求').fill(`用一句话回复：${marker}`)
   await page.getByTestId('send-turn-button').click()
 }
@@ -141,6 +193,41 @@ export async function sendSteerText(page: Page, marker: string) {
   await page.getByTestId('send-turn-button').click()
 }
 
+export async function sendTextTurnThroughGateway(page: Page, text: string, context?: { hostId: number, threadId: string, cwd?: string }) {
+  const remote = await readRemoteEnv()
+  const selection = await currentRouteSelection(page)
+  const hostId = context?.hostId ?? selection.hostId
+  const threadId = context?.threadId ?? selection.threadId
+  expect(hostId).toBeGreaterThan(0)
+  expect(threadId).toBeTruthy()
+  const responsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/api/turns/start') && response.request().method() === 'POST',
+  )
+  await page.evaluate(async ({ hostId, threadId, cwd, text, model }) => {
+    const response = await fetch('/api/turns/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        hostId,
+        threadId,
+        cwd,
+        text,
+        model: model || undefined,
+      }),
+    })
+    if (!response.ok) {
+      throw new Error(await response.text())
+    }
+  }, {
+    hostId: hostId!,
+    threadId: threadId!,
+    cwd: context?.cwd ?? remote.projectPath,
+    text,
+    model: remote.testModel ?? null,
+  })
+  await responsePromise
+}
+
 export async function sendImageTurnThroughGateway(page: Page, params: {
   hostId: number
   threadId: string
@@ -148,10 +235,11 @@ export async function sendImageTurnThroughGateway(page: Page, params: {
   imagePath: string
   marker: string
 }) {
+  const remote = await readRemoteEnv()
   const responsePromise = page.waitForResponse((response) =>
     response.url().endsWith('/api/turns/start') && response.request().method() === 'POST',
   )
-  await page.evaluate(async ({ hostId, threadId, cwd, imagePath, marker }) => {
+  await page.evaluate(async ({ hostId, threadId, cwd, imagePath, marker, model }) => {
     const response = await fetch('/api/turns/start', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -160,13 +248,14 @@ export async function sendImageTurnThroughGateway(page: Page, params: {
         threadId,
         cwd,
         text: `回复：${marker}`,
+        model: model || undefined,
         images: [{ path: imagePath, detail: 'original' }],
       }),
     })
     if (!response.ok) {
       throw new Error(await response.text())
     }
-  }, params)
+  }, { ...params, model: remote.testModel ?? null })
   await responsePromise
 }
 
@@ -195,18 +284,74 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\\''")}'`
+}
+
 async function runRemoteCodexVersion(remote: RemoteCodexEnv) {
-  if (!remote.container) {
-    throw new Error('Docker container name is required for remote version assertion')
-  }
-  const { stdout } = await execFileAsync('docker', [
-    'exec',
-    '--user',
-    remote.username,
-    remote.container,
-    'sh',
-    '-lc',
-    'PATH="$HOME/.local/bin:$PATH"; codex --version',
-  ], { maxBuffer: 1024 * 1024 })
+  const { stdout } = await execRemoteSsh(remote, `${remoteCodexCommand(remote)} --version`)
   return stdout.trim()
+}
+
+export function remoteCodexCommand(remote: RemoteCodexEnv) {
+  return shellQuote(remote.codexBin || 'codex')
+}
+
+async function currentRouteSelection(page: Page) {
+  return page.evaluate(() => {
+    const params = new URLSearchParams(window.location.search)
+    const hostId = Number(params.get('hostId'))
+    const projectId = Number(params.get('projectId'))
+    return {
+      hostId: Number.isInteger(hostId) && hostId > 0 ? hostId : null,
+      projectId: Number.isInteger(projectId) && projectId > 0 ? projectId : null,
+      threadId: params.get('threadId') || null,
+    }
+  })
+}
+
+async function connectRemoteSsh(remote: RemoteCodexEnv) {
+  const client = new Client()
+  return await new Promise<Client>((resolve, reject) => {
+    client
+      .on('ready', () => resolve(client))
+      .on('error', reject)
+      .connect({
+        host: remote.host,
+        port: Number(remote.port),
+        username: remote.username,
+        password: remote.password,
+        readyTimeout: 10_000,
+      })
+  })
+}
+
+async function execSsh(connection: Client, command: string) {
+  return await new Promise<{ code: number | null, stdout: string, stderr: string }>((resolve, reject) => {
+    connection.exec(command, (error, channel) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      let stdout = ''
+      let stderr = ''
+      channel.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8')
+      })
+      channel.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf8')
+      })
+      channel.on('error', reject)
+      channel.on('close', (code: number | null) => {
+        if (code !== 0) {
+          reject(new Error([
+            stdout ? `stdout:\n${stdout}` : null,
+            stderr ? `stderr:\n${stderr}` : null,
+          ].filter(Boolean).join('\n') || `Remote command failed: ${command}`))
+          return
+        }
+        resolve({ code, stdout, stderr })
+      })
+    })
+  })
 }

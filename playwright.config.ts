@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 240_000,
-  expect: { timeout: 20_000 },
+  expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,
   reporter: [['list']],
@@ -11,11 +11,13 @@ export default defineConfig({
   globalTeardown: './tests/e2e/global-teardown.ts',
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3100',
+    actionTimeout: 10_000,
+    navigationTimeout: 10_000,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'rm -rf .data-e2e && pnpm dev --host 127.0.0.1 --port 3100',
+    command: 'rm -rf .data-e2e && nuxt dev --host 0.0.0.0 --port 3100',
     url: 'http://127.0.0.1:3100',
     reuseExistingServer: false,
     env: {

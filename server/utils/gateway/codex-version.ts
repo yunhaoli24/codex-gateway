@@ -1,7 +1,4 @@
-const NPM_LATEST_CODEX_URL = 'https://registry.npmjs.org/@openai%2Fcodex/latest'
-const LATEST_VERSION_CACHE_MS = 60_000
-
-let cachedLatestVersion: { version: string, expiresAt: number } | null = null
+export const SUPPORTED_CODEX_VERSION = '0.142.2'
 
 export interface ParsedCodexVersion {
   raw: string
@@ -10,13 +7,13 @@ export interface ParsedCodexVersion {
 
 export function parseCodexVersion(output: string): ParsedCodexVersion | null {
   const raw = output.trim()
-  const match = raw.match(/\b(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?\b/)
+  const match = raw.match(/\b(?:codex-cli|codex_gateway|codex_gateway_probe)[ /](\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/i)
   if (!match) {
     return null
   }
   return {
     raw,
-    version: match[0],
+    version: match[1],
   }
 }
 
@@ -30,34 +27,6 @@ export function compareSemver(left: string, right: string) {
     }
   }
   return 0
-}
-
-export async function latestCodexCliVersion() {
-  const now = Date.now()
-  if (cachedLatestVersion && cachedLatestVersion.expiresAt > now) {
-    return cachedLatestVersion.version
-  }
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15_000)
-  try {
-    const response = await fetch(NPM_LATEST_CODEX_URL, { signal: controller.signal })
-    if (!response.ok) {
-      throw new Error(`npm registry returned ${response.status}`)
-    }
-    const metadata = await response.json() as { version?: unknown }
-    if (typeof metadata.version !== 'string') {
-      throw new Error('npm registry response did not include a version')
-    }
-    semverParts(metadata.version)
-    cachedLatestVersion = {
-      version: metadata.version,
-      expiresAt: now + LATEST_VERSION_CACHE_MS,
-    }
-    return metadata.version
-  } finally {
-    clearTimeout(timeout)
-  }
 }
 
 export function isCodexVersionAtLeast(version: string, minimum: string) {

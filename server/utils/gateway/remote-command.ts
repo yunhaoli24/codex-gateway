@@ -1,58 +1,97 @@
 export function codexRemotePayload(command: string) {
   return [
     'printf \'%b\' \'\\254\\341\\117\\004\\120\\367\\316\\361\' >/dev/null;',
-    'PATH="${CODEX_INSTALL_DIR:-$HOME/.local/bin}:$PATH"; export PATH;',
+    codexPathBootstrap(),
     command,
+  ].join(' ')
+}
+
+function codexPathBootstrap() {
+  return [
+    'for dir in "${CODEX_INSTALL_DIR:-$HOME/.local/bin}" "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.bun/bin" "$HOME/.nvm/current/bin" "$HOME/.nvm/versions/node"/*/bin /usr/local/bin /usr/bin /opt/homebrew/bin /opt/node/bin; do if [ -d "$dir" ]; then PATH="$dir:$PATH"; fi; done; export PATH;',
+    'CODEX_BIN="$(command -v codex 2>/dev/null || true)";',
+    'if [ -z "$CODEX_BIN" ] && [ -x "${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex" ]; then CODEX_BIN="${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex"; fi;',
+    'if [ -z "$CODEX_BIN" ] && command -v npm >/dev/null 2>&1; then NPM_PREFIX="$(npm prefix -g 2>/dev/null || true)"; if [ -n "$NPM_PREFIX" ] && [ -x "$NPM_PREFIX/bin/codex" ]; then CODEX_BIN="$NPM_PREFIX/bin/codex"; fi; fi;',
+    'if [ -z "$CODEX_BIN" ] && command -v npm >/dev/null 2>&1; then NPM_ROOT="$(npm root -g 2>/dev/null || true)"; if [ -n "$NPM_ROOT" ] && [ -x "$NPM_ROOT/.bin/codex" ]; then CODEX_BIN="$NPM_ROOT/.bin/codex"; fi; fi;',
+    'if [ -z "$CODEX_BIN" ]; then echo "codex executable not found. Install @openai/codex or set CODEX_INSTALL_DIR to the directory containing codex." >&2; exit 127; fi;',
+    'export CODEX_BIN;',
   ].join(' ')
 }
 
 export function codexRemoteAppServerStartPayload() {
   return codexRemotePayload([
-    'codex app-server --listen unix://',
+    '"$CODEX_BIN" app-server --listen unix://',
   ].join(' '))
 }
 
 export function codexRemoteAppServerProxyPayload() {
   return codexRemotePayload(`
 set -eu
-state_dir="\${CODEX_HOME:-$HOME/.codex}/app-server-gateway"
 socket="\${CODEX_HOME:-$HOME/.codex}/app-server-control/app-server-control.sock"
-mkdir -p "$state_dir"
 if ! [ -S "$socket" ]; then
-  nohup codex app-server --listen unix:// >"$state_dir/app-server.log" 2>&1 </dev/null &
-  for i in $(seq 1 100); do
-    if [ -S "$socket" ]; then
-      break
-    fi
-    sleep 0.1
-  done
+  codex_home="\${CODEX_HOME:-$HOME/.codex}"
+  managed_codex="$codex_home/packages/standalone/current/codex"
+  mkdir -p "$(dirname "$managed_codex")"
+  ln -sf "$CODEX_BIN" "$managed_codex"
+  "$CODEX_BIN" app-server daemon start >/dev/null
 fi
 [ -S "$socket" ]
-exec codex app-server proxy
+exec "$CODEX_BIN" app-server proxy
 `)
 }
 
 export function codexRemoteAppServerExistingProxyPayload() {
-  return codexRemotePayload('codex app-server proxy')
+  return codexRemotePayload('"$CODEX_BIN" app-server proxy')
 }
 
 export function codexRemoteAppServerDaemonVersionPayload() {
-  return codexRemotePayload('codex app-server daemon version')
+  return codexRemotePayload('"$CODEX_BIN" app-server daemon version')
 }
 
 export function codexRemoteVersionPayload() {
-  return codexRemotePayload('codex --version')
+  return codexRemotePayload('"$CODEX_BIN" --version')
 }
 
-export function codexRemoteUpgradeAndRestartPayload() {
-  return codexRemotePayload([
-    'npm install -g @openai/codex',
-    'codex --version',
-  ].join(' && '))
+export function codexRemoteUpgradeAndRestartPayload(version: string) {
+  return codexRemotePayload(`
+set -eu
+npm install -g @openai/codex@${shellQuote(version)}
+codex_home="\${CODEX_HOME:-$HOME/.codex}"
+managed_codex="$codex_home/packages/standalone/current/codex"
+mkdir -p "$(dirname "$managed_codex")"
+for dir in "\${CODEX_INSTALL_DIR:-$HOME/.local/bin}" "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.bun/bin" "$HOME/.nvm/current/bin" "$HOME/.nvm/versions/node"/*/bin /usr/local/bin /usr/bin /opt/homebrew/bin /opt/node/bin; do
+  if [ -d "$dir" ]; then
+    PATH="$dir:$PATH"
+  fi
+done
+export PATH
+CODEX_BIN="$(command -v codex 2>/dev/null || true)"
+if [ -z "$CODEX_BIN" ] && [ -x "\${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex" ]; then
+  CODEX_BIN="\${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex"
+fi
+if [ -z "$CODEX_BIN" ]; then
+  NPM_PREFIX="$(npm prefix -g 2>/dev/null || true)"
+  if [ -n "$NPM_PREFIX" ] && [ -x "$NPM_PREFIX/bin/codex" ]; then
+    CODEX_BIN="$NPM_PREFIX/bin/codex"
+  fi
+fi
+if [ -z "$CODEX_BIN" ]; then
+  NPM_ROOT="$(npm root -g 2>/dev/null || true)"
+  if [ -n "$NPM_ROOT" ] && [ -x "$NPM_ROOT/.bin/codex" ]; then
+    CODEX_BIN="$NPM_ROOT/.bin/codex"
+  fi
+fi
+if [ -z "$CODEX_BIN" ]; then
+  echo "codex executable not found after npm install" >&2
+  exit 127
+fi
+ln -sf "$CODEX_BIN" "$managed_codex"
+"$CODEX_BIN" --version
+`)
 }
 
 export function codexRemoteStopManagedAppServerPayload() {
-  return codexRemotePayload('codex app-server daemon stop >/dev/null')
+  return codexRemotePayload('"$CODEX_BIN" app-server daemon stop >/dev/null')
 }
 
 export function codexRemoteTerminateUnmanagedAppServerPayload() {
@@ -63,7 +102,21 @@ if [ ! -S "$socket" ]; then
   exit 0
 fi
 pid=""
-if command -v ss >/dev/null 2>&1; then
+inode=""
+if [ -r /proc/net/unix ]; then
+  inode="$(awk -v socket="$socket" '$NF == socket { print $7; exit }' /proc/net/unix)"
+fi
+if [ -n "$inode" ]; then
+  for fd in /proc/[0-9]*/fd/*; do
+    target="$(readlink "$fd" 2>/dev/null || true)"
+    if [ "$target" = "socket:[$inode]" ]; then
+      pid="\${fd#/proc/}"
+      pid="\${pid%%/*}"
+      break
+    fi
+  done
+fi
+if [ -z "$pid" ] && command -v ss >/dev/null 2>&1; then
   pid="$(ss -xlpH 2>/dev/null | awk -v socket="$socket" '
     index($0, socket) {
       if (match($0, /pid=[0-9]+/)) {
@@ -96,8 +149,8 @@ fi
 
 export function codexRemoteAppServerVerifyPayload() {
   return codexRemotePayload([
-    'codex --version',
-    'codex app-server proxy --help >/dev/null',
+    '"$CODEX_BIN" --version',
+    '"$CODEX_BIN" app-server proxy --help >/dev/null',
   ].join(' && '))
 }
 
@@ -110,7 +163,7 @@ export function remoteLoginShellCommand(payload: string) {
     'case "${SHELL##*/}" in',
     'csh|tcsh) exec "$SHELL" -i -c \'set loginsh=1; if ( -r /etc/csh.login ) source /etc/csh.login; if ( -r ~/.login ) source ~/.login; exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' ;;',
     'nu) exec "$SHELL" -l -i -c \'exec /bin/sh -c $env.CODEX_REMOTE_PAYLOAD\' ;;',
-    '*) exec "$SHELL" -l -i -c \'exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' ;;',
+    '*) exec "$SHELL" -l -c \'exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' ;;',
     'esac',
   ].join(' ')
 

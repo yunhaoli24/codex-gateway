@@ -139,6 +139,8 @@ export class CodexRpcClient extends EventEmitter {
       this.emit('stderr', text)
     })
     channel.on('close', (code: number | null, signal: string | null) => {
+      this.initialized = false
+      this.ws = null
       this.emit('close', { code, signal })
       this.rejectPending(new Error(this.closedMessage(code, signal)))
     })
@@ -153,6 +155,10 @@ export class CodexRpcClient extends EventEmitter {
       ws.on('message', (data) => this.handleMessage(data.toString()))
       ws.on('error', reject)
       ws.on('close', () => {
+        this.initialized = false
+        if (this.ws === ws) {
+          this.ws = null
+        }
         this.emit('close', { code: null, signal: null })
         this.rejectPending(new Error('Codex RPC remote proxy WebSocket closed'))
       })

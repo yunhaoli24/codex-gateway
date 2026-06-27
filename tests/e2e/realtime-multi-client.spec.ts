@@ -41,7 +41,14 @@ test('fans out a real remote app-server thread to multiple browser clients acros
     await expect(second.page.getByTestId(`project-button-${project.id}`)).toBeVisible()
     await second.page.getByTestId(`project-button-${project.id}`).click()
     await expect(second.page.getByTestId(`project-thread-row-${threadId}`)).toBeVisible({ timeout: 30_000 })
+    const openResponsePromise = second.page.waitForResponse((response) =>
+      response.url().endsWith('/api/threads/open') && response.request().method() === 'POST',
+    ).catch(() => null)
     await second.page.getByTestId(`project-thread-row-${threadId}`).click()
+    const openResponse = await openResponsePromise
+    if (openResponse) {
+      expect(openResponse.ok(), await openResponse.text()).toBe(true)
+    }
     await expect(second.page.getByPlaceholder('输入后续修改要求')).toBeEnabled()
     await expect.poll(async () => second.page.getByTestId('chat-scroll-area').getByText(firstMarker).count(), {
       timeout: 120_000,

@@ -69,6 +69,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       }
       ctx.persistConfig()
       ctx.cacheSelectedThreadSnapshot()
+      ctx.state.selectedHostId = project.hostId
       ctx.state.selectedProjectId = project.id
       ctx.state.selectedThreadId = null
       ctx.state.currentThread = null

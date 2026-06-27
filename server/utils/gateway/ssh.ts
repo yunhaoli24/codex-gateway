@@ -14,7 +14,7 @@ import {
   codexRemoteVersionPayload,
   remoteLoginShellCommand,
 } from './remote-command'
-import { isCodexVersionAtLeast, latestCodexCliVersion, parseCodexVersion } from './codex-version'
+import { isCodexVersionAtLeast, parseCodexVersion, SUPPORTED_CODEX_VERSION } from './codex-version'
 import { hostLifecycleBus } from './host-events'
 
 type HostWithSecret = HostRecord
@@ -34,7 +34,7 @@ export interface RemoteFileResult {
 export interface RemoteCodexVersionState {
   version: string
   appServerVersion: string | null
-  latestVersion: string
+  supportedVersion: string
   beforeVersion: string
   upgraded: boolean
 }
@@ -166,7 +166,7 @@ export class HostManager {
         stderr: probe.stderr.trim(),
         codexVersion: versionState.version,
         appServerVersion: versionState.appServerVersion,
-        latestCodexVersion: versionState.latestVersion,
+        supportedCodexVersion: versionState.supportedVersion,
         upgraded: versionState.upgraded,
         threads,
       }
@@ -193,24 +193,26 @@ export class HostManager {
       hostLifecycleBus.emit({
         hostId: host.id,
         status: 'checkingVersion',
-        message: '正在检查远端 Codex 版本',
+        message: `正在检查 ${hostDisplayName(host)} 的远端 Codex 版本`,
       })
-      const latestVersion = await latestCodexCliVersion()
+      const supportedVersion = SUPPORTED_CODEX_VERSION
       const beforeVersion = await this.readCodexVersion(host)
       const daemonState = await this.readAppServerDaemonState(host)
       const appServerVersion = daemonState.running ? await this.readRunningAppServerVersion(host) : null
       const currentRuntimeVersion = appServerVersion ?? beforeVersion
+      const cliVersionSupported = isCodexVersionAtLeast(beforeVersion, supportedVersion)
+      const runtimeVersionSupported = isCodexVersionAtLeast(currentRuntimeVersion, supportedVersion)
 
-      if (isCodexVersionAtLeast(beforeVersion, latestVersion) && isCodexVersionAtLeast(currentRuntimeVersion, latestVersion)) {
+      if (cliVersionSupported && runtimeVersionSupported) {
         hostLifecycleBus.emit({
           hostId: host.id,
           status: 'connecting',
-          message: `远端 Codex 已是最新版本 ${beforeVersion}`,
+          message: `${hostDisplayName(host)} 的远端 Codex 已是最新版本 ${beforeVersion}`,
         })
         return {
           version: beforeVersion,
           appServerVersion,
-          latestVersion,
+          supportedVersion,
           beforeVersion,
           upgraded: false,
         }
@@ -218,40 +220,55 @@ export class HostManager {
 
       if (daemonState.unmanagedRunning) {
         if (await this.hasActiveLoadedThread(host)) {
-          throw new Error(`Remote Codex runtime ${currentRuntimeVersion} is below latest ${latestVersion}, but a loaded thread is active`)
+          throw new Error(`Remote Codex runtime ${currentRuntimeVersion} is below supported ${supportedVersion}, but a loaded thread is active`)
         }
         await this.terminateUnmanagedAppServer(host)
       }
 
       if (!daemonState.unmanagedRunning && daemonState.running && await this.hasActiveLoadedThread(host)) {
-        throw new Error(`Remote Codex runtime ${currentRuntimeVersion} is below latest ${latestVersion}, but a loaded thread is active`)
+        throw new Error(`Remote Codex runtime ${currentRuntimeVersion} is below supported ${supportedVersion}, but a loaded thread is active`)
       }
 
       if (!daemonState.unmanagedRunning && daemonState.running) {
         await this.stopManagedAppServer(host)
       }
 
-      hostLifecycleBus.emit({
-        hostId: host.id,
-        status: 'upgrading',
-        message: `正在升级远端 Codex ${beforeVersion} -> ${latestVersion}`,
-      })
-      const version = await this.upgradeCodex(host)
-      this.disconnectHost(host)
-      if (!isCodexVersionAtLeast(version, latestVersion)) {
-        throw new Error(`Remote Codex upgraded to ${version}, still below latest ${latestVersion}`)
+      if (!cliVersionSupported) {
+        hostLifecycleBus.emit({
+          hostId: host.id,
+          status: 'upgrading',
+          message: `正在升级 ${hostDisplayName(host)} 的远端 Codex ${beforeVersion} -> ${supportedVersion}`,
+        })
+        const version = await this.upgradeCodex(host, supportedVersion)
+        this.disconnectHost(host)
+        if (!isCodexVersionAtLeast(version, supportedVersion)) {
+          throw new Error(`Remote Codex upgraded to ${version}, still below supported ${supportedVersion}`)
+        }
+        hostLifecycleBus.emit({
+          hostId: host.id,
+          status: 'restarting',
+          message: `${hostDisplayName(host)} 的远端 Codex 已升级到 ${version}，正在重启 app-server`,
+        })
+        return {
+          version,
+          appServerVersion: version,
+          supportedVersion,
+          beforeVersion,
+          upgraded: true,
+        }
       }
+
       hostLifecycleBus.emit({
         hostId: host.id,
         status: 'restarting',
-        message: `远端 Codex 已升级到 ${version}，正在重启 app-server`,
+        message: `${hostDisplayName(host)} 的远端 Codex CLI 已是 ${beforeVersion}，正在重启旧 app-server ${currentRuntimeVersion}`,
       })
       return {
-        version,
-        appServerVersion: version,
-        latestVersion,
+        version: beforeVersion,
+        appServerVersion: null,
+        supportedVersion,
         beforeVersion,
-        upgraded: true,
+        upgraded: false,
       }
     } catch (error) {
       hostLifecycleBus.emit({
@@ -433,8 +450,8 @@ console.log(JSON.stringify({ path: base, entries }));
     return parsed.version
   }
 
-  private async upgradeCodex(host: HostWithSecret) {
-    const result = await this.exec(host, remoteLoginShellCommand(codexRemoteUpgradeAndRestartPayload()))
+  private async upgradeCodex(host: HostWithSecret, version: string) {
+    const result = await this.exec(host, remoteLoginShellCommand(codexRemoteUpgradeAndRestartPayload(version)))
     if (result.code !== 0) {
       throw new Error(result.stderr || result.stdout || 'Failed to upgrade remote Codex')
     }
@@ -449,7 +466,7 @@ console.log(JSON.stringify({ path: base, entries }));
     hostLifecycleBus.emit({
       hostId: host.id,
       status: 'restarting',
-      message: '正在停止旧的远端 Codex app-server',
+      message: `正在停止 ${hostDisplayName(host)} 的旧远端 Codex app-server`,
     })
     const result = await this.exec(host, remoteLoginShellCommand(codexRemoteTerminateUnmanagedAppServerPayload()))
     if (result.code !== 0) {
@@ -462,10 +479,18 @@ console.log(JSON.stringify({ path: base, entries }));
     hostLifecycleBus.emit({
       hostId: host.id,
       status: 'restarting',
-      message: '正在停止远端 Codex app-server',
+      message: `正在停止 ${hostDisplayName(host)} 的远端 Codex app-server`,
     })
     const result = await this.exec(host, remoteLoginShellCommand(codexRemoteStopManagedAppServerPayload()))
     if (result.code !== 0) {
+      const combined = `${result.stdout}\n${result.stderr}`
+      if (isUnmanagedAppServerError(combined)) {
+        if (await this.hasActiveLoadedThread(host)) {
+          throw new Error('Remote Codex app-server is unmanaged and has an active loaded thread')
+        }
+        await this.terminateUnmanagedAppServer(host)
+        return
+      }
       throw new Error(result.stderr || result.stdout || 'Failed to stop managed remote Codex app-server')
     }
     this.disconnectHost(host)
@@ -474,7 +499,7 @@ console.log(JSON.stringify({ path: base, entries }));
   private async readAppServerDaemonState(host: HostWithSecret) {
     const result = await this.exec(host, remoteLoginShellCommand(codexRemoteAppServerDaemonVersionPayload()))
     const combined = `${result.stdout}\n${result.stderr}`
-    if (/app server is running but is not managed by codex app-server daemon/i.test(combined)) {
+    if (isUnmanagedAppServerError(combined)) {
       return {
         running: true,
         unmanagedRunning: true,
@@ -483,10 +508,12 @@ console.log(JSON.stringify({ path: base, entries }));
       }
     }
     if (result.code === 0) {
+      const parsed = parseDaemonVersionOutput(result.stdout)
+      const running = parsed?.status === 'running'
       return {
-        running: true,
-        unmanagedRunning: false,
-        appServerVersion: parseDaemonAppServerVersion(result.stdout),
+        running,
+        unmanagedRunning: running && parsed?.backend !== 'pid',
+        appServerVersion: parsed?.appServerVersion ?? null,
         raw: combined.trim(),
       }
     }
@@ -685,12 +712,28 @@ function isActiveThreadStatus(status: any) {
 }
 
 function parseDaemonAppServerVersion(output: string) {
+  return parseDaemonVersionOutput(output)?.appServerVersion ?? null
+}
+
+function parseDaemonVersionOutput(output: string): { status?: string, backend?: string, appServerVersion?: string } | null {
   try {
     const parsed = JSON.parse(output.trim())
-    return typeof parsed.appServerVersion === 'string' ? parsed.appServerVersion : null
+    return {
+      status: typeof parsed.status === 'string' ? parsed.status : undefined,
+      backend: typeof parsed.backend === 'string' ? parsed.backend : undefined,
+      appServerVersion: typeof parsed.appServerVersion === 'string' ? parsed.appServerVersion : undefined,
+    }
   } catch {
     return null
   }
+}
+
+function isUnmanagedAppServerError(output: string) {
+  return /app server is running but is not managed by codex app-server daemon/i.test(output)
+}
+
+function hostDisplayName(host: HostWithSecret) {
+  return host.name || host.sshHost
 }
 
 function messageFromError(error: unknown) {

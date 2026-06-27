@@ -9,7 +9,7 @@ import { titleForThread } from '@/stores/gateway/thread-utils'
 
 const store = useGatewayStore()
 const { t } = useI18n()
-const { loading, selectedProject, selectedThreadId, currentThread, threads } = storeToRefs(store)
+const { loading, selectedHostId, selectedProjectId, selectedProject, selectedThreadId, currentThread, threads } = storeToRefs(store)
 
 const sortedThreads = computed(() => {
   return [...threads.value].sort((a, b) => Number(b.recencyAt || b.updatedAt || 0) - Number(a.recencyAt || a.updatedAt || 0))
@@ -33,7 +33,10 @@ function formatDate(seconds?: number | null) {
 }
 
 function openThread(threadId: string) {
-  void store.openThread(threadId)
+  void store.openThread(threadId, {
+    hostId: selectedHostId.value ?? undefined,
+    projectId: selectedProjectId.value,
+  })
 }
 </script>
 

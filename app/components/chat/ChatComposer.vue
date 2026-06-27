@@ -455,7 +455,7 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator class="mx-3 my-2" />
                 <DropdownMenuSub>
-                  <DropdownMenuSubTrigger class="h-14 rounded-xl px-3 text-xl leading-none text-[#202225] data-open:bg-black/[0.04] focus:bg-black/[0.04] [&>svg]:size-5 [&>svg]:text-[#858b91]">
+                  <DropdownMenuSubTrigger data-testid="model-submenu-trigger" class="h-14 rounded-xl px-3 text-xl leading-none text-[#202225] data-open:bg-black/[0.04] focus:bg-black/[0.04] [&>svg]:size-5 [&>svg]:text-[#858b91]">
                     <span>{{ activeModelLabel }}</span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent class="w-[330px] rounded-[22px] p-2 shadow-[0_18px_60px_rgba(15,23,42,0.16)]">
@@ -465,6 +465,7 @@ function selectApprovalMode(value: ApprovalPolicy | 'custom') {
                     <DropdownMenuItem
                       v-for="modelOption in models"
                       :key="modelOption.id"
+                      :data-testid="`model-option-${modelOptionValue(modelOption)}`"
                       class="h-14 rounded-xl px-3 text-xl leading-none text-[#202225] focus:bg-black/[0.04]"
                       @select="setSelectedModel(modelOptionValue(modelOption))"
                     >

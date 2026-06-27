@@ -8,8 +8,9 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "typecheck": "vue-tsc --noEmit",
-    "test:e2e": "playwright test",
-    "test:e2e:turn": "E2E_CODEX_TURN=1 playwright test",
+    "test:e2e": "tests/e2e/run-in-containers.sh",
+    "test:e2e:runner": "playwright test",
+    "test:e2e:turn": "tests/e2e/run-in-containers.sh --turn",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {

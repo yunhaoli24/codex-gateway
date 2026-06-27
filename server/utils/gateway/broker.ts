@@ -14,6 +14,18 @@ interface TurnsPage {
   backwardsCursor?: string | null
 }
 
+interface ThreadOpenSnapshot {
+  thread: any
+  history: any
+  projectId: number | null
+  turnsPage: {
+    nextCursor: string | null
+    backwardsCursor: string | null
+  }
+  threadSettings: ThreadSettingsState
+  tokenUsage: ThreadTokenUsageState | null
+}
+
 interface TurnStartInput {
   text: string
   cwd?: string | null
@@ -141,6 +153,7 @@ class ThreadController {
   private connected = false
   private subscribed = false
   private closed = false
+  private openSnapshot: ThreadOpenSnapshot | null = null
 
   constructor(
     readonly host: HostRecord,
@@ -174,14 +187,12 @@ class ThreadController {
       }
     })
     this.client.on('close', () => {
-      this.closed = true
       this.connected = false
       this.subscribed = false
       for (const subscriber of this.closeSubscribers) {
         subscriber()
       }
       this.closeSubscribers.clear()
-      this.onClose?.()
     })
   }
 
@@ -223,6 +234,10 @@ class ThreadController {
     this.subscribed = true
   }
 
+  isSubscribed() {
+    return this.subscribed
+  }
+
   async resumeWithInitialTurns(limit = DEFAULT_TURN_PAGE_LIMIT) {
     await this.ensureConnected()
     const resume = await this.enqueue(() => this.client.request<any>('thread/resume', {
@@ -235,6 +250,14 @@ class ThreadController {
     }))
     this.subscribed = true
     return resume
+  }
+
+  setOpenSnapshot(snapshot: ThreadOpenSnapshot) {
+    this.openSnapshot = snapshot
+  }
+
+  getOpenSnapshot() {
+    return this.openSnapshot
   }
 
   enqueue<T>(operation: () => Promise<T>) {
@@ -280,6 +303,21 @@ class ThreadBroker {
 
   async openThread(host: HostRecord, threadId: string, projectId: number | null, limit = DEFAULT_TURN_PAGE_LIMIT) {
     const controller = await this.getController(host, threadId)
+    const activeSnapshot = controller.getOpenSnapshot()
+    if (activeSnapshot) {
+      const recentEvents = persistence.listGatewayEvents(host.id, threadId, 0, 200)
+      const resolvedProjectId = activeSnapshot.projectId ?? projectId
+      return {
+        thread: activeSnapshot.thread,
+        history: activeSnapshot.history,
+        projectId: resolvedProjectId,
+        project: resolvedProjectId ? persistence.getProject(resolvedProjectId) : null,
+        turnsPage: activeSnapshot.turnsPage,
+        threadSettings: activeSnapshot.threadSettings,
+        tokenUsage: latestTokenUsageFromEvents(recentEvents) ?? activeSnapshot.tokenUsage,
+        recentEvents,
+      }
+    }
     const resume = await controller.resumeWithInitialTurns(limit)
     const thread = resume.thread ?? resume
     const initialTurnsPage = resume.initialTurnsPage
@@ -293,15 +331,25 @@ class ThreadBroker {
     }
     persistence.recordThread(host.id, resolvedProjectId, threadRecord)
     const recentEvents = persistence.listGatewayEvents(host.id, threadId, 0, 200)
+    const history = this.pageToFullHistory(thread, initialTurnsPage)
+    const turnsPage = {
+      nextCursor: initialTurnsPage.nextCursor ?? null,
+      backwardsCursor: initialTurnsPage.backwardsCursor ?? null,
+    }
+    controller.setOpenSnapshot({
+      thread,
+      history,
+      projectId: resolvedProjectId,
+      turnsPage,
+      threadSettings: extractThreadSettings(resume),
+      tokenUsage: latestTokenUsageFromEvents(recentEvents),
+    })
     return {
       thread,
-      history: this.pageToFullHistory(thread, initialTurnsPage),
+      history,
       projectId: resolvedProjectId,
       project: resolvedProjectId ? persistence.getProject(resolvedProjectId) : null,
-      turnsPage: {
-        nextCursor: initialTurnsPage.nextCursor ?? null,
-        backwardsCursor: initialTurnsPage.backwardsCursor ?? null,
-      },
+      turnsPage,
       threadSettings: extractThreadSettings(resume),
       tokenUsage: latestTokenUsageFromEvents(recentEvents),
       recentEvents,
@@ -328,15 +376,25 @@ class ThreadBroker {
       })
       this.controllers.set(key, controller)
       const recentEvents = persistence.listGatewayEvents(host.id, threadId, 0, 200).concat(controller.buffer)
-      return {
+      const history = { thread: { ...thread, turns: thread.turns ?? [] } }
+      const turnsPage = {
+        nextCursor: null,
+        backwardsCursor: null,
+      }
+      controller.setOpenSnapshot({
         thread,
-        history: { thread: { ...thread, turns: thread.turns ?? [] } },
+        history,
+        projectId,
+        turnsPage,
         threadSettings: extractThreadSettings(result),
         tokenUsage: latestTokenUsageFromEvents(recentEvents),
-        turnsPage: {
-          nextCursor: null,
-          backwardsCursor: null,
-        },
+      })
+      return {
+        thread,
+        history,
+        threadSettings: extractThreadSettings(result),
+        tokenUsage: latestTokenUsageFromEvents(recentEvents),
+        turnsPage,
         recentEvents,
       }
     } catch (error) {
@@ -348,6 +406,7 @@ class ThreadBroker {
   async startTurn(host: HostRecord, threadId: string, input: TurnStartInput) {
     const controller = await this.getController(host, threadId)
     await controller.ensureSubscribed()
+    await controller.ensureConnected()
     const clientUserMessageId = input.clientUserMessageId || `gateway-${randomUUID()}`
     const result = await controller.enqueue(() => controller.client.request<any>('turn/start', {
       threadId,
@@ -386,6 +445,7 @@ class ThreadBroker {
   async steerTurn(host: HostRecord, threadId: string, input: TurnSteerInput) {
     const controller = await this.getController(host, threadId)
     await controller.ensureSubscribed()
+    await controller.ensureConnected()
     return controller.enqueue(() => controller.client.request('turn/steer', {
       threadId,
       expectedTurnId: input.expectedTurnId,
@@ -480,7 +540,9 @@ class ThreadBroker {
 
   async subscribe(host: HostRecord, threadId: string, callback: Subscriber, onClose?: CloseSubscriber) {
     const controller = await this.getController(host, threadId)
-    await controller.ensureSubscribed()
+    if (!controller.isSubscribed()) {
+      await controller.ensureSubscribed()
+    }
     return controller.subscribe(callback, onClose)
   }
 
