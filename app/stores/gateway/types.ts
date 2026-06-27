@@ -60,10 +60,13 @@ export interface GatewayStoreState {
   olderTurnsCursor: string | null
   newerTurnsCursor: string | null
   error: string | null
-  eventSources: Record<string, EventSource>
-  eventSourceCreatedAt: Record<string, number>
-  eventSourceHealthTimer: ReturnType<typeof window.setInterval> | null
-  hostLifecycleEventSource: EventSource | null
+  realtimeSocket: WebSocket | null
+  realtimeSocketConnected: boolean
+  realtimeSocketReconnectTimer: ReturnType<typeof window.setTimeout> | null
+  realtimeSocketReconnectAttempt: number
+  realtimeSocketGeneration: number
+  realtimeHostLifecycleSubscribed: boolean
+  realtimeThreadSubscriptions: Record<string, { hostId: number, threadId: string, afterId: number }>
   lastEventId: number
   scrollToLatestToken: number
 }

@@ -13,6 +13,11 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
   },
+  nitro: {
+    experimental: {
+      websocket: true,
+    },
+  },
   i18n: {
     defaultLocale: 'zh',
     strategy: 'no_prefix',

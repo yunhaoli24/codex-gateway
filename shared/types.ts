@@ -66,6 +66,62 @@ export interface GatewayEvent {
   createdAt: string
 }
 
+export type RealtimeClientMessage =
+  | {
+    type: 'host.lifecycle.subscribe'
+  }
+  | {
+    type: 'host.lifecycle.unsubscribe'
+  }
+  | {
+    type: 'thread.subscribe'
+    hostId: number
+    threadId: string
+    afterId?: number
+  }
+  | {
+    type: 'thread.unsubscribe'
+    hostId: number
+    threadId: string
+  }
+  | {
+    type: 'ping'
+    nonce?: string
+  }
+
+export type RealtimeServerMessage =
+  | {
+    type: 'ready'
+    connectionId: string
+  }
+  | {
+    type: 'host.lifecycle'
+    event: {
+      hostId: number
+      status: 'checkingVersion' | 'upgrading' | 'restarting' | 'connecting' | 'connected' | 'failed'
+      message: string
+      createdAt?: string
+    }
+  }
+  | {
+    type: 'thread.event'
+    event: GatewayEvent
+  }
+  | {
+    type: 'thread.closed'
+    hostId: number
+    threadId: string
+  }
+  | {
+    type: 'error'
+    message: string
+    request?: RealtimeClientMessage
+  }
+  | {
+    type: 'pong'
+    nonce?: string
+  }
+
 export interface ThreadOpenResult {
   thread: unknown
   history: unknown

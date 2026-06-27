@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { parseCodexVersion } from '../../server/utils/gateway/codex-version'
 import {
   addRemoteHost,
   addRemoteProject,
@@ -10,6 +11,11 @@ import {
   sendTextTurn,
   startRemoteThreadFromProjectMenu,
 } from './helpers/remote-codex'
+
+test('parses current Codex CLI and app-server user-agent versions', () => {
+  expect(parseCodexVersion('codex-cli 0.142.2')?.version).toBe('0.142.2')
+  expect(parseCodexVersion('Codex Desktop/0.142.0 (Debian 13.0.0; x86_64) unknown (codex_gateway_probe; 0.1.0)')?.version).toBe('0.142.0')
+})
 
 test('upgrades an old remote npm Codex install before using the app-server', async ({ page }) => {
   const remote = await readRemoteEnv()

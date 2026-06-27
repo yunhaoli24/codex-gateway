@@ -32,7 +32,8 @@
 ## 代码风格
 
 - 全项目使用 Nuxt 4 + TypeScript；前后端都写 TS，不引入 Go/Python/Rust 等新服务实现。
-- 浏览器永远不直接连接远端 Codex app-server，也不持有 SSH key、Codex token 以外的非必要派生状态；浏览器只访问 Nuxt server API/SSE。
+- 浏览器永远不直接连接远端 Codex app-server，也不持有 SSH key、Codex token 以外的非必要派生状态；浏览器只访问 Nuxt server API 和页面级 WebSocket 实时总线。
+- 实时交互统一走每个浏览器页面一条 WebSocket；同一页面内多个 host/thread/terminal topic 必须复用同一个 WS 消息总线，非实时配置、版本、列表等请求继续走 HTTP。
 - 同一 host 在 gateway 后端只维护一个共享 SSH 连接；多个浏览器页面必须复用同一个 gateway-side SSH/RPC 生命周期管理。
 - Codex app-server/thread 是事实源。前端和 gateway 只做配置、索引、缓存和广播，不发明不可失效的二次 timeline。
 - 远端 Codex 低于 npm latest 时，gateway 负责升级并重启 app-server；升级/重启状态必须推送到前端。
@@ -41,7 +42,7 @@
 - 前端业务界面必须全局响应式布局；业务组件和业务样式禁止使用 `px` 级固定宽高、固定列宽、固定弹窗尺寸或固定字体，优先使用 Tailwind scale、`rem`、`clamp()`、`min()/max()`、`minmax()` 和容器约束。`app/components/ui/` 的 shadcn-vue 基础组件除非任务明确要求，不作为业务布局清理范围。
 - 业务组件按领域拆分；通用能力沉到 `app/components/common/` 或对应领域目录。避免单文件持续膨胀。
 - Markdown、diff、图片查看、上传、模型/审批/推理设置等功能必须使用真实 app-server 语义和真实数据。
-- 使用成熟库处理协议、SSH、SSE、Markdown、拖拽/弹层等复杂行为；不要手写脆弱协议解析。
+- 使用成熟库处理协议、SSH、WebSocket、Markdown、拖拽/弹层等复杂行为；不要手写脆弱协议解析。
 - 当用户要求“全项目”“系统性”“重构”级别修改时，必须先用搜索列出完整影响范围，再逐个文件按语义手动修改；禁止用机械替换、局部修补或只处理截图可见位置来冒充完成。
 - 保持 ASCII 代码为主；只有 UI 文案、中文注释或现有文件语境需要时才加入非 ASCII。
 
@@ -72,10 +73,10 @@
 
 ## Review 标准
 
-- 先看正确性：是否破坏 gateway 统一管理 SSH/RPC、thread broker、SSE fan-out、配置同步或 URL 恢复。
+- 先看正确性：是否破坏 gateway 统一管理 SSH/RPC、thread broker、WS fan-out、配置同步或 URL 恢复。
 - 再看真实性：是否引入 fake 数据、mock app-server、无效 fallback 或浏览器直连远端。
 - 再看安全性：是否泄露 SSH/Codex 凭据，是否把敏感配置写到日志或测试产物。
-- 再看生命周期：SSH keepalive、断线重连、RPC close、SSE unsubscribe、controller 缓存是否会泄漏或卡死。
+- 再看生命周期：SSH keepalive、断线重连、RPC close、WS unsubscribe/resubscribe、controller 缓存是否会泄漏或卡死。
 - 再看 UI：是否符合 Codex Desktop 风格、默认中文、shadcn-vue 使用一致、滚动/弹窗/图片/Markdown/diff 可用。
 - 对全项目/系统性修改，额外检查是否真的覆盖了完整影响面，是否存在只修局部、机械替换、留下固定 `px` 业务布局或破坏响应式约束的问题。
 - 最后看测试：关键路径是否有 E2E 覆盖，失败路径是否能在前端看见明确错误。

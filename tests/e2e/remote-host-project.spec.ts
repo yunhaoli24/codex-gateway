@@ -9,10 +9,17 @@ import {
 
 test('connects to a real SSH Codex host and lists a project thread created by app-server', async ({ page }) => {
   const remote = await readRemoteEnv()
+  const realtimeSockets: string[] = []
+  page.on('websocket', (webSocket) => {
+    if (webSocket.url().endsWith('/api/realtime')) {
+      realtimeSockets.push(webSocket.url())
+    }
+  })
 
   await page.goto('/')
   await expect(page.getByTestId('app-ready')).toBeAttached()
   await expect(page.getByPlaceholder('输入后续修改要求')).toBeHidden()
+  await expect.poll(() => realtimeSockets.length, { timeout: 10_000 }).toBe(1)
 
   const host = await addRemoteHost(page, remote)
   const project = await addRemoteProject(page, remote, host.id)
@@ -36,6 +43,7 @@ test('connects to a real SSH Codex host and lists a project thread created by ap
   await page.getByTestId(`thread-button-${threadId}`).click()
   await page.waitForTimeout(500)
   expect(openRequests).toBe(0)
+  expect(realtimeSockets).toHaveLength(1)
 
   const marker = `E2E 置顶恢复 ${Date.now()}`
   await sendTextTurn(page, marker)

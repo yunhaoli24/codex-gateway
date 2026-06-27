@@ -62,11 +62,15 @@ export function createHostActions(ctx: GatewayStoreContext) {
 
     async deleteHost(hostId: number) {
       await $fetch(`/api/hosts/${hostId}`, { method: 'DELETE' })
-      for (const key of Object.keys(ctx.state.eventSources)) {
+      for (const key of Object.keys(ctx.state.realtimeThreadSubscriptions)) {
         if (key.startsWith(`${hostId}:`)) {
-          ctx.state.eventSources[key]?.close()
-          delete ctx.state.eventSources[key]
-          delete ctx.state.eventSourceCreatedAt[key]
+          const subscription = ctx.state.realtimeThreadSubscriptions[key]
+          ctx.sendRealtime({
+            type: 'thread.unsubscribe',
+            hostId: subscription.hostId,
+            threadId: subscription.threadId,
+          })
+          delete ctx.state.realtimeThreadSubscriptions[key]
         }
       }
       ctx.state.hosts = ctx.state.hosts.filter((host) => host.id !== hostId)
