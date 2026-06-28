@@ -3,7 +3,7 @@ services:
     build:
       context: ./docker
       args:
-        CODEX_CLI_VERSION: ${E2E_CODEX_CLI_VERSION:-0.130.0}
+        CODEX_CLI_VERSION: ${E2E_CODEX_CLI_VERSION:-0.140.0}
         E2E_UID: ${E2E_UID:-1000}
         E2E_GID: ${E2E_GID:-1000}
     environment:
@@ -20,19 +20,20 @@ services:
     environment:
       CI: ${CI:-}
       E2E_CONTAINERIZED: "1"
+      E2E_SOURCE_DIR: /workspace/source
       E2E_CODEX_HOME: /codex-auth
       E2E_REMOTE_HOST: ssh-target
       E2E_REMOTE_PORT: "22"
       E2E_REMOTE_USERNAME: codex
       E2E_REMOTE_PASSWORD: codex
       E2E_REMOTE_PROJECT_PATH: /workspace/codex-gateway
-      E2E_CODEX_CLI_VERSION: ${E2E_CODEX_CLI_VERSION:-0.130.0}
+      E2E_CODEX_CLI_VERSION: ${E2E_CODEX_CLI_VERSION:-0.140.0}
       E2E_CODEX_MODEL: ${E2E_CODEX_MODEL:-gpt-5.4-mini}
       HOME: /home/pwuser
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     volumes:
-      - ../..:/workspace/source:ro
       - ${E2E_CODEX_HOME:-${HOME}/.codex}:/codex-auth:ro
+      - ../../test-results:/workspace/codex-gateway/test-results
       - runner-home:/home/pwuser
     working_dir: /workspace/codex-gateway
 

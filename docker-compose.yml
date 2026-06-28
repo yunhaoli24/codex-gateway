@@ -1,3 +1,9 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "1m"
+    max-file: "3"
+
 services:
   codex-gateway:
     build:
@@ -5,9 +11,16 @@ services:
       dockerfile: Dockerfile
     container_name: codex-gateway
     restart: unless-stopped
-    ports:
-      - "${CODEX_GATEWAY_PORT:-3000}:3000"
+    logging: *default-logging
+    expose:
+      - "3000"
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
+    networks:
+      - web-common
+
+networks:
+  web-common:
+    external: true

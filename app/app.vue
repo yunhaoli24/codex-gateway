@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import ChatWorkspace from '@/components/chat/ChatWorkspace.vue'
-import DesktopSidebar from '@/components/sidebar/DesktopSidebar.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { useGatewayStore } from '@/stores/gateway'
 import { titleForThread } from '@/stores/gateway/thread-utils'
 
 const store = useGatewayStore()
-const { currentThread, selectedThreadId } = storeToRefs(store)
-const ready = ref(false)
+const device = useDevice()
+const { currentThread, selectedThreadId, initializing } = storeToRefs(store)
+const mounted = ref(false)
+const layoutName = computed(() => device.isMobileOrTablet ? 'mobile' : 'default')
 const pageTitle = computed(() => {
   if (!selectedThreadId.value || !currentThread.value) {
     return 'Codex Gateway'
@@ -21,23 +21,17 @@ useHead({
   title: pageTitle,
 })
 
-onMounted(async () => {
-  try {
-    await store.refresh()
-  } finally {
-    ready.value = true
-  }
+onMounted(() => {
+  mounted.value = true
+  void store.refresh().catch((error) => {
+    console.error('[gateway] failed to refresh app', error)
+  })
 })
 </script>
 
 <template>
   <NuxtRouteAnnouncer />
-  <span v-if="ready" data-testid="app-ready" class="sr-only">ready</span>
+  <span v-if="mounted && !initializing" data-testid="app-ready" class="sr-only">ready</span>
   <Toaster rich-colors position="top-right" />
-  <main class="h-screen overflow-hidden bg-[#f7f7f5] text-[#2b2d2f]">
-    <div class="grid h-full min-h-0 grid-cols-[clamp(18rem,22vw,21rem)_minmax(0,1fr)] overflow-hidden">
-      <DesktopSidebar />
-      <ChatWorkspace />
-    </div>
-  </main>
+  <NuxtLayout :name="layoutName" />
 </template>

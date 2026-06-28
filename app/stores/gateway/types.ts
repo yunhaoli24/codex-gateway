@@ -8,6 +8,7 @@ import type {
   ProjectRecord,
   ThreadSettingsState,
   ThreadTokenUsageState,
+  UploadedFileRecord,
 } from '~~/shared/types'
 import type { GatewayDomainEvents } from './domain-events'
 
@@ -33,6 +34,22 @@ export interface ThreadSnapshot {
   lastEventId: number
 }
 
+export interface ComposerDraft {
+  text: string
+  attachedFiles: Array<UploadedFileRecord & { id: string, dataUrl?: string }>
+}
+
+export interface PendingSteerInput {
+  text: string
+  clientUserMessageId: string
+  content: any[]
+  images: Array<{
+    path?: string
+    url?: string
+    detail?: 'low' | 'high' | 'auto' | 'original'
+  }>
+}
+
 export interface GatewayStoreState {
   hosts: HostRecord[]
   projects: ProjectRecord[]
@@ -46,10 +63,13 @@ export interface GatewayStoreState {
   threadStatuses: Record<string, ThreadRuntimeStatus>
   threadSettingsByKey: Record<string, ThreadSettingsState>
   threadTokenUsageByKey: Record<string, ThreadTokenUsageState>
+  composerDraftsByKey: Record<string, ComposerDraft>
+  pendingSteersByKey: Record<string, PendingSteerInput[]>
   threadSnapshots: Record<string, ThreadSnapshot>
   selectedHostId: number | null
   selectedProjectId: number | null
   selectedThreadId: string | null
+  viewEpoch: number
   currentThread: unknown
   history: unknown
   events: GatewayEvent[]
@@ -82,5 +102,6 @@ export interface GatewayStoreContext {
   defaultModel: ModelRecord | null
   selectedThreadSettings: ThreadSettingsState
   selectedThreadTokenUsage: ThreadTokenUsageState | null
+  selectedComposerDraft: ComposerDraft
   [action: string]: any
 }

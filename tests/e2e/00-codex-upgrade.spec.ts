@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { parseCodexVersion } from '../../server/utils/gateway/codex-version'
+import { openApp } from './helpers/app'
 import {
   addRemoteHost,
   addRemoteProject,
@@ -28,8 +29,7 @@ test('upgrades an old remote npm Codex install before using the app-server', asy
     timeout: 30_000,
   }).toContain(remote.initialCodexVersion!)
 
-  await page.goto('/')
-  await expect(page.getByTestId('app-ready')).toBeAttached()
+  await openApp(page)
 
   const host = await addRemoteHost(page, remote, `old-codex-upgrade-${Date.now()}`)
   await expect.poll(async () => readContainerCodexVersion(remote), {
@@ -44,7 +44,7 @@ test('upgrades an old remote npm Codex install before using the app-server', asy
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel('已完成')).toBeVisible({ timeout: 120_000 })
 })
 
-test('replaces an unmanaged remote app-server when no loaded turn is active', async ({ page }) => {
+test('replaces an existing socket app-server when no loaded turn is active', async ({ page }) => {
   const remote = await readRemoteEnv()
   const codexBin = remoteCodexCommand(remote)
 
@@ -68,25 +68,14 @@ if [ ! -S "$socket" ]; then
   exit 1
 fi
 rm -f "$daemon_dir"/app-server.pid "$daemon_dir"/app-server.pid.lock "$daemon_dir"/app-server.stderr.log
-daemon_output="$(${codexBin} app-server daemon version 2>&1 || true)"
-echo "$daemon_output"
-echo "$daemon_output" | node -e '
-let input = "";
-process.stdin.on("data", chunk => input += chunk);
-process.stdin.on("end", () => {
-  const parsed = JSON.parse(input);
-  if (parsed.backend === "pid") process.exit(1);
-});
-'
 `)
 
-  await page.goto('/')
-  await expect(page.getByTestId('app-ready')).toBeAttached()
+  await openApp(page)
 
   const host = await addRemoteHost(page, remote, `unmanaged-codex-${Date.now()}`)
   const project = await addRemoteProject(page, remote, host.id, `unmanaged-project-${Date.now()}`)
   const threadId = await startRemoteThreadFromProjectMenu(page, project.id)
-  const marker = `E2E 非 daemon 重启 ${Date.now()}`
+  const marker = `E2E socket app-server 重启 ${Date.now()}`
   await sendTextTurn(page, marker, { hostId: host.id, threadId, cwd: remote.projectPath })
   await expect(page.getByTestId('chat-scroll-area').getByText(marker)).toBeVisible({ timeout: 120_000 })
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel('已完成')).toBeVisible({ timeout: 120_000 })

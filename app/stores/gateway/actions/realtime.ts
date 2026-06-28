@@ -1,12 +1,10 @@
-import type { GatewayEvent, RealtimeClientMessage, RealtimeServerMessage, ThreadTokenUsageState } from '~~/shared/types'
+import type { GatewayEvent, RealtimeClientMessage, RealtimeServerMessage } from '~~/shared/types'
 import { toast } from 'vue-sonner'
 import type { GatewayStoreContext, ThreadRuntimeStatus } from '../types'
 import {
   pinnedKey,
-  runtimeStatusFromAppThreadStatus,
-  terminalTurnStatus,
-  threadIdFromParams,
 } from '../thread-utils'
+import { applyAppServerEvent } from '../event-handlers'
 
 export function createRealtimeActions(ctx: GatewayStoreContext) {
   const lifecycleNotificationKeys = new Set<string>()
@@ -259,166 +257,7 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
     },
 
     applyLiveEvent(event: GatewayEvent) {
-      const payload = event.payload as any
-      const params = payload?.params || {}
-      if (event.method === 'thread/status/changed') {
-        const threadId = threadIdFromParams(params)
-        if (threadId) {
-          ctx.events.emit({
-            type: 'thread-status-detected',
-            hostId: event.hostId,
-            threadId: String(threadId),
-            status: runtimeStatusFromAppThreadStatus(params.status),
-          })
-        }
-      } else if (event.method === 'turn/started') {
-        const threadId = threadIdFromParams(params)
-        if (threadId) {
-          ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId: String(threadId), status: 'running' })
-        }
-      } else if (event.method === 'turn/completed') {
-        const threadId = threadIdFromParams(params)
-        if (threadId) {
-          ctx.events.emit({
-            type: 'thread-status-detected',
-            hostId: event.hostId,
-            threadId: String(threadId),
-            status: terminalTurnStatus(params.turn?.status),
-          })
-        }
-      }
-      if (event.method === 'thread/settings/updated') {
-        const threadId = threadIdFromParams(params)
-        if (threadId) {
-          ctx.events.emit({
-            type: 'thread-settings-detected',
-            hostId: event.hostId,
-            threadId: String(threadId),
-            settings: {
-              model: params.threadSettings?.model ?? null,
-              effort: params.threadSettings?.effort ?? null,
-              approvalPolicy: params.threadSettings?.approvalPolicy ?? null,
-            },
-          })
-        }
-      }
-      if (event.method === 'thread/tokenUsage/updated') {
-        const threadId = threadIdFromParams(params)
-        const tokenUsage = normalizeTokenUsage(params.tokenUsage)
-        if (threadId && tokenUsage) {
-          ctx.events.emit({
-            type: 'thread-token-usage-detected',
-            hostId: event.hostId,
-            threadId: String(threadId),
-            tokenUsage,
-          })
-        }
-      }
-
-      const targetThreadId = threadIdFromParams(params) ?? event.threadId
-      if (!targetThreadId) {
-        return
-      }
-      const threadId = String(targetThreadId)
-
-      if (event.method === 'item/started') {
-        ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId, status: 'running' })
-      }
-      if ((event.method === 'item/started' || event.method === 'item/completed') && params.item) {
-        ctx.events.emit({
-          type: 'history-item-upsert',
-          hostId: event.hostId,
-          threadId,
-          item: {
-            ...params.item,
-            turnId: params.turnId,
-          },
-        })
-      } else if (event.method === 'item/agentMessage/delta') {
-        ctx.events.emit({ type: 'history-agent-delta', hostId: event.hostId, threadId, params })
-      } else if (event.method === 'item/plan/delta') {
-        ctx.events.emit({ type: 'history-plan-delta', hostId: event.hostId, threadId, params })
-      } else if (event.method === 'item/reasoning/summaryTextDelta') {
-        ctx.events.emit({ type: 'history-reasoning-summary-delta', hostId: event.hostId, threadId, params })
-      } else if (event.method === 'item/reasoning/textDelta') {
-        ctx.events.emit({ type: 'history-reasoning-text-delta', hostId: event.hostId, threadId, params })
-      } else if (event.method === 'item/commandExecution/outputDelta') {
-        ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId, status: 'running' })
-        ctx.events.emit({ type: 'history-item-output-delta', hostId: event.hostId, threadId, params, itemType: 'commandExecution' })
-      } else if (event.method === 'item/fileChange/outputDelta') {
-        ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId, status: 'running' })
-        ctx.events.emit({ type: 'history-item-output-delta', hostId: event.hostId, threadId, params, itemType: 'fileChange' })
-      } else if (event.method === 'item/fileChange/patchUpdated') {
-        ctx.events.emit({ type: 'thread-status-detected', hostId: event.hostId, threadId, status: 'running' })
-        ctx.events.emit({
-          type: 'history-item-upsert',
-          hostId: event.hostId,
-          threadId,
-          item: {
-            type: 'fileChange',
-            id: params.itemId,
-            turnId: params.turnId,
-            changes: params.changes ?? [],
-            status: 'inProgress',
-          },
-        })
-      } else if (event.method === 'turn/diff/updated') {
-        ctx.events.emit({ type: 'history-turn-diff-updated', hostId: event.hostId, threadId, params })
-      } else if (event.method === 'turn/plan/updated') {
-        ctx.events.emit({
-          type: 'history-item-upsert',
-          hostId: event.hostId,
-          threadId,
-          item: {
-            type: 'turnPlan',
-            id: `${params.turnId}-plan`,
-            turnId: params.turnId,
-            explanation: params.explanation ?? null,
-            plan: Array.isArray(params.plan) ? params.plan : [],
-          },
-        })
-      } else if (event.method === 'turn/started' && params.turn) {
-        ctx.events.emit({ type: 'history-turn-appended', hostId: event.hostId, threadId, turn: params.turn })
-      } else if (event.method === 'turn/completed' && params.turn) {
-        ctx.events.emit({ type: 'history-turn-synced', hostId: event.hostId, threadId, turn: params.turn })
-      }
+      applyAppServerEvent(ctx, event)
     },
   }
-}
-
-export function normalizeTokenUsage(value: any): ThreadTokenUsageState | null {
-  const total = normalizeTokenBreakdown(value?.total)
-  const last = normalizeTokenBreakdown(value?.last)
-  if (!total || !last) {
-    return null
-  }
-  const modelContextWindow = numberOrNull(value?.modelContextWindow)
-  return {
-    total,
-    last,
-    modelContextWindow,
-  }
-}
-
-function normalizeTokenBreakdown(value: any) {
-  const totalTokens = numberOrNull(value?.totalTokens)
-  const inputTokens = numberOrNull(value?.inputTokens)
-  const cachedInputTokens = numberOrNull(value?.cachedInputTokens)
-  const outputTokens = numberOrNull(value?.outputTokens)
-  const reasoningOutputTokens = numberOrNull(value?.reasoningOutputTokens)
-  if ([totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens].some((item) => item == null)) {
-    return null
-  }
-  return {
-    totalTokens,
-    inputTokens,
-    cachedInputTokens,
-    outputTokens,
-    reasoningOutputTokens,
-  }
-}
-
-function numberOrNull(value: unknown) {
-  const numberValue = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(numberValue) ? numberValue : null
 }

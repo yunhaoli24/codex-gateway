@@ -8,8 +8,10 @@ import {
   codexRemoteAppServerProxyPayload,
   remoteLoginShellCommand,
 } from './remote-command'
+import { CodexRpcError } from './errors'
 
 interface PendingRequest {
+  method: string
   resolve: (value: unknown) => void
   reject: (reason?: unknown) => void
   timer: NodeJS.Timeout
@@ -19,7 +21,7 @@ export type RpcNotificationHandler = (message: RpcEnvelope) => void
 
 interface CodexRpcClientOptions {
   skipVersionCheck?: boolean
-  skipDaemonStart?: boolean
+  requireExistingAppServer?: boolean
 }
 
 export class CodexRpcClient extends EventEmitter {
@@ -29,6 +31,7 @@ export class CodexRpcClient extends EventEmitter {
   private pending = new Map<number, PendingRequest>()
   private ws: WebSocket | null = null
   private stderrBuffer = ''
+  private transportClosed = false
 
   constructor(private readonly host: HostRecord, private readonly options: CodexRpcClientOptions = {}) {
     super()
@@ -67,6 +70,7 @@ export class CodexRpcClient extends EventEmitter {
       },
       capabilities: {
         experimentalApi: true,
+        mcpServerOpenaiFormElicitation: true,
       },
     }, 30_000)
     this.notify('initialized', {})
@@ -107,6 +111,7 @@ export class CodexRpcClient extends EventEmitter {
       }, timeoutMs)
 
       this.pending.set(id, {
+        method,
         resolve: (value) => resolve(value as T),
         reject,
         timer,
@@ -120,9 +125,25 @@ export class CodexRpcClient extends EventEmitter {
     this.send({ method, params })
   }
 
+  respond(id: string | number, result: unknown) {
+    this.send({ id, result })
+  }
+
+  respondError(id: string | number, code: number, message: string, data?: unknown) {
+    this.send({
+      id,
+      error: {
+        code,
+        message,
+        data,
+      },
+    })
+  }
+
   close() {
     this.initialized = false
     this.connectPromise = null
+    this.transportClosed = true
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer)
       pending.reject(new Error('Codex RPC client closed'))
@@ -134,10 +155,11 @@ export class CodexRpcClient extends EventEmitter {
   private async connectRemoteProxyWebSocket() {
     const channel = await hostManager.execChannel(
       this.host,
-      remoteLoginShellCommand(this.options.skipDaemonStart
+      remoteLoginShellCommand(this.options.requireExistingAppServer
         ? codexRemoteAppServerExistingProxyPayload()
         : codexRemoteAppServerProxyPayload()),
     )
+    this.transportClosed = false
 
     channel.stderr.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf8')
@@ -145,10 +167,7 @@ export class CodexRpcClient extends EventEmitter {
       this.emit('stderr', text)
     })
     channel.on('close', (code: number | null, signal: string | null) => {
-      this.initialized = false
-      this.ws = null
-      this.emit('close', { code, signal })
-      this.rejectPending(new Error(this.closedMessage(code, signal)))
+      this.handleTransportClose(this.closedMessage(code, signal), { code, signal })
     })
 
     await new Promise<void>((resolve, reject) => {
@@ -161,14 +180,20 @@ export class CodexRpcClient extends EventEmitter {
       ws.on('message', (data) => this.handleMessage(data.toString()))
       ws.on('error', reject)
       ws.on('close', () => {
-        this.initialized = false
-        if (this.ws === ws) {
-          this.ws = null
-        }
-        this.emit('close', { code: null, signal: null })
-        this.rejectPending(new Error('Codex RPC remote proxy WebSocket closed'))
+        this.handleTransportClose('Codex RPC remote proxy WebSocket closed', { code: null, signal: null })
       })
     })
+  }
+
+  private handleTransportClose(message: string, detail: { code: number | null, signal: string | null }) {
+    if (this.transportClosed) {
+      return
+    }
+    this.transportClosed = true
+    this.initialized = false
+    this.ws = null
+    this.emit('close', detail)
+    this.rejectPending(new Error(message))
   }
 
   private rejectPending(error: Error) {
@@ -211,6 +236,11 @@ export class CodexRpcClient extends EventEmitter {
       return
     }
 
+    if (message.id !== undefined && message.method) {
+      this.emit('request', message)
+      return
+    }
+
     if (message.id !== undefined) {
       const id = Number(message.id)
       const pending = this.pending.get(id)
@@ -221,7 +251,7 @@ export class CodexRpcClient extends EventEmitter {
       clearTimeout(pending.timer)
       this.pending.delete(id)
       if (message.error) {
-        pending.reject(new Error(message.error.message))
+        pending.reject(new CodexRpcError(pending.method, message.error.code, message.error.message, message.error.data))
       } else {
         pending.resolve(message.result)
       }

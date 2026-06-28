@@ -11,6 +11,7 @@ export type GatewayDomainEvent =
   | { type: 'history-reasoning-summary-delta', hostId: number, threadId: string, params: any }
   | { type: 'history-reasoning-text-delta', hostId: number, threadId: string, params: any }
   | { type: 'history-item-output-delta', hostId: number, threadId: string, params: any, itemType: 'commandExecution' | 'fileChange' }
+  | { type: 'history-server-request-resolved', hostId: number, threadId: string, requestId: string | number }
   | { type: 'history-turn-diff-updated', hostId: number, threadId: string, params: any }
   | { type: 'history-turn-appended', hostId: number, threadId: string, turn: any }
   | { type: 'history-turn-synced', hostId: number, threadId: string, turn: any }

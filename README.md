@@ -8,7 +8,8 @@ Nuxt 4 + TypeScript gateway for controlling remote Codex app-server sessions ove
 - Browser talks only to Nuxt server APIs and SSE.
 - Gateway connects to remote hosts with Node `ssh2`.
 - Remote Codex state stays in app-server/thread history.
-- SQLite stores host/project metadata, thread indexes, and recent gateway event cache.
+- Host/project config is synced from the browser's Pinia/localStorage state.
+- The Nuxt server keeps only an in-memory runtime index for recently seen threads and gateway events.
 
 ## Commands
 

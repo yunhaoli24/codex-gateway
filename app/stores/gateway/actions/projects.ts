@@ -7,6 +7,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
   return {
     async selectProject(projectId: number) {
       ctx.cacheSelectedThreadSnapshot()
+      ctx.beginViewTransition()
       ctx.state.selectedProjectId = projectId
       ctx.state.selectedThreadId = null
       ctx.state.currentThread = null
@@ -69,6 +70,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       }
       ctx.persistConfig()
       ctx.cacheSelectedThreadSnapshot()
+      ctx.beginViewTransition()
       ctx.state.selectedHostId = project.hostId
       ctx.state.selectedProjectId = project.id
       ctx.state.selectedThreadId = null

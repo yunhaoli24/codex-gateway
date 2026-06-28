@@ -1,6 +1,8 @@
 import type { ApprovalPolicy, GatewayEvent, HostRecord, ReasoningEffort, ThreadSettingsState, ThreadTokenUsageState } from '~~/shared/types'
+import { buildCurrentTimeReadResponse, isCurrentTimeReadRequest } from '~~/shared/server-requests'
+import { normalizeTokenUsage } from '~~/shared/token-usage'
 import { randomUUID } from 'node:crypto'
-import { persistence } from './db'
+import { runtimeState } from './runtime-state'
 import { CodexRpcClient } from './rpc'
 
 type Subscriber = (event: GatewayEvent) => void
@@ -56,6 +58,16 @@ interface TurnSteerInput {
     url?: string
     detail?: 'low' | 'high' | 'auto' | 'original'
   }>
+}
+
+interface ServerRequestResponseInput {
+  requestId: string | number
+  result?: unknown
+  error?: {
+    code: number
+    message: string
+    data?: unknown
+  }
 }
 
 function pageToHistory(thread: any, page: TurnsPage) {
@@ -117,33 +129,6 @@ function latestTokenUsageFromEvents(events: GatewayEvent[]): ThreadTokenUsageSta
   return null
 }
 
-function normalizeTokenUsage(value: any): ThreadTokenUsageState | null {
-  const total = normalizeTokenBreakdown(value?.total)
-  const last = normalizeTokenBreakdown(value?.last)
-  if (!total || !last) {
-    return null
-  }
-  const modelContextWindow = numberOrNull(value?.modelContextWindow)
-  return { total, last, modelContextWindow }
-}
-
-function normalizeTokenBreakdown(value: any) {
-  const totalTokens = numberOrNull(value?.totalTokens)
-  const inputTokens = numberOrNull(value?.inputTokens)
-  const cachedInputTokens = numberOrNull(value?.cachedInputTokens)
-  const outputTokens = numberOrNull(value?.outputTokens)
-  const reasoningOutputTokens = numberOrNull(value?.reasoningOutputTokens)
-  if ([totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens].some((item) => item == null)) {
-    return null
-  }
-  return { totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens }
-}
-
-function numberOrNull(value: unknown) {
-  const numberValue = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(numberValue) ? numberValue : null
-}
-
 class ThreadController {
   readonly client: CodexRpcClient
   readonly subscribers = new Set<Subscriber>()
@@ -161,43 +146,21 @@ class ThreadController {
     client?: CodexRpcClient,
     connected = false,
     subscribed = false,
+    private readonly ownsClient = true,
     private readonly onClose?: () => void,
   ) {
     this.client = client ?? new CodexRpcClient(host)
     this.connected = connected
     this.subscribed = subscribed
-    this.client.on('notification', (message: any) => {
-      const method = message.method || 'notification'
-      const event = persistence.addGatewayEvent(host.id, this.threadId, method, message)
-      this.buffer.push(event)
-      if (this.buffer.length > 200) {
-        this.buffer.shift()
-      }
-      for (const subscriber of this.subscribers) {
-        subscriber(event)
-      }
-    })
-    this.client.on('stderr', (text) => {
-      const event = persistence.addGatewayEvent(host.id, this.threadId, 'gateway/stderr', {
-        method: 'gateway/stderr',
-        params: { text },
-      })
-      for (const subscriber of this.subscribers) {
-        subscriber(event)
-      }
-    })
-    this.client.on('close', () => {
-      this.connected = false
-      this.subscribed = false
-      for (const subscriber of this.closeSubscribers) {
-        subscriber()
-      }
-      this.closeSubscribers.clear()
-    })
+    if (this.ownsClient) {
+      this.client.on('notification', (message: any) => this.handleNotification(message))
+      this.client.on('stderr', (text) => this.handleStderr(text))
+      this.client.on('close', () => this.handleClose())
+    }
   }
 
   publish(method: string, payload: any) {
-    const event = persistence.addGatewayEvent(this.host.id, this.threadId, method, payload)
+    const event = runtimeState.addGatewayEvent(this.host.id, this.threadId, method, payload)
     this.buffer.push(event)
     if (this.buffer.length > 200) {
       this.buffer.shift()
@@ -222,9 +185,44 @@ class ThreadController {
     this.connected = true
   }
 
+  handleNotification(message: any) {
+    const method = message.method || 'notification'
+    const event = runtimeState.addGatewayEvent(this.host.id, this.threadId, method, message)
+    this.buffer.push(event)
+    if (this.buffer.length > 200) {
+      this.buffer.shift()
+    }
+    for (const subscriber of this.subscribers) {
+      subscriber(event)
+    }
+  }
+
+  handleStderr(text: string) {
+    const event = runtimeState.addGatewayEvent(this.host.id, this.threadId, 'gateway/stderr', {
+      method: 'gateway/stderr',
+      params: { text },
+    })
+    for (const subscriber of this.subscribers) {
+      subscriber(event)
+    }
+  }
+
+  handleClose() {
+    this.connected = false
+    this.subscribed = false
+    for (const subscriber of this.closeSubscribers) {
+      subscriber()
+    }
+    this.closeSubscribers.clear()
+  }
+
   async ensureSubscribed() {
     await this.ensureConnected()
     if (this.subscribed) {
+      return
+    }
+    if (this.isFreshUnmaterializedThread()) {
+      this.subscribed = true
       return
     }
 
@@ -260,6 +258,11 @@ class ThreadController {
     return this.openSnapshot
   }
 
+  private isFreshUnmaterializedThread() {
+    const turns = (this.openSnapshot?.history as any)?.thread?.turns
+    return Boolean(this.openSnapshot && Array.isArray(turns) && turns.length === 0)
+  }
+
   enqueue<T>(operation: () => Promise<T>) {
     const run = this.operationQueue.then(operation, operation)
     this.operationQueue = run.catch(() => {})
@@ -288,7 +291,24 @@ class ThreadController {
       void this.client.request('thread/unsubscribe', { threadId: this.threadId }, 5_000).catch(() => {})
     }
     this.subscribed = false
-    this.client.close()
+    if (this.ownsClient) {
+      this.client.close()
+    }
+    for (const subscriber of this.closeSubscribers) {
+      subscriber()
+    }
+    this.subscribers.clear()
+    this.closeSubscribers.clear()
+    this.onClose?.()
+  }
+
+  disposeAfterTransportClose() {
+    if (this.closed) {
+      return
+    }
+    this.closed = true
+    this.connected = false
+    this.subscribed = false
     for (const subscriber of this.closeSubscribers) {
       subscriber()
     }
@@ -298,20 +318,100 @@ class ThreadController {
   }
 }
 
+class HostRpcSession {
+  readonly client: CodexRpcClient
+  private connected = false
+  private connectPromise: Promise<CodexRpcClient> | null = null
+
+  constructor(
+    readonly host: HostRecord,
+    private readonly controllerForThread: (hostId: number, threadId: string) => ThreadController | null,
+    private readonly controllersForHost: (hostId: number) => ThreadController[],
+    private readonly onClose?: () => void,
+  ) {
+    this.client = new CodexRpcClient(host)
+    this.client.on('notification', (message: any) => this.routeNotification(message))
+    this.client.on('request', (message: any) => this.routeRequest(message))
+    this.client.on('stderr', (text) => this.routeStderr(text))
+    this.client.on('close', () => {
+      this.connected = false
+      this.onClose?.()
+    })
+  }
+
+  async connect() {
+    if (this.connected) {
+      return this.client
+    }
+    if (!this.connectPromise) {
+      this.connectPromise = this.client.connect().then(() => {
+        this.connected = true
+        return this.client
+      }).finally(() => {
+        this.connectPromise = null
+      })
+    }
+    return this.connectPromise
+  }
+
+  private routeNotification(message: any) {
+    const threadId = threadIdFromNotification(message)
+    if (!threadId) {
+      return
+    }
+    const controller = this.controllerForThread(this.host.id, threadId)
+    if (controller) {
+      controller.handleNotification(message)
+    } else {
+      runtimeState.addGatewayEvent(this.host.id, threadId, message.method || 'notification', message)
+    }
+  }
+
+  private routeRequest(message: any) {
+    const threadId = threadIdFromNotification(message)
+    if (!threadId) {
+      runtimeState.addGatewayEvent(this.host.id, 'gateway', message.method || 'request', message)
+      return
+    }
+    if (isCurrentTimeReadRequest(message)) {
+      this.client.respond(message.id!, buildCurrentTimeReadResponse())
+      return
+    }
+    const controller = this.controllerForThread(this.host.id, threadId)
+    if (controller) {
+      controller.handleNotification(message)
+    } else {
+      runtimeState.addGatewayEvent(this.host.id, threadId, message.method || 'request', message)
+    }
+  }
+
+  private routeStderr(text: string) {
+    for (const controller of this.controllersForHost(this.host.id)) {
+      controller.handleStderr(text)
+    }
+  }
+
+  close() {
+    this.connected = false
+    this.client.close()
+  }
+}
+
 class ThreadBroker {
   private controllers = new Map<string, ThreadController>()
+  private hostSessions = new Map<number, HostRpcSession>()
 
   async openThread(host: HostRecord, threadId: string, projectId: number | null, limit = DEFAULT_TURN_PAGE_LIMIT) {
     const controller = await this.getController(host, threadId)
     const activeSnapshot = controller.getOpenSnapshot()
     if (activeSnapshot) {
-      const recentEvents = persistence.listGatewayEvents(host.id, threadId, 0, 200)
+      const recentEvents = runtimeState.listGatewayEvents(host.id, threadId, 0, 200)
       const resolvedProjectId = activeSnapshot.projectId ?? projectId
       return {
         thread: activeSnapshot.thread,
         history: activeSnapshot.history,
         projectId: resolvedProjectId,
-        project: resolvedProjectId ? persistence.getProject(resolvedProjectId) : null,
+        project: resolvedProjectId ? runtimeState.getProject(resolvedProjectId) : null,
         turnsPage: activeSnapshot.turnsPage,
         threadSettings: activeSnapshot.threadSettings,
         tokenUsage: latestTokenUsageFromEvents(recentEvents) ?? activeSnapshot.tokenUsage,
@@ -327,10 +427,10 @@ class ThreadBroker {
     const threadRecord = thread.thread ?? thread
     let resolvedProjectId = projectId
     if (!resolvedProjectId && typeof threadRecord?.cwd === 'string' && threadRecord.cwd.trim()) {
-      resolvedProjectId = persistence.ensureProjectForPath(host.id, threadRecord.cwd).id
+      resolvedProjectId = runtimeState.ensureProjectForPath(host.id, threadRecord.cwd).id
     }
-    persistence.recordThread(host.id, resolvedProjectId, threadRecord)
-    const recentEvents = persistence.listGatewayEvents(host.id, threadId, 0, 200)
+    runtimeState.recordThread(host.id, resolvedProjectId, threadRecord)
+    const recentEvents = runtimeState.listGatewayEvents(host.id, threadId, 0, 200)
     const history = this.pageToFullHistory(thread, initialTurnsPage)
     const turnsPage = {
       nextCursor: initialTurnsPage.nextCursor ?? null,
@@ -348,7 +448,7 @@ class ThreadBroker {
       thread,
       history,
       projectId: resolvedProjectId,
-      project: resolvedProjectId ? persistence.getProject(resolvedProjectId) : null,
+      project: resolvedProjectId ? runtimeState.getProject(resolvedProjectId) : null,
       turnsPage,
       threadSettings: extractThreadSettings(resume),
       tokenUsage: latestTokenUsageFromEvents(recentEvents),
@@ -357,25 +457,24 @@ class ThreadBroker {
   }
 
   async startThread(host: HostRecord, params: Record<string, unknown>, projectId: number | null) {
-    const client = new CodexRpcClient(host)
+    const client = await this.getHostClient(host)
     try {
-      await client.connect()
       const result = await client.request<any>('thread/start', params)
       const thread = {
         ...(result.thread ?? result),
         cwd: (result.thread ?? result)?.cwd ?? params.cwd ?? null,
       }
-      persistence.recordThread(host.id, projectId, thread)
+      runtimeState.recordThread(host.id, projectId, thread)
       const threadId = String(thread.id)
       const key = this.key(host.id, threadId)
       this.controllers.get(key)?.close()
-      const controller = new ThreadController(host, threadId, client, true, true, () => {
+      const controller = new ThreadController(host, threadId, client, true, true, false, () => {
         if (this.controllers.get(key) === controller) {
           this.controllers.delete(key)
         }
       })
       this.controllers.set(key, controller)
-      const recentEvents = persistence.listGatewayEvents(host.id, threadId, 0, 200).concat(controller.buffer)
+      const recentEvents = runtimeState.listGatewayEvents(host.id, threadId, 0, 200).concat(controller.buffer)
       const history = { thread: { ...thread, turns: thread.turns ?? [] } }
       const turnsPage = {
         nextCursor: null,
@@ -398,7 +497,6 @@ class ThreadBroker {
         recentEvents,
       }
     } catch (error) {
-      client.close()
       throw error
     }
   }
@@ -408,7 +506,7 @@ class ThreadBroker {
     await controller.ensureSubscribed()
     await controller.ensureConnected()
     const clientUserMessageId = input.clientUserMessageId || `gateway-${randomUUID()}`
-    const result = await controller.enqueue(() => controller.client.request<any>('turn/start', {
+    return controller.enqueue(() => controller.client.request<any>('turn/start', {
       threadId,
       clientUserMessageId,
       input: buildUserInput(input),
@@ -417,41 +515,29 @@ class ThreadBroker {
       effort: input.effort || null,
       approvalPolicy: input.approvalPolicy || null,
     }))
-    if (result?.turn) {
-      controller.publish('turn/started', {
-        method: 'turn/started',
-        params: {
-          threadId,
-          turn: result.turn,
-        },
-      })
-      controller.publish('item/started', {
-        method: 'item/started',
-        params: {
-          threadId,
-          turnId: result.turn.id,
-          item: {
-            type: 'userMessage',
-            id: clientUserMessageId,
-            clientId: clientUserMessageId,
-            content: buildUserInput(input),
-          },
-        },
-      })
-    }
-    return result
   }
 
   async steerTurn(host: HostRecord, threadId: string, input: TurnSteerInput) {
     const controller = await this.getController(host, threadId)
     await controller.ensureSubscribed()
     await controller.ensureConnected()
-    return controller.enqueue(() => controller.client.request('turn/steer', {
+    const clientUserMessageId = input.clientUserMessageId || `gateway-steer-${randomUUID()}`
+    return controller.enqueue(() => controller.client.request<{ turnId?: string }>('turn/steer', {
       threadId,
       expectedTurnId: input.expectedTurnId,
-      clientUserMessageId: input.clientUserMessageId || undefined,
+      clientUserMessageId,
       input: buildUserInput(input),
     }))
+  }
+
+  async respondToServerRequest(host: HostRecord, threadId: string, input: ServerRequestResponseInput) {
+    const controller = await this.getController(host, threadId)
+    await controller.ensureConnected()
+    if (input.error) {
+      controller.client.respondError(input.requestId, input.error.code, input.error.message, input.error.data)
+    } else {
+      controller.client.respond(input.requestId, input.result ?? {})
+    }
   }
 
   async updateThreadSettings(host: HostRecord, threadId: string, input: ThreadSettingsState) {
@@ -465,23 +551,13 @@ class ThreadBroker {
   }
 
   async listThreads(host: HostRecord, params: Record<string, unknown>) {
-    const client = new CodexRpcClient(host)
-    await client.connect()
-    try {
-      return await client.request('thread/list', params)
-    } finally {
-      client.close()
-    }
+    const client = await this.getHostClient(host)
+    return client.request('thread/list', params)
   }
 
   async listModels(host: HostRecord, params: Record<string, unknown>) {
-    const client = new CodexRpcClient(host)
-    await client.connect()
-    try {
-      return await client.request('model/list', params)
-    } finally {
-      client.close()
-    }
+    const client = await this.getHostClient(host)
+    return client.request('model/list', params)
   }
 
   async renameThread(host: HostRecord, threadId: string, name: string) {
@@ -527,7 +603,8 @@ class ThreadBroker {
     const key = this.key(host.id, threadId)
     let controller = this.controllers.get(key)
     if (!controller) {
-      controller = new ThreadController(host, threadId, undefined, false, false, () => {
+      const client = await this.getHostClient(host)
+      controller = new ThreadController(host, threadId, client, true, false, false, () => {
         if (this.controllers.get(key) === controller) {
           this.controllers.delete(key)
         }
@@ -536,6 +613,24 @@ class ThreadBroker {
     }
     await controller.ensureConnected()
     return controller
+  }
+
+  async getHostClient(host: HostRecord) {
+    let session = this.hostSessions.get(host.id)
+    if (!session) {
+      session = new HostRpcSession(
+        host,
+        (hostId, threadId) => this.controllers.get(this.key(hostId, threadId)) ?? null,
+        (hostId) => this.controllersForHost(hostId),
+        () => this.disposeHostSession(host.id, session),
+      )
+      this.hostSessions.set(host.id, session)
+    }
+    return session.connect()
+  }
+
+  controllersForHost(hostId: number) {
+    return Array.from(this.controllers.values()).filter((controller) => controller.host.id === hostId)
   }
 
   async subscribe(host: HostRecord, threadId: string, callback: Subscriber, onClose?: CloseSubscriber) {
@@ -550,6 +645,26 @@ class ThreadBroker {
     const key = this.key(hostId, threadId)
     this.controllers.get(key)?.close()
     this.controllers.delete(key)
+  }
+
+  closeHost(hostId: number) {
+    for (const controller of this.controllersForHost(hostId)) {
+      controller.close()
+      this.controllers.delete(this.key(hostId, controller.threadId))
+    }
+    const session = this.hostSessions.get(hostId)
+    this.hostSessions.delete(hostId)
+    session?.close()
+  }
+
+  private disposeHostSession(hostId: number, session: HostRpcSession) {
+    if (this.hostSessions.get(hostId) === session) {
+      this.hostSessions.delete(hostId)
+    }
+    for (const controller of this.controllersForHost(hostId)) {
+      controller.disposeAfterTransportClose()
+      this.controllers.delete(this.key(hostId, controller.threadId))
+    }
   }
 
   status() {
@@ -567,3 +682,16 @@ class ThreadBroker {
 }
 
 export const threadBroker = new ThreadBroker()
+
+function threadIdFromNotification(message: any) {
+  const params = message?.params
+  return params?.threadId
+    ? String(params.threadId)
+    : params?.thread?.id
+      ? String(params.thread.id)
+    : params?.turn?.threadId
+      ? String(params.turn.threadId)
+      : params?.item?.threadId
+        ? String(params.item.threadId)
+        : null
+}

@@ -1,6 +1,6 @@
 import { extname } from 'node:path'
 import { createError, getValidatedQuery, setHeader } from 'h3'
-import { persistence } from '../../utils/gateway/db'
+import { runtimeState } from '../../utils/gateway/runtime-state'
 import { hostManager } from '../../utils/gateway/ssh'
 import { remoteImageSchema, requireRecord } from '../../utils/gateway/validation'
 
@@ -17,7 +17,7 @@ const imageMimeTypes: Record<string, string> = {
 
 export default defineEventHandler(async (event) => {
   const query = await getValidatedQuery(event, (body) => remoteImageSchema.parse(body))
-  const host = requireRecord(persistence.getHostWithSecret(query.hostId), 'Host not found')
+  const host = requireRecord(runtimeState.getHostWithSecret(query.hostId), 'Host not found')
 
   const mimeType = imageMimeTypes[extname(query.path).toLowerCase()]
   if (!mimeType) {

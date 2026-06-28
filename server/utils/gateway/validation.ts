@@ -94,7 +94,7 @@ export const threadListSchema = z.object({
   searchTerm: z.string().trim().nullable().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
   cursor: z.string().trim().nullable().optional(),
-  useStateDbOnly: z.coerce.boolean().optional(),
+  useRemoteStateIndexOnly: z.coerce.boolean().optional(),
 })
 
 export const threadOpenSchema = z.object({
@@ -173,6 +173,20 @@ export const turnSteerSchema = z.object({
   }).refine((image) => Boolean(image.path || image.url), {
     message: 'Image must include path or url',
   })).default([]),
+})
+
+export const serverRequestResponseSchema = z.object({
+  hostId: z.coerce.number().int().positive(),
+  threadId: z.string().trim().min(1),
+  requestId: z.union([z.string().trim().min(1), z.number().int()]),
+  result: z.unknown().optional(),
+  error: z.object({
+    code: z.coerce.number().int(),
+    message: z.string().trim().min(1),
+    data: z.unknown().optional(),
+  }).optional(),
+}).refine((input) => !(input.result !== undefined && input.error), {
+  message: 'Provide either result or error, not both',
 })
 
 export const modelListSchema = z.object({

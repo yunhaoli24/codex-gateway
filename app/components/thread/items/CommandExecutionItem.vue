@@ -1,43 +1,84 @@
 <script setup lang="ts">
 import { CheckCircle2Icon, ChevronDownIcon, ChevronRightIcon, TerminalIcon, XCircleIcon } from '@lucide/vue'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { truncateText } from '@/utils/thread-items'
+import StickToBottomScrollArea from '@/components/common/StickToBottomScrollArea.vue'
+import { highlightCode } from '@/utils/code-highlight'
+import { useGatewayStore } from '@/stores/gateway'
 
 const props = defineProps<{ item: Record<string, any> }>()
 const { t } = useI18n()
+const store = useGatewayStore()
+const responding = ref(false)
 const title = computed(() => props.item.command || 'Command')
-const output = computed(() => truncateText(props.item.aggregatedOutput || props.item.result?.text || '', 1200))
+const rawOutput = computed(() => props.item.aggregatedOutput || props.item.result?.text || '')
+const output = computed(() => rawOutput.value)
+const highlightedOutput = computed(() => highlightCode(output.value))
+const commandStatus = computed(() => typeof props.item.status === 'string' ? props.item.status : props.item.status?.type)
+const pendingApproval = computed(() => props.item.pendingApproval || null)
 const isInProgress = computed(() => {
-  const status = props.item.status
-  const value = typeof status === 'string' ? status : status?.type
+  const value = commandStatus.value
   return value === 'inProgress' || value === 'running' || value === 'active'
 })
+
+async function respond(decision: 'accept' | 'decline') {
+  if (!pendingApproval.value?.requestId || !store.selectedThreadId) {
+    return
+  }
+  responding.value = true
+  try {
+    await store.respondToServerRequest(store.selectedThreadId, pendingApproval.value.requestId, { decision })
+  } finally {
+    responding.value = false
+  }
+}
 </script>
 
 <template>
-  <div class="max-w-4xl text-[#8d9499]">
-    <div class="flex items-center gap-2 text-[0.9375rem]">
-      <TerminalIcon class="size-4" />
-      <span class="truncate">{{ title }}</span>
-      <Badge variant="secondary">{{ item.status }}</Badge>
-      <CheckCircle2Icon v-if="item.exitCode === 0" class="size-4 text-emerald-600" />
-      <XCircleIcon v-else-if="item.exitCode" class="size-4 text-red-600" />
-    </div>
-    <Collapsible v-slot="{ open }" class="mt-2 rounded-lg border border-black/10 bg-[#fbfbfb]">
-      <CollapsibleTrigger class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/[0.03]">
+  <Collapsible v-slot="{ open }" class="max-w-4xl text-[#8d9499]">
+    <CollapsibleTrigger class="flex w-full items-center gap-2 rounded-md py-1 text-left text-[0.9375rem] hover:bg-black/[0.03]">
+      <TerminalIcon class="size-4 shrink-0" />
+      <span class="min-w-0 flex-1 truncate">{{ title }}</span>
+      <Badge v-if="commandStatus" variant="secondary">{{ commandStatus }}</Badge>
+      <Badge v-if="pendingApproval" variant="outline">{{ t('app.waitingApproval') }}</Badge>
+      <Badge v-if="isInProgress" variant="outline">{{ t('app.running') }}</Badge>
+      <CheckCircle2Icon v-if="item.exitCode === 0" class="size-4 shrink-0 text-emerald-600" />
+      <XCircleIcon v-else-if="item.exitCode" class="size-4 shrink-0 text-red-600" />
+      <span class="rounded-full p-0.5">
         <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-[#9aa1a6]" />
         <ChevronRightIcon v-else class="size-4 shrink-0 text-[#9aa1a6]" />
-        <span class="min-w-0 flex-1 truncate text-[#5f6970]">{{ t('app.commandOutput') }}</span>
-        <Badge v-if="isInProgress" variant="outline">{{ t('app.running') }}</Badge>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <pre v-if="output" class="max-h-56 overflow-auto border-t border-black/10 bg-[#f6f6f6] p-3 text-xs leading-5 text-[#3d4145]">{{ output }}</pre>
-        <div v-else class="border-t border-black/10 bg-[#f6f6f6] px-3 py-2 text-sm text-[#9aa1a6]">
-          {{ t('app.waitingCommandOutput') }}
+      </span>
+    </CollapsibleTrigger>
+    <CollapsibleContent>
+      <div v-if="pendingApproval" class="mt-2 rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <div class="font-medium">{{ t('app.commandApprovalRequired') }}</div>
+        <div v-if="pendingApproval.params?.reason" class="mt-1 text-amber-800">{{ pendingApproval.params.reason }}</div>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <Button size="sm" :disabled="responding" data-testid="command-approval-accept" @click="respond('accept')">
+            {{ t('app.approve') }}
+          </Button>
+          <Button size="sm" variant="outline" :disabled="responding" data-testid="command-approval-decline" @click="respond('decline')">
+            {{ t('app.decline') }}
+          </Button>
         </div>
-      </CollapsibleContent>
-    </Collapsible>
-  </div>
+      </div>
+      <StickToBottomScrollArea
+        v-if="output"
+        class="mt-2 h-56 rounded-lg border border-black/10 bg-[#f6f6f6]"
+        content-class="min-h-full"
+        :threshold="48"
+        :follow-key="rawOutput.length"
+      >
+        <pre
+          class="syntax-highlight min-h-full p-3 text-xs leading-5 text-[#3d4145]"
+          v-html="highlightedOutput"
+        />
+      </StickToBottomScrollArea>
+      <div v-else class="mt-2 rounded-lg border border-black/10 bg-[#f6f6f6] px-3 py-2 text-sm text-[#9aa1a6]">
+        {{ t('app.waitingCommandOutput') }}
+      </div>
+    </CollapsibleContent>
+  </Collapsible>
 </template>

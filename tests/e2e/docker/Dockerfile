@@ -1,6 +1,6 @@
 FROM node:22-bookworm
 
-ARG CODEX_CLI_VERSION=0.130.0
+ARG CODEX_CLI_VERSION=0.140.0
 ARG E2E_UID=1000
 ARG E2E_GID=1000
 
@@ -12,7 +12,7 @@ ENV E2E_NODE_DIR=/home/codex/.nvm/versions/node/v22.0.0
 
 RUN npm install -g --prefix /tmp/codex-node @openai/codex@${CODEX_CLI_VERSION}
 
-RUN if ! getent group ${E2E_GID} >/dev/null; then groupadd --gid ${E2E_GID} codex; fi \
+RUN groupadd --gid ${E2E_GID} codex \
   && useradd --uid ${E2E_UID} --gid ${E2E_GID} --create-home --shell /bin/bash codex \
   && echo 'codex:codex' | chpasswd \
   && usermod -aG sudo codex \

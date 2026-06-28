@@ -15,10 +15,8 @@ if [ "${1:-}" = "--" ]; then
   shift
 fi
 
-uid_value="$(id -u)"
-gid_value="$(id -g)"
-export E2E_UID="${E2E_UID:-$uid_value}"
-export E2E_GID="${E2E_GID:-$gid_value}"
+export E2E_UID="${E2E_UID:-12345}"
+export E2E_GID="${E2E_GID:-12345}"
 export E2E_CODEX_HOME="${E2E_CODEX_HOME:-$HOME/.codex}"
 
 cleanup() {

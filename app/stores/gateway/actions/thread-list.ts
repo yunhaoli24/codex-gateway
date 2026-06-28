@@ -19,7 +19,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
             query: {
               hostId: host.id,
               limit: 50,
-              useStateDbOnly: true,
+              useRemoteStateIndexOnly: true,
             },
           })
           if (response.projects) {
@@ -45,7 +45,10 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
     },
 
     async listThreads(searchTerm = '') {
-      if (!ctx.state.selectedHostId) {
+      const hostId = ctx.state.selectedHostId
+      const projectId = ctx.state.selectedProjectId
+      const projectCwd = ctx.selectedProject?.remotePath
+      if (!hostId) {
         return
       }
 
@@ -53,34 +56,40 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
       ctx.state.error = null
       try {
         const query: Record<string, unknown> = {
-          hostId: ctx.state.selectedHostId,
+          hostId,
           limit: 50,
-          useStateDbOnly: true,
+          useRemoteStateIndexOnly: true,
         }
-        if (ctx.state.selectedProjectId) {
-          query.projectId = ctx.state.selectedProjectId
+        if (projectId) {
+          query.projectId = projectId
         }
-        if (ctx.selectedProject?.remotePath) {
-          query.cwd = ctx.selectedProject.remotePath
+        if (projectCwd) {
+          query.cwd = projectCwd
         }
         if (searchTerm) {
           query.searchTerm = searchTerm
         }
         const response = await $fetch<ThreadListResponse>('/api/threads', { query })
+        if (ctx.state.selectedHostId !== hostId || ctx.state.selectedProjectId !== projectId) {
+          return
+        }
         if (response.projects) {
           ctx.mergeProjects(response.projects)
         }
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
-          [ctx.state.selectedHostId]: { status: 'connected', message: '已连接', updatedAt: Date.now() },
+          [hostId]: { status: 'connected', message: '已连接', updatedAt: Date.now() },
         }
-        syncThreadStatusesFromList(ctx, ctx.state.selectedHostId, response.data ?? [])
+        syncThreadStatusesFromList(ctx, hostId, response.data ?? [])
         ctx.state.threads = sortThreads(ctx.decorateThreads(response.data ?? []))
         ctx.persistConfig()
       } catch (error: any) {
+        if (ctx.state.selectedHostId !== hostId || ctx.state.selectedProjectId !== projectId) {
+          return
+        }
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
-          [ctx.state.selectedHostId]: {
+          [hostId]: {
             status: 'failed',
             message: messageFromError(error, 'Failed to list threads'),
             updatedAt: Date.now(),
@@ -88,7 +97,9 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
         }
         ctx.setError(messageFromError(error, 'Failed to list threads'))
       } finally {
-        ctx.state.loading = false
+        if (ctx.state.selectedHostId === hostId && ctx.state.selectedProjectId === projectId) {
+          ctx.state.loading = false
+        }
       }
     },
 

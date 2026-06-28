@@ -15,6 +15,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=codex-gateway-e2e-pnpm-store,target=/pnpm/store \
   pnpm install --frozen-lockfile
 
+COPY . /workspace/source
+
 COPY tests/e2e/runner-entrypoint.sh /usr/local/bin/codex-gateway-e2e-runner
 RUN chmod +x /usr/local/bin/codex-gateway-e2e-runner
 

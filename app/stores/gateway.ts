@@ -9,6 +9,7 @@ import { createHostActions } from './gateway/actions/hosts'
 import { createProjectActions } from './gateway/actions/projects'
 import { createThreadActions } from './gateway/actions/threads'
 import { createRealtimeActions } from './gateway/actions/realtime'
+import { createComposerActions } from './gateway/actions/composer'
 import { createGatewayDomainEvents } from './gateway/domain-events'
 import { registerGatewayDomainSubscribers } from './gateway/domain-subscribers'
 
@@ -37,6 +38,10 @@ export const useGatewayStore = defineStore('gateway', () => {
     const key = selectedThreadKey(state.selectedHostId, state.selectedThreadId)
     return key ? state.threadTokenUsageByKey[key] ?? null : null
   })
+  const selectedComposerDraft = computed(() => {
+    const key = selectedThreadKey(state.selectedHostId, state.selectedThreadId)
+    return key ? state.composerDraftsByKey[key] ?? { text: '', attachedFiles: [] } : { text: '', attachedFiles: [] }
+  })
 
   const ctx = {} as GatewayStoreContext
   Object.assign(ctx, {
@@ -50,6 +55,7 @@ export const useGatewayStore = defineStore('gateway', () => {
     get defaultModel() { return defaultModel.value },
     get selectedThreadSettings() { return selectedThreadSettings.value },
     get selectedThreadTokenUsage() { return selectedThreadTokenUsage.value },
+    get selectedComposerDraft() { return selectedComposerDraft.value },
   })
 
   const actions = {
@@ -58,6 +64,7 @@ export const useGatewayStore = defineStore('gateway', () => {
     ...createProjectActions(ctx),
     ...createThreadActions(ctx),
     ...createRealtimeActions(ctx),
+    ...createComposerActions(ctx),
   }
   Object.assign(ctx, actions)
   registerGatewayDomainSubscribers(ctx)
@@ -72,6 +79,7 @@ export const useGatewayStore = defineStore('gateway', () => {
     defaultModel,
     selectedThreadSettings,
     selectedThreadTokenUsage,
+    selectedComposerDraft,
     ...actions,
   }
 })

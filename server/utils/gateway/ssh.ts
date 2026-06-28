@@ -6,8 +6,7 @@ import { Client, type ClientChannel } from 'ssh2'
 import { SocksClient } from 'socks'
 import type { HostRecord } from '~~/shared/types'
 import {
-  codexRemoteAppServerDaemonVersionPayload,
-  codexRemoteStopManagedAppServerPayload,
+  codexRemoteAppServerRuntimeStatePayload,
   codexRemoteTerminateUnmanagedAppServerPayload,
   codexRemoteAppServerVerifyPayload,
   codexRemoteUpgradeAndRestartPayload,
@@ -197,8 +196,8 @@ export class HostManager {
       })
       const supportedVersion = SUPPORTED_CODEX_VERSION
       const beforeVersion = await this.readCodexVersion(host)
-      const daemonState = await this.readAppServerDaemonState(host)
-      const appServerVersion = daemonState.running ? await this.readRunningAppServerVersion(host) : null
+      const runtimeState = await this.readAppServerRuntimeState(host)
+      const appServerVersion = runtimeState.running ? await this.readRunningAppServerVersion(host) : null
       const currentRuntimeVersion = appServerVersion ?? beforeVersion
       const cliVersionSupported = isCodexVersionAtLeast(beforeVersion, supportedVersion)
       const runtimeVersionSupported = isCodexVersionAtLeast(currentRuntimeVersion, supportedVersion)
@@ -218,19 +217,11 @@ export class HostManager {
         }
       }
 
-      if (daemonState.unmanagedRunning) {
+      if (runtimeState.running) {
         if (await this.hasActiveLoadedThread(host)) {
           throw new Error(`Remote Codex runtime ${currentRuntimeVersion} is below supported ${supportedVersion}, but a loaded thread is active`)
         }
         await this.terminateUnmanagedAppServer(host)
-      }
-
-      if (!daemonState.unmanagedRunning && daemonState.running && await this.hasActiveLoadedThread(host)) {
-        throw new Error(`Remote Codex runtime ${currentRuntimeVersion} is below supported ${supportedVersion}, but a loaded thread is active`)
-      }
-
-      if (!daemonState.unmanagedRunning && daemonState.running) {
-        await this.stopManagedAppServer(host)
       }
 
       if (!cliVersionSupported) {
@@ -240,7 +231,7 @@ export class HostManager {
           message: `正在升级 ${hostDisplayName(host)} 的远端 Codex ${beforeVersion} -> ${supportedVersion}`,
         })
         const version = await this.upgradeCodex(host, supportedVersion)
-        this.disconnectHost(host)
+        await this.ensureAppServerStoppedAfterUpgrade(host)
         if (!isCodexVersionAtLeast(version, supportedVersion)) {
           throw new Error(`Remote Codex upgraded to ${version}, still below supported ${supportedVersion}`)
         }
@@ -251,7 +242,7 @@ export class HostManager {
         })
         return {
           version,
-          appServerVersion: version,
+          appServerVersion: null,
           supportedVersion,
           beforeVersion,
           upgraded: true,
@@ -462,6 +453,15 @@ console.log(JSON.stringify({ path: base, entries }));
     return parsed.version
   }
 
+  private async ensureAppServerStoppedAfterUpgrade(host: HostWithSecret) {
+    const runtimeState = await this.readAppServerRuntimeState(host)
+    if (runtimeState.running) {
+      await this.terminateUnmanagedAppServer(host)
+    } else {
+      this.disconnectHost(host)
+    }
+  }
+
   private async terminateUnmanagedAppServer(host: HostWithSecret) {
     hostLifecycleBus.emit({
       hostId: host.id,
@@ -475,51 +475,21 @@ console.log(JSON.stringify({ path: base, entries }));
     this.disconnectHost(host)
   }
 
-  private async stopManagedAppServer(host: HostWithSecret) {
-    hostLifecycleBus.emit({
-      hostId: host.id,
-      status: 'restarting',
-      message: `正在停止 ${hostDisplayName(host)} 的远端 Codex app-server`,
-    })
-    const result = await this.exec(host, remoteLoginShellCommand(codexRemoteStopManagedAppServerPayload()))
-    if (result.code !== 0) {
-      const combined = `${result.stdout}\n${result.stderr}`
-      if (isUnmanagedAppServerError(combined)) {
-        if (await this.hasActiveLoadedThread(host)) {
-          throw new Error('Remote Codex app-server is unmanaged and has an active loaded thread')
-        }
-        await this.terminateUnmanagedAppServer(host)
-        return
-      }
-      throw new Error(result.stderr || result.stdout || 'Failed to stop managed remote Codex app-server')
-    }
-    this.disconnectHost(host)
-  }
-
-  private async readAppServerDaemonState(host: HostWithSecret) {
-    const result = await this.exec(host, remoteLoginShellCommand(codexRemoteAppServerDaemonVersionPayload()))
+  private async readAppServerRuntimeState(host: HostWithSecret) {
+    const result = await this.exec(host, remoteLoginShellCommand(codexRemoteAppServerRuntimeStatePayload()))
     const combined = `${result.stdout}\n${result.stderr}`
-    if (isUnmanagedAppServerError(combined)) {
-      return {
-        running: true,
-        unmanagedRunning: true,
-        appServerVersion: parseDaemonAppServerVersion(result.stdout),
-        raw: combined.trim(),
-      }
-    }
     if (result.code === 0) {
-      const parsed = parseDaemonVersionOutput(result.stdout)
+      const parsed = parseAppServerRuntimeStateOutput(result.stdout)
       const running = parsed?.status === 'running'
+      const appServerVersion = running ? await this.readRunningAppServerVersion(host) : null
       return {
         running,
-        unmanagedRunning: running && parsed?.backend !== 'pid',
-        appServerVersion: parsed?.appServerVersion ?? null,
+        appServerVersion,
         raw: combined.trim(),
       }
     }
     return {
       running: false,
-      unmanagedRunning: false,
       appServerVersion: null,
       raw: combined.trim(),
     }
@@ -527,21 +497,25 @@ console.log(JSON.stringify({ path: base, entries }));
 
   private async readRunningAppServerVersion(host: HostWithSecret) {
     const { CodexRpcClient } = await import('./rpc')
-    const client = new CodexRpcClient(host, { skipVersionCheck: true, skipDaemonStart: true })
-    const userAgent = await client.probeRuntimeVersion()
-    if (!userAgent) {
-      return null
+    const client = new CodexRpcClient(host, { skipVersionCheck: true, requireExistingAppServer: true })
+    try {
+      const userAgent = await client.probeRuntimeVersion()
+      if (!userAgent) {
+        return null
+      }
+      const parsed = parseCodexVersion(userAgent)
+      if (!parsed) {
+        throw new Error(`Unable to parse remote app-server version: ${userAgent}`)
+      }
+      return parsed.version
+    } finally {
+      client.close()
     }
-    const parsed = parseCodexVersion(userAgent)
-    if (!parsed) {
-      throw new Error(`Unable to parse remote app-server version: ${userAgent}`)
-    }
-    return parsed.version
   }
 
   private async hasActiveLoadedThread(host: HostWithSecret) {
     const { CodexRpcClient } = await import('./rpc')
-    const client = new CodexRpcClient(host, { skipVersionCheck: true, skipDaemonStart: true })
+    const client = new CodexRpcClient(host, { skipVersionCheck: true, requireExistingAppServer: true })
     try {
       await client.connect()
       const loaded = await client.request<{ data?: string[], nextCursor?: string | null }>('thread/loaded/list', {}, 30_000)
@@ -711,11 +685,7 @@ function isActiveThreadStatus(status: any) {
   return status === 'active' || status?.type === 'active'
 }
 
-function parseDaemonAppServerVersion(output: string) {
-  return parseDaemonVersionOutput(output)?.appServerVersion ?? null
-}
-
-function parseDaemonVersionOutput(output: string): { status?: string, backend?: string, appServerVersion?: string } | null {
+function parseAppServerRuntimeStateOutput(output: string): { status?: string, backend?: string, appServerVersion?: string } | null {
   try {
     const parsed = JSON.parse(output.trim())
     return {
@@ -726,10 +696,6 @@ function parseDaemonVersionOutput(output: string): { status?: string, backend?: 
   } catch {
     return null
   }
-}
-
-function isUnmanagedAppServerError(output: string) {
-  return /app server is running but is not managed by codex app-server daemon/i.test(output)
 }
 
 function hostDisplayName(host: HostWithSecret) {

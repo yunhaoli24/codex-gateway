@@ -19,23 +19,33 @@ function codexPathBootstrap() {
 }
 
 export function codexRemoteAppServerStartPayload() {
-  return codexRemotePayload([
-    '"$CODEX_BIN" app-server --listen unix://',
-  ].join(' '))
+  return codexRemotePayload(`
+set -eu
+${ensureGatewayCodexConfigFeatureSnippet()}
+"$CODEX_BIN" app-server --listen unix://
+`)
 }
 
 export function codexRemoteAppServerProxyPayload() {
   return codexRemotePayload(`
 set -eu
 socket="\${CODEX_HOME:-$HOME/.codex}/app-server-control/app-server-control.sock"
-if ! [ -S "$socket" ]; then
-  codex_home="\${CODEX_HOME:-$HOME/.codex}"
-  managed_codex="$codex_home/packages/standalone/current/codex"
-  mkdir -p "$(dirname "$managed_codex")"
-  ln -sf "$CODEX_BIN" "$managed_codex"
-  "$CODEX_BIN" app-server daemon start >/dev/null
+${ensureGatewayCodexConfigFeatureSnippet()}
+${appServerSocketHasListenerSnippet()}
+if [ -S "$socket" ] && ! codex_gateway_socket_has_listener; then
+  rm -f "$socket"
 fi
-[ -S "$socket" ]
+if ! [ -S "$socket" ]; then
+  mkdir -p "$(dirname "$socket")"
+  nohup "$CODEX_BIN" app-server --listen unix:// >/tmp/codex-gateway-app-server.log 2>&1 </dev/null &
+  for i in $(seq 1 100); do
+    if [ -S "$socket" ] && codex_gateway_socket_has_listener; then
+      break
+    fi
+    sleep 0.1
+  done
+fi
+[ -S "$socket" ] && codex_gateway_socket_has_listener
 exec "$CODEX_BIN" app-server proxy
 `)
 }
@@ -44,8 +54,16 @@ export function codexRemoteAppServerExistingProxyPayload() {
   return codexRemotePayload('"$CODEX_BIN" app-server proxy')
 }
 
-export function codexRemoteAppServerDaemonVersionPayload() {
-  return codexRemotePayload('"$CODEX_BIN" app-server daemon version')
+export function codexRemoteAppServerRuntimeStatePayload() {
+  return codexRemotePayload(`
+socket="\${CODEX_HOME:-$HOME/.codex}/app-server-control/app-server-control.sock"
+${appServerSocketHasListenerSnippet()}
+if [ -S "$socket" ] && codex_gateway_socket_has_listener; then
+  echo '{"status":"running","backend":"socket"}'
+else
+  echo '{"status":"stopped"}'
+fi
+`)
 }
 
 export function codexRemoteVersionPayload() {
@@ -90,10 +108,6 @@ ln -sf "$CODEX_BIN" "$managed_codex"
 `)
 }
 
-export function codexRemoteStopManagedAppServerPayload() {
-  return codexRemotePayload('"$CODEX_BIN" app-server daemon stop >/dev/null')
-}
-
 export function codexRemoteTerminateUnmanagedAppServerPayload() {
   return codexRemotePayload(`
 set -eu
@@ -135,23 +149,24 @@ if [ -z "$pid" ]; then
 fi
 kill -TERM "$pid"
 for i in $(seq 1 100); do
-  if [ ! -S "$socket" ] || ! kill -0 "$pid" 2>/dev/null; then
+  if ! kill -0 "$pid" 2>/dev/null; then
+    rm -f "$socket"
     exit 0
   fi
   sleep 0.1
 done
-if [ -S "$socket" ]; then
-  echo "Unmanaged app-server did not stop after SIGTERM: $pid" >&2
-  exit 1
-fi
+echo "Unmanaged app-server did not stop after SIGTERM: $pid" >&2
+exit 1
 `)
 }
 
 export function codexRemoteAppServerVerifyPayload() {
-  return codexRemotePayload([
-    '"$CODEX_BIN" --version',
-    '"$CODEX_BIN" app-server proxy --help >/dev/null',
-  ].join(' && '))
+  return codexRemotePayload(`
+set -eu
+${ensureGatewayCodexConfigFeatureSnippet()}
+"$CODEX_BIN" --version
+"$CODEX_BIN" app-server proxy --help >/dev/null
+`)
 }
 
 export function remoteLoginShellCommand(payload: string) {
@@ -172,4 +187,67 @@ export function remoteLoginShellCommand(payload: string) {
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`
+}
+
+function ensureGatewayCodexConfigFeatureSnippet() {
+  return `
+codex_home="\${CODEX_HOME:-$HOME/.codex}"
+config_file="$codex_home/config.toml"
+config_tmp="$config_file.$$.\${RANDOM:-0}.tmp"
+mkdir -p "$codex_home"
+touch "$config_file"
+awk '
+  BEGIN { in_features = 0; saw_features = 0; wrote_key = 0 }
+  /^\\[features\\][[:space:]]*$/ {
+    print
+    in_features = 1
+    saw_features = 1
+    next
+  }
+  /^\\[/ {
+    if (in_features && !wrote_key) {
+      print "apply_patch_streaming_events = true"
+      wrote_key = 1
+    }
+    in_features = 0
+    print
+    next
+  }
+  in_features && /^[[:space:]]*apply_patch_streaming_events[[:space:]]*=/ {
+    if (!wrote_key) {
+      print "apply_patch_streaming_events = true"
+      wrote_key = 1
+    }
+    next
+  }
+  { print }
+  END {
+    if (in_features && !wrote_key) {
+      print "apply_patch_streaming_events = true"
+      wrote_key = 1
+    }
+    if (!saw_features) {
+      print ""
+      print "[features]"
+      print "apply_patch_streaming_events = true"
+    }
+  }
+' "$config_file" > "$config_tmp" && mv "$config_tmp" "$config_file"
+true
+`
+}
+
+function appServerSocketHasListenerSnippet() {
+  return `
+codex_gateway_socket_has_listener() {
+  if ! [ -S "$socket" ]; then
+    return 1
+  fi
+  if [ -r /proc/net/unix ]; then
+    awk -v socket="$socket" '$NF == socket && $4 == "00010000" { found = 1 } END { exit found ? 0 : 1 }' /proc/net/unix
+    return $?
+  fi
+  return 0
+}
+`
 }

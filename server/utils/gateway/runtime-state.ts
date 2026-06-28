@@ -87,7 +87,7 @@ function normalizeProject(input: ProjectCreateInput, id = nextId(state.projects)
   }
 }
 
-export const persistence = {
+export const runtimeState = {
   replaceConfig(config: GatewayConfig) {
     const hostIds = new Set(config.hosts.map((host) => host.id))
     state.hosts = config.hosts.map((host) => ({

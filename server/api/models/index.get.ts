@@ -1,11 +1,11 @@
 import { getValidatedQuery } from 'h3'
-import { persistence } from '../../utils/gateway/db'
+import { runtimeState } from '../../utils/gateway/runtime-state'
 import { threadBroker } from '../../utils/gateway/broker'
 import { modelListSchema, requireRecord } from '../../utils/gateway/validation'
 
 export default defineEventHandler(async (event) => {
   const query = await getValidatedQuery(event, (body) => modelListSchema.parse(body))
-  const host = requireRecord(persistence.getHostWithSecret(query.hostId), 'Host not found')
+  const host = requireRecord(runtimeState.getHostWithSecret(query.hostId), 'Host not found')
 
   return threadBroker.listModels(host, {
     includeHidden: query.includeHidden ?? false,

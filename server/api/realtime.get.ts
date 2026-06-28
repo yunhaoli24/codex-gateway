@@ -1,7 +1,7 @@
 import type { GatewayEvent, RealtimeClientMessage, RealtimeServerMessage } from '~~/shared/types'
 import { randomUUID } from 'node:crypto'
 import { threadBroker } from '../utils/gateway/broker'
-import { persistence } from '../utils/gateway/db'
+import { runtimeState } from '../utils/gateway/runtime-state'
 import { hostLifecycleBus } from '../utils/gateway/host-events'
 import { requireRecord } from '../utils/gateway/validation'
 
@@ -48,7 +48,7 @@ async function subscribeThread(peer: Peer, message: Extract<RealtimeClientMessag
   const key = threadTopicKey(hostId, threadId)
   state.threadUnsubscribers.get(key)?.()
 
-  const host = requireRecord(persistence.getHostWithSecret(hostId), 'Host not found')
+  const host = requireRecord(runtimeState.getHostWithSecret(hostId), 'Host not found')
   const afterId = Number(message.afterId || 0)
   const sentEventIds = new Set<number>()
   const sendOnce = (event: GatewayEvent) => {
@@ -72,7 +72,7 @@ async function subscribeThread(peer: Peer, message: Extract<RealtimeClientMessag
   })
   state.threadUnsubscribers.set(key, unsubscribe)
 
-  for (const event of persistence.listGatewayEvents(hostId, threadId, afterId, 200)) {
+  for (const event of runtimeState.listGatewayEvents(hostId, threadId, afterId, 200)) {
     sendOnce(event)
   }
   replaying = false

@@ -4,12 +4,20 @@ import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
+import { useLongPressContextMenu } from '@/composables/useLongPressContextMenu'
 import { useGatewayStore } from '@/stores/gateway'
 import { titleForThread } from '@/stores/gateway/thread-utils'
 
 const store = useGatewayStore()
 const { t } = useI18n()
 const { loading, selectedHostId, selectedProjectId, selectedProject, selectedThreadId, currentThread, threads } = storeToRefs(store)
+const { longPressTriggered, longPressContextMenuHandlers } = useLongPressContextMenu()
 
 const sortedThreads = computed(() => {
   return [...threads.value].sort((a, b) => Number(b.recencyAt || b.updatedAt || 0) - Number(a.recencyAt || a.updatedAt || 0))
@@ -33,6 +41,9 @@ function formatDate(seconds?: number | null) {
 }
 
 function openThread(threadId: string) {
+  if (longPressTriggered.value) {
+    return
+  }
   void store.openThread(threadId, {
     hostId: selectedHostId.value ?? undefined,
     projectId: selectedProjectId.value,
@@ -65,28 +76,39 @@ function openThread(threadId: string) {
     </div>
 
     <div v-if="sortedThreads.length" class="space-y-2">
-      <Button
+      <ContextMenu
         v-for="thread in sortedThreads"
         :key="thread.id"
-        variant="ghost"
-        :data-testid="`project-thread-row-${thread.id}`"
-        class="group h-auto w-full items-start justify-between gap-4 rounded-lg border border-transparent px-4 py-3 text-left font-normal hover:border-black/10 hover:bg-[#f7fafb]"
-        @click="openThread(String(thread.id))"
       >
-        <span class="flex min-w-0 gap-3">
-          <MessageSquareTextIcon class="mt-1 size-4 shrink-0 text-[#7d858b]" />
-          <span class="min-w-0">
-            <span class="line-clamp-2 text-[0.9375rem] leading-6 text-[#202225]">{{ titleFor(thread) }}</span>
-            <span class="mt-1 flex items-center gap-2 text-xs text-[#8d9499]">
-              <Clock3Icon class="size-3.5" />
-              {{ formatDate(thread.recencyAt || thread.updatedAt) }}
+        <ContextMenuTrigger as-child>
+          <Button
+            variant="ghost"
+            :data-testid="`project-thread-row-${thread.id}`"
+            v-bind="longPressContextMenuHandlers"
+            class="group h-auto w-full items-start justify-between gap-4 rounded-lg border border-transparent px-4 py-3 text-left font-normal hover:border-black/10 hover:bg-[#f7fafb]"
+            @click="openThread(String(thread.id))"
+          >
+            <span class="flex min-w-0 gap-3">
+              <MessageSquareTextIcon class="mt-1 size-4 shrink-0 text-[#7d858b]" />
+              <span class="min-w-0">
+                <span class="line-clamp-2 text-[0.9375rem] leading-6 text-[#202225]">{{ titleFor(thread) }}</span>
+                <span class="mt-1 flex items-center gap-2 text-xs text-[#8d9499]">
+                  <Clock3Icon class="size-3.5" />
+                  {{ formatDate(thread.recencyAt || thread.updatedAt) }}
+                </span>
+              </span>
             </span>
-          </span>
-        </span>
-        <Badge variant="secondary" class="opacity-0 transition-opacity group-hover:opacity-100">
-          {{ t('app.openThread') }}
-        </Badge>
-      </Button>
+            <Badge variant="secondary" class="opacity-0 transition-opacity group-hover:opacity-100">
+              {{ t('app.openThread') }}
+            </Badge>
+          </Button>
+        </ContextMenuTrigger>
+        <ContextMenuContent class="w-40">
+          <ContextMenuItem @select="store.setThreadPinned(String(thread.id), !thread.pinned)">
+            {{ thread.pinned ? t('app.unpinThread') : t('app.pinThread') }}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
 
     <div v-else class="rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[0.9375rem] leading-7 text-[#202225]">

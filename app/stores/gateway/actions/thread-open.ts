@@ -1,11 +1,20 @@
 import type { ComposerTurnOptions, ThreadOpenResult } from '~~/shared/types'
+import { normalizeTokenUsage } from '~~/shared/token-usage'
 import type { GatewayStoreContext } from '../types'
 import { messageFromError, pinnedKey, runtimeStatusFromThreadState, threadIdFromParams } from '../thread-utils'
 import { writeGatewayRouteSelection } from '../route-state'
-import { normalizeTokenUsage } from './realtime'
 
 export function createThreadOpenActions(ctx: GatewayStoreContext) {
   return {
+    beginViewTransition() {
+      ctx.state.viewEpoch += 1
+      return ctx.state.viewEpoch
+    },
+
+    isCurrentViewTransition(epoch: number) {
+      return ctx.state.viewEpoch === epoch
+    },
+
     cacheSelectedThreadSnapshot() {
       if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId || !ctx.state.currentThread || !ctx.state.history) {
         return
@@ -76,25 +85,23 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
 
     async openThread(threadId: string, context?: { hostId?: number, projectId?: number | null, replaceRoute?: boolean }) {
       ctx.cacheSelectedThreadSnapshot()
-      if (context?.hostId && context.hostId !== ctx.state.selectedHostId) {
-        ctx.state.selectedHostId = context.hostId
-        ctx.state.selectedProjectId = context.projectId ?? null
-        ctx.clearCurrentThreadView()
-      } else if (context && 'projectId' in context && context.projectId !== ctx.state.selectedProjectId) {
-        ctx.state.selectedProjectId = context.projectId ?? null
-        ctx.clearCurrentThreadView()
-      }
-      if (!ctx.state.selectedHostId) {
+      const targetHostId = context?.hostId ?? ctx.state.selectedHostId
+      const targetProjectId = context && 'projectId' in context ? context.projectId ?? null : ctx.state.selectedProjectId
+      if (!targetHostId) {
         return
       }
-      if (ctx.state.selectedThreadId === threadId && ctx.state.currentThread && ctx.state.history) {
+      if (ctx.state.selectedHostId === targetHostId && ctx.state.selectedThreadId === threadId && ctx.state.currentThread && ctx.state.history) {
         ctx.rememberOpenThread(threadId)
         ctx.syncSelectedRoute({ replace: context?.replaceRoute })
         ctx.connectEvents()
         ctx.requestScrollToLatest()
         return
       }
-      if (ctx.restoreThreadSnapshot(ctx.state.selectedHostId, threadId)) {
+      const viewEpoch = ctx.beginViewTransition()
+      ctx.state.selectedHostId = targetHostId
+      ctx.state.selectedProjectId = targetProjectId
+      ctx.clearCurrentThreadView()
+      if (ctx.restoreThreadSnapshot(targetHostId, threadId)) {
         ctx.rememberOpenThread(threadId)
         ctx.syncSelectedRoute({ replace: context?.replaceRoute })
         ctx.connectEvents()
@@ -108,12 +115,15 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         const result = await $fetch<ThreadOpenResult>('/api/threads/open', {
           method: 'POST',
           body: {
-            hostId: ctx.state.selectedHostId,
-            projectId: ctx.state.selectedProjectId,
+            hostId: targetHostId,
+            projectId: targetProjectId,
             threadId,
             limit: 20,
           },
         })
+        if (!ctx.isCurrentViewTransition(viewEpoch)) {
+          return
+        }
         ctx.state.currentThread = result.thread
         ctx.state.history = result.history
         if (result.projectId) {
@@ -158,7 +168,6 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       }
       ctx.state.selectedHostId = last.hostId
       ctx.state.selectedProjectId = last.projectId
-      ctx.state.selectedThreadId = last.threadId
       await ctx.openThread(last.threadId, {
         hostId: last.hostId,
         projectId: last.projectId,
@@ -168,6 +177,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
 
     async startThread(options: ComposerTurnOptions = {}, context?: { hostId?: number, projectId?: number | null }) {
       ctx.cacheSelectedThreadSnapshot()
+      const viewEpoch = ctx.beginViewTransition()
       if (context?.hostId) {
         ctx.state.selectedHostId = context.hostId
         ctx.state.selectedProjectId = context.projectId ?? null
@@ -190,6 +200,9 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
           approvalPolicy: options.approvalPolicy || undefined,
         },
       })
+      if (!ctx.isCurrentViewTransition(viewEpoch)) {
+        return
+      }
       const thread = result.thread as any
       ctx.state.currentThread = result.thread
       ctx.state.history = result.history

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ChevronDownIcon, ChevronRightIcon, ListTreeIcon } from '@lucide/vue'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import ThreadItemView from '@/components/thread/ThreadItemView.vue'
@@ -16,7 +16,7 @@ const items = computed(() => Array.isArray(props.turn.items) ? props.turn.items 
 const finalAgentIndex = computed(() => findFinalAgentIndex(items.value, props.turn.status))
 const hasFinalAnswer = computed(() => finalAgentIndex.value >= 0)
 const firstIntermediateIndex = computed(() => {
-  const firstNonUser = items.value.findIndex((item: any) => item?.type !== 'userMessage')
+  const firstNonUser = items.value.findIndex((item: any) => item?.type !== 'userMessage' || isSteerUserMessage(item))
   return firstNonUser >= 0 ? firstNonUser : items.value.length
 })
 const userItems = computed(() => items.value.slice(0, firstIntermediateIndex.value))
@@ -32,6 +32,15 @@ const finalItems = computed(() => {
   }
   return items.value.slice(finalAgentIndex.value)
 })
+const intermediateOpen = ref(false)
+
+watch(
+  () => statusValue(props.turn.status),
+  (status) => {
+    intermediateOpen.value = isActiveTurnStatus(status)
+  },
+  { immediate: true },
+)
 
 function findFinalAgentIndex(turnItems: any[], status: unknown) {
   const explicitFinalIndex = findLastIndex(turnItems, (item) =>
@@ -59,15 +68,27 @@ function userMessageVariant(item: any) {
   if (item?.type !== 'userMessage') {
     return 'normal'
   }
-  if (typeof item.clientId === 'string' && item.clientId.startsWith('steer-')) {
+  if (isSteerUserMessage(item)) {
     return 'steer'
   }
   const itemIndex = items.value.findIndex((candidate: any) => candidate === item)
   return firstNonUserIndex(itemIndex) >= 0 ? 'steer' : 'normal'
 }
 
+function isSteerUserMessage(item: any) {
+  return item?.type === 'userMessage' && typeof item.clientId === 'string' && item.clientId.startsWith('steer-')
+}
+
 function firstNonUserIndex(beforeIndex: number) {
   return items.value.findIndex((candidate: any, index) => index < beforeIndex && candidate?.type !== 'userMessage')
+}
+
+function statusValue(status: any) {
+  return typeof status === 'string' ? status : status?.type
+}
+
+function isActiveTurnStatus(status: unknown) {
+  return status === 'active' || status === 'inProgress' || status === 'running'
 }
 </script>
 
@@ -83,6 +104,7 @@ function firstNonUserIndex(beforeIndex: number) {
 
     <Collapsible
       v-if="intermediateItems.length"
+      v-model:open="intermediateOpen"
       v-slot="{ open }"
       class="max-w-4xl rounded-lg border border-black/10 bg-[#fbfbfb] text-[#5f6970]"
     >
@@ -94,7 +116,7 @@ function firstNonUserIndex(beforeIndex: number) {
         <Badge variant="outline">{{ intermediateItems.length }}</Badge>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div class="space-y-5 border-t border-black/10 px-3 py-4">
+        <div data-testid="intermediate-steps" class="space-y-5 border-t border-black/10 px-3 py-4">
           <ThreadItemView
             v-for="item in intermediateItems"
             :key="item.id || `${item.type}-middle-${JSON.stringify(item).length}`"

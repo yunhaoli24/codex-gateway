@@ -33,6 +33,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import SettingsPanel from '@/components/settings/SettingsPanel.vue'
+import { useLongPressContextMenu } from '@/composables/useLongPressContextMenu'
 import { type ThreadRuntimeStatus, useGatewayStore } from '@/stores/gateway'
 import { titleForThread } from '@/stores/gateway/thread-utils'
 
@@ -47,6 +48,11 @@ const expandedProjectIds = ref<Set<number>>(new Set())
 const renamingThreadId = ref<string | null>(null)
 const renameValue = ref('')
 const suppressTreeAutoExpand = ref(false)
+const { longPressTriggered, longPressContextMenuHandlers } = useLongPressContextMenu()
+
+defineOptions({
+  inheritAttrs: false,
+})
 
 const projectThreads = computed(() => threads.value.filter((thread) => !thread.pinned).slice(0, 20))
 const selectedThreadIsPinned = computed(() => {
@@ -76,10 +82,16 @@ function formatRelative(seconds?: number | null) {
 }
 
 function openThread(threadId: string, context?: { hostId?: number, projectId?: number | null, replaceRoute?: boolean }) {
+  if (longPressTriggered.value) {
+    return
+  }
   void store.openThread(threadId, context)
 }
 
 function openPinnedThread(thread: any) {
+  if (longPressTriggered.value) {
+    return
+  }
   suppressTreeAutoExpand.value = true
   void store.openPinnedThread(thread).finally(async () => {
     await nextTick()
@@ -102,17 +114,15 @@ function selectHost(hostId: number) {
   }
 }
 
-function selectProject(projectId: number) {
-  const next = new Set(expandedProjectIds.value)
-  if (next.has(projectId)) {
-    next.delete(projectId)
-  } else {
-    next.add(projectId)
+function selectProject(projectId: number, event?: MouseEvent) {
+  if (longPressTriggered.value) {
+    return
   }
-  expandedProjectIds.value = next
-  if (projectId !== selectedProjectId.value || selectedThreadId.value) {
-    void store.selectProject(projectId)
+  if (event && event.button !== 0) {
+    return
   }
+  expandedProjectIds.value = new Set(expandedProjectIds.value).add(projectId)
+  void store.selectProject(projectId)
 }
 
 function startThreadInProject(project: any) {
@@ -287,7 +297,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
 </script>
 
 <template>
-  <aside class="relative flex min-h-0 flex-col border-r border-black/10 bg-[#dcecf4]">
+  <aside v-bind="$attrs" class="relative flex min-h-0 flex-col border-r border-black/10 bg-[#dcecf4]">
     <ScrollArea class="min-h-0 flex-1 px-3">
       <div class="space-y-5 py-4">
         <section v-if="pinnedThreads.length">
@@ -311,6 +321,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                 <ContextMenuTrigger as-child>
                   <Button
                     :data-testid="`pinned-thread-button-${pinnedThreadId(thread)}`"
+                    v-bind="longPressContextMenuHandlers"
                     :data-selected="isSelectedPinnedThread(thread) ? 'true' : 'false'"
                     variant="ghost"
                     class="h-auto min-h-10 w-full justify-between rounded-lg px-3 py-2 text-sm font-normal hover:bg-black/5"
@@ -421,14 +432,15 @@ watch(selectedThreadIsPinned, (isPinned) => {
                   :key="project.id"
                   class="space-y-1"
                 >
-                  <ContextMenu>
+                  <div @click.capture="selectProject(project.id, $event)">
+                    <ContextMenu>
                     <ContextMenuTrigger as-child>
                       <Button
                         :data-testid="`project-button-${project.id}`"
+                        v-bind="longPressContextMenuHandlers"
                         variant="ghost"
                         class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-black/5"
                         :class="project.id === selectedProjectId ? 'bg-[#c7ddeb]' : ''"
-                        @click="selectProject(project.id)"
                       >
                         <ChevronDownIcon v-if="expandedProjectIds.has(project.id)" class="size-3.5 shrink-0 text-[#7e878d]" />
                         <ChevronRightIcon v-else class="size-3.5 shrink-0 text-[#7e878d]" />
@@ -443,7 +455,8 @@ watch(selectedThreadIsPinned, (isPinned) => {
                         {{ t('app.newThread') }}
                       </ContextMenuItem>
                     </ContextMenuContent>
-                  </ContextMenu>
+                    </ContextMenu>
+                  </div>
 
                   <div v-if="expandedProjectIds.has(project.id)" class="space-y-1 pl-7">
                     <template v-if="project.id === selectedProjectId && projectThreads.length">
@@ -465,6 +478,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                           <ContextMenuTrigger as-child>
                             <Button
                               :data-testid="`thread-button-${thread.id}`"
+                              v-bind="longPressContextMenuHandlers"
                               variant="ghost"
                               class="h-auto min-h-9 w-full justify-between rounded-lg px-3 py-2 text-sm font-normal hover:bg-black/5"
                               :class="thread.id === selectedThreadId ? 'bg-[#c7ddeb]' : ''"

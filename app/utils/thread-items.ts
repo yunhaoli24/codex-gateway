@@ -33,7 +33,12 @@ export function statusValue(status: any) {
 
 export function isItemInProgress(item: Record<string, any>) {
   const status = statusValue(item.status)
-  return status === 'inProgress' || status === 'running' || status === 'active'
+  return status === 'inProgress'
+    || status === 'in_progress'
+    || status === 'running'
+    || status === 'active'
+    || status === 'pending'
+    || status === 'starting'
 }
 
 export function jsonPreview(value: unknown) {

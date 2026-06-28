@@ -2,6 +2,7 @@ import { expect, type Browser, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { Client } from 'ssh2'
 import { envFile } from '../docker-environment'
+import { openApp, reloadApp } from './app'
 
 export interface RemoteCodexEnv {
   host: string
@@ -50,7 +51,6 @@ export async function resetRemoteAppServer(remote: RemoteCodexEnv) {
 set -eu
 socket="\${CODEX_HOME:-$HOME/.codex}/app-server-control/app-server-control.sock"
 daemon_dir="\${CODEX_HOME:-$HOME/.codex}/app-server-daemon"
-${codexBin} app-server daemon stop >/dev/null 2>&1 || true
 pids="$(ps -eo pid=,args= | awk -v self="$$" '
   $1 != self && index($0, "codex app-server") && !index($0, "awk") { print $1 }
 ')"
@@ -158,12 +158,11 @@ export async function duplicateConfiguredPage(browser: Browser, sourcePage: Page
 
   const context = await browser.newContext()
   const page = await context.newPage()
-  await page.goto('/')
+  await openApp(page)
   await page.evaluate((config) => {
     localStorage.setItem('codex-gateway-config', config)
   }, configText!)
-  await page.reload()
-  await expect(page.getByTestId('app-ready')).toBeAttached()
+  await reloadApp(page)
   return { context, page }
 }
 
@@ -260,11 +259,13 @@ async function openSettingsTab(page: Page, tabName: string) {
 }
 
 async function closeSettings(page: Page) {
-  if (!await page.getByTestId('settings-panel').isVisible().catch(() => false)) {
+  const panel = page.getByTestId('settings-panel')
+  await expect(panel).toBeHidden({ timeout: 1_000 }).catch(() => null)
+  if (!await panel.isVisible().catch(() => false)) {
     return
   }
-  await page.getByTestId('settings-close-button').click()
-  await expect(page.getByTestId('settings-panel')).toBeHidden()
+  await page.getByTestId('settings-close-button').last().click()
+  await expect(panel).toBeHidden()
 }
 
 function escapeRegExp(value: string) {

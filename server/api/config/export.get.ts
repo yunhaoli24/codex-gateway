@@ -1,5 +1,5 @@
-import { persistence } from '../../utils/gateway/db'
+import { runtimeState } from '../../utils/gateway/runtime-state'
 
 export default defineEventHandler(() => {
-  return persistence.exportConfig()
+  return runtimeState.exportConfig()
 })

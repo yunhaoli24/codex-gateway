@@ -9,6 +9,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
       const host = await $fetch<HostRecord>('/api/hosts', { method: 'POST', body: input })
       ctx.state.hosts.push(host)
       ctx.persistConfig()
+      ctx.beginViewTransition()
       ctx.state.selectedHostId = host.id
       ctx.state.selectedProjectId = null
       ctx.state.selectedThreadId = null
@@ -80,6 +81,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
       ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.filter((thread) => thread.hostId !== hostId)
       ctx.persistConfig()
       if (ctx.state.selectedHostId === hostId) {
+        ctx.beginViewTransition()
         ctx.state.selectedHostId = ctx.state.hosts[0]?.id ?? null
         ctx.state.selectedProjectId = null
         ctx.state.selectedThreadId = null
@@ -104,6 +106,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
 
     async selectHost(hostId: number) {
       ctx.cacheSelectedThreadSnapshot()
+      ctx.beginViewTransition()
       ctx.state.selectedHostId = hostId
       const currentProject = ctx.state.projects.find((project) => project.id === ctx.state.selectedProjectId)
       if (!currentProject || currentProject.hostId !== hostId) {

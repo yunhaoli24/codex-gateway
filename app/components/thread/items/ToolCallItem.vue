@@ -1,30 +1,29 @@
 <script setup lang="ts">
-import { ChevronDownIcon, ChevronRightIcon, ImageIcon, SearchIcon, TimerIcon, WrenchIcon } from '@lucide/vue'
+import { ChevronDownIcon, ChevronRightIcon, ImageIcon, SearchIcon, WrenchIcon } from '@lucide/vue'
 import { computed } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import MarkdownContent from '@/components/common/MarkdownContent.vue'
 import { isItemInProgress, jsonPreview } from '@/utils/thread-items'
 
-const props = defineProps<{ item: Record<string, any> }>()
+const props = defineProps<{
+  item: Record<string, any>
+}>()
 const { t } = useI18n()
 const title = computed(() => {
   const item = props.item
   if (item.type === 'mcpToolCall') return `${item.server || 'MCP'} · ${item.tool || 'tool'}`
   if (item.type === 'dynamicToolCall') return item.name || item.tool || 'Tool call'
   if (item.type === 'webSearch') return item.query || 'Web search'
-  if (item.type === 'sleep') return `${t('app.sleep')} ${item.durationMs || ''}ms`
-  if (item.type === 'imageView') return item.path || t('app.imageView')
   if (item.type === 'imageGeneration') return item.revisedPrompt || t('app.imageGeneration')
   if (item.type === 'enteredReviewMode') return t('app.enteredReviewMode')
   if (item.type === 'exitedReviewMode') return t('app.exitedReviewMode')
-  if (item.type === 'contextCompaction') return t('app.contextCompaction')
   return item.type
 })
 const iconType = computed(() => {
   if (props.item.type === 'webSearch') return 'search'
-  if (props.item.type === 'sleep') return 'timer'
-  if (props.item.type === 'imageView' || props.item.type === 'imageGeneration') return 'image'
+  if (props.item.type === 'imageGeneration') return 'image'
   return 'tool'
 })
 
@@ -56,7 +55,6 @@ const detailSections = computed(() => {
   <div class="max-w-4xl text-[#8d9499]">
     <div class="flex items-center gap-2 text-[0.9375rem]">
       <SearchIcon v-if="iconType === 'search'" class="size-4" />
-      <TimerIcon v-else-if="iconType === 'timer'" class="size-4" />
       <ImageIcon v-else-if="iconType === 'image'" class="size-4" />
       <WrenchIcon v-else class="size-4" />
       <span class="truncate">{{ title }}</span>
@@ -84,7 +82,9 @@ const detailSections = computed(() => {
               :content="section.content"
               compact
             />
-            <pre v-else class="max-h-56 overflow-auto rounded-md bg-white p-3 text-xs leading-5 text-[#3d4145]">{{ section.content }}</pre>
+            <ScrollArea v-else class="h-56 rounded-md bg-white">
+              <pre class="p-3 text-xs leading-5 text-[#3d4145]">{{ section.content }}</pre>
+            </ScrollArea>
           </div>
         </div>
       </CollapsibleContent>

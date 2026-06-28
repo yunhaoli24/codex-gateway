@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { openApp, reloadApp } from './helpers/app'
 import {
   addRemoteHost,
   addRemoteProject,
@@ -16,8 +17,7 @@ test('connects to a real SSH Codex host and lists a project thread created by ap
     }
   })
 
-  await page.goto('/')
-  await expect(page.getByTestId('app-ready')).toBeAttached()
+  await openApp(page)
   await expect(page.getByPlaceholder('输入后续修改要求')).toBeHidden()
   await expect.poll(() => realtimeSockets.length, { timeout: 10_000 }).toBe(1)
 
@@ -31,6 +31,19 @@ test('connects to a real SSH Codex host and lists a project thread created by ap
   await expect(page.getByTestId(`thread-button-${threadId}`)).toBeVisible()
   const secondThreadId = await startRemoteThreadFromProjectMenu(page, project.id)
   await expect(page.getByTestId(`thread-button-${secondThreadId}`)).toBeVisible()
+
+  const firstDraft = `E2E 草稿一 ${Date.now()}`
+  const secondDraft = `E2E 草稿二 ${Date.now()}`
+  await page.getByTestId(`thread-button-${threadId}`).click()
+  await page.getByPlaceholder('输入后续修改要求').fill(firstDraft)
+  await page.getByTestId(`thread-button-${secondThreadId}`).click()
+  await expect(page.getByPlaceholder('输入后续修改要求')).toHaveValue('')
+  await page.getByPlaceholder('输入后续修改要求').fill(secondDraft)
+  await page.getByTestId(`thread-button-${threadId}`).click()
+  await expect(page.getByPlaceholder('输入后续修改要求')).toHaveValue(firstDraft)
+  await page.getByTestId(`thread-button-${secondThreadId}`).click()
+  await expect(page.getByPlaceholder('输入后续修改要求')).toHaveValue(secondDraft)
+  await page.getByPlaceholder('输入后续修改要求').fill('')
 
   let openRequests = 0
   page.on('request', (request) => {
@@ -61,8 +74,7 @@ test('connects to a real SSH Codex host and lists a project thread created by ap
     return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120
   })).toBe(true)
 
-  await page.reload()
-  await expect(page.getByTestId('app-ready')).toBeAttached()
+  await reloadApp(page)
   await expect(page.getByTestId(`pinned-thread-button-${threadId}`)).toBeVisible()
   await expect(page.getByTestId(`pinned-thread-button-${threadId}`)).toHaveAttribute('data-selected', 'true')
   await expect(page.getByTestId(`project-button-${project.id}`)).toBeHidden()

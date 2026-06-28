@@ -65,6 +65,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
     },
 
     async refresh() {
+      const refreshViewEpoch = ctx.state.viewEpoch
       ctx.state.initializing = true
       ctx.state.loading = true
       ctx.state.error = null
@@ -104,15 +105,16 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         if (ctx.state.selectedProjectId) {
           await ctx.listThreads()
         }
-        if (routeHostExists && routeSelection.threadId) {
+        const viewUnchangedDuringRefresh = () => ctx.state.viewEpoch === refreshViewEpoch
+        if (routeHostExists && routeSelection.threadId && viewUnchangedDuringRefresh()) {
           await ctx.openThread(routeSelection.threadId, {
             hostId: routeSelection.hostId,
             projectId: routeSelection.projectId,
             replaceRoute: true,
           })
-        } else if (!hasGatewayRouteSelection(routeSelection) && ctx.state.gatewayConfig.lastOpenThread?.hostId) {
+        } else if (!hasGatewayRouteSelection(routeSelection) && ctx.state.gatewayConfig.lastOpenThread?.hostId && viewUnchangedDuringRefresh()) {
           await ctx.restoreLastOpenThread()
-        } else {
+        } else if (viewUnchangedDuringRefresh()) {
           writeGatewayRouteSelection({
             hostId: ctx.state.selectedHostId,
             projectId: ctx.state.selectedProjectId,

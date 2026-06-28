@@ -9,6 +9,7 @@ import ChatComposer from '@/components/chat/ChatComposer.vue'
 import ProjectThreadList from '@/components/chat/ProjectThreadList.vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import ThreadTurnView from '@/components/thread/ThreadTurnView.vue'
+import { useStickToBottomScroll } from '@/composables/useStickToBottomScroll'
 import { useGatewayStore } from '@/stores/gateway'
 import { titleForThread } from '@/stores/gateway/thread-utils'
 
@@ -32,7 +33,20 @@ const {
 } = storeToRefs(store)
 
 const scrollAreaRef = ref<any>(null)
-const followLatest = ref(true)
+const {
+  contentRef,
+  followLatest,
+  scrollViewport,
+  scrollToBottom,
+  resetFollowLatest,
+  handleScroll,
+} = useStickToBottomScroll(scrollAreaRef, {
+  onTopReached: () => {
+    if (olderTurnsCursor.value && !loadingOlderTurns.value) {
+      void loadOlderTurns()
+    }
+  },
+})
 
 const threadTitle = computed(() => {
   if (!selectedThreadId.value && selectedProject.value) {
@@ -57,33 +71,6 @@ const outputSignature = computed(() => {
     .join('|')
 })
 
-function scrollViewport() {
-  const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value
-  return root?.querySelector?.('[data-slot="scroll-area-viewport"]') as HTMLElement | null
-}
-
-function isNearBottom(viewport: HTMLElement) {
-  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 120
-}
-
-async function scrollToBottom() {
-  await nextTick()
-  const scroll = () => {
-    const viewport = scrollViewport()
-    if (!viewport) return
-    viewport.scrollTop = viewport.scrollHeight
-  }
-  scroll()
-  requestAnimationFrame(() => {
-    scroll()
-    requestAnimationFrame(() => {
-      scroll()
-      window.setTimeout(scroll, 80)
-      window.setTimeout(scroll, 250)
-    })
-  })
-}
-
 async function loadOlderTurns() {
   const viewport = scrollViewport()
   const previousHeight = viewport?.scrollHeight ?? 0
@@ -94,19 +81,28 @@ async function loadOlderTurns() {
   }
 }
 
-function handleScroll(event: Event) {
-  const viewport = event.target as HTMLElement
-  followLatest.value = isNearBottom(viewport)
-  if (viewport.scrollTop <= 80 && olderTurnsCursor.value && !loadingOlderTurns.value) {
-    void loadOlderTurns()
-  }
-}
+watch(
+  () => [selectedThreadId.value, scrollToLatestToken.value, initializing.value] as const,
+  ([threadId, scrollToken, isInitializing], [previousThreadId, previousScrollToken, wasInitializing] = [null, -1, false]) => {
+    if (!threadId || isInitializing) {
+      return
+    }
+    if (threadId !== previousThreadId || scrollToken !== previousScrollToken || wasInitializing) {
+      resetFollowLatest()
+    }
+  },
+  { flush: 'post', immediate: true },
+)
 
 watch(
-  () => [selectedThreadId.value, scrollToLatestToken.value],
-  () => {
-    followLatest.value = true
-    void scrollToBottom()
+  () => [selectedThreadId.value, historyTurns.value.length, initializing.value] as const,
+  ([threadId, turnsLength, isInitializing], [, previousTurnsLength, wasInitializing] = [null, 0, false]) => {
+    if (!threadId || isInitializing || !turnsLength) {
+      return
+    }
+    if (wasInitializing || !previousTurnsLength) {
+      resetFollowLatest()
+    }
   },
   { flush: 'post' },
 )
@@ -124,7 +120,7 @@ watch(
 
 <template>
   <section class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-white">
-    <header class="flex min-h-16 shrink-0 items-center justify-between border-b border-black/10 px-[clamp(1rem,2.5vw,1.5rem)]">
+    <header class="hidden min-h-16 shrink-0 items-center justify-between border-b border-black/10 px-[clamp(1rem,2.5vw,1.5rem)] md:flex">
       <div class="flex min-w-0 items-center gap-3">
         <h1 class="truncate text-[0.9375rem] font-semibold">{{ threadTitle }}</h1>
       </div>
@@ -136,18 +132,18 @@ watch(
 
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ScrollArea ref="scrollAreaRef" data-testid="chat-scroll-area" class="h-full min-h-0 flex-1 overflow-hidden" @scroll.capture="handleScroll">
-        <div class="mx-auto flex min-h-[calc(100vh-16rem)] w-full max-w-5xl flex-col gap-8 px-[clamp(1rem,4vw,2rem)] py-[clamp(2rem,6vh,3rem)]">
+        <div ref="contentRef" class="mx-auto flex min-h-[calc(100dvh-14rem)] w-full max-w-5xl flex-col gap-5 px-[clamp(0.875rem,4vw,2rem)] py-4 md:min-h-[calc(100vh-16rem)] md:gap-8 md:py-[clamp(2rem,6vh,3rem)]">
           <div v-if="!initializing && selectedThreadId && olderTurnsCursor" class="flex justify-center">
             <Button data-testid="load-older-turns-button" variant="outline" size="sm" :disabled="loadingOlderTurns" @click="loadOlderTurns">
               {{ loadingOlderTurns ? t('app.loadingOlder') : t('app.loadOlder') }}
             </Button>
           </div>
 
-          <div v-if="initializing" class="mx-auto flex min-h-80 max-w-3xl items-center justify-center text-[0.9375rem] text-[#7d858b]">
+          <div v-if="initializing" class="mx-auto flex min-h-60 max-w-3xl items-center justify-center text-[0.9375rem] text-[#7d858b] md:min-h-80">
             {{ t('app.loadingGateway') }}
           </div>
 
-          <div v-else-if="historyTurns.length" class="space-y-8">
+          <div v-else-if="selectedThreadId && historyTurns.length" class="space-y-5 md:space-y-8">
             <ThreadTurnView
               v-for="turn in historyTurns"
               :key="turn.id || `turn-${JSON.stringify(turn).length}`"
@@ -156,7 +152,7 @@ watch(
             />
           </div>
           <ProjectThreadList v-else-if="selectedProjectId && !selectedThreadId" />
-          <div v-else class="ml-auto max-w-3xl rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[0.9375rem] leading-7 text-[#202225]">
+          <div v-else class="max-w-3xl rounded-2xl bg-[#f1f1f1] px-4 py-3 text-[0.9375rem] leading-7 text-[#202225] md:ml-auto md:px-5 md:py-4">
             <div class="mb-2 flex items-center gap-2 text-[#7d858b]">
               <FolderIcon class="size-4" />
               {{ selectedProjectId ? t('app.selectThreadFirst') : t('app.selectProjectFirst') }}

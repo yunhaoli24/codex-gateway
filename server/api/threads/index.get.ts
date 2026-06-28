@@ -1,26 +1,26 @@
 import { getValidatedQuery } from 'h3'
-import { persistence } from '../../utils/gateway/db'
+import { runtimeState } from '../../utils/gateway/runtime-state'
 import { threadBroker } from '../../utils/gateway/broker'
 import { requireRecord, threadListSchema } from '../../utils/gateway/validation'
 
 export default defineEventHandler(async (event) => {
   const query = await getValidatedQuery(event, (body) => threadListSchema.parse(body))
-  const host = requireRecord(persistence.getHostWithSecret(query.hostId), 'Host not found')
+  const host = requireRecord(runtimeState.getHostWithSecret(query.hostId), 'Host not found')
 
   const result = await threadBroker.listThreads(host, {
     limit: query.limit,
     cursor: query.cursor || null,
     cwd: query.cwd || undefined,
     searchTerm: query.searchTerm || undefined,
-    useStateDbOnly: query.useStateDbOnly ?? true,
+    useStateDbOnly: query.useRemoteStateIndexOnly ?? true,
   })
 
   const threads = Array.isArray((result as any)?.data) ? (result as any).data : []
   for (const thread of threads) {
     if (typeof thread?.cwd === 'string' && thread.cwd.trim()) {
       try {
-        const project = persistence.ensureProjectForPath(host.id, thread.cwd)
-        persistence.recordThread(host.id, project.id, thread)
+        const project = runtimeState.ensureProjectForPath(host.id, thread.cwd)
+        runtimeState.recordThread(host.id, project.id, thread)
       } catch (error) {
         console.warn('[gateway] failed to index thread project', {
           hostId: host.id,
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
   }
   const mergedThreads = mergeThreads(
     threads,
-    persistence.listThreadMetadata(host.id, {
+    runtimeState.listThreadMetadata(host.id, {
       projectId: query.projectId ?? null,
       cwd: query.cwd ?? null,
     }),
@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
   return {
     ...(result as Record<string, unknown>),
     data: mergedThreads,
-    projects: persistence.listProjects(host.id),
+    projects: runtimeState.listProjects(host.id),
   }
 })
 

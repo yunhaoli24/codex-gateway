@@ -4,13 +4,13 @@ import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
 import { getValidatedQuery, readMultipartFormData } from 'h3'
 import type { UploadResult } from '~~/shared/types'
-import { persistence } from '../../utils/gateway/db'
+import { runtimeState } from '../../utils/gateway/runtime-state'
 import { hostManager } from '../../utils/gateway/ssh'
 import { requireRecord, uploadQuerySchema } from '../../utils/gateway/validation'
 
 export default defineEventHandler(async (event): Promise<UploadResult> => {
   const query = await getValidatedQuery(event, (body) => uploadQuerySchema.parse(body))
-  const host = requireRecord(persistence.getHostWithSecret(query.hostId), 'Host not found')
+  const host = requireRecord(runtimeState.getHostWithSecret(query.hostId), 'Host not found')
   const form = await readMultipartFormData(event)
   const parts = form?.filter((part) => part.name === 'files' && part.filename && part.data.length) ?? []
   if (!parts.length) {
