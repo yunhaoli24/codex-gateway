@@ -116,7 +116,7 @@ async function copyImage() {
       class="flex h-[92vh] w-[96vw] max-w-none grid-rows-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none"
       :show-close-button="true"
     >
-      <DialogHeader class="shrink-0 border-b border-black/10 px-4 py-3 pr-12">
+      <DialogHeader class="shrink-0 border-b border-hairline px-4 py-3 pr-12">
         <DialogTitle class="truncate text-sm font-medium">{{ title }}</DialogTitle>
         <DialogDescription v-if="description" class="truncate text-xs">
           {{ description }}
@@ -124,7 +124,7 @@ async function copyImage() {
       </DialogHeader>
 
       <div
-        class="relative flex min-h-0 flex-1 select-none items-center justify-center overflow-hidden bg-[#f7f7f7]"
+        class="relative flex min-h-0 flex-1 select-none items-center justify-center overflow-hidden bg-canvas-soft"
         :class="dragging ? 'cursor-grabbing' : 'cursor-grab'"
         data-testid="image-viewer"
         @wheel="handleWheel"
@@ -141,7 +141,7 @@ async function copyImage() {
           :style="{ transform: imageTransform }"
         />
         <div
-          class="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white/90 px-2 py-1 text-xs text-[#5f6970] shadow-sm"
+          class="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface/90 px-2 py-1 text-xs text-ink-muted shadow-sm"
         >
           <MoveIcon class="size-3.5" />
           {{ zoomLabel }}
@@ -149,7 +149,7 @@ async function copyImage() {
       </div>
 
       <div
-        class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-black/10 bg-white px-4 py-3"
+        class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-hairline bg-surface px-4 py-3"
       >
         <div class="flex min-w-0 flex-1 items-center gap-2">
           <Button

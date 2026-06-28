@@ -99,10 +99,10 @@ async function saveHost(host: HostRecord) {
 
 <template>
   <section class="space-y-2">
-    <div class="text-sm font-medium text-[#5f6970]">{{ t("app.editHosts") }}</div>
+    <div class="text-sm font-medium text-ink-secondary">{{ t("app.editHosts") }}</div>
     <div
       v-if="!hosts.length"
-      class="rounded-md border border-black/10 bg-[#f7f7f5] p-3 text-sm text-[#6f767d]"
+      class="rounded-md border border-hairline bg-canvas-soft p-3 text-sm text-ink-secondary"
     >
       {{ t("app.noHosts") }}
     </div>
@@ -110,7 +110,7 @@ async function saveHost(host: HostRecord) {
       v-for="host in hosts"
       :key="host.id"
       :open="expandedHostId === host.id"
-      class="rounded-md border border-black/10 bg-white"
+      class="rounded-md border border-hairline bg-surface"
     >
       <CollapsibleTrigger as-child>
         <Button
@@ -120,17 +120,17 @@ async function saveHost(host: HostRecord) {
         >
           <ChevronDownIcon
             v-if="expandedHostId === host.id"
-            class="size-4 shrink-0 text-[#7e878d]"
+            class="size-4 shrink-0 text-ink-muted"
           />
-          <ChevronRightIcon v-else class="size-4 shrink-0 text-[#7e878d]" />
+          <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-muted" />
           <ServerIcon class="size-4 shrink-0" />
           <span class="min-w-0 flex-1 text-left">
             <span class="block truncate text-sm">{{ host.name }}</span>
-            <span class="block truncate text-xs text-[#7e878d]">{{ host.sshHost }}</span>
+            <span class="block truncate text-xs text-ink-muted">{{ host.sshHost }}</span>
           </span>
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent class="space-y-3 border-t border-black/10 p-3">
+      <CollapsibleContent class="space-y-3 border-t border-hairline p-3">
         <Input
           v-model="forms[host.id].name"
           :aria-label="t('app.hostName')"
@@ -160,7 +160,7 @@ async function saveHost(host: HostRecord) {
           :placeholder="t('app.sshProxyPlaceholder')"
         />
         <Select v-model="forms[host.id].authMode">
-          <SelectTrigger class="w-full bg-white" :aria-label="t('app.auth')">
+          <SelectTrigger class="w-full bg-surface" :aria-label="t('app.auth')">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -178,7 +178,7 @@ async function saveHost(host: HostRecord) {
         <Textarea
           v-if="forms[host.id].authMode === 'privateKey'"
           v-model="forms[host.id].privateKey"
-          class="min-h-32 bg-white font-mono text-sm"
+          class="min-h-32 bg-surface font-mono text-sm"
           :aria-label="t('app.privateKey')"
           :placeholder="t('app.privateKey')"
         />
@@ -189,7 +189,10 @@ async function saveHost(host: HostRecord) {
           type="password"
           placeholder="SSH 密码"
         />
-        <div v-if="saveErrors[host.id]" class="rounded-md bg-red-50 p-2 text-xs text-red-700">
+        <div
+          v-if="saveErrors[host.id]"
+          class="rounded-md bg-destructive/10 p-2 text-xs text-destructive"
+        >
           {{ saveErrors[host.id] }}
         </div>
         <Button

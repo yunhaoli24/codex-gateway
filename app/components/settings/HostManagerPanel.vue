@@ -64,10 +64,10 @@ function hostConnectionClass(hostId: number) {
     status === "restarting" ||
     status === "connecting"
   )
-    return "text-sky-700";
-  if (status === "connected") return "text-emerald-700";
-  if (status === "failed") return "text-red-700";
-  return "text-[#79838a]";
+    return "text-primary";
+  if (status === "connected") return "text-accent-green";
+  if (status === "failed") return "text-destructive";
+  return "text-ink-muted";
 }
 
 function hostConnectionIsBusy(hostId: number) {
@@ -88,14 +88,14 @@ function hostStatusClass(hostId: number) {
   if (hostConnectionLabel(hostId)) {
     return hostConnectionClass(hostId);
   }
-  return verifyResults.value[hostId]?.ok ? "text-emerald-700" : "text-red-700";
+  return verifyResults.value[hostId]?.ok ? "text-accent-green" : "text-destructive";
 }
 </script>
 
 <template>
   <section class="space-y-2">
     <div class="flex items-center justify-between px-1">
-      <div class="text-xs font-medium text-[#5f6970]">{{ t("app.hosts") }}</div>
+      <div class="text-xs font-medium text-ink-secondary">{{ t("app.hosts") }}</div>
       <Badge variant="secondary">{{ hosts.length }}</Badge>
     </div>
 
@@ -105,7 +105,7 @@ function hostStatusClass(hostId: number) {
           v-for="host in hosts"
           :key="host.id"
           class="rounded-lg p-1"
-          :class="host.id === selectedHostId ? 'bg-[#c7ddeb]' : 'hover:bg-black/5'"
+          :class="host.id === selectedHostId ? 'bg-primary/10' : 'hover:bg-canvas-soft'"
         >
           <div class="flex items-center gap-2">
             <Button
@@ -116,7 +116,7 @@ function hostStatusClass(hostId: number) {
               <ServerIcon class="size-4 shrink-0" />
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm">{{ host.name }}</span>
-                <span class="block truncate text-[0.6875rem] text-[#79838a]">
+                <span class="block truncate text-[0.6875rem] text-ink-muted">
                   {{ host.sshHost }}
                 </span>
               </span>
@@ -139,7 +139,7 @@ function hostStatusClass(hostId: number) {
             <Button
               variant="ghost"
               size="sm"
-              class="size-8 p-0 text-red-600 hover:text-red-700"
+              class="size-8 p-0 text-destructive hover:text-destructive/80"
               :aria-label="t('app.deleteHost')"
               @click="deleteHost(host.id)"
             >

@@ -77,16 +77,6 @@ interface ServerRequestResponseInput {
   };
 }
 
-function pageToHistory(thread: any, page: TurnsPage) {
-  const turns = [...(page.data ?? [])].reverse();
-  return {
-    thread: {
-      ...thread,
-      turns,
-    },
-  };
-}
-
 function buildUserInput(input: { text: string; images?: TurnStartInput["images"] }) {
   const userInput: any[] = [];
   if (input.text.trim()) {
@@ -495,49 +485,45 @@ class ThreadBroker {
 
   async startThread(host: HostRecord, params: Record<string, unknown>, projectId: number | null) {
     const client = await this.getHostClient(host);
-    try {
-      const result = await client.request<any>("thread/start", params);
-      const thread = {
-        ...(result.thread ?? result),
-        cwd: (result.thread ?? result)?.cwd ?? params.cwd ?? null,
-      };
-      runtimeState.recordThread(host.id, projectId, thread);
-      const threadId = String(thread.id);
-      const key = this.key(host.id, threadId);
-      this.controllers.get(key)?.close();
-      const controller = new ThreadController(host, threadId, client, true, true, false, () => {
-        if (this.controllers.get(key) === controller) {
-          this.controllers.delete(key);
-        }
-      });
-      this.controllers.set(key, controller);
-      const recentEvents = runtimeState
-        .listGatewayEvents(host.id, threadId, 0, 200)
-        .concat(controller.buffer);
-      const history = { thread: { ...thread, turns: thread.turns ?? [] } };
-      const turnsPage = {
-        nextCursor: null,
-        backwardsCursor: null,
-      };
-      controller.setOpenSnapshot({
-        thread,
-        history,
-        projectId,
-        turnsPage,
-        threadSettings: extractThreadSettings(result),
-        tokenUsage: latestTokenUsageFromEvents(recentEvents),
-      });
-      return {
-        thread,
-        history,
-        threadSettings: extractThreadSettings(result),
-        tokenUsage: latestTokenUsageFromEvents(recentEvents),
-        turnsPage,
-        recentEvents,
-      };
-    } catch (error) {
-      throw error;
-    }
+    const result = await client.request<any>("thread/start", params);
+    const thread = {
+      ...(result.thread ?? result),
+      cwd: (result.thread ?? result)?.cwd ?? params.cwd ?? null,
+    };
+    runtimeState.recordThread(host.id, projectId, thread);
+    const threadId = String(thread.id);
+    const key = this.key(host.id, threadId);
+    this.controllers.get(key)?.close();
+    const controller = new ThreadController(host, threadId, client, true, true, false, () => {
+      if (this.controllers.get(key) === controller) {
+        this.controllers.delete(key);
+      }
+    });
+    this.controllers.set(key, controller);
+    const recentEvents = runtimeState
+      .listGatewayEvents(host.id, threadId, 0, 200)
+      .concat(controller.buffer);
+    const history = { thread: { ...thread, turns: thread.turns ?? [] } };
+    const turnsPage = {
+      nextCursor: null,
+      backwardsCursor: null,
+    };
+    controller.setOpenSnapshot({
+      thread,
+      history,
+      projectId,
+      turnsPage,
+      threadSettings: extractThreadSettings(result),
+      tokenUsage: latestTokenUsageFromEvents(recentEvents),
+    });
+    return {
+      thread,
+      history,
+      threadSettings: extractThreadSettings(result),
+      tokenUsage: latestTokenUsageFromEvents(recentEvents),
+      turnsPage,
+      recentEvents,
+    };
   }
 
   async startTurn(host: HostRecord, threadId: string, input: TurnStartInput) {

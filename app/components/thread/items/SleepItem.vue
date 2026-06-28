@@ -42,21 +42,21 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="max-w-4xl overflow-hidden rounded-lg border border-amber-200/80 bg-amber-50/80 text-[#695b3f]"
+    class="max-w-4xl overflow-hidden rounded-lg border border-accent-orange/20 bg-accent-orange/10 text-accent-orange-deep"
   >
     <div class="relative">
       <div
-        class="absolute inset-y-0 left-0 bg-amber-200/60 transition-[width] duration-300"
+        class="absolute inset-y-0 left-0 bg-accent-orange/20 transition-[width] duration-300"
         :style="{ width: `${progressPercent}%` }"
       />
       <div class="relative flex items-center gap-2 px-3 py-2 text-[0.9375rem]">
-        <Loader2Icon v-if="inProgress" class="size-4 shrink-0 animate-spin text-amber-600" />
-        <CheckCircle2Icon v-else class="size-4 shrink-0 text-emerald-600" />
+        <Loader2Icon v-if="inProgress" class="size-4 shrink-0 animate-spin text-accent-orange" />
+        <CheckCircle2Icon v-else class="size-4 shrink-0 text-accent-green" />
         <span class="min-w-0 flex-1 truncate">{{ t("app.sleep") }}</span>
-        <span class="rounded-full bg-white/80 px-2 py-0.5 font-mono text-xs text-[#5f6970]">{{
+        <span class="rounded-full bg-surface/80 px-2 py-0.5 font-mono text-xs text-ink-secondary">{{
           timeLabel
         }}</span>
-        <TimerIcon class="size-4 shrink-0 text-[#8d9499]" />
+        <TimerIcon class="size-4 shrink-0 text-ink-muted" />
       </div>
     </div>
   </div>

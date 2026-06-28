@@ -20,7 +20,7 @@ const altText = computed(() => props.label || props.detail || t("app.imageAttach
 
 <template>
   <div>
-    <div class="group relative overflow-hidden rounded-lg border border-black/10 bg-white">
+    <div class="group relative overflow-hidden rounded-lg border border-hairline bg-surface">
       <button
         type="button"
         data-testid="thread-image-attachment"
@@ -33,10 +33,10 @@ const altText = computed(() => props.label || props.detail || t("app.imageAttach
           v-if="!failed"
           :src="source"
           :alt="altText"
-          class="max-h-72 w-full bg-white object-contain"
+          class="max-h-72 w-full bg-surface object-contain"
           @error="failed = true"
         />
-        <div v-else class="flex min-h-24 items-center gap-2 px-3 py-2 text-sm text-[#6f767d]">
+        <div v-else class="flex min-h-24 items-center gap-2 px-3 py-2 text-sm text-ink-secondary">
           <ImageIcon class="size-4 shrink-0" />
           <span class="min-w-0 truncate">{{ label || source }}</span>
         </div>
@@ -51,7 +51,7 @@ const altText = computed(() => props.label || props.detail || t("app.imageAttach
                 type="button"
                 variant="secondary"
                 size="icon-sm"
-                class="pointer-events-auto bg-white/95 shadow-sm"
+                class="pointer-events-auto bg-surface/95 shadow-sm"
                 :aria-label="t('app.openImagePreview')"
                 @click="open = true"
               >

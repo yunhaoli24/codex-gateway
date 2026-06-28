@@ -227,11 +227,11 @@ function statusLabel(status: ThreadRuntimeStatus) {
 }
 
 function statusClass(status: ThreadRuntimeStatus) {
-  if (status === "running") return "text-sky-600";
-  if (status === "completed") return "text-emerald-600";
-  if (status === "failed") return "text-red-600";
-  if (status === "interrupted") return "text-amber-600";
-  return "text-[#9aa1a6]";
+  if (status === "running") return "text-primary";
+  if (status === "completed") return "text-accent-green";
+  if (status === "failed") return "text-destructive";
+  if (status === "interrupted") return "text-accent-orange";
+  return "text-ink-faint";
 }
 
 function hostConnectionStatus(hostId: number) {
@@ -257,10 +257,14 @@ function hostConnectionClass(hostId: number) {
     status === "restarting" ||
     status === "connecting"
   )
-    return "text-sky-600";
-  if (status === "connected") return "text-emerald-600";
-  if (status === "failed") return "text-red-600";
-  return "text-[#9aa1a6]";
+    return "text-primary";
+  if (status === "connected") return "text-accent-green";
+  if (status === "failed") return "text-destructive";
+  return "text-ink-faint";
+}
+
+function selectedRowClass(selected: boolean) {
+  return selected ? "bg-primary/10 text-ink shadow-[inset_3px_0_0_var(--primary)]" : "";
 }
 
 function hostConnectionIsBusy(hostId: number) {
@@ -344,19 +348,19 @@ watch(selectedThreadIsPinned, (isPinned) => {
 <template>
   <aside
     v-bind="$attrs"
-    class="relative flex min-h-0 flex-col border-r border-black/10 bg-[#dcecf4]"
+    class="relative flex min-h-0 flex-col border-r border-hairline bg-canvas-soft"
   >
     <ScrollArea class="min-h-0 flex-1 px-3">
       <div class="space-y-5 py-4">
         <section v-if="pinnedThreads.length">
-          <div class="px-2 pb-2 text-sm text-[#8c969c]">{{ t("app.pinned") }}</div>
+          <div class="px-2 pb-2 text-sm text-ink-muted">{{ t("app.pinned") }}</div>
           <div class="space-y-1">
             <template v-for="thread in pinnedThreads" :key="pinnedThreadKey(thread)">
               <div v-if="renamingThreadId === pinnedThreadId(thread)" class="rounded-lg px-3 py-2">
                 <Input
                   v-model="renameValue"
                   data-testid="rename-thread-input"
-                  class="h-7 min-w-0 bg-white/80"
+                  class="h-7 min-w-0 bg-surface/80"
                   @keydown="handleRenameKeydown"
                   @keydown.enter.prevent="submitRename"
                   @blur="submitRename"
@@ -369,16 +373,16 @@ watch(selectedThreadIsPinned, (isPinned) => {
                     v-bind="longPressContextMenuHandlers"
                     :data-selected="isSelectedPinnedThread(thread) ? 'true' : 'false'"
                     variant="ghost"
-                    class="h-auto min-h-10 w-full justify-between rounded-lg px-3 py-2 text-sm font-normal hover:bg-black/5"
-                    :class="isSelectedPinnedThread(thread) ? 'bg-[#c7ddeb]' : ''"
+                    class="h-auto min-h-10 w-full justify-between rounded-lg px-3 py-2 text-sm font-normal hover:bg-surface"
+                    :class="selectedRowClass(isSelectedPinnedThread(thread))"
                     @click="openPinnedThread(thread)"
                   >
                     <span class="min-w-0 text-left">
                       <span class="flex min-w-0 items-center gap-1.5">
-                        <StarIcon class="size-3.5 shrink-0 fill-current text-amber-500" />
+                        <StarIcon class="size-3.5 shrink-0 fill-current text-accent-orange" />
                         <span class="block truncate">{{ titleForThread(thread) }}</span>
                       </span>
-                      <span class="block truncate text-xs text-[#7e878d]">{{
+                      <span class="block truncate text-xs text-ink-muted">{{
                         subtitleForPinnedThread(thread) || formatRelative(thread.updatedAt)
                       }}</span>
                     </span>
@@ -421,26 +425,26 @@ watch(selectedThreadIsPinned, (isPinned) => {
         </section>
 
         <section>
-          <div class="px-2 pb-2 text-sm text-[#8c969c]">{{ t("app.hosts") }}</div>
+          <div class="px-2 pb-2 text-sm text-ink-muted">{{ t("app.hosts") }}</div>
           <div class="space-y-1">
             <div v-for="host in hosts" :key="host.id" class="rounded-lg">
               <div class="flex items-center gap-1">
                 <Button
                   :data-testid="`host-button-${host.id}`"
                   variant="ghost"
-                  class="h-11 min-w-0 flex-1 justify-start gap-2 rounded-lg px-3 text-left text-[0.9375rem] font-normal hover:bg-black/5"
-                  :class="host.id === selectedHostId ? 'bg-[#c7ddeb]' : ''"
+                  class="h-11 min-w-0 flex-1 justify-start gap-2 rounded-lg px-3 text-left text-[0.9375rem] font-normal hover:bg-surface"
+                  :class="selectedRowClass(host.id === selectedHostId)"
                   @click="selectHost(host.id)"
                 >
                   <ChevronDownIcon
                     v-if="expandedHostIds.has(host.id)"
-                    class="size-3.5 shrink-0 text-[#7e878d]"
+                    class="size-3.5 shrink-0 text-ink-muted"
                   />
-                  <ChevronRightIcon v-else class="size-3.5 shrink-0 text-[#7e878d]" />
+                  <ChevronRightIcon v-else class="size-3.5 shrink-0 text-ink-muted" />
                   <ServerIcon class="size-4 shrink-0" />
                   <span class="min-w-0">
                     <span class="block truncate">{{ host.name }}</span>
-                    <span class="block truncate text-xs text-[#7e878d]">{{ host.sshHost }}</span>
+                    <span class="block truncate text-xs text-ink-muted">{{ host.sshHost }}</span>
                   </span>
                   <span
                     class="ml-auto inline-flex size-4 shrink-0 items-center justify-center"
@@ -478,7 +482,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  class="size-8 shrink-0 p-0 text-red-600 hover:text-red-700"
+                  class="size-8 shrink-0 p-0 text-destructive hover:text-destructive/80"
                   :aria-label="t('app.deleteHost')"
                   @click="deleteHost(host.id)"
                 >
@@ -488,7 +492,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
               <div
                 v-if="verifyResults[host.id]"
                 class="truncate px-3 pb-2 text-[0.6875rem]"
-                :class="verifyResults[host.id].ok ? 'text-emerald-700' : 'text-red-700'"
+                :class="verifyResults[host.id].ok ? 'text-accent-green' : 'text-destructive'"
               >
                 {{ verifyResults[host.id].message }}
               </div>
@@ -506,17 +510,17 @@ watch(selectedThreadIsPinned, (isPinned) => {
                           :data-testid="`project-button-${project.id}`"
                           v-bind="longPressContextMenuHandlers"
                           variant="ghost"
-                          class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-black/5"
-                          :class="project.id === selectedProjectId ? 'bg-[#c7ddeb]' : ''"
+                          class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-surface"
+                          :class="selectedRowClass(project.id === selectedProjectId)"
                         >
                           <ChevronDownIcon
                             v-if="expandedProjectIds.has(project.id)"
-                            class="size-3.5 shrink-0 text-[#7e878d]"
+                            class="size-3.5 shrink-0 text-ink-muted"
                           />
-                          <ChevronRightIcon v-else class="size-3.5 shrink-0 text-[#7e878d]" />
+                          <ChevronRightIcon v-else class="size-3.5 shrink-0 text-ink-muted" />
                           <FolderIcon class="size-4 shrink-0" />
                           <span class="truncate">{{ project.name }}</span>
-                          <span class="ml-auto size-2 shrink-0 rounded-full bg-emerald-500" />
+                          <span class="ml-auto size-2 shrink-0 rounded-full bg-accent-green" />
                         </Button>
                       </ContextMenuTrigger>
                       <ContextMenuContent class="w-44">
@@ -538,7 +542,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                           <Input
                             v-model="renameValue"
                             data-testid="rename-thread-input"
-                            class="h-7 min-w-0 bg-white/80"
+                            class="h-7 min-w-0 bg-surface/80"
                             @keydown="handleRenameKeydown"
                             @keydown.enter.prevent="submitRename"
                             @blur="submitRename"
@@ -550,8 +554,8 @@ watch(selectedThreadIsPinned, (isPinned) => {
                               :data-testid="`thread-button-${thread.id}`"
                               v-bind="longPressContextMenuHandlers"
                               variant="ghost"
-                              class="h-auto min-h-9 w-full justify-between rounded-lg px-3 py-2 text-sm font-normal hover:bg-black/5"
-                              :class="thread.id === selectedThreadId ? 'bg-[#c7ddeb]' : ''"
+                              class="h-auto min-h-9 w-full justify-between rounded-lg px-3 py-2 text-sm font-normal hover:bg-surface"
+                              :class="selectedRowClass(thread.id === selectedThreadId)"
                               @click="
                                 openThread(String(thread.id), {
                                   hostId: project.hostId,
@@ -563,11 +567,11 @@ watch(selectedThreadIsPinned, (isPinned) => {
                                 <span class="flex min-w-0 items-center gap-1.5">
                                   <StarIcon
                                     v-if="thread.pinned"
-                                    class="size-3.5 shrink-0 fill-current text-amber-500"
+                                    class="size-3.5 shrink-0 fill-current text-accent-orange"
                                   />
                                   <span class="block truncate">{{ titleForThread(thread) }}</span>
                                 </span>
-                                <span class="block truncate text-xs text-[#7e878d]">{{
+                                <span class="block truncate text-xs text-ink-muted">{{
                                   formatRelative(thread.updatedAt)
                                 }}</span>
                               </span>
@@ -631,7 +635,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
                     </template>
                     <div
                       v-else-if="project.id === selectedProjectId"
-                      class="rounded-lg px-3 py-2 text-xs leading-5 text-[#8c969c]"
+                      class="rounded-lg px-3 py-2 text-xs leading-5 text-ink-muted"
                     >
                       <div>{{ t("app.noThreads") }}</div>
                       <div>{{ t("app.refreshThreadsHint") }}</div>
@@ -641,7 +645,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
 
                 <div
                   v-if="!(projectsByHost.get(host.id) ?? []).length"
-                  class="rounded-lg px-3 py-2 text-xs text-[#8c969c]"
+                  class="rounded-lg px-3 py-2 text-xs text-ink-muted"
                 >
                   {{ t("app.noProjects") }}
                 </div>
@@ -652,11 +656,11 @@ watch(selectedThreadIsPinned, (isPinned) => {
       </div>
     </ScrollArea>
 
-    <div class="shrink-0 border-t border-black/10 p-3">
+    <div class="shrink-0 border-t border-hairline p-3">
       <Button
         data-testid="settings-toggle"
         variant="ghost"
-        class="h-10 w-full justify-start gap-3 rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-black/5"
+        class="h-10 w-full justify-start gap-3 rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-surface"
         @click="showSettings = !showSettings"
       >
         <SettingsIcon class="size-4" />
@@ -670,7 +674,7 @@ watch(selectedThreadIsPinned, (isPinned) => {
         data-testid="settings-dialog"
         close-button-test-id="settings-close-button"
       >
-        <DialogHeader class="border-b border-black/10 px-6 py-5">
+        <DialogHeader class="border-b border-hairline px-6 py-5">
           <DialogTitle class="text-lg">{{ t("app.settings") }}</DialogTitle>
           <DialogDescription>{{ t("app.settingsDescription") }}</DialogDescription>
         </DialogHeader>

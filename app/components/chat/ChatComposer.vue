@@ -97,11 +97,11 @@ function handleComposerKeydown(event: KeyboardEvent) {
 
 <template>
   <div
-    class="shrink-0 bg-gradient-to-t from-white via-white to-white/75 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:px-[clamp(1rem,3vw,2rem)] md:pb-[clamp(0.5rem,1.4vh,1rem)]"
+    class="shrink-0 bg-gradient-to-t from-surface via-surface to-surface/75 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:px-[clamp(1rem,3vw,2rem)] md:pb-[clamp(0.5rem,1.4vh,1rem)]"
   >
     <div class="mx-auto w-full max-w-3xl">
       <div
-        class="rounded-[1.35rem] border border-black/10 bg-white p-2 shadow-lg shadow-black/10 md:rounded-3xl md:p-[clamp(0.45rem,1vw,0.7rem)]"
+        class="rounded-[1.35rem] border border-hairline bg-surface p-2 shadow-lg shadow-ink/10 md:rounded-3xl md:p-[clamp(0.45rem,1vw,0.7rem)]"
       >
         <input
           ref="uploadInputRef"
@@ -113,7 +113,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
         <AttachmentChips :files="attachedFiles" @remove="removeAttachment" />
         <Textarea
           v-model="turnText"
-          class="max-h-[min(28dvh,10rem)] min-h-[3.25rem] border-0 bg-transparent px-1 text-base leading-6 shadow-none ring-0 placeholder:text-base placeholder:text-[#9aa1a6] focus-visible:ring-0 md:max-h-[min(24vh,12rem)] md:min-h-[clamp(3.75rem,10vh,6rem)] md:leading-7 md:text-base"
+          class="max-h-[min(28dvh,10rem)] min-h-[3.25rem] border-0 bg-transparent px-1 text-base leading-6 shadow-none ring-0 placeholder:text-base placeholder:text-ink-faint focus-visible:ring-0 md:max-h-[min(24vh,12rem)] md:min-h-[clamp(3.75rem,10vh,6rem)] md:leading-7 md:text-base"
           :placeholder="t('app.askFollowUp')"
           :disabled="!selectedThreadId"
           @keydown="handleComposerKeydown"
@@ -122,12 +122,12 @@ function handleComposerKeydown(event: KeyboardEvent) {
         <div
           class="flex flex-col gap-2 pt-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
         >
-          <div class="flex min-w-0 items-center gap-1 overflow-x-auto text-base text-[#858b91]">
+          <div class="flex min-w-0 items-center gap-1 overflow-x-auto text-base text-ink-muted">
             <Button
               type="button"
               variant="ghost"
               size="icon-lg"
-              class="text-[#858b91] hover:bg-black/[0.04] hover:text-[#4f575e]"
+              class="text-ink-muted hover:bg-canvas-soft hover:text-ink-secondary"
               :disabled="uploadingAttachments || !selectedThreadId"
               :aria-label="t('app.attachFile')"
               @click="openAttachmentPicker"
@@ -154,7 +154,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
             />
             <Button
               data-testid="send-turn-button"
-              class="size-11 shrink-0 rounded-full bg-[#171b1f] p-0 hover:bg-[#171b1f]/90"
+              class="size-11 shrink-0 rounded-full bg-primary p-0 text-primary-foreground hover:bg-primary-active"
               :aria-label="sendButtonLabel"
               :disabled="!canSendTurn"
               @click="sendTurn"
@@ -167,7 +167,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
           </div>
         </div>
       </div>
-      <p class="mt-1 hidden text-center text-xs text-[#9aa1a6] sm:block md:mt-2">
+      <p class="mt-1 hidden text-center text-xs text-ink-faint sm:block md:mt-2">
         {{ selectedThreadId ? t("app.ctrlEnter") : t("app.selectThreadFirst") }}
       </p>
     </div>

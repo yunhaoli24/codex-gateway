@@ -18,15 +18,15 @@ const description = computed(() => props.description || t("app.protocolMismatchD
 
 <template>
   <div
-    class="max-w-4xl rounded-lg border border-red-300/70 bg-red-50 px-3 py-3 text-sm text-red-950"
+    class="max-w-4xl rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive"
   >
     <div class="flex items-center gap-2">
       <AlertTriangleIcon class="size-4 shrink-0" />
       <span class="min-w-0 flex-1 truncate font-medium">{{ title }}</span>
       <Badge variant="outline">{{ item.status }}</Badge>
     </div>
-    <div class="mt-2 text-red-900">{{ description }}</div>
-    <ScrollArea class="mt-3 h-56 rounded-md bg-white/80">
+    <div class="mt-2">{{ description }}</div>
+    <ScrollArea class="mt-3 h-56 rounded-md bg-surface/80">
       <pre class="p-2 text-xs">{{ jsonPreview(item.params) }}</pre>
     </ScrollArea>
   </div>

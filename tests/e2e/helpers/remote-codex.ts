@@ -46,7 +46,6 @@ export async function execRemoteSsh(remote: RemoteCodexEnv, command: string) {
 }
 
 export async function resetRemoteAppServer(remote: RemoteCodexEnv) {
-  const codexBin = remoteCodexCommand(remote);
   await execRemoteSsh(
     remote,
     `

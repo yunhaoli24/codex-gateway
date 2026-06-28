@@ -115,19 +115,19 @@ function isActiveTurnStatus(status: unknown) {
       v-if="intermediateItems.length"
       v-model:open="intermediateOpen"
       v-slot="{ open }"
-      class="max-w-4xl rounded-lg border border-black/10 bg-[#fbfbfb] text-[#5f6970]"
+      class="max-w-4xl rounded-lg border border-hairline bg-surface text-ink-secondary"
     >
       <CollapsibleTrigger
-        class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/[0.03]"
+        class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas-soft"
       >
-        <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-[#9aa1a6]" />
-        <ChevronRightIcon v-else class="size-4 shrink-0 text-[#9aa1a6]" />
-        <ListTreeIcon class="size-4 shrink-0 text-[#9aa1a6]" />
+        <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-ink-faint" />
+        <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
+        <ListTreeIcon class="size-4 shrink-0 text-ink-faint" />
         <span class="min-w-0 flex-1 truncate">{{ t("app.intermediateSteps") }}</span>
         <Badge variant="outline">{{ intermediateItems.length }}</Badge>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div data-testid="intermediate-steps" class="space-y-5 border-t border-black/10 px-3 py-4">
+        <div data-testid="intermediate-steps" class="space-y-5 border-t border-hairline px-3 py-4">
           <ThreadItemView
             v-for="item in intermediateItems"
             :key="item.id || `${item.type}-middle-${JSON.stringify(item).length}`"

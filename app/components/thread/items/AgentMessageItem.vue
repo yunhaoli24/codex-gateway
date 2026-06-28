@@ -29,7 +29,7 @@ async function copyText() {
 </script>
 
 <template>
-  <div class="group max-w-4xl text-[0.9375rem] leading-8 text-[#202225]">
+  <div class="group max-w-4xl text-[0.9375rem] leading-8 text-ink">
     <MarkdownContent :content="text" />
     <div
       v-if="text"
@@ -42,11 +42,11 @@ async function copyText() {
               type="button"
               variant="ghost"
               size="sm"
-              class="size-8 p-0 text-[#8d9499] hover:bg-black/[0.04] hover:text-[#202225]"
+              class="size-8 p-0 text-ink-muted hover:bg-canvas-soft hover:text-ink"
               :aria-label="t('app.copyAgentOutput')"
               @click="copyText"
             >
-              <CheckIcon v-if="copied" class="size-4 text-emerald-600" />
+              <CheckIcon v-if="copied" class="size-4 text-accent-green" />
               <CopyIcon v-else class="size-4" />
             </Button>
           </TooltipTrigger>

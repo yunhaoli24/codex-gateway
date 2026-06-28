@@ -25,7 +25,7 @@ const label = computed(() => String(props.item.path || t("app.imageView")));
 </script>
 
 <template>
-  <div class="max-w-4xl text-[#5f6970]">
+  <div class="max-w-4xl text-ink-secondary">
     <div class="mb-2 flex items-center gap-2 text-[0.9375rem]">
       <ImageIcon class="size-4 shrink-0" />
       <span class="min-w-0 truncate">{{ label }}</span>
@@ -39,7 +39,7 @@ const label = computed(() => String(props.item.path || t("app.imageView")));
       />
       <div
         v-else
-        class="flex min-h-20 items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-[#8d9499]"
+        class="flex min-h-20 items-center gap-2 rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink-muted"
       >
         <ImageIcon class="size-4 shrink-0" />
         <span class="min-w-0 truncate">{{ label }}</span>

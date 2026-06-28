@@ -5,7 +5,7 @@
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
-    "lint": "designmd lint DESIGN.md && oxlint app server shared tests nuxt.config.ts playwright.config.ts tailwind.config.ts --ignore-pattern 'third_party/**' --fix --type-aware && oxfmt app server shared tests nuxt.config.ts playwright.config.ts tailwind.config.ts '!third_party/**'",
+    "lint": "oxlint app server shared tests nuxt.config.ts playwright.config.ts tailwind.config.ts --ignore-pattern 'third_party/**' --fix --type-aware && oxfmt app server shared tests nuxt.config.ts playwright.config.ts tailwind.config.ts '!third_party/**'",
     "test:e2e": "tests/e2e/run-in-containers.sh",
     "postinstall": "nuxt prepare"
   },
@@ -38,7 +38,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@google/design.md": "^0.3.0",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.3.1",
     "@types/markdown-it": "^14.1.2",

@@ -6,10 +6,7 @@ const props = defineProps<{ class?: HTMLAttributes["class"] }>();
 </script>
 
 <template>
-  <optgroup
-    data-slot="native-select-optgroup"
-    :class="cn('bg-[Canvas] text-[CanvasText]', props.class)"
-  >
+  <optgroup data-slot="native-select-optgroup" :class="cn('bg-surface text-ink', props.class)">
     <slot />
   </optgroup>
 </template>

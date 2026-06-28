@@ -34,10 +34,10 @@ watch([selectedHostId, selectedProjectId, selectedThreadId], () => {
 <template>
   <main
     data-testid="mobile-layout"
-    class="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#f7f7f5] text-[#2b2d2f]"
+    class="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-canvas-soft text-ink"
   >
     <header
-      class="flex min-h-14 shrink-0 items-center gap-2 border-b border-black/10 bg-white/95 px-3 pt-[env(safe-area-inset-top)] backdrop-blur"
+      class="flex min-h-14 shrink-0 items-center gap-2 border-b border-hairline bg-surface/95 px-3 pt-[env(safe-area-inset-top)] backdrop-blur"
     >
       <Sheet v-model:open="sidebarOpen">
         <Button
@@ -61,7 +61,7 @@ watch([selectedHostId, selectedProjectId, selectedThreadId], () => {
       </Sheet>
       <div class="min-w-0 flex-1">
         <p class="truncate text-[0.9375rem] font-semibold">{{ mobileTitle }}</p>
-        <p class="truncate text-xs text-[#7d858b]">Codex Gateway</p>
+        <p class="truncate text-xs text-ink-muted">Codex Gateway</p>
       </div>
     </header>
     <ChatWorkspace />

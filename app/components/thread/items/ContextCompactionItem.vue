@@ -33,15 +33,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="max-w-4xl rounded-lg border border-sky-200/70 bg-sky-50/80 px-3 py-2 text-[#4f6672]">
+  <div
+    class="max-w-4xl rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-ink-secondary"
+  >
     <div class="flex items-center gap-2 text-[0.9375rem]">
-      <Loader2Icon v-if="inProgress" class="size-4 shrink-0 animate-spin text-sky-600" />
-      <CheckCircle2Icon v-else class="size-4 shrink-0 text-emerald-600" />
+      <Loader2Icon v-if="inProgress" class="size-4 shrink-0 animate-spin text-primary" />
+      <CheckCircle2Icon v-else class="size-4 shrink-0 text-accent-green" />
       <span class="min-w-0 flex-1 truncate">{{ t("app.contextCompaction") }}</span>
-      <span class="rounded-full bg-white/80 px-2 py-0.5 font-mono text-xs text-[#5f6970]">{{
+      <span class="rounded-full bg-surface/80 px-2 py-0.5 font-mono text-xs text-ink-secondary">{{
         timeLabel
       }}</span>
-      <ArchiveIcon class="size-4 shrink-0 text-[#8d9499]" />
+      <ArchiveIcon class="size-4 shrink-0 text-ink-muted" />
     </div>
   </div>
 </template>

@@ -19,7 +19,7 @@ const contextUsedPercent = computed(() => {
 const contextUsageStyle = computed(() => {
   const percent = contextUsedPercent.value ?? 0;
   return {
-    background: `conic-gradient(#8f969d ${percent}%, #d8dde1 0)`,
+    background: `conic-gradient(var(--primary) ${percent}%, var(--border) 0)`,
   };
 });
 const contextUsageLabel = computed(() =>
@@ -30,11 +30,11 @@ const contextUsageLabel = computed(() =>
 <template>
   <div
     v-if="contextUsageLabel"
-    class="hidden items-center gap-2 text-base text-[#858b91] sm:flex"
+    class="hidden items-center gap-2 text-base text-ink-muted sm:flex"
     :title="t('app.contextUsage', { percent: contextUsedPercent })"
   >
     <div class="flex size-6 items-center justify-center rounded-full" :style="contextUsageStyle">
-      <div class="size-3.5 rounded-full bg-white" />
+      <div class="size-3.5 rounded-full bg-surface" />
     </div>
     <span>{{ contextUsageLabel }}</span>
   </div>

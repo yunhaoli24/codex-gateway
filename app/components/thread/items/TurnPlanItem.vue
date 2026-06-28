@@ -14,8 +14,8 @@ function stepStatus(step: Record<string, any>) {
 </script>
 
 <template>
-  <div class="max-w-4xl rounded-lg border border-black/10 bg-[#fbfbfb] px-4 py-3 text-[#3d4145]">
-    <div class="mb-3 flex items-center gap-2 text-[0.9375rem] font-medium text-[#5f6970]">
+  <div class="max-w-4xl rounded-lg border border-hairline bg-surface px-4 py-3 text-ink-secondary">
+    <div class="mb-3 flex items-center gap-2 text-[0.9375rem] font-medium text-ink-secondary">
       <ListTodoIcon class="size-4" />
       <span>{{ t("app.todoPlan") }}</span>
     </div>
@@ -28,13 +28,13 @@ function stepStatus(step: Record<string, any>) {
       >
         <CheckCircle2Icon
           v-if="stepStatus(step) === 'completed'"
-          class="mt-1 size-4 shrink-0 text-emerald-600"
+          class="mt-1 size-4 shrink-0 text-accent-green"
         />
         <ClockIcon
           v-else-if="stepStatus(step) === 'inProgress'"
-          class="mt-1 size-4 shrink-0 text-sky-600"
+          class="mt-1 size-4 shrink-0 text-primary"
         />
-        <CircleIcon v-else class="mt-1 size-4 shrink-0 text-[#b4babf]" />
+        <CircleIcon v-else class="mt-1 size-4 shrink-0 text-ink-faint" />
         <span class="min-w-0 flex-1">{{ step.step }}</span>
       </div>
     </div>

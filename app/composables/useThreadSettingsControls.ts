@@ -8,7 +8,7 @@ export function useThreadSettingsControls() {
   const { selectedThreadId, selectedThreadSettings, models, defaultModel } = storeToRefs(store);
   const { t } = useI18n();
   const selectedModel = ref("");
-  const selectedEffort = ref<ReasoningEffort | "default">("default");
+  const selectedEffort = ref<ReasoningEffort>("default");
   const selectedApprovalMode = ref<ApprovalPolicy | "custom">("custom");
   let syncingSettings = false;
 

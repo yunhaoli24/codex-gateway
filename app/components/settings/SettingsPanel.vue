@@ -131,9 +131,12 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
     </TabsList>
 
     <TabsContent value="config" class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-      <div class="shrink-0 text-sm text-[#6f767d]">{{ t("app.configJsonPlaceholder") }}</div>
+      <div class="shrink-0 text-sm text-ink-secondary">{{ t("app.configJsonPlaceholder") }}</div>
       <ConfigJsonEditor v-model="configText" :placeholder="t('app.configJsonPlaceholder')" />
-      <div v-if="configError" class="shrink-0 rounded-md bg-red-50 p-3 text-sm text-red-700">
+      <div
+        v-if="configError"
+        class="shrink-0 rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+      >
         {{ configError }}
       </div>
       <div class="flex shrink-0 justify-end gap-2">
@@ -186,7 +189,7 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
           <Select v-model="hostForm.authMode">
             <SelectTrigger
               data-testid="host-auth-select"
-              class="w-full bg-white"
+              class="w-full bg-surface"
               :aria-label="t('app.auth')"
             >
               <SelectValue />
@@ -206,7 +209,7 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
           <Textarea
             v-if="hostForm.authMode === 'privateKey'"
             v-model="hostForm.privateKey"
-            class="min-h-44 bg-white font-mono text-sm"
+            class="min-h-44 bg-surface font-mono text-sm"
             :aria-label="t('app.privateKey')"
             :placeholder="t('app.privateKey')"
           />
@@ -261,7 +264,7 @@ function chooseDirectory(entry: RemoteDirectoryEntry) {
           <span class="truncate">{{ entry.name }}</span>
         </Button>
       </div>
-      <div v-if="directoryError" class="rounded-md bg-red-50 p-3 text-sm text-red-700">
+      <div v-if="directoryError" class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
         {{ directoryError }}
       </div>
       <Separator />

@@ -56,7 +56,7 @@ const detailSections = computed(() => {
 </script>
 
 <template>
-  <div class="max-w-4xl text-[#8d9499]">
+  <div class="max-w-4xl text-ink-muted">
     <div class="flex items-center gap-2 text-[0.9375rem]">
       <SearchIcon v-if="iconType === 'search'" class="size-4" />
       <ImageIcon v-else-if="iconType === 'image'" class="size-4" />
@@ -70,22 +70,22 @@ const detailSections = computed(() => {
     <Collapsible
       v-if="detailSections.length"
       v-slot="{ open }"
-      class="mt-2 rounded-lg border border-black/10 bg-[#fbfbfb]"
+      class="mt-2 rounded-lg border border-hairline bg-surface"
     >
       <CollapsibleTrigger
-        class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/[0.03]"
+        class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas-soft"
       >
-        <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-[#9aa1a6]" />
-        <ChevronRightIcon v-else class="size-4 shrink-0 text-[#9aa1a6]" />
-        <span class="min-w-0 flex-1 truncate text-[#5f6970]">{{ t("app.toolDetails") }}</span>
+        <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-ink-faint" />
+        <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
+        <span class="min-w-0 flex-1 truncate text-ink-secondary">{{ t("app.toolDetails") }}</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div class="space-y-3 border-t border-black/10 px-3 py-3">
+        <div class="space-y-3 border-t border-hairline px-3 py-3">
           <div v-for="section in detailSections" :key="section.label" class="space-y-1">
-            <div class="text-xs font-medium uppercase text-[#9aa1a6]">{{ section.label }}</div>
+            <div class="text-xs font-medium uppercase text-ink-faint">{{ section.label }}</div>
             <MarkdownContent v-if="section.markdown" :content="section.content" compact />
-            <ScrollArea v-else class="h-56 rounded-md bg-white">
-              <pre class="p-3 text-xs leading-5 text-[#3d4145]">{{ section.content }}</pre>
+            <ScrollArea v-else class="h-56 rounded-md bg-canvas-soft">
+              <pre class="p-3 text-xs leading-5 text-ink-secondary">{{ section.content }}</pre>
             </ScrollArea>
           </div>
         </div>

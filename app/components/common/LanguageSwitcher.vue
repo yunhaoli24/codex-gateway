@@ -18,7 +18,7 @@ async function switchLanguage(value: string | null) {
 
 <template>
   <Select :model-value="locale" @update:model-value="switchLanguage">
-    <SelectTrigger class="h-8 w-28 bg-white/80">
+    <SelectTrigger class="h-8 w-28 bg-surface/80">
       <SelectValue />
     </SelectTrigger>
     <SelectContent>

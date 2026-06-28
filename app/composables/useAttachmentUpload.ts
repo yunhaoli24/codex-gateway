@@ -18,7 +18,9 @@ export function useAttachmentUpload(
   async function dataUrlFromFile(file: File) {
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.addEventListener("load", () => resolve(String(reader.result || "")));
+      reader.addEventListener("load", () =>
+        resolve(typeof reader.result === "string" ? reader.result : ""),
+      );
       reader.addEventListener("error", () =>
         reject(reader.error || new Error("Failed to read file")),
       );

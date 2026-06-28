@@ -36,7 +36,9 @@ async function submit() {
 </script>
 
 <template>
-  <div class="max-w-4xl rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950">
+  <div
+    class="max-w-4xl rounded-lg border border-primary/20 bg-primary/5 px-3 py-3 text-sm text-ink-secondary"
+  >
     <div class="flex items-center gap-2">
       <WrenchIcon class="size-4 shrink-0" />
       <span class="min-w-0 flex-1 truncate font-medium"
@@ -45,16 +47,16 @@ async function submit() {
       <Badge variant="outline">{{ item.status }}</Badge>
     </div>
     <div class="mt-3">
-      <div class="mb-1 text-xs font-medium uppercase text-sky-700">{{ t("app.arguments") }}</div>
-      <ScrollArea class="h-40 rounded-md bg-white/80">
+      <div class="mb-1 text-xs font-medium uppercase text-primary">{{ t("app.arguments") }}</div>
+      <ScrollArea class="h-40 rounded-md bg-surface/80">
         <pre class="p-2 text-xs">{{ jsonPreview(params.arguments) }}</pre>
       </ScrollArea>
     </div>
     <div class="mt-3">
-      <div class="mb-1 text-xs font-medium uppercase text-sky-700">
+      <div class="mb-1 text-xs font-medium uppercase text-primary">
         {{ t("app.dynamicToolResponse") }}
       </div>
-      <Textarea v-model="responseText" class="min-h-32 bg-white font-mono text-xs" />
+      <Textarea v-model="responseText" class="min-h-32 bg-surface font-mono text-xs" />
     </div>
     <div class="mt-3 flex gap-2">
       <Button size="sm" :disabled="responding" data-testid="dynamic-tool-submit" @click="submit">

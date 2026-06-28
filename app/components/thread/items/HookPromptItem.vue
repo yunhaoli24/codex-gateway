@@ -10,8 +10,10 @@ const text = computed(() => threadItemText(props.item));
 </script>
 
 <template>
-  <div class="max-w-4xl rounded-lg border border-amber-200 bg-amber-50/70 px-4 py-3 text-[#5f6970]">
-    <div class="mb-2 flex items-center gap-2 text-[0.9375rem] font-medium text-amber-800">
+  <div
+    class="max-w-4xl rounded-lg border border-accent-orange/30 bg-accent-orange/10 px-4 py-3 text-ink-muted"
+  >
+    <div class="mb-2 flex items-center gap-2 text-[0.9375rem] font-medium text-accent-orange-deep">
       <WebhookIcon class="size-4" />
       <span>{{ t("app.hookPrompt") }}</span>
     </div>

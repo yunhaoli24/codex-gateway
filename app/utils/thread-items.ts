@@ -60,6 +60,6 @@ export function jsonPreview(value: unknown) {
   try {
     return JSON.stringify(value, null, 2);
   } catch {
-    return String(value);
+    return Object.prototype.toString.call(value);
   }
 }

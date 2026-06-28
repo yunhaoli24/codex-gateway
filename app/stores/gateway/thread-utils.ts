@@ -552,7 +552,7 @@ export function resolveServerRequestInHistory(
       if (String(item?.pendingApproval?.requestId ?? "") !== requestId) {
         return item;
       }
-      const { pendingApproval, ...rest } = item;
+      const { pendingApproval: _pendingApproval, ...rest } = item;
       turnChanged = true;
       changed = true;
       return rest;

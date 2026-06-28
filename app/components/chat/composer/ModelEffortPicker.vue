@@ -41,57 +41,54 @@ const { t } = useI18n();
         type="button"
         variant="ghost"
         size="lg"
-        class="min-w-0 flex-1 gap-2 px-2 text-sm font-normal text-[#4f575e] hover:bg-black/[0.04] sm:flex-none md:text-base"
+        class="min-w-0 flex-1 gap-2 px-2 text-sm font-normal text-ink-secondary hover:bg-canvas-soft sm:flex-none md:text-base"
         data-testid="model-select"
         :disabled="loadingModels || !models.length"
       >
-        <span class="truncate text-[#202225]">{{
+        <span class="truncate text-ink">{{
           loadingModels ? t("app.loadingModels") : activeModelLabel
         }}</span>
-        <span v-if="activeEffortCompactLabel" class="hidden shrink-0 text-[#858b91] sm:inline">{{
+        <span v-if="activeEffortCompactLabel" class="hidden shrink-0 text-ink-muted sm:inline">{{
           activeEffortCompactLabel
         }}</span>
-        <ChevronDownIcon class="size-4 text-[#858b91]" />
+        <ChevronDownIcon class="size-4 text-ink-muted" />
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent
       align="end"
-      class="w-[min(92vw,theme(maxWidth.sm))] rounded-2xl p-2 shadow-xl shadow-slate-900/15"
+      class="w-[min(92vw,theme(maxWidth.sm))] rounded-2xl border-hairline p-2 shadow-xl shadow-ink/10"
     >
-      <DropdownMenuLabel class="px-3 pb-2 pt-1 text-lg font-normal leading-7 text-[#858b91]">
+      <DropdownMenuLabel class="px-3 pb-2 pt-1 text-lg font-normal leading-7 text-ink-muted">
         {{ t("app.reasoningEffort") }}
       </DropdownMenuLabel>
       <DropdownMenuItem
         v-for="option in effortOptions"
         :key="option.value"
-        class="min-h-12 rounded-xl px-3 text-base leading-none text-[#202225] focus:bg-black/[0.04]"
+        class="min-h-12 rounded-xl px-3 text-base leading-none text-ink focus:bg-canvas-soft"
         @select="emit('selectEffort', option.value)"
       >
         <span>{{ labelEffortOption(option) }}</span>
-        <CheckIcon
-          v-if="option.value === activeEffortValue"
-          class="ml-auto size-5 text-[#5f6970]"
-        />
+        <CheckIcon v-if="option.value === activeEffortValue" class="ml-auto size-5 text-primary" />
       </DropdownMenuItem>
       <DropdownMenuSeparator class="mx-3 my-2" />
       <DropdownMenuSub>
         <DropdownMenuSubTrigger
           data-testid="model-submenu-trigger"
-          class="min-h-12 rounded-xl px-3 text-base leading-none text-[#202225] data-open:bg-black/[0.04] focus:bg-black/[0.04] [&>svg]:size-5 [&>svg]:text-[#858b91]"
+          class="min-h-12 rounded-xl px-3 text-base leading-none text-ink data-open:bg-canvas-soft focus:bg-canvas-soft [&>svg]:size-5 [&>svg]:text-ink-muted"
         >
           <span>{{ activeModelLabel }}</span>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent
-          class="w-[min(92vw,theme(maxWidth.sm))] rounded-2xl p-2 shadow-xl shadow-slate-900/15"
+          class="w-[min(92vw,theme(maxWidth.sm))] rounded-2xl border-hairline p-2 shadow-xl shadow-ink/10"
         >
-          <DropdownMenuLabel class="px-3 pb-2 pt-1 text-lg font-normal leading-7 text-[#858b91]">
+          <DropdownMenuLabel class="px-3 pb-2 pt-1 text-lg font-normal leading-7 text-ink-muted">
             {{ t("app.model") }}
           </DropdownMenuLabel>
           <DropdownMenuItem
             v-for="modelOption in models"
             :key="modelOption.id"
             :data-testid="`model-option-${modelOptionValue(modelOption)}`"
-            class="min-h-12 rounded-xl px-3 text-base leading-none text-[#202225] focus:bg-black/[0.04]"
+            class="min-h-12 rounded-xl px-3 text-base leading-none text-ink focus:bg-canvas-soft"
             @select="emit('selectModel', modelOptionValue(modelOption))"
           >
             <span class="truncate">{{
@@ -99,7 +96,7 @@ const { t } = useI18n();
             }}</span>
             <CheckIcon
               v-if="modelOptionValue(modelOption) === activeModel"
-              class="ml-auto size-5 text-[#5f6970]"
+              class="ml-auto size-5 text-primary"
             />
           </DropdownMenuItem>
         </DropdownMenuSubContent>

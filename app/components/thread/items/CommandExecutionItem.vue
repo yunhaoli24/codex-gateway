@@ -46,29 +46,29 @@ async function respond(decision: "accept" | "decline") {
 </script>
 
 <template>
-  <Collapsible v-slot="{ open }" class="max-w-4xl text-[#8d9499]">
+  <Collapsible v-slot="{ open }" class="max-w-4xl text-ink-muted">
     <CollapsibleTrigger
-      class="flex w-full items-center gap-2 rounded-md py-1 text-left text-[0.9375rem] hover:bg-black/[0.03]"
+      class="flex w-full items-center gap-2 rounded-md py-1 text-left text-[0.9375rem] hover:bg-canvas-soft"
     >
       <TerminalIcon class="size-4 shrink-0" />
       <span class="min-w-0 flex-1 truncate">{{ title }}</span>
       <Badge v-if="commandStatus" variant="secondary">{{ commandStatus }}</Badge>
       <Badge v-if="pendingApproval" variant="outline">{{ t("app.waitingApproval") }}</Badge>
       <Badge v-if="isInProgress" variant="outline">{{ t("app.running") }}</Badge>
-      <CheckCircle2Icon v-if="item.exitCode === 0" class="size-4 shrink-0 text-emerald-600" />
-      <XCircleIcon v-else-if="item.exitCode" class="size-4 shrink-0 text-red-600" />
+      <CheckCircle2Icon v-if="item.exitCode === 0" class="size-4 shrink-0 text-accent-green" />
+      <XCircleIcon v-else-if="item.exitCode" class="size-4 shrink-0 text-destructive" />
       <span class="rounded-full p-0.5">
-        <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-[#9aa1a6]" />
-        <ChevronRightIcon v-else class="size-4 shrink-0 text-[#9aa1a6]" />
+        <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-ink-faint" />
+        <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
       </span>
     </CollapsibleTrigger>
     <CollapsibleContent>
       <div
         v-if="pendingApproval"
-        class="mt-2 rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+        class="mt-2 rounded-lg border border-accent-orange/30 bg-accent-orange/10 px-3 py-2 text-sm text-accent-orange-deep"
       >
         <div class="font-medium">{{ t("app.commandApprovalRequired") }}</div>
-        <div v-if="pendingApproval.params?.reason" class="mt-1 text-amber-800">
+        <div v-if="pendingApproval.params?.reason" class="mt-1 text-accent-orange-deep">
           {{ pendingApproval.params.reason }}
         </div>
         <div class="mt-2 flex flex-wrap gap-2">
@@ -93,7 +93,7 @@ async function respond(decision: "accept" | "decline") {
       </div>
       <StickToBottomScrollArea
         v-if="output"
-        class="mt-2 h-56 rounded-lg border border-black/10 bg-[#f6f6f6]"
+        class="mt-2 h-56 rounded-lg border border-hairline bg-canvas-soft"
         content-class="min-h-full"
         :threshold="48"
         :follow-key="rawOutput.length"
@@ -101,12 +101,12 @@ async function respond(decision: "accept" | "decline") {
         <HighlightedCode
           :code="output"
           language="shell"
-          pre-class="syntax-highlight min-h-full p-3 text-xs leading-5 text-[#3d4145]"
+          pre-class="syntax-highlight min-h-full p-3 text-xs leading-5 text-ink-secondary"
         />
       </StickToBottomScrollArea>
       <div
         v-else
-        class="mt-2 rounded-lg border border-black/10 bg-[#f6f6f6] px-3 py-2 text-sm text-[#9aa1a6]"
+        class="mt-2 rounded-lg border border-hairline bg-canvas-soft px-3 py-2 text-sm text-ink-faint"
       >
         {{ t("app.waitingCommandOutput") }}
       </div>

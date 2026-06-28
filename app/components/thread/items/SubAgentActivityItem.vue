@@ -12,13 +12,13 @@ const title = computed(
 </script>
 
 <template>
-  <div class="max-w-4xl text-[#5f6970]">
+  <div class="max-w-4xl text-ink-secondary">
     <div class="flex items-center gap-2 text-[0.9375rem]">
-      <GitBranchIcon class="size-4 text-[#8d9499]" />
+      <GitBranchIcon class="size-4 text-ink-muted" />
       <span class="min-w-0 truncate">{{ title }}</span>
       <Badge v-if="item.kind" variant="secondary">{{ item.kind }}</Badge>
     </div>
-    <div v-if="item.agentThreadId" class="mt-1 truncate font-mono text-xs text-[#9aa1a6]">
+    <div v-if="item.agentThreadId" class="mt-1 truncate font-mono text-xs text-ink-faint">
       {{ item.agentThreadId }}
     </div>
   </div>

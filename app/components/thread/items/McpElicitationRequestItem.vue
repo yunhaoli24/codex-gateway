@@ -37,7 +37,9 @@ async function respond(action: "accept" | "decline" | "cancel") {
 </script>
 
 <template>
-  <div class="max-w-4xl rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950">
+  <div
+    class="max-w-4xl rounded-lg border border-primary/20 bg-primary/5 px-3 py-3 text-sm text-ink-secondary"
+  >
     <div class="flex items-center gap-2">
       <MessageCircleQuestionIcon class="size-4 shrink-0" />
       <span class="font-medium"
@@ -51,20 +53,20 @@ async function respond(action: "accept" | "decline" | "cancel") {
       :href="params.url"
       target="_blank"
       rel="noreferrer"
-      class="mt-2 inline-flex items-center gap-1 text-sky-700 underline"
+      class="mt-2 inline-flex items-center gap-1 text-primary underline"
     >
       <ExternalLinkIcon class="size-3" />
       {{ params.url }}
     </a>
     <div v-if="params.requestedSchema" class="mt-3">
-      <div class="mb-1 text-xs font-medium uppercase text-sky-700">{{ t("app.schema") }}</div>
-      <ScrollArea class="h-40 rounded-md bg-white/80">
+      <div class="mb-1 text-xs font-medium uppercase text-primary">{{ t("app.schema") }}</div>
+      <ScrollArea class="h-40 rounded-md bg-surface/80">
         <pre class="p-2 text-xs">{{ jsonPreview(params.requestedSchema) }}</pre>
       </ScrollArea>
     </div>
     <Textarea
       v-model="contentText"
-      class="mt-3 min-h-24 bg-white font-mono text-xs"
+      class="mt-3 min-h-24 bg-surface font-mono text-xs"
       :placeholder="t('app.jsonResponse')"
     />
     <div class="mt-3 flex flex-wrap gap-2">

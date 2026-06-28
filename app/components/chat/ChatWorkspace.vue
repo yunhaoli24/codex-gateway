@@ -127,14 +127,14 @@ watch(
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-white">
+  <section class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface">
     <header
-      class="hidden min-h-16 shrink-0 items-center justify-between border-b border-black/10 px-[clamp(1rem,2.5vw,1.5rem)] md:flex"
+      class="hidden min-h-16 shrink-0 items-center justify-between border-b border-hairline px-[clamp(1rem,2.5vw,1.5rem)] md:flex"
     >
       <div class="flex min-w-0 items-center gap-3">
         <h1 class="truncate text-[0.9375rem] font-semibold">{{ threadTitle }}</h1>
       </div>
-      <div class="flex items-center gap-2 text-[#7d858b]">
+      <div class="flex items-center gap-2 text-ink-muted">
         <LanguageSwitcher />
         <Badge variant="secondary"
           >{{ status?.activeControllers.length || 0 }} {{ t("app.active") }}</Badge
@@ -170,7 +170,7 @@ watch(
 
           <div
             v-if="initializing"
-            class="mx-auto flex min-h-60 max-w-3xl items-center justify-center text-[0.9375rem] text-[#7d858b] md:min-h-80"
+            class="mx-auto flex min-h-60 max-w-3xl items-center justify-center text-[0.9375rem] text-ink-muted md:min-h-80"
           >
             {{ t("app.loadingGateway") }}
           </div>
@@ -186,9 +186,9 @@ watch(
           <ProjectThreadList v-else-if="selectedProjectId && !selectedThreadId" />
           <div
             v-else
-            class="max-w-3xl rounded-2xl bg-[#f1f1f1] px-4 py-3 text-[0.9375rem] leading-7 text-[#202225] md:ml-auto md:px-5 md:py-4"
+            class="max-w-3xl rounded-2xl bg-canvas-soft px-4 py-3 text-[0.9375rem] leading-7 text-ink md:ml-auto md:px-5 md:py-4"
           >
-            <div class="mb-2 flex items-center gap-2 text-[#7d858b]">
+            <div class="mb-2 flex items-center gap-2 text-ink-muted">
               <FolderIcon class="size-4" />
               {{ selectedProjectId ? t("app.selectThreadFirst") : t("app.selectProjectFirst") }}
             </div>
@@ -197,14 +197,14 @@ watch(
 
           <div
             v-if="loading && !initializing && selectedThreadId"
-            class="max-w-3xl text-[0.9375rem] text-[#a5a9ad]"
+            class="max-w-3xl text-[0.9375rem] text-ink-faint"
           >
             {{ t("app.thinking") }}
           </div>
 
           <div
             v-if="error"
-            class="mx-auto max-w-3xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            class="mx-auto max-w-3xl rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
           >
             {{ error }}
           </div>

@@ -31,19 +31,19 @@ function highlightJson(value: string) {
     /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(?=\s*:))|("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*")|\b(true|false)\b|\b(null)\b|(-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)/g,
     (match, key, string, booleanValue, nullValue, numberValue) => {
       if (key) {
-        return `<span class="text-[#116329]">${key}</span>`;
+        return `<span class="text-primary">${key}</span>`;
       }
       if (string) {
-        return `<span class="text-[#0b63c7]">${string}</span>`;
+        return `<span class="text-accent-teal">${string}</span>`;
       }
       if (booleanValue) {
-        return `<span class="text-[#8b3dff]">${booleanValue}</span>`;
+        return `<span class="text-accent-purple-deep">${booleanValue}</span>`;
       }
       if (nullValue) {
-        return `<span class="text-[#9a5b13]">${nullValue}</span>`;
+        return `<span class="text-accent-orange-deep">${nullValue}</span>`;
       }
       if (numberValue) {
-        return `<span class="text-[#a14100]">${numberValue}</span>`;
+        return `<span class="text-accent-orange">${numberValue}</span>`;
       }
       return match;
     },
@@ -56,7 +56,7 @@ function escapeHtml(value: string) {
 </script>
 
 <template>
-  <div class="relative min-h-0 flex-1 overflow-hidden rounded-md border border-input bg-white">
+  <div class="relative min-h-0 flex-1 overflow-hidden rounded-md border border-input bg-surface">
     <pre
       ref="highlightRef"
       aria-hidden="true"
@@ -68,7 +68,7 @@ function escapeHtml(value: string) {
       data-testid="config-json-textarea"
       :placeholder="placeholder"
       spellcheck="false"
-      class="relative h-full min-h-full resize-none overflow-auto border-0 bg-transparent p-3 font-mono text-sm leading-6 text-transparent caret-[#202225] shadow-none [field-sizing:fixed] selection:bg-sky-200/60 placeholder:text-[#9aa1a6] focus-visible:ring-0"
+      class="relative h-full min-h-full resize-none overflow-auto border-0 bg-transparent p-3 font-mono text-sm leading-6 text-transparent caret-ink shadow-none [field-sizing:fixed] selection:bg-primary/20 placeholder:text-ink-faint focus-visible:ring-0"
       @scroll="syncScroll"
     />
   </div>

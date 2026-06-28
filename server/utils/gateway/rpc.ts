@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import WebSocket from "ws";
+import WebSocket, { type RawData } from "ws";
 import type { HostRecord, RpcEnvelope } from "~~/shared/types";
 import { hostManager } from "./ssh";
 import { hostLifecycleBus } from "./host-events";
@@ -18,6 +18,16 @@ interface PendingRequest {
 }
 
 export type RpcNotificationHandler = (message: RpcEnvelope) => void;
+
+function rawWebSocketDataToString(data: RawData) {
+  if (Buffer.isBuffer(data)) {
+    return data.toString("utf8");
+  }
+  if (Array.isArray(data)) {
+    return Buffer.concat(data).toString("utf8");
+  }
+  return Buffer.from(data).toString("utf8");
+}
 
 interface CodexRpcClientOptions {
   skipVersionCheck?: boolean;
@@ -190,7 +200,7 @@ export class CodexRpcClient extends EventEmitter {
       });
       this.ws = ws;
       ws.on("open", () => resolve());
-      ws.on("message", (data) => this.handleMessage(data.toString()));
+      ws.on("message", (data) => this.handleMessage(rawWebSocketDataToString(data)));
       ws.on("error", reject);
       ws.on("close", () => {
         this.handleTransportClose("Codex RPC remote proxy WebSocket closed", {

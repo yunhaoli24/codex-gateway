@@ -35,23 +35,25 @@ async function submit() {
 
 <template>
   <div
-    class="max-w-4xl rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-3 text-sm text-amber-950"
+    class="max-w-4xl rounded-lg border border-accent-orange/30 bg-accent-orange/10 px-3 py-3 text-sm text-ink-secondary"
   >
     <div class="flex items-center gap-2">
       <KeyRoundIcon class="size-4 shrink-0" />
       <span class="font-medium">{{ t("app.chatgptAuthRefreshRequest") }}</span>
       <Badge variant="outline">{{ item.status }}</Badge>
     </div>
-    <div class="mt-2 text-amber-900">
+    <div class="mt-2 text-accent-orange-deep">
       {{ t("app.chatgptAuthRefreshDescription") }}
     </div>
-    <div class="mt-3 grid gap-2 rounded-md bg-white/80 p-3">
+    <div class="mt-3 grid gap-2 rounded-md bg-surface/80 p-3">
       <div>
-        <div class="text-xs font-medium uppercase text-amber-700">{{ t("app.reason") }}</div>
+        <div class="text-xs font-medium uppercase text-accent-orange-deep">
+          {{ t("app.reason") }}
+        </div>
         <div class="mt-1">{{ params.reason }}</div>
       </div>
       <div v-if="params.previousAccountId">
-        <div class="text-xs font-medium uppercase text-amber-700">
+        <div class="text-xs font-medium uppercase text-accent-orange-deep">
           {{ t("app.previousAccount") }}
         </div>
         <div class="mt-1 font-mono text-xs">{{ params.previousAccountId }}</div>

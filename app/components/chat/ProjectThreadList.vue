@@ -69,15 +69,15 @@ function openThread(threadId: string) {
 
 <template>
   <section data-testid="project-thread-list" class="mx-auto w-full max-w-5xl">
-    <div class="mb-8 flex items-start justify-between gap-4 border-b border-black/10 pb-5">
+    <div class="mb-8 flex items-start justify-between gap-4 border-b border-hairline pb-5">
       <div class="min-w-0">
-        <div class="mb-2 flex items-center gap-2 text-sm text-[#7d858b]">
+        <div class="mb-2 flex items-center gap-2 text-sm text-ink-muted">
           <FolderIcon class="size-4" />
           {{ t("app.projectThreads") }}
         </div>
-        <h2 class="truncate text-2xl font-semibold text-[#202225]">{{ selectedProject?.name }}</h2>
-        <p class="mt-2 truncate text-sm text-[#7d858b]">{{ selectedProject?.remotePath }}</p>
-        <p class="mt-4 max-w-2xl text-[0.9375rem] leading-7 text-[#6f767d]">
+        <h2 class="truncate text-2xl font-semibold text-ink">{{ selectedProject?.name }}</h2>
+        <p class="mt-2 truncate text-sm text-ink-muted">{{ selectedProject?.remotePath }}</p>
+        <p class="mt-4 max-w-2xl text-[0.9375rem] leading-7 text-ink-secondary">
           {{ t("app.projectThreadsHint") }}
         </p>
       </div>
@@ -100,16 +100,16 @@ function openThread(threadId: string) {
             variant="ghost"
             :data-testid="`project-thread-row-${thread.id}`"
             v-bind="longPressContextMenuHandlers"
-            class="group h-auto w-full items-start justify-between gap-4 rounded-lg border border-transparent px-4 py-3 text-left font-normal hover:border-black/10 hover:bg-[#f7fafb]"
+            class="group h-auto w-full items-start justify-between gap-4 rounded-lg border border-transparent px-4 py-3 text-left font-normal hover:border-hairline hover:bg-canvas-soft"
             @click="openThread(String(thread.id))"
           >
             <span class="flex min-w-0 gap-3">
-              <MessageSquareTextIcon class="mt-1 size-4 shrink-0 text-[#7d858b]" />
+              <MessageSquareTextIcon class="mt-1 size-4 shrink-0 text-ink-muted" />
               <span class="min-w-0">
-                <span class="line-clamp-2 text-[0.9375rem] leading-6 text-[#202225]">{{
+                <span class="line-clamp-2 text-[0.9375rem] leading-6 text-ink">{{
                   titleFor(thread)
                 }}</span>
-                <span class="mt-1 flex items-center gap-2 text-xs text-[#8d9499]">
+                <span class="mt-1 flex items-center gap-2 text-xs text-ink-faint">
                   <Clock3Icon class="size-3.5" />
                   {{ formatDate(thread.recencyAt || thread.updatedAt) }}
                 </span>
@@ -128,10 +128,7 @@ function openThread(threadId: string) {
       </ContextMenu>
     </div>
 
-    <div
-      v-else
-      class="rounded-2xl bg-[#f1f1f1] px-5 py-4 text-[0.9375rem] leading-7 text-[#202225]"
-    >
+    <div v-else class="rounded-2xl bg-canvas-soft px-5 py-4 text-[0.9375rem] leading-7 text-ink">
       {{ loading ? t("app.thinking") : t("app.noProjectThreads") }}
     </div>
   </section>

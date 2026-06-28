@@ -70,7 +70,7 @@ const activeApprovalOption = computed(
         type="button"
         variant="ghost"
         size="lg"
-        class="h-10 shrink-0 gap-2 px-2 text-sm font-normal text-[#858b91] hover:bg-black/[0.04] hover:text-[#4f575e] md:text-base"
+        class="h-10 shrink-0 gap-2 px-2 text-sm font-normal text-ink-muted hover:bg-canvas-soft hover:text-ink-secondary md:text-base"
       >
         <SettingsIcon class="size-5" />
         <span>{{ t(`app.${activeApprovalOption.shortLabelKey}`) }}</span>
@@ -79,11 +79,14 @@ const activeApprovalOption = computed(
     </PopoverTrigger>
     <PopoverContent
       align="start"
-      class="w-[min(92vw,theme(maxWidth.xl))] gap-1 rounded-2xl p-2 shadow-xl shadow-slate-900/15"
+      class="w-[min(92vw,theme(maxWidth.xl))] gap-1 rounded-2xl border-hairline p-2 shadow-xl shadow-ink/10"
     >
-      <div class="flex items-center gap-4 px-3 py-2 text-base text-[#858b91]">
+      <div class="flex items-center gap-4 px-3 py-2 text-base text-ink-muted">
         <span>{{ t("app.approvalQuestion") }}</span>
-        <button type="button" class="underline underline-offset-4 hover:text-[#202225]">
+        <button
+          type="button"
+          class="text-primary underline underline-offset-4 hover:text-primary-active"
+        >
           {{ t("app.learnMore") }}
         </button>
       </div>
@@ -91,20 +94,18 @@ const activeApprovalOption = computed(
         v-for="option in approvalOptions"
         :key="option.value"
         type="button"
-        class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 rounded-xl px-3 py-2.5 text-left hover:bg-black/[0.04]"
-        :class="option.value === modelValue ? 'bg-black/[0.04]' : ''"
+        class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 rounded-xl px-3 py-2.5 text-left hover:bg-canvas-soft"
+        :class="option.value === modelValue ? 'bg-canvas-soft' : ''"
         @click="emit('update:modelValue', option.value)"
       >
-        <component :is="option.icon" class="size-5 text-[#5f6970]" />
+        <component :is="option.icon" class="size-5 text-ink-muted" />
         <span class="min-w-0">
-          <span class="block text-lg leading-6 text-[#202225]">{{
-            t(`app.${option.labelKey}`)
-          }}</span>
-          <span class="block truncate text-base leading-6 text-[#858b91]">{{
+          <span class="block text-lg leading-6 text-ink">{{ t(`app.${option.labelKey}`) }}</span>
+          <span class="block truncate text-base leading-6 text-ink-muted">{{
             t(`app.${option.descriptionKey}`)
           }}</span>
         </span>
-        <CheckIcon v-if="option.value === modelValue" class="size-5 text-[#202225]" />
+        <CheckIcon v-if="option.value === modelValue" class="size-5 text-primary" />
       </button>
     </PopoverContent>
   </Popover>

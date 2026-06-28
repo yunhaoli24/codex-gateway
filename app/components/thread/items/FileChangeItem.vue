@@ -84,9 +84,9 @@ async function respond(decision: "accept" | "decline") {
 </script>
 
 <template>
-  <div class="max-w-4xl text-[#5f6970]">
+  <div class="max-w-4xl text-ink-secondary">
     <div class="flex items-center gap-2 text-[0.9375rem]">
-      <Loader2Icon v-if="isInProgress" class="size-4 animate-spin text-sky-500" />
+      <Loader2Icon v-if="isInProgress" class="size-4 animate-spin text-primary" />
       <FilePenIcon v-else class="size-4" />
       <span>{{ title }}</span>
       <Badge v-if="itemStatus" variant="secondary">{{ itemStatus }}</Badge>
@@ -95,10 +95,10 @@ async function respond(decision: "accept" | "decline") {
     </div>
     <div
       v-if="pendingApproval"
-      class="mt-3 rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+      class="mt-3 rounded-lg border border-accent-orange/30 bg-accent-orange/10 px-3 py-2 text-sm text-accent-orange-deep"
     >
       <div class="font-medium">{{ t("app.fileApprovalRequired") }}</div>
-      <div v-if="pendingApproval.params?.reason" class="mt-1 text-amber-800">
+      <div v-if="pendingApproval.params?.reason" class="mt-1 text-accent-orange-deep">
         {{ pendingApproval.params.reason }}
       </div>
       <div class="mt-2 flex flex-wrap gap-2">
@@ -122,11 +122,11 @@ async function respond(decision: "accept" | "decline") {
       </div>
     </div>
     <div v-if="fileChanges.length" class="mt-3 space-y-2">
-      <ScrollArea v-if="output" class="h-56 rounded-lg border border-black/10 bg-[#f6f6f6]">
+      <ScrollArea v-if="output" class="h-56 rounded-lg border border-hairline bg-canvas-soft">
         <HighlightedCode
           :code="output"
           language="shell"
-          pre-class="syntax-highlight p-3 text-xs leading-5 text-[#3d4145]"
+          pre-class="syntax-highlight p-3 text-xs leading-5 text-ink-secondary"
         />
       </ScrollArea>
       <Collapsible
@@ -134,14 +134,14 @@ async function respond(decision: "accept" | "decline") {
         :key="`${changePath(change)}-${changeKind(change)}`"
         v-slot="{ open }"
         default-open
-        class="rounded-lg border border-black/10 bg-[#fbfbfb]"
+        class="rounded-lg border border-hairline bg-surface"
       >
         <CollapsibleTrigger
-          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/[0.03]"
+          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas-soft"
         >
-          <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-[#9aa1a6]" />
-          <ChevronRightIcon v-else class="size-4 shrink-0 text-[#9aa1a6]" />
-          <span class="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-[#31363a]">{{
+          <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-ink-faint" />
+          <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
+          <span class="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-ink-secondary">{{
             changePath(change)
           }}</span>
           <Badge variant="outline">{{ changeKindLabel(change) }}</Badge>
@@ -149,7 +149,7 @@ async function respond(decision: "accept" | "decline") {
         <CollapsibleContent>
           <StickToBottomScrollArea
             v-if="changeDiff(change)"
-            class="diff-markdown max-h-[min(55vh,26rem)] border-t border-black/10 bg-white"
+            class="diff-markdown max-h-[min(55vh,26rem)] border-t border-hairline bg-surface"
             viewport-class="max-h-[min(55vh,26rem)]"
             :threshold="48"
             :follow-key="changeFollowKey(change)"
@@ -160,22 +160,25 @@ async function respond(decision: "accept" | "decline") {
               compact
             />
           </StickToBottomScrollArea>
-          <div v-else class="border-t border-black/10 px-3 py-2 text-sm text-[#9aa1a6]">
+          <div v-else class="border-t border-hairline px-3 py-2 text-sm text-ink-faint">
             {{ t("app.noDiff") }}
           </div>
         </CollapsibleContent>
       </Collapsible>
     </div>
-    <ScrollArea v-else-if="output" class="mt-3 h-56 rounded-lg border border-black/10 bg-[#f6f6f6]">
+    <ScrollArea
+      v-else-if="output"
+      class="mt-3 h-56 rounded-lg border border-hairline bg-canvas-soft"
+    >
       <HighlightedCode
         :code="output"
         language="shell"
-        pre-class="syntax-highlight p-3 text-xs leading-5 text-[#3d4145]"
+        pre-class="syntax-highlight p-3 text-xs leading-5 text-ink-secondary"
       />
     </ScrollArea>
     <div
       v-else-if="isInProgress"
-      class="mt-3 rounded-lg border border-black/10 bg-[#fbfbfb] px-3 py-2 text-sm text-[#8d9499]"
+      class="mt-3 rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink-muted"
     >
       {{ t("app.waitingFileChanges") }}
     </div>

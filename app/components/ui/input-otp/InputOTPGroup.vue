@@ -17,7 +17,7 @@ const forwarded = useForwardProps(delegatedProps);
     v-bind="forwarded"
     :class="
       cn(
-        'has-aria-invalid:ring-destructive/20 dark:has-aria-invalid:ring-destructive/40 has-aria-invalid:border-destructive rounded-md has-aria-invalid:ring-2 flex items-center',
+        'has-aria-invalid:ring-destructive/20 has-aria-invalid:border-destructive rounded-md has-aria-invalid:ring-2 flex items-center',
         props.class,
       )
     "
