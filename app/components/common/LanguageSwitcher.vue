@@ -5,13 +5,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 
-const { locale, setLocale } = useI18n()
+const { locale, setLocale } = useI18n();
 
 async function switchLanguage(value: string | null) {
-  if (value === 'zh' || value === 'en') {
-    await setLocale(value)
+  if (value === "zh" || value === "en") {
+    await setLocale(value);
   }
 }
 </script>

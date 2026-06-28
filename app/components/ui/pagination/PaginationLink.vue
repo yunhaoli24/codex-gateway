@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from "vue"
-import type { ButtonVariants } from '@/components/ui/button'
-import { cn } from "@/lib/utils"
-import { buttonVariants } from '@/components/ui/button'
+import type { HTMLAttributes } from "vue";
+import type { ButtonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 
-const props = withDefaults(defineProps<{
-  href?: string
-  size?: ButtonVariants["size"]
-  isActive?: boolean
-  class?: HTMLAttributes["class"]
-}>(), {
-  size: "icon",
-  isActive: false,
-})
+const props = withDefaults(
+  defineProps<{
+    href?: string;
+    size?: ButtonVariants["size"];
+    isActive?: boolean;
+    class?: HTMLAttributes["class"];
+  }>(),
+  {
+    size: "icon",
+    isActive: false,
+  },
+);
 </script>
 
 <template>
@@ -21,14 +24,16 @@ const props = withDefaults(defineProps<{
     data-slot="pagination-link"
     :data-active="isActive ? '' : undefined"
     :aria-current="isActive ? 'page' : undefined"
-    :class="cn(
-      buttonVariants({
-        variant: isActive ? 'outline' : 'ghost',
-        size,
-      }),
-      '',
-      props.class,
-    )"
+    :class="
+      cn(
+        buttonVariants({
+          variant: isActive ? 'outline' : 'ghost',
+          size,
+        }),
+        '',
+        props.class,
+      )
+    "
   >
     <slot />
   </a>

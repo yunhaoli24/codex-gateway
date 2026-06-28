@@ -6,14 +6,13 @@ import {
   OctagonXIcon,
   Loader2Icon,
   XIcon,
-} from '@lucide/vue';
+} from "@lucide/vue";
 
+import type { ToasterProps } from "vue-sonner";
+import { Toaster as Sonner } from "vue-sonner";
+import { cn } from "@/lib/utils";
 
-import type { ToasterProps } from "vue-sonner"
-import { Toaster as Sonner } from "vue-sonner"
-import { cn } from "@/lib/utils"
-
-const props = defineProps<ToasterProps>()
+const props = defineProps<ToasterProps>();
 </script>
 
 <template>

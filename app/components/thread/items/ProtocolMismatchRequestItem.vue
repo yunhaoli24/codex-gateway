@@ -1,23 +1,25 @@
 <script setup lang="ts">
-import { AlertTriangleIcon } from '@lucide/vue'
-import { computed } from 'vue'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { jsonPreview } from '@/utils/thread-items'
+import { AlertTriangleIcon } from "@lucide/vue";
+import { computed } from "vue";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { jsonPreview } from "@/utils/thread-items";
 
 const props = defineProps<{
-  item: Record<string, any>
-  title?: string
-  description?: string
-}>()
+  item: Record<string, any>;
+  title?: string;
+  description?: string;
+}>();
 
-const { t } = useI18n()
-const title = computed(() => props.title || props.item.method || t('app.protocolMismatch'))
-const description = computed(() => props.description || t('app.protocolMismatchDescription'))
+const { t } = useI18n();
+const title = computed(() => props.title || props.item.method || t("app.protocolMismatch"));
+const description = computed(() => props.description || t("app.protocolMismatchDescription"));
 </script>
 
 <template>
-  <div class="max-w-4xl rounded-lg border border-red-300/70 bg-red-50 px-3 py-3 text-sm text-red-950">
+  <div
+    class="max-w-4xl rounded-lg border border-red-300/70 bg-red-50 px-3 py-3 text-sm text-red-950"
+  >
     <div class="flex items-center gap-2">
       <AlertTriangleIcon class="size-4 shrink-0" />
       <span class="min-w-0 flex-1 truncate font-medium">{{ title }}</span>

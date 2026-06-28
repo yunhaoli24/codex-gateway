@@ -1,21 +1,17 @@
 <script setup lang="ts">
-import { CircleIcon } from '@lucide/vue';
+import { CircleIcon } from "@lucide/vue";
 
-import type { RadioGroupItemProps } from "reka-ui"
-import type { HTMLAttributes } from "vue"
-import { reactiveOmit } from "@vueuse/core"
-import {
-  RadioGroupIndicator,
-  RadioGroupItem,
-  useForwardProps,
-} from "reka-ui"
-import { cn } from "@/lib/utils"
+import type { RadioGroupItemProps } from "reka-ui";
+import type { HTMLAttributes } from "vue";
+import { reactiveOmit } from "@vueuse/core";
+import { RadioGroupIndicator, RadioGroupItem, useForwardProps } from "reka-ui";
+import { cn } from "@/lib/utils";
 
-const props = defineProps<RadioGroupItemProps & { class?: HTMLAttributes["class"] }>()
+const props = defineProps<RadioGroupItemProps & { class?: HTMLAttributes["class"] }>();
 
-const delegatedProps = reactiveOmit(props, "class")
+const delegatedProps = reactiveOmit(props, "class");
 
-const forwardedProps = useForwardProps(delegatedProps)
+const forwardedProps = useForwardProps(delegatedProps);
 </script>
 
 <template>
@@ -34,7 +30,9 @@ const forwardedProps = useForwardProps(delegatedProps)
       class="flex size-4 items-center justify-center"
     >
       <slot>
-        <CircleIcon class="bg-primary-foreground absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full" />
+        <CircleIcon
+          class="bg-primary-foreground absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+        />
       </slot>
     </RadioGroupIndicator>
   </RadioGroupItem>

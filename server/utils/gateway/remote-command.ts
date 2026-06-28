@@ -1,9 +1,9 @@
 export function codexRemotePayload(command: string) {
   return [
-    'printf \'%b\' \'\\254\\341\\117\\004\\120\\367\\316\\361\' >/dev/null;',
+    "printf '%b' '\\254\\341\\117\\004\\120\\367\\316\\361' >/dev/null;",
     codexPathBootstrap(),
     command,
-  ].join(' ')
+  ].join(" ");
 }
 
 function codexPathBootstrap() {
@@ -14,8 +14,8 @@ function codexPathBootstrap() {
     'if [ -z "$CODEX_BIN" ] && command -v npm >/dev/null 2>&1; then NPM_PREFIX="$(npm prefix -g 2>/dev/null || true)"; if [ -n "$NPM_PREFIX" ] && [ -x "$NPM_PREFIX/bin/codex" ]; then CODEX_BIN="$NPM_PREFIX/bin/codex"; fi; fi;',
     'if [ -z "$CODEX_BIN" ] && command -v npm >/dev/null 2>&1; then NPM_ROOT="$(npm root -g 2>/dev/null || true)"; if [ -n "$NPM_ROOT" ] && [ -x "$NPM_ROOT/.bin/codex" ]; then CODEX_BIN="$NPM_ROOT/.bin/codex"; fi; fi;',
     'if [ -z "$CODEX_BIN" ]; then echo "codex executable not found. Install @openai/codex or set CODEX_INSTALL_DIR to the directory containing codex." >&2; exit 127; fi;',
-    'export CODEX_BIN;',
-  ].join(' ')
+    "export CODEX_BIN;",
+  ].join(" ");
 }
 
 export function codexRemoteAppServerStartPayload() {
@@ -23,7 +23,7 @@ export function codexRemoteAppServerStartPayload() {
 set -eu
 ${ensureGatewayCodexConfigFeatureSnippet()}
 "$CODEX_BIN" app-server --listen unix://
-`)
+`);
 }
 
 export function codexRemoteAppServerProxyPayload() {
@@ -47,11 +47,11 @@ if ! [ -S "$socket" ]; then
 fi
 [ -S "$socket" ] && codex_gateway_socket_has_listener
 exec "$CODEX_BIN" app-server proxy
-`)
+`);
 }
 
 export function codexRemoteAppServerExistingProxyPayload() {
-  return codexRemotePayload('"$CODEX_BIN" app-server proxy')
+  return codexRemotePayload('"$CODEX_BIN" app-server proxy');
 }
 
 export function codexRemoteAppServerRuntimeStatePayload() {
@@ -63,11 +63,11 @@ if [ -S "$socket" ] && codex_gateway_socket_has_listener; then
 else
   echo '{"status":"stopped"}'
 fi
-`)
+`);
 }
 
 export function codexRemoteVersionPayload() {
-  return codexRemotePayload('"$CODEX_BIN" --version')
+  return codexRemotePayload('"$CODEX_BIN" --version');
 }
 
 export function codexRemoteUpgradeAndRestartPayload(version: string) {
@@ -105,7 +105,7 @@ if [ -z "$CODEX_BIN" ]; then
 fi
 ln -sf "$CODEX_BIN" "$managed_codex"
 "$CODEX_BIN" --version
-`)
+`);
 }
 
 export function codexRemoteTerminateUnmanagedAppServerPayload() {
@@ -157,7 +157,7 @@ for i in $(seq 1 100); do
 done
 echo "Unmanaged app-server did not stop after SIGTERM: $pid" >&2
 exit 1
-`)
+`);
 }
 
 export function codexRemoteAppServerVerifyPayload() {
@@ -166,27 +166,27 @@ set -eu
 ${ensureGatewayCodexConfigFeatureSnippet()}
 "$CODEX_BIN" --version
 "$CODEX_BIN" app-server proxy --help >/dev/null
-`)
+`);
 }
 
 export function remoteLoginShellCommand(payload: string) {
   const wrapper = [
     'if [ -z "$SHELL" ] || [ ! -x "$SHELL" ]; then',
     'echo "Codex remote SSH requires SHELL to point to an executable login shell" >&2; exit 127;',
-    'fi;',
+    "fi;",
     'CODEX_REMOTE_PAYLOAD="$1"; export CODEX_REMOTE_PAYLOAD;',
     'case "${SHELL##*/}" in',
     'csh|tcsh) exec "$SHELL" -i -c \'set loginsh=1; if ( -r /etc/csh.login ) source /etc/csh.login; if ( -r ~/.login ) source ~/.login; exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' ;;',
-    'nu) exec "$SHELL" -l -i -c \'exec /bin/sh -c $env.CODEX_REMOTE_PAYLOAD\' ;;',
+    "nu) exec \"$SHELL\" -l -i -c 'exec /bin/sh -c $env.CODEX_REMOTE_PAYLOAD' ;;",
     '*) exec "$SHELL" -l -c \'exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' ;;',
-    'esac',
-  ].join(' ')
+    "esac",
+  ].join(" ");
 
-  return `sh -c ${shellQuote(wrapper)} sh ${shellQuote(payload)}`
+  return `sh -c ${shellQuote(wrapper)} sh ${shellQuote(payload)}`;
 }
 
 function shellQuote(value: string) {
-  return `'${value.replaceAll("'", "'\\''")}'`
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function ensureGatewayCodexConfigFeatureSnippet() {
@@ -234,7 +234,7 @@ awk '
   }
 ' "$config_file" > "$config_tmp" && mv "$config_tmp" "$config_file"
 true
-`
+`;
 }
 
 function appServerSocketHasListenerSnippet() {
@@ -249,5 +249,5 @@ codex_gateway_socket_has_listener() {
   fi
   return 0
 }
-`
+`;
 }

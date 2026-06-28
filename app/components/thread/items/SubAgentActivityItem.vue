@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { GitBranchIcon } from '@lucide/vue'
-import { computed } from 'vue'
-import { Badge } from '@/components/ui/badge'
+import { GitBranchIcon } from "@lucide/vue";
+import { computed } from "vue";
+import { Badge } from "@/components/ui/badge";
 
-const props = defineProps<{ item: Record<string, any> }>()
-const { t } = useI18n()
+const props = defineProps<{ item: Record<string, any> }>();
+const { t } = useI18n();
 
-const title = computed(() => props.item.agentPath || props.item.agentThreadId || t('app.subAgentActivity'))
+const title = computed(
+  () => props.item.agentPath || props.item.agentThreadId || t("app.subAgentActivity"),
+);
 </script>
 
 <template>

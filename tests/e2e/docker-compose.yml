@@ -4,8 +4,8 @@ services:
       context: ./docker
       args:
         CODEX_CLI_VERSION: ${E2E_CODEX_CLI_VERSION:-0.140.0}
-        E2E_UID: ${E2E_UID:-1000}
-        E2E_GID: ${E2E_GID:-1000}
+        E2E_UID: ${E2E_UID:-12345}
+        E2E_GID: ${E2E_GID:-12345}
     environment:
       CODEX_HOME: /home/codex/.codex
     volumes:

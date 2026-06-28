@@ -1,22 +1,27 @@
 <script setup lang="ts">
-import { MoreHorizontalIcon } from '@lucide/vue';
+import { MoreHorizontalIcon } from "@lucide/vue";
 
-import type { PaginationEllipsisProps } from "reka-ui"
-import type { HTMLAttributes } from "vue"
-import { reactiveOmit } from "@vueuse/core"
-import { PaginationEllipsis } from "reka-ui"
-import { cn } from "@/lib/utils"
+import type { PaginationEllipsisProps } from "reka-ui";
+import type { HTMLAttributes } from "vue";
+import { reactiveOmit } from "@vueuse/core";
+import { PaginationEllipsis } from "reka-ui";
+import { cn } from "@/lib/utils";
 
-const props = defineProps<PaginationEllipsisProps & { class?: HTMLAttributes["class"] }>()
+const props = defineProps<PaginationEllipsisProps & { class?: HTMLAttributes["class"] }>();
 
-const delegatedProps = reactiveOmit(props, "class")
+const delegatedProps = reactiveOmit(props, "class");
 </script>
 
 <template>
   <PaginationEllipsis
     data-slot="pagination-ellipsis"
     v-bind="delegatedProps"
-    :class="cn('size-7 [&_svg:not([class*=size-])]:size-3.5 flex items-center justify-center', props.class)"
+    :class="
+      cn(
+        'size-7 [&_svg:not([class*=size-])]:size-3.5 flex items-center justify-center',
+        props.class,
+      )
+    "
   >
     <slot>
       <MoreHorizontalIcon />

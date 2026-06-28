@@ -1,17 +1,21 @@
-import type { PinnedThreadRecord, ProjectRecord } from '~~/shared/types'
-import type { GatewayStoreContext } from '../types'
-import { pinnedKey, sortThreads, titleForThread } from '../thread-utils'
+import type { PinnedThreadRecord, ProjectRecord } from "~~/shared/types";
+import type { GatewayStoreContext } from "../types";
+import { pinnedKey, sortThreads, titleForThread } from "../thread-utils";
 
 export function createThreadPinningActions(ctx: GatewayStoreContext) {
   return {
     async setThreadPinned(threadId: string, pinned: boolean) {
       if (!ctx.state.selectedHostId) {
-        return
+        return;
       }
-      const project = ctx.state.projects.find((candidate) => candidate.id === ctx.state.selectedProjectId) as ProjectRecord | undefined
-      const thread = ctx.state.threads.find((candidate) => String(candidate.id) === threadId)
-      const key = pinnedKey(ctx.state.selectedHostId, threadId)
-      ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.filter((item) => pinnedKey(item.hostId, item.threadId) !== key)
+      const project = ctx.state.projects.find(
+        (candidate) => candidate.id === ctx.state.selectedProjectId,
+      ) as ProjectRecord | undefined;
+      const thread = ctx.state.threads.find((candidate) => String(candidate.id) === threadId);
+      const key = pinnedKey(ctx.state.selectedHostId, threadId);
+      ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.filter(
+        (item) => pinnedKey(item.hostId, item.threadId) !== key,
+      );
       if (pinned) {
         ctx.state.gatewayConfig.pinnedThreads.unshift({
           hostId: ctx.state.selectedHostId,
@@ -20,86 +24,107 @@ export function createThreadPinningActions(ctx: GatewayStoreContext) {
           title: titleForThread(thread),
           subtitle: project?.remotePath ?? null,
           projectName: project?.name ?? null,
-          updatedAt: Number(thread?.recencyAt || thread?.updatedAt || Math.floor(Date.now() / 1000)),
-        })
+          updatedAt: Number(
+            thread?.recencyAt || thread?.updatedAt || Math.floor(Date.now() / 1000),
+          ),
+        });
       }
-      ctx.persistConfig()
-      ctx.state.threads = sortThreads(ctx.state.threads.map((thread) =>
-        String(thread.id) === threadId ? { ...thread, pinned } : thread,
-      ))
+      ctx.persistConfig();
+      ctx.state.threads = sortThreads(
+        ctx.state.threads.map((thread) =>
+          String(thread.id) === threadId ? { ...thread, pinned } : thread,
+        ),
+      );
     },
 
     setPinnedThread(thread: PinnedThreadRecord, pinned: boolean) {
-      const key = pinnedKey(thread.hostId, thread.threadId)
-      ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.filter((item) => pinnedKey(item.hostId, item.threadId) !== key)
+      const key = pinnedKey(thread.hostId, thread.threadId);
+      ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.filter(
+        (item) => pinnedKey(item.hostId, item.threadId) !== key,
+      );
       if (pinned) {
-        ctx.state.gatewayConfig.pinnedThreads.unshift(thread)
+        ctx.state.gatewayConfig.pinnedThreads.unshift(thread);
       }
-      ctx.persistConfig()
+      ctx.persistConfig();
       if (thread.hostId === ctx.state.selectedHostId) {
-        ctx.state.threads = sortThreads(ctx.state.threads.map((candidate) =>
-          String(candidate.id) === thread.threadId ? { ...candidate, pinned } : candidate,
-        ))
+        ctx.state.threads = sortThreads(
+          ctx.state.threads.map((candidate) =>
+            String(candidate.id) === thread.threadId ? { ...candidate, pinned } : candidate,
+          ),
+        );
       }
     },
 
     async openPinnedThread(thread: PinnedThreadRecord) {
-      const key = pinnedKey(thread.hostId, thread.threadId)
-      ctx.state.openingPinnedThreadKey = key
+      const key = pinnedKey(thread.hostId, thread.threadId);
+      ctx.state.openingPinnedThreadKey = key;
       try {
         await ctx.openThread(thread.threadId, {
           hostId: thread.hostId,
           projectId: thread.projectId,
-        })
+        });
       } finally {
-        ctx.state.openingPinnedThreadKey = null
+        ctx.state.openingPinnedThreadKey = null;
       }
     },
 
     upsertPinnedMetadataFromThread(thread: any) {
       if (!ctx.state.selectedHostId || !thread?.id) {
-        return
+        return;
       }
-      const key = pinnedKey(ctx.state.selectedHostId, String(thread.id))
-      const index = ctx.state.gatewayConfig.pinnedThreads.findIndex((item) => pinnedKey(item.hostId, item.threadId) === key)
+      const key = pinnedKey(ctx.state.selectedHostId, String(thread.id));
+      const index = ctx.state.gatewayConfig.pinnedThreads.findIndex(
+        (item) => pinnedKey(item.hostId, item.threadId) === key,
+      );
       if (index < 0) {
-        return
+        return;
       }
-      const project = ctx.state.projects.find((candidate) => candidate.id === ctx.state.selectedProjectId)
+      const project = ctx.state.projects.find(
+        (candidate) => candidate.id === ctx.state.selectedProjectId,
+      );
       ctx.state.gatewayConfig.pinnedThreads[index] = {
         ...ctx.state.gatewayConfig.pinnedThreads[index],
         title: titleForThread(thread),
         projectName: project?.name ?? ctx.state.gatewayConfig.pinnedThreads[index].projectName,
         subtitle: project?.remotePath ?? ctx.state.gatewayConfig.pinnedThreads[index].subtitle,
-        updatedAt: Number(thread.recencyAt || thread.updatedAt || ctx.state.gatewayConfig.pinnedThreads[index].updatedAt || Math.floor(Date.now() / 1000)),
-      }
-      ctx.persistConfig()
+        updatedAt: Number(
+          thread.recencyAt ||
+            thread.updatedAt ||
+            ctx.state.gatewayConfig.pinnedThreads[index].updatedAt ||
+            Math.floor(Date.now() / 1000),
+        ),
+      };
+      ctx.persistConfig();
     },
 
     async renameThread(threadId: string, name: string) {
       if (!ctx.state.selectedHostId) {
-        return
+        return;
       }
-      await $fetch('/api/threads/rename', {
-        method: 'POST',
+      await $fetch("/api/threads/rename", {
+        method: "POST",
         body: {
           hostId: ctx.state.selectedHostId,
           threadId,
           name,
         },
-      })
+      });
       ctx.state.threads = ctx.state.threads.map((thread) =>
         String(thread.id) === threadId ? { ...thread, name } : thread,
-      )
-      const key = pinnedKey(ctx.state.selectedHostId, threadId)
+      );
+      const key = pinnedKey(ctx.state.selectedHostId, threadId);
       ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.map((thread) =>
         pinnedKey(thread.hostId, thread.threadId) === key ? { ...thread, title: name } : thread,
-      )
-      ctx.persistConfig()
-      if (ctx.state.selectedThreadId === threadId && ctx.state.currentThread && typeof ctx.state.currentThread === 'object') {
-        ctx.state.currentThread = { ...(ctx.state.currentThread as Record<string, unknown>), name }
+      );
+      ctx.persistConfig();
+      if (
+        ctx.state.selectedThreadId === threadId &&
+        ctx.state.currentThread &&
+        typeof ctx.state.currentThread === "object"
+      ) {
+        ctx.state.currentThread = { ...(ctx.state.currentThread as Record<string, unknown>), name };
       }
-      await ctx.listThreads()
+      await ctx.listThreads();
     },
-  }
+  };
 }

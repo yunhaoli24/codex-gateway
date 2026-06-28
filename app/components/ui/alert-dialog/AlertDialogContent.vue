@@ -1,33 +1,35 @@
 <script setup lang="ts">
-import type { AlertDialogContentEmits, AlertDialogContentProps } from "reka-ui"
-import type { HTMLAttributes } from "vue"
-import { reactiveOmit } from "@vueuse/core"
+import type { AlertDialogContentEmits, AlertDialogContentProps } from "reka-ui";
+import type { HTMLAttributes } from "vue";
+import { reactiveOmit } from "@vueuse/core";
 import {
   AlertDialogContent,
   AlertDialogOverlay,
   AlertDialogPortal,
   useForwardPropsEmits,
-} from "reka-ui"
-import { cn } from "@/lib/utils"
+} from "reka-ui";
+import { cn } from "@/lib/utils";
 
 defineOptions({
   inheritAttrs: false,
-})
+});
 
 const props = withDefaults(
-  defineProps<AlertDialogContentProps & {
-    class?: HTMLAttributes["class"]
-    size?: "default" | "sm"
-  }>(),
+  defineProps<
+    AlertDialogContentProps & {
+      class?: HTMLAttributes["class"];
+      size?: "default" | "sm";
+    }
+  >(),
   {
     size: "default",
   },
-)
-const emits = defineEmits<AlertDialogContentEmits>()
+);
+const emits = defineEmits<AlertDialogContentEmits>();
 
-const delegatedProps = reactiveOmit(props, "class", "size")
+const delegatedProps = reactiveOmit(props, "class", "size");
 
-const forwarded = useForwardPropsEmits(delegatedProps, emits)
+const forwarded = useForwardPropsEmits(delegatedProps, emits);
 </script>
 
 <template>

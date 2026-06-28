@@ -1,29 +1,29 @@
 <script setup lang="ts">
-import { CheckIcon, CopyIcon } from '@lucide/vue'
-import { computed, ref } from 'vue'
-import { toast } from 'vue-sonner'
-import { Button } from '@/components/ui/button'
-import MarkdownContent from '@/components/common/MarkdownContent.vue'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { threadItemText } from '@/utils/thread-items'
+import { CheckIcon, CopyIcon } from "@lucide/vue";
+import { computed, ref } from "vue";
+import { toast } from "vue-sonner";
+import { Button } from "@/components/ui/button";
+import MarkdownContent from "@/components/common/MarkdownContent.vue";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { threadItemText } from "@/utils/thread-items";
 
-const props = defineProps<{ item: Record<string, any> }>()
+const props = defineProps<{ item: Record<string, any> }>();
 
-const { t } = useI18n()
-const text = computed(() => threadItemText(props.item))
-const copied = ref(false)
+const { t } = useI18n();
+const text = computed(() => threadItemText(props.item));
+const copied = ref(false);
 
 async function copyText() {
-  if (!text.value) return
+  if (!text.value) return;
   try {
-    await navigator.clipboard.writeText(text.value)
-    copied.value = true
-    toast.success(t('app.agentOutputCopied'))
+    await navigator.clipboard.writeText(text.value);
+    copied.value = true;
+    toast.success(t("app.agentOutputCopied"));
     window.setTimeout(() => {
-      copied.value = false
-    }, 1200)
+      copied.value = false;
+    }, 1200);
   } catch {
-    toast.error(t('app.copyAgentOutputFailed'))
+    toast.error(t("app.copyAgentOutputFailed"));
   }
 }
 </script>
@@ -31,7 +31,10 @@ async function copyText() {
 <template>
   <div class="group max-w-4xl text-[0.9375rem] leading-8 text-[#202225]">
     <MarkdownContent :content="text" />
-    <div v-if="text" class="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+    <div
+      v-if="text"
+      class="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+    >
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger as-child>
@@ -47,7 +50,7 @@ async function copyText() {
               <CopyIcon v-else class="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{{ t('app.copyAgentOutput') }}</TooltipContent>
+          <TooltipContent>{{ t("app.copyAgentOutput") }}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>

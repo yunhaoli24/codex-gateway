@@ -1,94 +1,103 @@
 <script setup lang="ts">
-import { ChevronDownIcon, ChevronRightIcon, ListTreeIcon } from '@lucide/vue'
-import { computed, ref, watch } from 'vue'
-import { Badge } from '@/components/ui/badge'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import ThreadItemView from '@/components/thread/ThreadItemView.vue'
+import { ChevronDownIcon, ChevronRightIcon, ListTreeIcon } from "@lucide/vue";
+import { computed, ref, watch } from "vue";
+import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import ThreadItemView from "@/components/thread/ThreadItemView.vue";
 
 const props = defineProps<{
-  turn: Record<string, any>
-  hostId: number | null
-}>()
+  turn: Record<string, any>;
+  hostId: number | null;
+}>();
 
-const { t } = useI18n()
+const { t } = useI18n();
 
-const items = computed(() => Array.isArray(props.turn.items) ? props.turn.items : [])
-const finalAgentIndex = computed(() => findFinalAgentIndex(items.value, props.turn.status))
-const hasFinalAnswer = computed(() => finalAgentIndex.value >= 0)
+const items = computed(() => (Array.isArray(props.turn.items) ? props.turn.items : []));
+const finalAgentIndex = computed(() => findFinalAgentIndex(items.value, props.turn.status));
+const hasFinalAnswer = computed(() => finalAgentIndex.value >= 0);
 const firstIntermediateIndex = computed(() => {
-  const firstNonUser = items.value.findIndex((item: any) => item?.type !== 'userMessage' || isSteerUserMessage(item))
-  return firstNonUser >= 0 ? firstNonUser : items.value.length
-})
-const userItems = computed(() => items.value.slice(0, firstIntermediateIndex.value))
+  const firstNonUser = items.value.findIndex(
+    (item: any) => item?.type !== "userMessage" || isSteerUserMessage(item),
+  );
+  return firstNonUser >= 0 ? firstNonUser : items.value.length;
+});
+const userItems = computed(() => items.value.slice(0, firstIntermediateIndex.value));
 const intermediateItems = computed(() => {
   if (hasFinalAnswer.value) {
-    return items.value.slice(firstIntermediateIndex.value, finalAgentIndex.value)
+    return items.value.slice(firstIntermediateIndex.value, finalAgentIndex.value);
   }
-  return items.value.slice(firstIntermediateIndex.value)
-})
+  return items.value.slice(firstIntermediateIndex.value);
+});
 const finalItems = computed(() => {
   if (!hasFinalAnswer.value) {
-    return []
+    return [];
   }
-  return items.value.slice(finalAgentIndex.value)
-})
-const intermediateOpen = ref(false)
+  return items.value.slice(finalAgentIndex.value);
+});
+const intermediateOpen = ref(false);
 
 watch(
   () => statusValue(props.turn.status),
   (status) => {
-    intermediateOpen.value = isActiveTurnStatus(status)
+    intermediateOpen.value = isActiveTurnStatus(status);
   },
   { immediate: true },
-)
+);
 
 function findFinalAgentIndex(turnItems: any[], status: unknown) {
-  const explicitFinalIndex = findLastIndex(turnItems, (item) =>
-    item?.type === 'agentMessage' && item?.phase === 'final_answer',
-  )
+  const explicitFinalIndex = findLastIndex(
+    turnItems,
+    (item) => item?.type === "agentMessage" && item?.phase === "final_answer",
+  );
   if (explicitFinalIndex >= 0) {
-    return explicitFinalIndex
+    return explicitFinalIndex;
   }
-  if (status !== 'completed') {
-    return -1
+  if (status !== "completed") {
+    return -1;
   }
-  return findLastIndex(turnItems, (item) => item?.type === 'agentMessage')
+  return findLastIndex(turnItems, (item) => item?.type === "agentMessage");
 }
 
 function findLastIndex<T>(list: T[], predicate: (item: T) => boolean) {
   for (let index = list.length - 1; index >= 0; index -= 1) {
     if (predicate(list[index])) {
-      return index
+      return index;
     }
   }
-  return -1
+  return -1;
 }
 
 function userMessageVariant(item: any) {
-  if (item?.type !== 'userMessage') {
-    return 'normal'
+  if (item?.type !== "userMessage") {
+    return "normal";
   }
   if (isSteerUserMessage(item)) {
-    return 'steer'
+    return "steer";
   }
-  const itemIndex = items.value.findIndex((candidate: any) => candidate === item)
-  return firstNonUserIndex(itemIndex) >= 0 ? 'steer' : 'normal'
+  const itemIndex = items.value.findIndex((candidate: any) => candidate === item);
+  return firstNonUserIndex(itemIndex) >= 0 ? "steer" : "normal";
 }
 
 function isSteerUserMessage(item: any) {
-  return item?.type === 'userMessage' && typeof item.clientId === 'string' && item.clientId.startsWith('steer-')
+  return (
+    item?.type === "userMessage" &&
+    typeof item.clientId === "string" &&
+    item.clientId.startsWith("steer-")
+  );
 }
 
 function firstNonUserIndex(beforeIndex: number) {
-  return items.value.findIndex((candidate: any, index) => index < beforeIndex && candidate?.type !== 'userMessage')
+  return items.value.findIndex(
+    (candidate: any, index) => index < beforeIndex && candidate?.type !== "userMessage",
+  );
 }
 
 function statusValue(status: any) {
-  return typeof status === 'string' ? status : status?.type
+  return typeof status === "string" ? status : status?.type;
 }
 
 function isActiveTurnStatus(status: unknown) {
-  return status === 'active' || status === 'inProgress' || status === 'running'
+  return status === "active" || status === "inProgress" || status === "running";
 }
 </script>
 
@@ -108,11 +117,13 @@ function isActiveTurnStatus(status: unknown) {
       v-slot="{ open }"
       class="max-w-4xl rounded-lg border border-black/10 bg-[#fbfbfb] text-[#5f6970]"
     >
-      <CollapsibleTrigger class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/[0.03]">
+      <CollapsibleTrigger
+        class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/[0.03]"
+      >
         <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-[#9aa1a6]" />
         <ChevronRightIcon v-else class="size-4 shrink-0 text-[#9aa1a6]" />
         <ListTreeIcon class="size-4 shrink-0 text-[#9aa1a6]" />
-        <span class="min-w-0 flex-1 truncate">{{ t('app.intermediateSteps') }}</span>
+        <span class="min-w-0 flex-1 truncate">{{ t("app.intermediateSteps") }}</span>
         <Badge variant="outline">{{ intermediateItems.length }}</Badge>
       </CollapsibleTrigger>
       <CollapsibleContent>

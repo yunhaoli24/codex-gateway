@@ -1,43 +1,41 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue'
-import { onMounted, ref, watch } from 'vue'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { useStickToBottomScroll } from '@/composables/useStickToBottomScroll'
+import type { HTMLAttributes } from "vue";
+import { onMounted, ref, watch } from "vue";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useStickToBottomScroll } from "@/composables/useStickToBottomScroll";
 
-const props = withDefaults(defineProps<{
-  class?: HTMLAttributes['class']
-  viewportClass?: HTMLAttributes['class']
-  contentClass?: HTMLAttributes['class']
-  threshold?: number
-  followKey?: unknown
-}>(), {
-  threshold: 120,
-})
+const props = withDefaults(
+  defineProps<{
+    class?: HTMLAttributes["class"];
+    viewportClass?: HTMLAttributes["class"];
+    contentClass?: HTMLAttributes["class"];
+    threshold?: number;
+    followKey?: unknown;
+  }>(),
+  {
+    threshold: 120,
+  },
+);
 
-const scrollAreaRef = ref<any>(null)
-const {
-  contentRef,
-  followLatest,
-  scrollToBottom,
-  resetFollowLatest,
-  handleScroll,
-} = useStickToBottomScroll(scrollAreaRef, {
-  threshold: props.threshold,
-})
+const scrollAreaRef = ref<any>(null);
+const { contentRef, followLatest, scrollToBottom, resetFollowLatest, handleScroll } =
+  useStickToBottomScroll(scrollAreaRef, {
+    threshold: props.threshold,
+  });
 
 watch(
   () => props.followKey,
   () => {
     if (followLatest.value) {
-      void scrollToBottom()
+      void scrollToBottom();
     }
   },
-  { flush: 'post' },
-)
+  { flush: "post" },
+);
 
 onMounted(() => {
-  resetFollowLatest()
-})
+  resetFollowLatest();
+});
 </script>
 
 <template>

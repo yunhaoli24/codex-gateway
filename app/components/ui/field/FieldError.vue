@@ -1,34 +1,31 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from "vue"
-import { computed } from "vue"
-import { cn } from "@/lib/utils"
+import type { HTMLAttributes } from "vue";
+import { computed } from "vue";
+import { cn } from "@/lib/utils";
 
 const props = defineProps<{
-  class?: HTMLAttributes["class"]
-  errors?: Array<string | { message: string | undefined } | undefined>
-}>()
+  class?: HTMLAttributes["class"];
+  errors?: Array<string | { message: string | undefined } | undefined>;
+}>();
 
 const content = computed(() => {
-  if (!props.errors || props.errors.length === 0)
-    return null
+  if (!props.errors || props.errors.length === 0) return null;
 
   const uniqueErrors = [
     ...new Map(
-      props.errors
-        .filter(Boolean)
-        .map((error) => {
-          const message = typeof error === "string" ? error : error?.message
-          return [message, error]
-        }),
+      props.errors.filter(Boolean).map((error) => {
+        const message = typeof error === "string" ? error : error?.message;
+        return [message, error];
+      }),
     ).values(),
-  ]
+  ];
 
   if (uniqueErrors.length === 1 && uniqueErrors[0]) {
-    return typeof uniqueErrors[0] === "string" ? uniqueErrors[0] : uniqueErrors[0].message
+    return typeof uniqueErrors[0] === "string" ? uniqueErrors[0] : uniqueErrors[0].message;
   }
 
-  return uniqueErrors.map(error => typeof error === "string" ? error : error?.message)
-})
+  return uniqueErrors.map((error) => (typeof error === "string" ? error : error?.message));
+});
 </script>
 
 <template>

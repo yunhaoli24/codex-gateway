@@ -1,76 +1,126 @@
 <script setup lang="ts">
-import MarkdownIt from 'markdown-it'
-import { computed } from 'vue'
-import { escapeAttribute, escapeHtml, highlightCode, normalizeLanguage } from '@/utils/code-highlight'
+import MarkdownIt from "markdown-it";
+import { ref, watch } from "vue";
+import { escapeHtml, highlightCode, normalizeLanguage } from "@/utils/code-highlight";
 
-const props = withDefaults(defineProps<{
-  content: string
-  compact?: boolean
-  diffLanguage?: string
-}>(), {
-  compact: false,
-  diffLanguage: '',
-})
+const props = withDefaults(
+  defineProps<{
+    content: string;
+    compact?: boolean;
+    diffLanguage?: string;
+  }>(),
+  {
+    compact: false,
+    diffLanguage: "",
+  },
+);
 
 const markdown = new MarkdownIt({
   html: false,
   linkify: true,
   typographer: true,
   breaks: false,
-  highlight(value, language) {
-    const normalizedLanguage = normalizeLanguage(language)
-    if (normalizedLanguage === 'diff') {
-      return `<pre class="syntax-highlight language-diff"><code>${renderDiff(value, props.diffLanguage)}</code></pre>`
+});
+
+markdown.renderer.rules.fence = (tokens, index) => {
+  const highlightedHtml = tokens[index]?.meta?.highlightedHtml;
+  return typeof highlightedHtml === "string" ? highlightedHtml : "";
+};
+
+const rendered = ref("");
+let renderVersion = 0;
+
+watch(
+  () => [props.content, props.diffLanguage] as const,
+  async () => {
+    const currentVersion = renderVersion + 1;
+    renderVersion = currentVersion;
+    const nextRendered = await renderMarkdown(props.content || "");
+    if (renderVersion === currentVersion) {
+      rendered.value = nextRendered;
     }
-    const highlighted = highlightCode(value, normalizedLanguage)
-    return `<pre class="hljs syntax-highlight language-${escapeAttribute(normalizedLanguage || 'text')}"><code>${highlighted}</code></pre>`
   },
-})
+  { immediate: true },
+);
 
-const rendered = computed(() => markdown.render(props.content || ''))
+async function renderMarkdown(content: string) {
+  const tokens = markdown.parse(content, {});
+  for (const token of tokens) {
+    if (token.type !== "fence") {
+      continue;
+    }
+    const normalizedLanguage = normalizeLanguage(token.info);
+    if (normalizedLanguage === "diff") {
+      token.meta = {
+        ...token.meta,
+        highlightedHtml: `<pre class="syntax-highlight language-diff"><code>${await renderDiff(token.content, props.diffLanguage)}</code></pre>`,
+      };
+    } else {
+      token.meta = {
+        ...token.meta,
+        highlightedHtml: `<pre class="shiki-block syntax-highlight language-${normalizeLanguage(normalizedLanguage || "text")}"><code>${await highlightCode(token.content, normalizedLanguage)}</code></pre>`,
+      };
+    }
+  }
+  return markdown.renderer.render(tokens, markdown.options, {});
+}
 
-function renderDiff(value: string, language: string) {
-  const normalizedLanguage = normalizeLanguage(language)
-  return value.split('\n').map((line) => {
-    const className = diffLineClass(line)
-    return `<span class="${className}">${renderDiffLine(line, normalizedLanguage)}</span>`
-  }).join('')
+async function renderDiff(value: string, language: string) {
+  const normalizedLanguage = normalizeLanguage(language);
+  const lines = await Promise.all(
+    value.split("\n").map(async (line) => {
+      const className = diffLineClass(line);
+      return `<span class="${className}">${await renderDiffLine(line, normalizedLanguage)}</span>`;
+    }),
+  );
+  return lines.join("");
 }
 
 function diffCodeLine(line: string) {
-  const marker = line[0]
-  return marker === '+' || marker === '-' || marker === ' ' ? line.slice(1) : line
+  const marker = line[0];
+  return marker === "+" || marker === "-" || marker === " " ? line.slice(1) : line;
 }
 
-function renderDiffLine(line: string, language: string) {
+async function renderDiffLine(line: string, language: string) {
   if (!line) {
-    return ' '
+    return " ";
   }
-  if (line.startsWith('@@') || line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('+++') || line.startsWith('---')) {
-    return escapeHtml(line)
+  if (
+    line.startsWith("@@") ||
+    line.startsWith("diff --git") ||
+    line.startsWith("index ") ||
+    line.startsWith("+++") ||
+    line.startsWith("---")
+  ) {
+    return escapeHtml(line);
   }
-  const marker = line[0]
-  if (marker !== '+' && marker !== '-' && marker !== ' ') {
-    return highlightCode(line, language)
+  const marker = line[0];
+  if (marker !== "+" && marker !== "-" && marker !== " ") {
+    return highlightCode(line, language);
   }
-  const code = diffCodeLine(line)
-  return `<span class="diff-line-marker">${escapeHtml(marker)}</span>${highlightCode(code || ' ', language)}`
+  const code = diffCodeLine(line);
+  return `<span class="diff-line-marker">${escapeHtml(marker)}</span>${await highlightCode(code || " ", language)}`;
 }
 
 function diffLineClass(line: string) {
-  if (line.startsWith('@@')) {
-    return 'diff-line diff-line-hunk'
+  if (line.startsWith("@@")) {
+    return "diff-line diff-line-hunk";
   }
-  if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('+++') || line.startsWith('---')) {
-    return 'diff-line diff-line-meta'
+  if (
+    line.startsWith("diff --git") ||
+    line.startsWith("index ") ||
+    line.startsWith("+++") ||
+    line.startsWith("---")
+  ) {
+    return "diff-line diff-line-meta";
   }
-  if (line.startsWith('+')) {
-    return 'diff-line diff-line-add'
+  if (line.startsWith("+")) {
+    return "diff-line diff-line-add";
   }
-  if (line.startsWith('-')) {
-    return 'diff-line diff-line-remove'
+  if (line.startsWith("-")) {
+    return "diff-line diff-line-remove";
   }
-  return 'diff-line'
+  return "diff-line";
 }
 </script>
 

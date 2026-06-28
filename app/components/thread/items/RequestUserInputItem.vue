@@ -1,34 +1,38 @@
 <script setup lang="ts">
-import { MessageSquareIcon } from '@lucide/vue'
-import { computed, reactive, ref } from 'vue'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { useGatewayStore } from '@/stores/gateway'
+import { MessageSquareIcon } from "@lucide/vue";
+import { computed, reactive, ref } from "vue";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { useGatewayStore } from "@/stores/gateway";
 
-const props = defineProps<{ item: Record<string, any> }>()
-const { t } = useI18n()
-const store = useGatewayStore()
-const responding = ref(false)
-const answers = reactive<Record<string, string>>({})
-const questions = computed(() => Array.isArray(props.item.params?.questions) ? props.item.params.questions : [])
+const props = defineProps<{ item: Record<string, any> }>();
+const { t } = useI18n();
+const store = useGatewayStore();
+const responding = ref(false);
+const answers = reactive<Record<string, string>>({});
+const questions = computed(() =>
+  Array.isArray(props.item.params?.questions) ? props.item.params.questions : [],
+);
 
 async function submit() {
   if (!props.item.requestId || !store.selectedThreadId) {
-    return
+    return;
   }
-  const payload: Record<string, { answers: string[] }> = {}
+  const payload: Record<string, { answers: string[] }> = {};
   for (const question of questions.value) {
-    const answer = answers[question.id]
+    const answer = answers[question.id];
     if (answer) {
-      payload[question.id] = { answers: [answer] }
+      payload[question.id] = { answers: [answer] };
     }
   }
-  responding.value = true
+  responding.value = true;
   try {
-    await store.respondToServerRequest(store.selectedThreadId, props.item.requestId, { answers: payload })
+    await store.respondToServerRequest(store.selectedThreadId, props.item.requestId, {
+      answers: payload,
+    });
   } finally {
-    responding.value = false
+    responding.value = false;
   }
 }
 </script>
@@ -37,7 +41,7 @@ async function submit() {
   <div class="max-w-4xl rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950">
     <div class="flex items-center gap-2">
       <MessageSquareIcon class="size-4 shrink-0" />
-      <span class="font-medium">{{ t('app.userInputRequest') }}</span>
+      <span class="font-medium">{{ t("app.userInputRequest") }}</span>
       <Badge variant="outline">{{ item.status }}</Badge>
     </div>
     <div class="mt-3 space-y-3">
@@ -65,8 +69,13 @@ async function submit() {
       </div>
     </div>
     <div class="mt-3 flex gap-2">
-      <Button size="sm" :disabled="responding || !questions.length" data-testid="request-user-input-submit" @click="submit">
-        {{ t('app.submitAnswer') }}
+      <Button
+        size="sm"
+        :disabled="responding || !questions.length"
+        data-testid="request-user-input-submit"
+        @click="submit"
+      >
+        {{ t("app.submitAnswer") }}
       </Button>
     </div>
   </div>

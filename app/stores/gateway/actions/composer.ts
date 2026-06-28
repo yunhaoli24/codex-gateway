@@ -1,13 +1,13 @@
-import type { ComposerDraft } from '../types'
-import type { GatewayStoreContext } from '../types'
-import { selectedThreadKey } from '../thread-utils'
+import type { ComposerDraft } from "../types";
+import type { GatewayStoreContext } from "../types";
+import { selectedThreadKey } from "../thread-utils";
 
 export function createComposerActions(ctx: GatewayStoreContext) {
   return {
     saveSelectedComposerDraft(draft: ComposerDraft) {
-      const key = selectedThreadKey(ctx.state.selectedHostId, ctx.state.selectedThreadId)
+      const key = selectedThreadKey(ctx.state.selectedHostId, ctx.state.selectedThreadId);
       if (!key) {
-        return
+        return;
       }
       ctx.state.composerDraftsByKey = {
         ...ctx.state.composerDraftsByKey,
@@ -15,16 +15,16 @@ export function createComposerActions(ctx: GatewayStoreContext) {
           text: draft.text,
           attachedFiles: [...draft.attachedFiles],
         },
-      }
+      };
     },
 
     clearSelectedComposerDraft() {
-      const key = selectedThreadKey(ctx.state.selectedHostId, ctx.state.selectedThreadId)
+      const key = selectedThreadKey(ctx.state.selectedHostId, ctx.state.selectedThreadId);
       if (!key) {
-        return
+        return;
       }
-      const { [key]: _removed, ...drafts } = ctx.state.composerDraftsByKey
-      ctx.state.composerDraftsByKey = drafts
+      const { [key]: _removed, ...drafts } = ctx.state.composerDraftsByKey;
+      ctx.state.composerDraftsByKey = drafts;
     },
-  }
+  };
 }

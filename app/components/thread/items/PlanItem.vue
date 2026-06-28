@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ListChecksIcon } from '@lucide/vue'
-import { computed } from 'vue'
-import MarkdownContent from '@/components/common/MarkdownContent.vue'
-import { threadItemText } from '@/utils/thread-items'
+import { ListChecksIcon } from "@lucide/vue";
+import { computed } from "vue";
+import MarkdownContent from "@/components/common/MarkdownContent.vue";
+import { threadItemText } from "@/utils/thread-items";
 
-const props = defineProps<{ item: Record<string, any> }>()
-const text = computed(() => threadItemText(props.item))
+const props = defineProps<{ item: Record<string, any> }>();
+const text = computed(() => threadItemText(props.item));
 </script>
 
 <template>

@@ -1,18 +1,15 @@
 <script setup lang="ts">
-import { ChevronDownIcon, ChevronUpIcon } from '@lucide/vue';
+import { ChevronDownIcon, ChevronUpIcon } from "@lucide/vue";
 
-import type { AccordionTriggerProps } from "reka-ui"
-import type { HTMLAttributes } from "vue"
-import { reactiveOmit } from "@vueuse/core"
-import {
-  AccordionHeader,
-  AccordionTrigger,
-} from "reka-ui"
-import { cn } from "@/lib/utils"
+import type { AccordionTriggerProps } from "reka-ui";
+import type { HTMLAttributes } from "vue";
+import { reactiveOmit } from "@vueuse/core";
+import { AccordionHeader, AccordionTrigger } from "reka-ui";
+import { cn } from "@/lib/utils";
 
-const props = defineProps<AccordionTriggerProps & { class?: HTMLAttributes["class"] }>()
+const props = defineProps<AccordionTriggerProps & { class?: HTMLAttributes["class"] }>();
 
-const delegatedProps = reactiveOmit(props, "class")
+const delegatedProps = reactiveOmit(props, "class");
 </script>
 
 <template>
@@ -29,8 +26,14 @@ const delegatedProps = reactiveOmit(props, "class")
     >
       <slot />
       <slot name="icon">
-        <ChevronDownIcon data-slot="accordion-trigger-icon" class="pointer-events-none shrink-0 group-aria-expanded/accordion-trigger:hidden" />
-        <ChevronUpIcon data-slot="accordion-trigger-icon" class="pointer-events-none hidden shrink-0 group-aria-expanded/accordion-trigger:inline" />
+        <ChevronDownIcon
+          data-slot="accordion-trigger-icon"
+          class="pointer-events-none shrink-0 group-aria-expanded/accordion-trigger:hidden"
+        />
+        <ChevronUpIcon
+          data-slot="accordion-trigger-icon"
+          class="pointer-events-none hidden shrink-0 group-aria-expanded/accordion-trigger:inline"
+        />
       </slot>
     </AccordionTrigger>
   </AccordionHeader>

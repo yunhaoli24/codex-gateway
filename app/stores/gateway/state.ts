@@ -1,5 +1,5 @@
-import type { GatewayStoreState } from './types'
-import { defaultGatewayConfig } from './config'
+import type { GatewayStoreState } from "./types";
+import { defaultGatewayConfig } from "./config";
 
 export function createGatewayState(): GatewayStoreState {
   return {
@@ -41,5 +41,5 @@ export function createGatewayState(): GatewayStoreState {
     realtimeThreadSubscriptions: {},
     lastEventId: 0,
     scrollToLatestToken: 0,
-  }
+  };
 }

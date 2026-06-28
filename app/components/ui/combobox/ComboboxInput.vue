@@ -1,26 +1,28 @@
 <script setup lang="ts">
-import { SearchIcon } from '@lucide/vue';
+import { SearchIcon } from "@lucide/vue";
 
-import type { ComboboxInputEmits, ComboboxInputProps } from "reka-ui"
-import type { HTMLAttributes } from "vue"
-import { reactiveOmit } from "@vueuse/core"
-import { ComboboxInput, useForwardPropsEmits } from "reka-ui"
-import { cn } from "@/lib/utils"
-import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
+import type { ComboboxInputEmits, ComboboxInputProps } from "reka-ui";
+import type { HTMLAttributes } from "vue";
+import { reactiveOmit } from "@vueuse/core";
+import { ComboboxInput, useForwardPropsEmits } from "reka-ui";
+import { cn } from "@/lib/utils";
+import { InputGroup, InputGroupAddon } from "@/components/ui/input-group";
 
 defineOptions({
   inheritAttrs: false,
-})
+});
 
-const props = defineProps<ComboboxInputProps & {
-  class?: HTMLAttributes["class"]
-}>()
+const props = defineProps<
+  ComboboxInputProps & {
+    class?: HTMLAttributes["class"];
+  }
+>();
 
-const emits = defineEmits<ComboboxInputEmits>()
+const emits = defineEmits<ComboboxInputEmits>();
 
-const delegatedProps = reactiveOmit(props, "class")
+const delegatedProps = reactiveOmit(props, "class");
 
-const forwarded = useForwardPropsEmits(delegatedProps, emits)
+const forwarded = useForwardPropsEmits(delegatedProps, emits);
 </script>
 
 <template>
@@ -30,7 +32,9 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     </InputGroupAddon>
     <ComboboxInput
       data-slot="combobox-input"
-      :class="cn('flex-1 outline-hidden disabled:cursor-not-allowed disabled:opacity-50', props.class)"
+      :class="
+        cn('flex-1 outline-hidden disabled:cursor-not-allowed disabled:opacity-50', props.class)
+      "
       v-bind="{ ...$attrs, ...forwarded }"
     />
   </InputGroup>

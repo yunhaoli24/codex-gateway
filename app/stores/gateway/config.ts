@@ -1,6 +1,6 @@
-import type { GatewayConfig } from '~~/shared/types'
+import type { GatewayConfig } from "~~/shared/types";
 
-export const CONFIG_STORAGE_KEY = 'codex-gateway-config'
+export const CONFIG_STORAGE_KEY = "codex-gateway-config";
 
 export function defaultGatewayConfig(): GatewayConfig {
   return {
@@ -8,5 +8,5 @@ export function defaultGatewayConfig(): GatewayConfig {
     hosts: [],
     pinnedThreads: [],
     lastOpenThread: null,
-  }
+  };
 }

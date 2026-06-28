@@ -1,26 +1,21 @@
 <script setup lang="ts">
-import { ImageIcon, Maximize2Icon } from '@lucide/vue'
-import { computed, ref } from 'vue'
-import { Button } from '@/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import ImageViewer from '@/components/common/ImageViewer.vue'
+import { ImageIcon, Maximize2Icon } from "@lucide/vue";
+import { computed, ref } from "vue";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import ImageViewer from "@/components/common/ImageViewer.vue";
 
 const props = defineProps<{
-  source: string
-  label?: string | null
-  detail?: string | null
-}>()
+  source: string;
+  label?: string | null;
+  detail?: string | null;
+}>();
 
-const { t } = useI18n()
-const open = ref(false)
-const failed = ref(false)
+const { t } = useI18n();
+const open = ref(false);
+const failed = ref(false);
 
-const altText = computed(() => props.label || props.detail || t('app.imageAttachment'))
+const altText = computed(() => props.label || props.detail || t("app.imageAttachment"));
 </script>
 
 <template>
@@ -40,13 +35,15 @@ const altText = computed(() => props.label || props.detail || t('app.imageAttach
           :alt="altText"
           class="max-h-72 w-full bg-white object-contain"
           @error="failed = true"
-        >
+        />
         <div v-else class="flex min-h-24 items-center gap-2 px-3 py-2 text-sm text-[#6f767d]">
           <ImageIcon class="size-4 shrink-0" />
           <span class="min-w-0 truncate">{{ label || source }}</span>
         </div>
       </button>
-      <div class="pointer-events-none absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <div
+        class="pointer-events-none absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+      >
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger as-child>
@@ -61,7 +58,7 @@ const altText = computed(() => props.label || props.detail || t('app.imageAttach
                 <Maximize2Icon class="size-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{{ t('app.openImagePreview') }}</TooltipContent>
+            <TooltipContent>{{ t("app.openImagePreview") }}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>

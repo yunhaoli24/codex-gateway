@@ -1,29 +1,29 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { Textarea } from '@/components/ui/textarea'
+import { computed, ref } from "vue";
+import { Textarea } from "@/components/ui/textarea";
 
 defineProps<{
-  placeholder?: string
-}>()
+  placeholder?: string;
+}>();
 
-const model = defineModel<string>({ default: '' })
-const highlightRef = ref<HTMLElement | null>(null)
+const model = defineModel<string>({ default: "" });
+const highlightRef = ref<HTMLElement | null>(null);
 
 const highlightedJson = computed(() => {
-  const value = model.value || ''
+  const value = model.value || "";
   if (!value) {
-    return ''
+    return "";
   }
-  return highlightJson(value)
-})
+  return highlightJson(value);
+});
 
 function syncScroll(event: Event) {
-  const target = event.target as HTMLTextAreaElement
+  const target = event.target as HTMLTextAreaElement;
   if (!highlightRef.value) {
-    return
+    return;
   }
-  highlightRef.value.scrollTop = target.scrollTop
-  highlightRef.value.scrollLeft = target.scrollLeft
+  highlightRef.value.scrollTop = target.scrollTop;
+  highlightRef.value.scrollLeft = target.scrollLeft;
 }
 
 function highlightJson(value: string) {
@@ -31,30 +31,27 @@ function highlightJson(value: string) {
     /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(?=\s*:))|("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*")|\b(true|false)\b|\b(null)\b|(-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b)/g,
     (match, key, string, booleanValue, nullValue, numberValue) => {
       if (key) {
-        return `<span class="text-[#116329]">${key}</span>`
+        return `<span class="text-[#116329]">${key}</span>`;
       }
       if (string) {
-        return `<span class="text-[#0b63c7]">${string}</span>`
+        return `<span class="text-[#0b63c7]">${string}</span>`;
       }
       if (booleanValue) {
-        return `<span class="text-[#8b3dff]">${booleanValue}</span>`
+        return `<span class="text-[#8b3dff]">${booleanValue}</span>`;
       }
       if (nullValue) {
-        return `<span class="text-[#9a5b13]">${nullValue}</span>`
+        return `<span class="text-[#9a5b13]">${nullValue}</span>`;
       }
       if (numberValue) {
-        return `<span class="text-[#a14100]">${numberValue}</span>`
+        return `<span class="text-[#a14100]">${numberValue}</span>`;
       }
-      return match
+      return match;
     },
-  )
+  );
 }
 
 function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 </script>
 

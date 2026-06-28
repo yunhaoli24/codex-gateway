@@ -1,132 +1,145 @@
-import type { HostRecord } from '~~/shared/types'
-import type { GatewayStoreContext } from '../types'
-import { writeGatewayRouteSelection } from '../route-state'
-import { messageFromError } from '../thread-utils'
+import type { HostRecord } from "~~/shared/types";
+import type { GatewayStoreContext } from "../types";
+import { writeGatewayRouteSelection } from "../route-state";
+import { messageFromError } from "../thread-utils";
 
 export function createHostActions(ctx: GatewayStoreContext) {
   return {
     async createHost(input: Record<string, unknown>) {
-      const host = await $fetch<HostRecord>('/api/hosts', { method: 'POST', body: input })
-      ctx.state.hosts.push(host)
-      ctx.persistConfig()
-      ctx.beginViewTransition()
-      ctx.state.selectedHostId = host.id
-      ctx.state.selectedProjectId = null
-      ctx.state.selectedThreadId = null
-      ctx.state.currentThread = null
-      ctx.state.history = null
-      ctx.state.events = []
-      writeGatewayRouteSelection({ hostId: host.id, projectId: null, threadId: null })
-      await ctx.listThreads()
-      ctx.ensureSelectedProject()
+      const host = await $fetch<HostRecord>("/api/hosts", { method: "POST", body: input });
+      ctx.state.hosts.push(host);
+      ctx.persistConfig();
+      ctx.beginViewTransition();
+      ctx.state.selectedHostId = host.id;
+      ctx.state.selectedProjectId = null;
+      ctx.state.selectedThreadId = null;
+      ctx.state.currentThread = null;
+      ctx.state.history = null;
+      ctx.state.events = [];
+      writeGatewayRouteSelection({ hostId: host.id, projectId: null, threadId: null });
+      await ctx.listThreads();
+      ctx.ensureSelectedProject();
       if (ctx.state.selectedProjectId) {
-        await ctx.listThreads()
+        await ctx.listThreads();
       }
-      return host
+      return host;
     },
 
     async verifyHost(hostId: number) {
       ctx.state.hostConnectionStatuses = {
         ...ctx.state.hostConnectionStatuses,
-        [hostId]: { status: 'connecting', updatedAt: Date.now() },
-      }
+        [hostId]: { status: "connecting", updatedAt: Date.now() },
+      };
       try {
-        const result = await $fetch<any>(`/api/hosts/${hostId}/verify`, { method: 'POST' })
+        const result = await $fetch<any>(`/api/hosts/${hostId}/verify`, { method: "POST" });
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
           [hostId]: {
-            status: result?.ok === false ? 'failed' : 'connected',
-            message: result?.ok === false ? result.stderr || result.stdout || '连接失败' : '已连接',
+            status: result?.ok === false ? "failed" : "connected",
+            message: result?.ok === false ? result.stderr || result.stdout || "连接失败" : "已连接",
             updatedAt: Date.now(),
           },
-        }
-        return result
+        };
+        return result;
       } catch (error) {
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
           [hostId]: {
-            status: 'failed',
-            message: messageFromError(error, 'Failed to verify host'),
+            status: "failed",
+            message: messageFromError(error, "Failed to verify host"),
             updatedAt: Date.now(),
           },
-        }
-        throw error
+        };
+        throw error;
       }
     },
 
     async updateHost(hostId: number, input: Record<string, unknown>) {
-      const host = await $fetch<HostRecord>(`/api/hosts/${hostId}`, { method: 'PATCH', body: input })
-      ctx.state.hosts = ctx.state.hosts.map((candidate) => candidate.id === hostId ? host : candidate)
-      ctx.persistConfig()
-      return host
+      const host = await $fetch<HostRecord>(`/api/hosts/${hostId}`, {
+        method: "PATCH",
+        body: input,
+      });
+      ctx.state.hosts = ctx.state.hosts.map((candidate) =>
+        candidate.id === hostId ? host : candidate,
+      );
+      ctx.persistConfig();
+      return host;
     },
 
     async deleteHost(hostId: number) {
-      await $fetch(`/api/hosts/${hostId}`, { method: 'DELETE' })
+      await $fetch(`/api/hosts/${hostId}`, { method: "DELETE" });
       for (const key of Object.keys(ctx.state.realtimeThreadSubscriptions)) {
         if (key.startsWith(`${hostId}:`)) {
-          const subscription = ctx.state.realtimeThreadSubscriptions[key]
+          const subscription = ctx.state.realtimeThreadSubscriptions[key];
           ctx.sendRealtime({
-            type: 'thread.unsubscribe',
+            type: "thread.unsubscribe",
             hostId: subscription.hostId,
             threadId: subscription.threadId,
-          })
-          delete ctx.state.realtimeThreadSubscriptions[key]
+          });
+          delete ctx.state.realtimeThreadSubscriptions[key];
         }
       }
-      ctx.state.hosts = ctx.state.hosts.filter((host) => host.id !== hostId)
-      ctx.state.projects = ctx.state.projects.filter((project) => project.hostId !== hostId)
-      const { [hostId]: _removedConnectionStatus, ...hostConnectionStatuses } = ctx.state.hostConnectionStatuses
-      ctx.state.hostConnectionStatuses = hostConnectionStatuses
-      ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.filter((thread) => thread.hostId !== hostId)
-      ctx.persistConfig()
+      ctx.state.hosts = ctx.state.hosts.filter((host) => host.id !== hostId);
+      ctx.state.projects = ctx.state.projects.filter((project) => project.hostId !== hostId);
+      const { [hostId]: _removedConnectionStatus, ...hostConnectionStatuses } =
+        ctx.state.hostConnectionStatuses;
+      ctx.state.hostConnectionStatuses = hostConnectionStatuses;
+      ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.filter(
+        (thread) => thread.hostId !== hostId,
+      );
+      ctx.persistConfig();
       if (ctx.state.selectedHostId === hostId) {
-        ctx.beginViewTransition()
-        ctx.state.selectedHostId = ctx.state.hosts[0]?.id ?? null
-        ctx.state.selectedProjectId = null
-        ctx.state.selectedThreadId = null
-        ctx.state.threads = []
-        ctx.state.currentThread = null
-        ctx.state.history = null
-        ctx.state.events = []
-        ctx.state.olderTurnsCursor = null
-        ctx.state.newerTurnsCursor = null
-        ctx.state.models = []
-        writeGatewayRouteSelection({
-          hostId: ctx.state.selectedHostId,
-          projectId: null,
-          threadId: null,
-        }, { replace: true })
+        ctx.beginViewTransition();
+        ctx.state.selectedHostId = ctx.state.hosts[0]?.id ?? null;
+        ctx.state.selectedProjectId = null;
+        ctx.state.selectedThreadId = null;
+        ctx.state.threads = [];
+        ctx.state.currentThread = null;
+        ctx.state.history = null;
+        ctx.state.events = [];
+        ctx.state.olderTurnsCursor = null;
+        ctx.state.newerTurnsCursor = null;
+        ctx.state.models = [];
+        writeGatewayRouteSelection(
+          {
+            hostId: ctx.state.selectedHostId,
+            projectId: null,
+            threadId: null,
+          },
+          { replace: true },
+        );
         if (ctx.state.selectedHostId) {
-          await ctx.listModels()
-          await ctx.listThreads()
+          await ctx.listModels();
+          await ctx.listThreads();
         }
       }
     },
 
     async selectHost(hostId: number) {
-      ctx.cacheSelectedThreadSnapshot()
-      ctx.beginViewTransition()
-      ctx.state.selectedHostId = hostId
-      const currentProject = ctx.state.projects.find((project) => project.id === ctx.state.selectedProjectId)
+      ctx.cacheSelectedThreadSnapshot();
+      ctx.beginViewTransition();
+      ctx.state.selectedHostId = hostId;
+      const currentProject = ctx.state.projects.find(
+        (project) => project.id === ctx.state.selectedProjectId,
+      );
       if (!currentProject || currentProject.hostId !== hostId) {
-        ctx.state.selectedProjectId = null
+        ctx.state.selectedProjectId = null;
       }
-      ctx.state.selectedThreadId = null
-      ctx.state.currentThread = null
-      ctx.state.history = null
-      ctx.state.events = []
-      ctx.state.olderTurnsCursor = null
-      ctx.state.newerTurnsCursor = null
-      ctx.state.lastEventId = 0
-      ctx.state.models = []
-      writeGatewayRouteSelection({ hostId, projectId: null, threadId: null })
-      await ctx.listModels()
-      await ctx.listThreads()
-      ctx.ensureSelectedProject()
+      ctx.state.selectedThreadId = null;
+      ctx.state.currentThread = null;
+      ctx.state.history = null;
+      ctx.state.events = [];
+      ctx.state.olderTurnsCursor = null;
+      ctx.state.newerTurnsCursor = null;
+      ctx.state.lastEventId = 0;
+      ctx.state.models = [];
+      writeGatewayRouteSelection({ hostId, projectId: null, threadId: null });
+      await ctx.listModels();
+      await ctx.listThreads();
+      ctx.ensureSelectedProject();
       if (ctx.state.selectedProjectId) {
-        await ctx.listThreads()
+        await ctx.listThreads();
       }
     },
-  }
+  };
 }
