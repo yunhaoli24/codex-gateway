@@ -1,15 +1,22 @@
 <script setup lang="ts">
 import { Loader2Icon, ServerIcon, Trash2Icon, WifiIcon } from "@lucide/vue";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  hostConnectionClass,
+  hostConnectionIsBusy,
+  hostConnectionLabelKey,
+} from "@/components/sidebar/sidebar-utils";
 import { useGatewayStore } from "@/stores/gateway";
+import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const { hosts, hostConnectionStatuses, selectedHostId } = storeToRefs(store);
 const { t } = useI18n();
+const errorLabels = computed(() => errorMessageLabels(t));
 const verifyingHostId = ref<number | null>(null);
 const verifyResults = ref<Record<number, { ok?: boolean; message: string }>>({});
 
@@ -29,7 +36,7 @@ async function verifyHost(hostId: number) {
   } catch (error: any) {
     verifyResults.value[hostId] = {
       ok: false,
-      message: error?.data?.message || error?.message || t("app.verifyFailed"),
+      message: messageFromError(error, t("app.verifyFailed"), errorLabels.value),
     };
   } finally {
     verifyingHostId.value = null;
@@ -46,37 +53,9 @@ function hostConnectionStatus(hostId: number) {
 
 function hostConnectionLabel(hostId: number) {
   const connection = hostConnectionStatus(hostId);
-  if (connection.status === "checkingVersion")
-    return connection.message || "正在检查远端 Codex 版本";
-  if (connection.status === "upgrading") return connection.message || "正在升级远端 Codex";
-  if (connection.status === "restarting") return connection.message || "正在重启远端 app-server";
-  if (connection.status === "connecting") return connection.message || "正在连接";
-  if (connection.status === "connected") return connection.message || t("app.connected");
-  if (connection.status === "failed") return connection.message || t("app.verifyFailed");
-  return "";
-}
-
-function hostConnectionClass(hostId: number) {
-  const status = hostConnectionStatus(hostId).status;
-  if (
-    status === "checkingVersion" ||
-    status === "upgrading" ||
-    status === "restarting" ||
-    status === "connecting"
-  )
-    return "text-primary";
-  if (status === "connected") return "text-accent-green";
-  if (status === "failed") return "text-destructive";
-  return "text-ink-muted";
-}
-
-function hostConnectionIsBusy(hostId: number) {
-  const status = hostConnectionStatus(hostId).status;
   return (
-    status === "checkingVersion" ||
-    status === "upgrading" ||
-    status === "restarting" ||
-    status === "connecting"
+    connection.message ||
+    (connection.status === "idle" ? "" : t(hostConnectionLabelKey(connection.status)))
   );
 }
 
@@ -86,7 +65,7 @@ function hostStatusMessage(hostId: number) {
 
 function hostStatusClass(hostId: number) {
   if (hostConnectionLabel(hostId)) {
-    return hostConnectionClass(hostId);
+    return hostConnectionClass(hostConnectionStatus(hostId).status);
   }
   return verifyResults.value[hostId]?.ok ? "text-accent-green" : "text-destructive";
 }
@@ -127,11 +106,17 @@ function hostStatusClass(hostId: number) {
               size="sm"
               class="size-8 p-0"
               :aria-label="t('app.verifyHost')"
-              :disabled="verifyingHostId === host.id || hostConnectionIsBusy(host.id)"
+              :disabled="
+                verifyingHostId === host.id ||
+                hostConnectionIsBusy(hostConnectionStatus(host.id).status)
+              "
               @click="verifyHost(host.id)"
             >
               <Loader2Icon
-                v-if="verifyingHostId === host.id || hostConnectionIsBusy(host.id)"
+                v-if="
+                  verifyingHostId === host.id ||
+                  hostConnectionIsBusy(hostConnectionStatus(host.id).status)
+                "
                 class="size-4 animate-spin"
               />
               <WifiIcon v-else class="size-4" />
@@ -148,7 +133,7 @@ function hostStatusClass(hostId: number) {
           </div>
           <div
             v-if="hostStatusMessage(host.id)"
-            class="truncate px-2 pb-1 text-[0.6875rem]"
+            class="whitespace-pre-line px-2 pb-1 text-[0.6875rem]"
             :class="hostStatusClass(host.id)"
           >
             {{ hostStatusMessage(host.id) }}

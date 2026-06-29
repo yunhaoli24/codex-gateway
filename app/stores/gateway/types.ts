@@ -11,6 +11,7 @@ import type {
   UploadedFileRecord,
 } from "~~/shared/types";
 import type { GatewayDomainEvents } from "./domain-events";
+import type { ErrorMessageLabels } from "./thread-utils/identity";
 
 export type ThreadRuntimeStatus = "idle" | "running" | "completed" | "failed" | "interrupted";
 export type HostConnectionStatus =
@@ -57,6 +58,14 @@ export interface PendingSteerInput {
   }>;
 }
 
+export interface GatewayErrorState {
+  message: string;
+  hostId: number | null;
+  projectId: number | null;
+  threadId: string | null;
+  updatedAt: number;
+}
+
 export interface GatewayStoreState {
   hosts: HostRecord[];
   projects: ProjectRecord[];
@@ -89,7 +98,7 @@ export interface GatewayStoreState {
   loadingOlderTurns: boolean;
   olderTurnsCursor: string | null;
   newerTurnsCursor: string | null;
-  error: string | null;
+  error: GatewayErrorState | null;
   realtimeSocket: WebSocket | null;
   realtimeSocketConnected: boolean;
   realtimeSocketReconnectTimer: ReturnType<typeof window.setTimeout> | null;
@@ -107,6 +116,8 @@ export interface GatewayStoreState {
 export interface GatewayStoreContext {
   state: GatewayStoreState;
   events: GatewayDomainEvents;
+  t: (key: string) => string;
+  errorLabels: ErrorMessageLabels;
   selectedHost: HostRecord | null;
   selectedProject: ProjectRecord | null;
   pinnedThreads: PinnedThreadRecord[];

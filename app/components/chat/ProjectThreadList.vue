@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useLongPressContextMenu } from "@/composables/useLongPressContextMenu";
 import { useGatewayStore } from "@/stores/gateway";
-import { titleForThread } from "@/stores/gateway/thread-utils";
+import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const { t } = useI18n();

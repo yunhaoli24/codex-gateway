@@ -11,7 +11,7 @@ import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
 import ThreadTurnView from "@/components/thread/ThreadTurnView.vue";
 import { useStickToBottomScroll } from "@/composables/useStickToBottomScroll";
 import { useGatewayStore } from "@/stores/gateway";
-import { titleForThread } from "@/stores/gateway/thread-utils";
+import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const { t } = useI18n();
@@ -71,6 +71,22 @@ const outputSignature = computed(() => {
       (item: any) => `${item.id || ""}:${item.aggregatedOutput?.length || 0}:${item.status || ""}`,
     )
     .join("|");
+});
+const visibleError = computed(() => {
+  const current = error.value;
+  if (!current) {
+    return null;
+  }
+  if (current.hostId !== null && current.hostId !== selectedHostId.value) {
+    return null;
+  }
+  if (current.projectId !== null && current.projectId !== selectedProjectId.value) {
+    return null;
+  }
+  if (current.threadId !== null && current.threadId !== selectedThreadId.value) {
+    return null;
+  }
+  return current.message;
 });
 
 async function loadOlderTurns() {
@@ -203,15 +219,15 @@ watch(
           </div>
 
           <div
-            v-if="error"
-            class="mx-auto max-w-3xl rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            v-if="visibleError"
+            class="mx-auto max-w-3xl whitespace-pre-line rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
           >
-            {{ error }}
+            {{ visibleError }}
           </div>
         </div>
       </ScrollArea>
 
-      <ChatComposer v-if="selectedThreadId" />
+      <ChatComposer v-if="selectedThreadId || selectedProjectId" />
     </div>
   </section>
 </template>

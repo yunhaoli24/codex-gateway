@@ -8,7 +8,7 @@ export interface ParsedCodexVersion {
 export function parseCodexVersion(output: string): ParsedCodexVersion | null {
   const raw = output.trim();
   const match = raw.match(
-    /\b(?:codex-cli|codex_gateway|codex_gateway_probe|Codex Desktop)[ /](\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/i,
+    /\b(?:codex-cli|codex_cli_rs|codex-tui|codex_app_server|codex_gateway|codex_gateway_probe|Codex Desktop)[ /](\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/i,
   );
   if (!match) {
     return null;

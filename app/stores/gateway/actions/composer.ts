@@ -1,6 +1,6 @@
 import type { ComposerDraft } from "../types";
 import type { GatewayStoreContext } from "../types";
-import { selectedThreadKey } from "../thread-utils";
+import { selectedThreadKey } from "../thread-utils/identity";
 
 export function createComposerActions(ctx: GatewayStoreContext) {
   return {

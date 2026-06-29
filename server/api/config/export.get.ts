@@ -1,5 +1,5 @@
-import { runtimeState } from "../../utils/gateway/runtime-state";
+import { runtimeConfigStore } from "../../utils/gateway/state/runtime-config";
 
 export default defineEventHandler(() => {
-  return runtimeState.exportConfig();
+  return runtimeConfigStore.export();
 });

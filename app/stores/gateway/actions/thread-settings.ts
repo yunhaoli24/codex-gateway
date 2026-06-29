@@ -1,11 +1,7 @@
 import type { ThreadSettingsState } from "~~/shared/types";
 import type { GatewayStoreContext } from "../types";
-import {
-  mergeThreadSettings,
-  messageFromError,
-  normalizeThreadSettings,
-  pinnedKey,
-} from "../thread-utils";
+import { messageFromError, pinnedKey } from "../thread-utils/identity";
+import { mergeThreadSettings, normalizeThreadSettings } from "../thread-utils/settings";
 
 export function createThreadSettingsActions(ctx: GatewayStoreContext) {
   return {
@@ -33,18 +29,28 @@ export function createThreadSettingsActions(ctx: GatewayStoreContext) {
       if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
         return;
       }
+      const hostId = ctx.state.selectedHostId;
+      const projectId = ctx.state.selectedProjectId;
+      const threadId = ctx.state.selectedThreadId;
       ctx.updateSelectedThreadSettings(settings);
       try {
         await $fetch("/api/threads/settings", {
           method: "POST",
           body: {
-            hostId: ctx.state.selectedHostId,
-            threadId: ctx.state.selectedThreadId,
+            hostId,
+            threadId,
             ...settings,
           },
         });
       } catch (error: any) {
-        ctx.setError(messageFromError(error, "Failed to update thread settings"));
+        ctx.setError(
+          messageFromError(error, ctx.t("app.updateThreadSettingsFailed"), ctx.errorLabels),
+          {
+            hostId,
+            projectId,
+            threadId,
+          },
+        );
       }
     },
   };

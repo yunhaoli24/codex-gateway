@@ -2,12 +2,14 @@ import { ref, type Ref } from "vue";
 import type { UploadedFileRecord } from "~~/shared/types";
 import type { ComposerAttachment } from "@/composables/useComposerDraft";
 import { useGatewayStore } from "@/stores/gateway";
+import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
 
 export function useAttachmentUpload(
   selectedHostId: Ref<number | null>,
   attachedFiles: Ref<ComposerAttachment[]>,
 ) {
   const store = useGatewayStore();
+  const { t } = useI18n();
   const uploadInputRef = ref<HTMLInputElement | null>(null);
   const uploadingAttachments = ref(false);
 
@@ -48,6 +50,7 @@ export function useAttachmentUpload(
       return;
     }
 
+    const hostId = selectedHostId.value;
     uploadingAttachments.value = true;
     try {
       const form = new FormData();
@@ -56,7 +59,7 @@ export function useAttachmentUpload(
       }
       const result = await $fetch<{ files: UploadedFileRecord[] }>("/api/uploads", {
         method: "POST",
-        query: { hostId: selectedHostId.value },
+        query: { hostId },
         body: form,
       });
       attachedFiles.value.push(
@@ -66,7 +69,10 @@ export function useAttachmentUpload(
         })),
       );
     } catch (error: any) {
-      store.setError(error?.data?.message || error?.message || "附件上传失败");
+      store.setError(
+        messageFromError(error, t("app.uploadAttachmentFailed"), errorMessageLabels(t)),
+        { hostId },
+      );
     } finally {
       uploadingAttachments.value = false;
     }

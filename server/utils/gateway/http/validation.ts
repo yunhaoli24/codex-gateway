@@ -52,6 +52,7 @@ export const projectCreateSchema = z.object({
   name: z.string().trim().min(1),
   remotePath: z.string().trim().min(1),
 });
+export const projectUpdateSchema = projectCreateSchema;
 
 export const gatewayConfigSchema = z
   .object({
@@ -148,6 +149,18 @@ const threadSettingFields = {
   approvalPolicy: z.enum(["untrusted", "on-request", "never"]).nullable().optional(),
 };
 
+const collaborationModeSchema = z
+  .object({
+    mode: z.enum(["default", "plan"]),
+    settings: z.object({
+      model: z.string().trim().min(1),
+      reasoningEffort: z.string().trim().min(1).nullable().optional(),
+      developerInstructions: z.string().nullable().optional(),
+    }),
+  })
+  .nullable()
+  .optional();
+
 export const threadStartSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   projectId: optionalPositiveInt,
@@ -168,6 +181,7 @@ export const turnStartSchema = z.object({
   clientUserMessageId: z.string().trim().nullable().optional(),
   cwd: z.string().trim().nullable().optional(),
   ...threadSettingFields,
+  collaborationMode: collaborationModeSchema,
   images: z
     .array(
       z

@@ -5,13 +5,12 @@ import {
   appendPlanDelta,
   appendReasoningSummaryDelta,
   appendReasoningTextDelta,
-  mergeItemIntoLatestTurn,
-  mergeThreadTurns,
-  resolveServerRequestInHistory,
-  syncCompletedTurn,
-  updateTurnDiff,
-  pinnedKey,
-} from "./thread-utils";
+} from "./thread-history/deltas";
+import { updateTurnDiff } from "./thread-history/diff";
+import { mergeItemIntoLatestTurn } from "./thread-history/items";
+import { resolveServerRequestInHistory } from "./thread-history/requests";
+import { mergeThreadTurns, syncCompletedTurn } from "./thread-history/turns";
+import { pinnedKey } from "./thread-utils/identity";
 
 export function registerGatewayDomainSubscribers(ctx: GatewayStoreContext) {
   ctx.events.on("thread-status-detected", (event) => {

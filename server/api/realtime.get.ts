@@ -1,9 +1,10 @@
 import type { GatewayEvent, RealtimeClientMessage, RealtimeServerMessage } from "~~/shared/types";
 import { randomUUID } from "node:crypto";
-import { threadBroker } from "../utils/gateway/broker";
-import { runtimeState } from "../utils/gateway/runtime-state";
-import { hostLifecycleBus } from "../utils/gateway/host-events";
-import { requireRecord } from "../utils/gateway/validation";
+import { threadBroker } from "../utils/gateway/runtime/broker";
+import { requireRecord } from "../utils/gateway/http/validation";
+import { gatewayEventStore } from "../utils/gateway/state/gateway-events";
+import { hostLifecycleBus } from "../utils/gateway/state/host-events";
+import { hostStore } from "../utils/gateway/state/hosts";
 
 type Peer = Parameters<NonNullable<Parameters<typeof defineWebSocketHandler>[0]["open"]>>[0];
 
@@ -51,7 +52,7 @@ async function subscribeThread(
   const key = threadTopicKey(hostId, threadId);
   state.threadUnsubscribers.get(key)?.();
 
-  const host = requireRecord(runtimeState.getHostWithSecret(hostId), "Host not found");
+  const host = requireRecord(hostStore.getWithSecret(hostId), "Host not found");
   const afterId = Number(message.afterId || 0);
   const sentEventIds = new Set<number>();
   const sendOnce = (event: GatewayEvent) => {
@@ -80,7 +81,7 @@ async function subscribeThread(
   );
   state.threadUnsubscribers.set(key, unsubscribe);
 
-  for (const event of runtimeState.listGatewayEvents(hostId, threadId, afterId, 200)) {
+  for (const event of gatewayEventStore.list(hostId, threadId, afterId, 200)) {
     sendOnce(event);
   }
   replaying = false;

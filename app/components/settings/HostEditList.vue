@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, ServerIcon } from "@lucide/vue";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import type { HostRecord } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useGatewayStore } from "@/stores/gateway";
+import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
 
 interface HostEditForm {
   name: string;
@@ -31,6 +32,7 @@ interface HostEditForm {
 const store = useGatewayStore();
 const { hosts } = storeToRefs(store);
 const { t } = useI18n();
+const errorLabels = computed(() => errorMessageLabels(t));
 const expandedHostId = ref<number | null>(hosts.value[0]?.id ?? null);
 const forms = ref<Record<number, HostEditForm>>({});
 const savingHostId = ref<number | null>(null);
@@ -90,7 +92,7 @@ async function saveHost(host: HostRecord) {
     });
     forms.value[host.id] = formFromHost(updated);
   } catch (error: any) {
-    saveErrors.value[host.id] = error?.data?.message || error?.message || t("app.saveHostFailed");
+    saveErrors.value[host.id] = messageFromError(error, t("app.saveHostFailed"), errorLabels.value);
   } finally {
     savingHostId.value = null;
   }
@@ -166,7 +168,7 @@ async function saveHost(host: HostRecord) {
           <SelectContent>
             <SelectItem value="agent">{{ t("app.sshAgent") }}</SelectItem>
             <SelectItem value="privateKey">{{ t("app.privateKeyPath") }}</SelectItem>
-            <SelectItem value="password">密码</SelectItem>
+            <SelectItem value="password">{{ t("app.password") }}</SelectItem>
           </SelectContent>
         </Select>
         <Input
@@ -185,13 +187,13 @@ async function saveHost(host: HostRecord) {
         <Input
           v-if="forms[host.id].authMode === 'password'"
           v-model="forms[host.id].password"
-          aria-label="密码"
+          :aria-label="t('app.password')"
           type="password"
-          placeholder="SSH 密码"
+          :placeholder="t('app.sshPassword')"
         />
         <div
           v-if="saveErrors[host.id]"
-          class="rounded-md bg-destructive/10 p-2 text-xs text-destructive"
+          class="whitespace-pre-line rounded-md bg-destructive/10 p-2 text-xs text-destructive"
         >
           {{ saveErrors[host.id] }}
         </div>

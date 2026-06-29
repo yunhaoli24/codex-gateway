@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "ssh2";
-import { SUPPORTED_CODEX_VERSION } from "../../server/utils/gateway/codex-version";
+import { SUPPORTED_CODEX_VERSION } from "../../server/utils/gateway/infra/codex-version";
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const runtimeDir = join(rootDir, ".e2e-runtime", "ssh-container");

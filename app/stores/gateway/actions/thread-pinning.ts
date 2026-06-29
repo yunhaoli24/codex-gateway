@@ -1,6 +1,6 @@
 import type { PinnedThreadRecord, ProjectRecord } from "~~/shared/types";
 import type { GatewayStoreContext } from "../types";
-import { pinnedKey, sortThreads, titleForThread } from "../thread-utils";
+import { pinnedKey, sortThreads, titleForThread } from "../thread-utils/identity";
 
 export function createThreadPinningActions(ctx: GatewayStoreContext) {
   return {

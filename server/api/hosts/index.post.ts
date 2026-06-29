@@ -1,8 +1,8 @@
 import { readValidatedBody } from "h3";
-import { runtimeState } from "../../utils/gateway/runtime-state";
-import { hostCreateSchema } from "../../utils/gateway/validation";
+import { hostCreateSchema } from "../../utils/gateway/http/validation";
+import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineEventHandler(async (event) => {
   const input = await readValidatedBody(event, (body) => hostCreateSchema.parse(body));
-  return runtimeState.createHost(input);
+  return hostStore.create(input);
 });

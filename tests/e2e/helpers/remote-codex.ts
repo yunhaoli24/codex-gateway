@@ -144,7 +144,8 @@ export async function addRemoteProject(
   hostId: number,
   name = `remote-project-${Date.now()}`,
 ) {
-  await openSettingsTab(page, "项目");
+  await page.getByTestId(`host-button-${hostId}`).click({ button: "right" });
+  await page.getByRole("menuitem", { name: /添加项目|Add project/ }).click();
   await page.getByTestId("project-name-input").fill(name);
   await page.getByTestId("project-path-input").fill(remote.projectPath);
 
@@ -154,7 +155,6 @@ export async function addRemoteProject(
   );
   await page.getByTestId("add-project-button").click();
   const project = (await (await projectResponsePromise).json()) as UiProject;
-  await closeSettings(page);
   await expect(page.getByTestId(`host-button-${hostId}`)).toBeVisible();
   await expect(page.getByTestId(`project-button-${project.id}`)).toBeVisible();
   return project;

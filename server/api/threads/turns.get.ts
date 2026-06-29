@@ -1,11 +1,11 @@
 import { getValidatedQuery } from "h3";
-import { runtimeState } from "../../utils/gateway/runtime-state";
-import { threadBroker } from "../../utils/gateway/broker";
-import { requireRecord, threadTurnsListSchema } from "../../utils/gateway/validation";
+import { threadBroker } from "../../utils/gateway/runtime/broker";
+import { requireRecord, threadTurnsListSchema } from "../../utils/gateway/http/validation";
+import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineEventHandler(async (event) => {
   const query = await getValidatedQuery(event, (body) => threadTurnsListSchema.parse(body));
-  const host = requireRecord(runtimeState.getHostWithSecret(query.hostId), "Host not found");
+  const host = requireRecord(hostStore.getWithSecret(query.hostId), "Host not found");
   return threadBroker.listThreadTurns(host, query.threadId, {
     cursor: query.cursor ?? null,
     limit: query.limit,

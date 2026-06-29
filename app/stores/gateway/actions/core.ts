@@ -2,7 +2,7 @@ import { toast } from "vue-sonner";
 import type { GatewayConfig, GatewayStatus } from "~~/shared/types";
 import { CONFIG_STORAGE_KEY, defaultGatewayConfig } from "../config";
 import type { GatewayStoreContext } from "../types";
-import { messageFromError } from "../thread-utils";
+import { messageFromError } from "../thread-utils/identity";
 import {
   hasGatewayRouteSelection,
   readGatewayRouteSelection,
@@ -76,7 +76,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       const refreshViewEpoch = ctx.state.viewEpoch;
       ctx.state.initializing = true;
       ctx.state.loading = true;
-      ctx.state.error = null;
+      ctx.clearError();
       try {
         const routeSelection = readGatewayRouteSelection();
         ctx.hydrateConfig();
@@ -137,15 +137,37 @@ export function createCoreActions(ctx: GatewayStoreContext) {
           );
         }
       } catch (error: any) {
-        ctx.setError(messageFromError(error, "Failed to bootstrap gateway"));
+        ctx.setError(messageFromError(error, ctx.t("app.bootstrapFailed"), ctx.errorLabels), {
+          hostId: ctx.state.selectedHostId,
+          projectId: ctx.state.selectedProjectId,
+          threadId: ctx.state.selectedThreadId,
+        });
       } finally {
         ctx.state.loading = false;
         ctx.state.initializing = false;
       }
     },
 
-    setError(message: string) {
-      ctx.state.error = message;
+    clearError() {
+      ctx.state.error = null;
+    },
+
+    setError(
+      message: string,
+      context: {
+        hostId?: number | null;
+        projectId?: number | null;
+        threadId?: string | null;
+      } = {},
+    ) {
+      ctx.state.error = {
+        message,
+        hostId: "hostId" in context ? (context.hostId ?? null) : ctx.state.selectedHostId,
+        projectId:
+          "projectId" in context ? (context.projectId ?? null) : ctx.state.selectedProjectId,
+        threadId: "threadId" in context ? (context.threadId ?? null) : ctx.state.selectedThreadId,
+        updatedAt: Date.now(),
+      };
       if (import.meta.client) {
         toast.error(message);
       }

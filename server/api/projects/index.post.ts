@@ -1,9 +1,10 @@
 import { readValidatedBody } from "h3";
-import { runtimeState } from "../../utils/gateway/runtime-state";
-import { projectCreateSchema, requireRecord } from "../../utils/gateway/validation";
+import { projectCreateSchema, requireRecord } from "../../utils/gateway/http/validation";
+import { hostStore } from "../../utils/gateway/state/hosts";
+import { projectStore } from "../../utils/gateway/state/projects";
 
 export default defineEventHandler(async (event) => {
   const input = await readValidatedBody(event, (body) => projectCreateSchema.parse(body));
-  requireRecord(runtimeState.getHost(input.hostId), "Host not found");
-  return runtimeState.createProject(input);
+  requireRecord(hostStore.get(input.hostId), "Host not found");
+  return projectStore.create(input);
 });

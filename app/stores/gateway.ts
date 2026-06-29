@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import type { ThreadSettingsState } from "~~/shared/types";
 import { createGatewayState } from "./gateway/state";
 import type { GatewayStoreContext } from "./gateway/types";
-import { pinnedKey, selectedThreadKey } from "./gateway/thread-utils";
+import { errorMessageLabels, pinnedKey, selectedThreadKey } from "./gateway/thread-utils/identity";
 import { createCoreActions } from "./gateway/actions/core";
 import { createHostActions } from "./gateway/actions/hosts";
 import { createProjectActions } from "./gateway/actions/projects";
@@ -18,6 +18,7 @@ export type { ThreadRuntimeStatus } from "./gateway/types";
 export const useGatewayStore = defineStore("gateway", () => {
   const state = reactive(createGatewayState());
   const events = createGatewayDomainEvents();
+  const { t } = useI18n();
 
   const selectedHost = computed(
     () => state.hosts.find((host) => host.id === state.selectedHostId) ?? null,
@@ -55,6 +56,10 @@ export const useGatewayStore = defineStore("gateway", () => {
   Object.assign(ctx, {
     state,
     events,
+    t,
+    get errorLabels() {
+      return errorMessageLabels(t);
+    },
     get selectedHost() {
       return selectedHost.value;
     },

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { Toaster } from "@/components/ui/sonner";
 import { useGatewayStore } from "@/stores/gateway";
-import { titleForThread } from "@/stores/gateway/thread-utils";
+import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const device = useDevice();

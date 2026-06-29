@@ -1,8 +1,8 @@
 import { extname } from "node:path";
 import { createError, getValidatedQuery, setHeader } from "h3";
-import { runtimeState } from "../../utils/gateway/runtime-state";
-import { hostManager } from "../../utils/gateway/ssh";
-import { remoteImageSchema, requireRecord } from "../../utils/gateway/validation";
+import { remoteFiles } from "../../utils/gateway/infra/host-services";
+import { remoteImageSchema, requireRecord } from "../../utils/gateway/http/validation";
+import { hostStore } from "../../utils/gateway/state/hosts";
 
 const MAX_REMOTE_IMAGE_BYTES = 12 * 1024 * 1024;
 
@@ -17,7 +17,7 @@ const imageMimeTypes: Record<string, string> = {
 
 export default defineEventHandler(async (event) => {
   const query = await getValidatedQuery(event, (body) => remoteImageSchema.parse(body));
-  const host = requireRecord(runtimeState.getHostWithSecret(query.hostId), "Host not found");
+  const host = requireRecord(hostStore.getWithSecret(query.hostId), "Host not found");
 
   const mimeType = imageMimeTypes[extname(query.path).toLowerCase()];
   if (!mimeType) {
@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const file = await hostManager.readRemoteFile(host, query.path, {
+    const file = await remoteFiles.readRemoteFile(host, query.path, {
       maxSize: MAX_REMOTE_IMAGE_BYTES,
     });
     setHeader(event, "content-type", mimeType);

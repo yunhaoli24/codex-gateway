@@ -1,12 +1,12 @@
 import { readValidatedBody } from "h3";
-import { runtimeState } from "../../utils/gateway/runtime-state";
-import { threadBroker } from "../../utils/gateway/broker";
-import { hostLogContext, setGatewayRequestLogContext } from "../../utils/gateway/errors";
-import { requireRecord, serverRequestResponseSchema } from "../../utils/gateway/validation";
+import { threadBroker } from "../../utils/gateway/runtime/broker";
+import { hostLogContext, setGatewayRequestLogContext } from "../../utils/gateway/http/errors";
+import { requireRecord, serverRequestResponseSchema } from "../../utils/gateway/http/validation";
+import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineEventHandler(async (event) => {
   const input = await readValidatedBody(event, (body) => serverRequestResponseSchema.parse(body));
-  const host = requireRecord(runtimeState.getHostWithSecret(input.hostId), "Host not found");
+  const host = requireRecord(hostStore.getWithSecret(input.hostId), "Host not found");
   setGatewayRequestLogContext(event, "server-requests/respond", {
     ...hostLogContext(host),
     threadId: input.threadId,

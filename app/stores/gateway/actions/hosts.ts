@@ -1,7 +1,7 @@
 import type { HostRecord } from "~~/shared/types";
 import type { GatewayStoreContext } from "../types";
 import { writeGatewayRouteSelection } from "../route-state";
-import { messageFromError } from "../thread-utils";
+import { messageFromError } from "../thread-utils/identity";
 
 export function createHostActions(ctx: GatewayStoreContext) {
   return {
@@ -16,6 +16,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
       ctx.state.currentThread = null;
       ctx.state.history = null;
       ctx.state.events = [];
+      ctx.clearError();
       writeGatewayRouteSelection({ hostId: host.id, projectId: null, threadId: null });
       await ctx.listThreads();
       ctx.ensureSelectedProject();
@@ -36,7 +37,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
           ...ctx.state.hostConnectionStatuses,
           [hostId]: {
             status: result?.ok === false ? "failed" : "connected",
-            message: result?.ok === false ? result.stderr || result.stdout || "连接失败" : "已连接",
+            message: result?.ok === false ? result.stderr || result.stdout || undefined : undefined,
             updatedAt: Date.now(),
           },
         };
@@ -46,7 +47,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
           ...ctx.state.hostConnectionStatuses,
           [hostId]: {
             status: "failed",
-            message: messageFromError(error, "Failed to verify host"),
+            message: messageFromError(error, ctx.t("app.verifyFailed"), ctx.errorLabels),
             updatedAt: Date.now(),
           },
         };
@@ -97,6 +98,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
         ctx.state.currentThread = null;
         ctx.state.history = null;
         ctx.state.events = [];
+        ctx.clearError();
         ctx.state.olderTurnsCursor = null;
         ctx.state.newerTurnsCursor = null;
         ctx.state.models = [];
@@ -129,6 +131,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
       ctx.state.currentThread = null;
       ctx.state.history = null;
       ctx.state.events = [];
+      ctx.clearError();
       ctx.state.olderTurnsCursor = null;
       ctx.state.newerTurnsCursor = null;
       ctx.state.lastEventId = 0;

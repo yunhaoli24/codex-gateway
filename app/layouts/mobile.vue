@@ -13,7 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useGatewayStore } from "@/stores/gateway";
-import { titleForThread } from "@/stores/gateway/thread-utils";
+import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const { currentThread, selectedProject, selectedThreadId, selectedHostId, selectedProjectId } =

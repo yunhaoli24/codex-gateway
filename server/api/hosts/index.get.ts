@@ -1,5 +1,5 @@
-import { runtimeState } from "../../utils/gateway/runtime-state";
+import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineEventHandler(() => {
-  return runtimeState.listHosts();
+  return hostStore.list();
 });

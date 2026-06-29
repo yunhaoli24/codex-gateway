@@ -67,8 +67,10 @@ function escapeHtml(value: string) {
       v-model="model"
       data-testid="config-json-textarea"
       :placeholder="placeholder"
+      wrap="off"
       spellcheck="false"
-      class="relative h-full min-h-full resize-none overflow-auto border-0 bg-transparent p-3 font-mono text-sm leading-6 text-transparent caret-ink shadow-none [field-sizing:fixed] selection:bg-primary/20 placeholder:text-ink-faint focus-visible:ring-0"
+      style="field-sizing: fixed"
+      class="absolute inset-0 block h-full min-h-0 w-full resize-none overflow-auto whitespace-pre border-0 bg-transparent p-3 font-mono text-sm leading-6 text-transparent caret-ink shadow-none [field-sizing:fixed] selection:bg-primary/20 placeholder:text-ink-faint focus-visible:ring-0"
       @scroll="syncScroll"
     />
   </div>

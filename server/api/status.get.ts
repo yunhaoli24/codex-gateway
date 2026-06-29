@@ -1,10 +1,10 @@
-import { runtimeState } from "../utils/gateway/runtime-state";
-import { threadBroker } from "../utils/gateway/broker";
+import { threadBroker } from "../utils/gateway/runtime/broker";
+import { runtimeConfigStore } from "../utils/gateway/state/runtime-config";
 import type { GatewayStatus } from "~~/shared/types";
 
 export default defineEventHandler((): GatewayStatus => {
   return {
-    ...runtimeState.counts(),
+    ...runtimeConfigStore.counts(),
     activeControllers: threadBroker.status(),
   };
 });

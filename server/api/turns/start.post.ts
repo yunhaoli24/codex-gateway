@@ -1,12 +1,12 @@
 import { readValidatedBody } from "h3";
-import { runtimeState } from "../../utils/gateway/runtime-state";
-import { threadBroker } from "../../utils/gateway/broker";
-import { requireRecord, turnStartSchema } from "../../utils/gateway/validation";
-import { hostLogContext, setGatewayRequestLogContext } from "../../utils/gateway/errors";
+import { threadBroker } from "../../utils/gateway/runtime/broker";
+import { requireRecord, turnStartSchema } from "../../utils/gateway/http/validation";
+import { hostLogContext, setGatewayRequestLogContext } from "../../utils/gateway/http/errors";
+import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineEventHandler(async (event) => {
   const input = await readValidatedBody(event, (body) => turnStartSchema.parse(body));
-  const host = requireRecord(runtimeState.getHostWithSecret(input.hostId), "Host not found");
+  const host = requireRecord(hostStore.getWithSecret(input.hostId), "Host not found");
   setGatewayRequestLogContext(event, "turns/start", {
     ...hostLogContext(host),
     threadId: input.threadId,
@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
     model: input.model ?? null,
     effort: input.effort ?? null,
     approvalPolicy: input.approvalPolicy ?? null,
+    collaborationMode: input.collaborationMode ?? null,
     clientUserMessageId: input.clientUserMessageId ?? null,
     textLength: input.text.length,
     imageCount: input.images.length,
@@ -26,6 +27,7 @@ export default defineEventHandler(async (event) => {
     model: input.model,
     effort: input.effort,
     approvalPolicy: input.approvalPolicy,
+    collaborationMode: input.collaborationMode,
     images: input.images,
     files: input.files,
   });

@@ -1,14 +1,14 @@
 import { EventEmitter } from "node:events";
 import WebSocket, { type RawData } from "ws";
 import type { HostRecord, RpcEnvelope } from "~~/shared/types";
-import { hostManager } from "./ssh";
-import { hostLifecycleBus } from "./host-events";
+import { codexRuntime, sshConnections } from "./host-services";
+import { hostLifecycleBus } from "../state/host-events";
 import {
   codexRemoteAppServerExistingProxyPayload,
   codexRemoteAppServerProxyPayload,
   remoteLoginShellCommand,
 } from "./remote-command";
-import { CodexRpcError } from "./errors";
+import { CodexRpcError } from "../http/errors";
 
 interface PendingRequest {
   method: string;
@@ -70,7 +70,7 @@ export class CodexRpcClient extends EventEmitter {
     }
 
     if (!this.options.skipVersionCheck) {
-      await hostManager.ensureCodexVersion(this.host);
+      await codexRuntime.ensureCodexVersion(this.host);
     }
 
     await this.connectRemoteProxyWebSocket();
@@ -174,7 +174,7 @@ export class CodexRpcClient extends EventEmitter {
   }
 
   private async connectRemoteProxyWebSocket() {
-    const channel = await hostManager.execChannel(
+    const channel = await sshConnections.execChannel(
       this.host,
       remoteLoginShellCommand(
         this.options.requireExistingAppServer

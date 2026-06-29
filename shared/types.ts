@@ -45,6 +45,8 @@ export interface ProjectCreateInput {
   remotePath: string;
 }
 
+export type ProjectUpdateInput = ProjectCreateInput;
+
 export interface RpcEnvelope {
   id?: number | string;
   method?: string;
@@ -192,6 +194,14 @@ export interface ComposerTurnOptions {
   model?: string | null;
   effort?: ReasoningEffort | null;
   approvalPolicy?: ApprovalPolicy | null;
+  collaborationMode?: {
+    mode: "default" | "plan";
+    settings: {
+      model: string;
+      reasoningEffort?: ReasoningEffort | null;
+      developerInstructions?: string | null;
+    };
+  } | null;
   images?: Array<{
     path?: string;
     url?: string;

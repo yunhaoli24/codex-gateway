@@ -2,14 +2,18 @@
 import { CheckIcon, Loader2Icon, PlusIcon, SendIcon } from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import ApprovalPolicyPicker from "@/components/chat/composer/ApprovalPolicyPicker.vue";
 import AttachmentChips from "@/components/chat/composer/AttachmentChips.vue";
 import ContextUsageMeter from "@/components/chat/composer/ContextUsageMeter.vue";
 import ModelEffortPicker from "@/components/chat/composer/ModelEffortPicker.vue";
+import SlashCommandMenu from "@/components/chat/composer/SlashCommandMenu.vue";
 import { useAttachmentUpload } from "@/composables/useAttachmentUpload";
 import { useComposerDraft } from "@/composables/useComposerDraft";
+import { useComposerTurnSubmit } from "@/composables/useComposerTurnSubmit";
+import { useSlashCommands, type SlashCommand } from "@/composables/useSlashCommands";
 import { useThreadSettingsControls } from "@/composables/useThreadSettingsControls";
 import { useGatewayStore } from "@/stores/gateway";
 
@@ -17,6 +21,7 @@ const store = useGatewayStore();
 const { t } = useI18n();
 const {
   selectedHostId,
+  selectedProjectId,
   selectedThreadId,
   selectedThreadStatus,
   selectedThreadTokenUsage,
@@ -48,50 +53,95 @@ const {
 } = useAttachmentUpload(selectedHostId, attachedFiles);
 
 const isThreadRunning = computed(() => selectedThreadStatus.value === "running");
-const hasComposerInput = computed(() =>
-  Boolean(turnText.value.trim() || attachedFiles.value.length),
+const composerInputEnabled = computed(() =>
+  Boolean(selectedThreadId.value || selectedProjectId.value),
 );
+const selectedTurnOptions = () => {
+  const effort = selectedEffort.value === "default" ? undefined : selectedEffort.value;
+  return {
+    model: activeModel.value || undefined,
+    effort,
+    approvalPolicy:
+      selectedApprovalMode.value === "custom" ? undefined : selectedApprovalMode.value,
+  };
+};
+const { planModeActive, hasComposerInput, activatePlanMode, startNewThread, submitTurn } =
+  useComposerTurnSubmit({
+    turnText,
+    attachedFiles,
+    clearDraft,
+    selectedTurnOptions,
+    activeModel,
+    selectedEffort,
+    fileReferencesLabel: computed(() => t("app.attachedFileReferences")),
+  });
 const canSendTurn = computed(() =>
   Boolean(selectedThreadId.value && hasComposerInput.value && !uploadingAttachments.value),
 );
 const sendButtonLabel = computed(() => {
   if (hasComposerInput.value) return t("app.send");
-  if (isThreadRunning.value) return "运行中";
-  if (selectedThreadStatus.value === "completed") return "已完成";
-  if (selectedThreadStatus.value === "failed") return "失败";
-  if (selectedThreadStatus.value === "interrupted") return "已中断";
+  if (isThreadRunning.value) return t("app.running");
+  if (selectedThreadStatus.value === "completed") return t("app.completed");
+  if (selectedThreadStatus.value === "failed") return t("app.failed");
+  if (selectedThreadStatus.value === "interrupted") return t("app.interrupted");
   return t("app.send");
 });
+const slashCommands = computed<SlashCommand[]>(() => [
+  {
+    id: "new",
+    command: t("app.slashCommandNew"),
+    title: t("app.slashCommandNewTitle"),
+    description: t("app.slashCommandNewDescription"),
+  },
+  ...(selectedThreadId.value
+    ? [
+        {
+          id: "plan" as const,
+          command: t("app.slashCommandPlan"),
+          title: t("app.slashCommandPlanTitle"),
+          description: t("app.slashCommandPlanDescription"),
+        },
+      ]
+    : []),
+]);
 
-async function sendTurn() {
-  const text = turnText.value.trim();
-  if (!text && !attachedFiles.value.length) return;
-  const files = [...attachedFiles.value];
-  const remoteFiles = files.filter((file) => !file.isImage);
-  const attachedImages = files.filter((file) => file.isImage);
-  const fileReferences = remoteFiles.map((file) => `- ${file.name}: ${file.path}`);
-  const message = fileReferences.length
-    ? `${text}${text ? "\n\n" : ""}已附加文件，远端路径：\n${fileReferences.join("\n")}`
-    : text;
-  clearDraft();
-  await store.sendTurn(message, {
-    model: activeModel.value || undefined,
-    effort: selectedEffort.value === "default" ? undefined : selectedEffort.value,
-    approvalPolicy:
-      selectedApprovalMode.value === "custom" ? undefined : selectedApprovalMode.value,
-    images: attachedImages
-      .map((file) => ({ url: file.dataUrl, detail: "auto" as const }))
-      .filter((image): image is { url: string; detail: "auto" } => Boolean(image.url)),
-    files: remoteFiles,
-  });
+async function runSlashCommand(command: { id: "new" | "plan" }) {
+  slashCommandsState.dismiss();
+  if (command.id === "new") {
+    await startNewThread();
+    return;
+  }
+  activatePlanMode();
 }
 
+const slashCommandsState = useSlashCommands({
+  text: turnText,
+  commands: slashCommands,
+  enabled: composerInputEnabled,
+  onSelect: runSlashCommand,
+});
+const {
+  menuOpen: slashMenuOpen,
+  filteredCommands: filteredSlashCommands,
+  selectedIndex: selectedSlashCommandIndex,
+  selectIndex: selectSlashCommandIndex,
+} = slashCommandsState;
+
 function handleComposerKeydown(event: KeyboardEvent) {
-  if (event.isComposing || event.key !== "Enter" || event.shiftKey) {
+  if (event.isComposing) {
+    return;
+  }
+  if (slashCommandsState.handleKeydown(event)) {
+    return;
+  }
+  if (event.key !== "Enter" || event.shiftKey) {
     return;
   }
   event.preventDefault();
-  void sendTurn();
+  if (!selectedThreadId.value) {
+    return;
+  }
+  void submitTurn();
 }
 </script>
 
@@ -101,8 +151,15 @@ function handleComposerKeydown(event: KeyboardEvent) {
   >
     <div class="mx-auto w-full max-w-3xl">
       <div
-        class="rounded-[1.35rem] border border-hairline bg-surface p-2 shadow-lg shadow-ink/10 md:rounded-3xl md:p-[clamp(0.45rem,1vw,0.7rem)]"
+        class="relative rounded-[1.35rem] border border-hairline bg-surface p-2 shadow-lg shadow-ink/10 md:rounded-3xl md:p-[clamp(0.45rem,1vw,0.7rem)]"
       >
+        <SlashCommandMenu
+          :open="slashMenuOpen"
+          :commands="filteredSlashCommands"
+          :selected-index="selectedSlashCommandIndex"
+          @hover="selectSlashCommandIndex"
+          @select="runSlashCommand"
+        />
         <input
           ref="uploadInputRef"
           class="hidden"
@@ -115,7 +172,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
           v-model="turnText"
           class="max-h-[min(28dvh,10rem)] min-h-[3.25rem] border-0 bg-transparent px-1 text-base leading-6 shadow-none ring-0 placeholder:text-base placeholder:text-ink-faint focus-visible:ring-0 md:max-h-[min(24vh,12rem)] md:min-h-[clamp(3.75rem,10vh,6rem)] md:leading-7 md:text-base"
           :placeholder="t('app.askFollowUp')"
-          :disabled="!selectedThreadId"
+          :disabled="!composerInputEnabled"
           @keydown="handleComposerKeydown"
           @paste="handlePaste"
         />
@@ -123,6 +180,9 @@ function handleComposerKeydown(event: KeyboardEvent) {
           class="flex flex-col gap-2 pt-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
         >
           <div class="flex min-w-0 items-center gap-1 overflow-x-auto text-base text-ink-muted">
+            <Badge v-if="planModeActive" variant="outline" class="border-primary/30 text-primary">
+              {{ t("app.planModeActive") }}
+            </Badge>
             <Button
               type="button"
               variant="ghost"
@@ -157,9 +217,10 @@ function handleComposerKeydown(event: KeyboardEvent) {
               class="size-11 shrink-0 rounded-full bg-primary p-0 text-primary-foreground hover:bg-primary-active"
               :aria-label="sendButtonLabel"
               :disabled="!canSendTurn"
-              @click="sendTurn"
+              @click="submitTurn"
             >
               <Loader2Icon v-if="uploadingAttachments" class="size-5 animate-spin" />
+              <Loader2Icon v-else-if="isThreadRunning" class="size-5 animate-spin" />
               <SendIcon v-else-if="hasComposerInput" class="size-5" />
               <CheckIcon v-else-if="selectedThreadStatus === 'completed'" class="size-5" />
               <SendIcon v-else class="size-5 opacity-60" />
@@ -167,9 +228,6 @@ function handleComposerKeydown(event: KeyboardEvent) {
           </div>
         </div>
       </div>
-      <p class="mt-1 hidden text-center text-xs text-ink-faint sm:block md:mt-2">
-        {{ selectedThreadId ? t("app.ctrlEnter") : t("app.selectThreadFirst") }}
-      </p>
     </div>
   </div>
 </template>

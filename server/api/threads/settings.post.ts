@@ -1,11 +1,11 @@
 import { readValidatedBody } from "h3";
-import { runtimeState } from "../../utils/gateway/runtime-state";
-import { threadBroker } from "../../utils/gateway/broker";
-import { requireRecord, threadSettingsUpdateSchema } from "../../utils/gateway/validation";
+import { threadBroker } from "../../utils/gateway/runtime/broker";
+import { requireRecord, threadSettingsUpdateSchema } from "../../utils/gateway/http/validation";
+import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineEventHandler(async (event) => {
   const input = await readValidatedBody(event, (body) => threadSettingsUpdateSchema.parse(body));
-  const host = requireRecord(runtimeState.getHostWithSecret(input.hostId), "Host not found");
+  const host = requireRecord(hostStore.getWithSecret(input.hostId), "Host not found");
   return threadBroker.updateThreadSettings(host, input.threadId, {
     model: input.model,
     effort: input.effort,

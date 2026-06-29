@@ -1,5 +1,5 @@
 import { getRequestURL } from "h3";
-import { gatewayRequestLogContext, logGatewayApiError } from "../utils/gateway/errors";
+import { gatewayRequestLogContext, logGatewayApiError } from "../utils/gateway/http/errors";
 
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook("error", (error, { event }) => {

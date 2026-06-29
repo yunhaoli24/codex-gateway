@@ -1,7 +1,7 @@
 import type { ModelListResult, ProjectRecord, RemoteDirectoryEntry } from "~~/shared/types";
 import type { GatewayStoreContext } from "../types";
 import { writeGatewayRouteSelection } from "../route-state";
-import { messageFromError } from "../thread-utils";
+import { messageFromError } from "../thread-utils/identity";
 
 export function createProjectActions(ctx: GatewayStoreContext) {
   return {
@@ -13,6 +13,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       ctx.state.currentThread = null;
       ctx.state.history = null;
       ctx.state.events = [];
+      ctx.clearError();
       ctx.state.olderTurnsCursor = null;
       ctx.state.newerTurnsCursor = null;
       ctx.state.lastEventId = 0;
@@ -24,14 +25,14 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       await ctx.listThreads();
     },
 
-    async listRemoteDirectories(path = "~") {
-      if (!ctx.state.selectedHostId) {
+    async listRemoteDirectories(path = "~", hostId = ctx.state.selectedHostId) {
+      if (!hostId) {
         return { path, entries: [] as RemoteDirectoryEntry[] };
       }
 
       return $fetch<{ path: string; entries: RemoteDirectoryEntry[] }>("/api/remote/directories", {
         query: {
-          hostId: ctx.state.selectedHostId,
+          hostId,
           path,
         },
       });
@@ -44,17 +45,27 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       }
 
       ctx.state.loadingModels = true;
+      const hostId = ctx.state.selectedHostId;
+      const projectId = ctx.state.selectedProjectId;
+      const threadId = ctx.state.selectedThreadId;
       try {
         const response = await $fetch<ModelListResult>("/api/models", {
           query: {
-            hostId: ctx.state.selectedHostId,
+            hostId,
             includeHidden: false,
             limit: 50,
           },
         });
+        if (ctx.state.selectedHostId !== hostId) {
+          return;
+        }
         ctx.state.models = response.data ?? [];
       } catch (error: any) {
-        ctx.setError(messageFromError(error, "Failed to list models"));
+        ctx.setError(messageFromError(error, ctx.t("app.listModelsFailed"), ctx.errorLabels), {
+          hostId,
+          projectId,
+          threadId,
+        });
       } finally {
         ctx.state.loadingModels = false;
       }
@@ -77,6 +88,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       ctx.state.currentThread = null;
       ctx.state.history = null;
       ctx.state.events = [];
+      ctx.clearError();
       writeGatewayRouteSelection({
         hostId: project.hostId,
         projectId: project.id,
@@ -84,6 +96,72 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       });
       await ctx.listThreads();
       return project;
+    },
+
+    async updateProject(projectId: number, input: Record<string, unknown>) {
+      const project = await $fetch<ProjectRecord>(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        body: input,
+      });
+      ctx.state.projects = ctx.state.projects.map((item) =>
+        item.id === projectId ? project : item,
+      );
+      if (ctx.state.selectedProjectId !== projectId) {
+        return project;
+      }
+
+      ctx.cacheSelectedThreadSnapshot();
+      ctx.beginViewTransition();
+      ctx.state.selectedHostId = project.hostId;
+      ctx.state.selectedThreadId = null;
+      ctx.state.currentThread = null;
+      ctx.state.history = null;
+      ctx.state.events = [];
+      ctx.clearError();
+      ctx.state.olderTurnsCursor = null;
+      ctx.state.newerTurnsCursor = null;
+      ctx.state.lastEventId = 0;
+      writeGatewayRouteSelection({
+        hostId: project.hostId,
+        projectId: project.id,
+        threadId: null,
+      });
+      await ctx.listThreads();
+      return project;
+    },
+
+    async deleteProject(projectId: number) {
+      const project = ctx.state.projects.find((item) => item.id === projectId);
+      await $fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+      ctx.state.projects = ctx.state.projects.filter((item) => item.id !== projectId);
+
+      if (ctx.state.selectedProjectId !== projectId) {
+        return;
+      }
+
+      const nextProject =
+        ctx.state.projects.find((item) => item.hostId === project?.hostId) ??
+        ctx.state.projects.find((item) => item.hostId === ctx.state.selectedHostId) ??
+        null;
+
+      ctx.cacheSelectedThreadSnapshot();
+      ctx.beginViewTransition();
+      ctx.state.selectedHostId = project?.hostId ?? ctx.state.selectedHostId;
+      ctx.state.selectedProjectId = nextProject?.id ?? null;
+      ctx.state.selectedThreadId = null;
+      ctx.state.currentThread = null;
+      ctx.state.history = null;
+      ctx.state.events = [];
+      ctx.clearError();
+      ctx.state.olderTurnsCursor = null;
+      ctx.state.newerTurnsCursor = null;
+      ctx.state.lastEventId = 0;
+      writeGatewayRouteSelection({
+        hostId: ctx.state.selectedHostId,
+        projectId: ctx.state.selectedProjectId,
+        threadId: null,
+      });
+      await ctx.listThreads();
     },
 
     mergeProjects(projects: ProjectRecord[]) {

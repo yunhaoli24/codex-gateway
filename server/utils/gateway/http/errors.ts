@@ -1,4 +1,4 @@
-import type { H3Event } from "h3";
+import { defineEventHandler, getRequestURL, setResponseStatus, type H3Event } from "h3";
 import type { HostRecord } from "~~/shared/types";
 
 export class CodexRpcError extends Error {
@@ -21,6 +21,35 @@ export function logGatewayApiError(
   console.error(`[gateway] ${scope} failed`, {
     ...details,
     error: serializeError(error),
+  });
+}
+
+export function defineGatewayEventHandler<T>(handler: (event: H3Event) => Promise<T> | T) {
+  return defineEventHandler(async (event) => {
+    try {
+      return await handler(event);
+    } catch (error) {
+      const url = getRequestURL(event);
+      const context = gatewayRequestLogContext(event);
+      logGatewayApiError(
+        context?.scope ?? "request",
+        {
+          method: event.method,
+          path: url.pathname,
+          query: url.search || null,
+          ...context?.details,
+        },
+        error,
+      );
+      const statusCode = statusCodeFromError(error);
+      setResponseStatus(event, statusCode);
+      return {
+        error: true,
+        statusCode,
+        message: publicErrorMessage(error),
+        details: publicErrorDetails(event, context?.scope ?? "request", context?.details ?? {}),
+      };
+    }
   });
 }
 
@@ -56,6 +85,9 @@ export function hostLogContext(host: HostRecord) {
     sshUser: host.username,
     sshPort: host.port,
     authMode: host.authMode,
+    hasPassword: host.authMode === "password" ? Boolean(host.password) : undefined,
+    hasPrivateKey: host.authMode === "privateKey" ? Boolean(host.privateKey) : undefined,
+    privateKeyPath: host.authMode === "privateKey" ? host.privateKeyPath : undefined,
     hasProxy: Boolean(host.proxyUrl),
   };
 }
@@ -81,6 +113,42 @@ function serializeError(error: unknown): Record<string, unknown> {
   }
   return {
     message: String(error),
+  };
+}
+
+function statusCodeFromError(error: unknown) {
+  const statusCode =
+    typeof (error as any)?.statusCode === "number" ? Number((error as any).statusCode) : null;
+  if (statusCode && statusCode >= 400 && statusCode < 600) {
+    return statusCode;
+  }
+  return 502;
+}
+
+function publicErrorMessage(error: unknown) {
+  if (error instanceof CodexRpcError) {
+    return error.message || `Codex RPC ${error.rpcMethod} failed`;
+  }
+  if (error instanceof Error) {
+    return error.message || error.name || "Gateway request failed";
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error == null) {
+    return "Gateway request failed";
+  }
+  return JSON.stringify(error);
+}
+
+function publicErrorDetails(event: H3Event, scope: string, details: Record<string, unknown>) {
+  const url = getRequestURL(event);
+  return {
+    scope,
+    method: event.method,
+    path: url.pathname,
+    query: url.search || null,
+    ...details,
   };
 }
 

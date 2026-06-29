@@ -1,9 +1,16 @@
-import { runtimeState } from "../../../utils/gateway/runtime-state";
-import { hostManager } from "../../../utils/gateway/ssh";
-import { requireRecord } from "../../../utils/gateway/validation";
+import { getRouterParam } from "h3";
+import { codexRuntime } from "../../../utils/gateway/infra/host-services";
+import {
+  defineGatewayEventHandler,
+  hostLogContext,
+  setGatewayRequestLogContext,
+} from "../../../utils/gateway/http/errors";
+import { requireRecord } from "../../../utils/gateway/http/validation";
+import { hostStore } from "../../../utils/gateway/state/hosts";
 
-export default defineEventHandler(async (event) => {
+export default defineGatewayEventHandler(async (event) => {
   const id = Number(getRouterParam(event, "id"));
-  const host = requireRecord(runtimeState.getHostWithSecret(id), "Host not found");
-  return hostManager.verify(host);
+  const host = requireRecord(hostStore.getWithSecret(id), "Host not found");
+  setGatewayRequestLogContext(event, "hosts/verify", hostLogContext(host));
+  return codexRuntime.verify(host);
 });

@@ -1,39 +1,47 @@
 import { getValidatedQuery } from "h3";
-import { runtimeState } from "../../utils/gateway/runtime-state";
-import { threadBroker } from "../../utils/gateway/broker";
-import { requireRecord, threadListSchema } from "../../utils/gateway/validation";
+import { threadBroker } from "../../utils/gateway/runtime/broker";
+import {
+  defineGatewayEventHandler,
+  hostLogContext,
+  setGatewayRequestLogContext,
+} from "../../utils/gateway/http/errors";
+import { requireRecord, threadListSchema } from "../../utils/gateway/http/validation";
+import { hostStore } from "../../utils/gateway/state/hosts";
+import { projectStore } from "../../utils/gateway/state/projects";
+import { threadMetadataStore } from "../../utils/gateway/state/thread-metadata";
+import { withAllThreadSources } from "../../utils/gateway/protocol/thread-list";
 
-export default defineEventHandler(async (event) => {
+export default defineGatewayEventHandler(async (event) => {
   const query = await getValidatedQuery(event, (body) => threadListSchema.parse(body));
-  const host = requireRecord(runtimeState.getHostWithSecret(query.hostId), "Host not found");
+  const host = requireRecord(hostStore.getWithSecret(query.hostId), "Host not found");
+  setGatewayRequestLogContext(event, "threads/list", {
+    ...hostLogContext(host),
+    projectId: query.projectId ?? null,
+    cwd: query.cwd ?? null,
+    limit: query.limit,
+    cursor: query.cursor ?? null,
+    searchTerm: query.searchTerm ?? null,
+    useRemoteStateIndexOnly: query.useRemoteStateIndexOnly ?? false,
+  });
 
-  const result = await threadBroker.listThreads(host, {
+  const listParams = withAllThreadSources({
     limit: query.limit,
     cursor: query.cursor || null,
     cwd: query.cwd || undefined,
     searchTerm: query.searchTerm || undefined,
-    useStateDbOnly: query.useRemoteStateIndexOnly ?? true,
+    useStateDbOnly: query.useRemoteStateIndexOnly ?? false,
   });
+  const result = await threadBroker.listThreads(host, listParams);
 
   const threads = Array.isArray((result as any)?.data) ? (result as any).data : [];
-  for (const thread of threads) {
-    if (typeof thread?.cwd === "string" && thread.cwd.trim()) {
-      try {
-        const project = runtimeState.ensureProjectForPath(host.id, thread.cwd);
-        runtimeState.recordThread(host.id, project.id, thread);
-      } catch (error) {
-        console.warn("[gateway] failed to index thread project", {
-          hostId: host.id,
-          threadId: thread?.id,
-          cwd: thread.cwd,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+  indexThreadProjects(host.id, threads);
+
+  if (shouldDiscoverHostProjects(query)) {
+    await discoverHostProjects(host, result, listParams);
   }
   const mergedThreads = mergeThreads(
     threads,
-    runtimeState.listThreadMetadata(host.id, {
+    threadMetadataStore.list(host.id, {
       projectId: query.projectId ?? null,
       cwd: query.cwd ?? null,
     }),
@@ -42,9 +50,59 @@ export default defineEventHandler(async (event) => {
   return {
     ...(result as Record<string, unknown>),
     data: mergedThreads,
-    projects: runtimeState.listProjects(host.id),
+    projects: projectStore.list(host.id),
   };
 });
+
+function shouldDiscoverHostProjects(query: {
+  projectId?: number | null;
+  cwd?: string | null;
+  searchTerm?: string | null;
+  cursor?: string | null;
+}) {
+  return !query.projectId && !query.cwd && !query.searchTerm && !query.cursor;
+}
+
+async function discoverHostProjects(
+  host: any,
+  firstPage: unknown,
+  firstParams: Record<string, unknown>,
+) {
+  let cursor =
+    typeof (firstPage as any)?.nextCursor === "string" ? (firstPage as any).nextCursor : null;
+  const seenCursors = new Set<string>();
+
+  while (cursor && !seenCursors.has(cursor)) {
+    seenCursors.add(cursor);
+    const page = await threadBroker.listThreads(host, {
+      ...firstParams,
+      cursor,
+      useStateDbOnly: false,
+    });
+    const threads = Array.isArray((page as any)?.data) ? (page as any).data : [];
+    indexThreadProjects(host.id, threads);
+    cursor = typeof (page as any)?.nextCursor === "string" ? (page as any).nextCursor : null;
+  }
+}
+
+function indexThreadProjects(hostId: number, threads: any[]) {
+  for (const thread of threads) {
+    if (typeof thread?.cwd !== "string" || !thread.cwd.trim()) {
+      continue;
+    }
+    try {
+      const project = projectStore.ensureForPath(hostId, thread.cwd);
+      threadMetadataStore.record(hostId, project.id, thread);
+    } catch (error) {
+      console.warn("[gateway] failed to index thread project", {
+        hostId,
+        threadId: thread?.id,
+        cwd: thread.cwd,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+}
 
 function mergeThreads(remoteThreads: any[], indexedThreads: any[], searchTerm: string | null) {
   const byId = new Map<string, any>();

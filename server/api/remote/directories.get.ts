@@ -1,11 +1,20 @@
 import { getValidatedQuery } from "h3";
-import { runtimeState } from "../../utils/gateway/runtime-state";
-import { hostManager } from "../../utils/gateway/ssh";
-import { remoteDirectoryListSchema, requireRecord } from "../../utils/gateway/validation";
+import { remoteFiles } from "../../utils/gateway/infra/host-services";
+import {
+  defineGatewayEventHandler,
+  hostLogContext,
+  setGatewayRequestLogContext,
+} from "../../utils/gateway/http/errors";
+import { remoteDirectoryListSchema, requireRecord } from "../../utils/gateway/http/validation";
+import { hostStore } from "../../utils/gateway/state/hosts";
 
-export default defineEventHandler(async (event) => {
+export default defineGatewayEventHandler(async (event) => {
   const query = await getValidatedQuery(event, (body) => remoteDirectoryListSchema.parse(body));
-  const host = requireRecord(runtimeState.getHostWithSecret(query.hostId), "Host not found");
+  const host = requireRecord(hostStore.getWithSecret(query.hostId), "Host not found");
+  setGatewayRequestLogContext(event, "remote/directories", {
+    ...hostLogContext(host),
+    path: query.path,
+  });
 
-  return hostManager.listDirectories(host, query.path);
+  return remoteFiles.listDirectories(host, query.path);
 });
