@@ -81,7 +81,6 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.connectEvents();
         ctx.requestScrollToLatest();
-        return;
       }
 
       ctx.state.loading = true;

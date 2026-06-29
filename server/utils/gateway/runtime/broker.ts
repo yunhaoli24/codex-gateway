@@ -31,7 +31,7 @@ class ThreadBroker {
   ) {
     const controller = await this.registry.getController(host, threadId);
     const activeSnapshot = controller.getOpenSnapshot();
-    if (activeSnapshot) {
+    if (activeSnapshot && this.isFreshUnmaterializedSnapshot(activeSnapshot)) {
       const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
       const resolvedProjectId = activeSnapshot.projectId ?? projectId;
       return {
@@ -280,6 +280,11 @@ class ThreadBroker {
       nextCursor: page.nextCursor ?? null,
       backwardsCursor: page.backwardsCursor ?? null,
     };
+  }
+
+  private isFreshUnmaterializedSnapshot(snapshot: { history?: any }) {
+    const turns = snapshot.history?.thread?.turns ?? snapshot.history?.turns;
+    return Array.isArray(turns) && turns.length === 0;
   }
 }
 

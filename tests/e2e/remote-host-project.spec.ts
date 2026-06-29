@@ -105,17 +105,18 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await expect(page.getByPlaceholder("输入后续修改要求")).toHaveValue(secondDraft);
   await page.getByPlaceholder("输入后续修改要求").fill("");
 
-  let openRequests = 0;
-  page.on("request", (request) => {
+  const openResponses: number[] = [];
+  page.on("response", (response) => {
+    const request = response.request();
     if (request.url().endsWith("/api/threads/open") && request.method() === "POST") {
-      openRequests += 1;
+      openResponses.push(response.status());
     }
   });
   await page.getByTestId(`thread-button-${threadId}`).click();
   await page.getByTestId(`thread-button-${secondThreadId}`).click();
   await page.getByTestId(`thread-button-${threadId}`).click();
-  await page.waitForTimeout(500);
-  expect(openRequests).toBe(0);
+  await expect.poll(() => openResponses.length, { timeout: 10_000 }).toBeGreaterThanOrEqual(3);
+  expect(openResponses.every((status) => status >= 200 && status < 300)).toBe(true);
   expect(realtimeSockets).toHaveLength(1);
 
   const marker = `E2E 置顶恢复 ${Date.now()}`;
