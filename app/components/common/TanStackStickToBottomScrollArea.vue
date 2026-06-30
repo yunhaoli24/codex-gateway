@@ -41,9 +41,7 @@ const virtualizer = useVirtualizer(
 );
 
 const virtualRow = computed(() => virtualizer.value.getVirtualItems()[0] ?? null);
-const totalSize = computed(() =>
-  virtualRow.value ? virtualizer.value.getTotalSize() : props.estimateSize,
-);
+const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 function scrollViewport() {
   const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value;

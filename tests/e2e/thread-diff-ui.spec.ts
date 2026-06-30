@@ -341,6 +341,57 @@ test("streaming output does not force scroll when the user is reading earlier co
   await expect.poll(() => commandOutputScrollTop(page)).toBeLessThanOrEqual(commandScrollTop + 2);
 });
 
+test("short command output uses natural height instead of a fixed minimum", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-short-command-output-thread";
+    store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+    store.selectedHostId = 1;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Short Command Output" };
+    store.history = {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "turn-short-command",
+            status: "running",
+            items: [
+              {
+                id: "command-short-1",
+                type: "commandExecution",
+                status: "completed",
+                command: "pwd",
+                aggregatedOutput: "/tmp/e2e\n",
+              },
+            ],
+          },
+        ],
+      },
+    };
+    store.initializing = false;
+    store.loading = false;
+  });
+
+  await page.getByRole("button", { name: /pwd/ }).click();
+  await expect(page.getByText("/tmp/e2e")).toBeVisible();
+  await expect
+    .poll(async () =>
+      page.getByText("/tmp/e2e").evaluate((element: HTMLElement) => {
+        const scrollArea = element.closest('[data-slot="scroll-area"]') as HTMLElement | null;
+        if (!scrollArea) throw new Error("Missing command output scroll area");
+        return scrollArea.getBoundingClientRect().height;
+      }),
+    )
+    .toBeLessThan(96);
+});
+
 async function parkChatViewportInMiddle(page: Page) {
   await expect
     .poll(() =>

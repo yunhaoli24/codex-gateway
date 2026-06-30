@@ -93,16 +93,17 @@ async function respond(decision: "accept" | "decline") {
       </div>
       <TanStackStickToBottomScrollArea
         v-if="output"
-        class="mt-2 h-56 rounded-lg border border-hairline bg-canvas-soft"
-        content-class="min-h-full"
+        class="mt-2 max-h-56 rounded-lg border border-hairline bg-canvas-soft"
+        viewport-class="max-h-56"
         horizontal
         :threshold="48"
+        :estimate-size="44"
         :follow-key="rawOutput.length"
       >
         <HighlightedCode
           :code="output"
           language="shell"
-          pre-class="syntax-highlight min-h-full min-w-max whitespace-pre p-3 text-xs leading-5 text-ink-secondary"
+          pre-class="syntax-highlight min-w-max whitespace-pre p-3 text-xs leading-5 text-ink-secondary"
         />
       </TanStackStickToBottomScrollArea>
       <div
