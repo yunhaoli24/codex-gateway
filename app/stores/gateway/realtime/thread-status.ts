@@ -2,10 +2,6 @@ import type { ThreadTokenUsageState } from "~~/shared/types";
 import { notifyThreadTerminalStatus } from "../notifications/thread-terminal-notifications";
 import { pinnedKey } from "../thread-utils/identity";
 import type { GatewayStoreContext, ThreadRuntimeStatus, ThreadStatusUpdateOptions } from "../types";
-import {
-  cancelRunningThreadStatusProbe,
-  scheduleRunningThreadStatusProbe,
-} from "./thread-status-probe";
 
 export function setThreadRunning(
   ctx: GatewayStoreContext,
@@ -44,16 +40,12 @@ export function setThreadStatus(
   }
   ctx.state.runningThreadKeys = [...runningKeys];
   if (status === "running") {
-    scheduleRunningThreadStatusProbe(ctx);
     return;
   }
   if (notifyTerminal && previousStatus === "running") {
     notifyThreadTerminalStatus(ctx, hostId, threadId, status, {
       turnId: options.turnId ?? ctx.state.activeTurnIdsByThreadKey[key] ?? null,
     });
-  }
-  if (!ctx.state.runningThreadKeys.length) {
-    cancelRunningThreadStatusProbe(ctx);
   }
 }
 

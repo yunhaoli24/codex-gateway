@@ -105,8 +105,6 @@ export interface GatewayStoreState {
   realtimeSocketReconnectTimer: ReturnType<typeof window.setTimeout> | null;
   realtimeSocketReconnectAttempt: number;
   realtimeSocketGeneration: number;
-  runningThreadStatusProbeTimer: ReturnType<typeof window.setTimeout> | null;
-  probingThreadStatusKeys: string[];
   deliveredNotificationKeys: string[];
   realtimeHostLifecycleSubscribed: boolean;
   realtimeThreadSubscriptions: Record<

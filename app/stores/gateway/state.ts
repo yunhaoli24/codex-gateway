@@ -38,8 +38,6 @@ export function createGatewayState(): GatewayStoreState {
     realtimeSocketReconnectTimer: null,
     realtimeSocketReconnectAttempt: 0,
     realtimeSocketGeneration: 0,
-    runningThreadStatusProbeTimer: null,
-    probingThreadStatusKeys: [],
     deliveredNotificationKeys: [],
     realtimeHostLifecycleSubscribed: false,
     realtimeThreadSubscriptions: {},

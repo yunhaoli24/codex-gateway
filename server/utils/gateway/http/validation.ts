@@ -152,11 +152,6 @@ export const threadTurnsListSchema = z.object({
   sortDirection: z.enum(["asc", "desc"]).default("desc"),
 });
 
-export const threadStatusSchema = z.object({
-  hostId: z.coerce.number().int().positive(),
-  threadId: z.string().trim().min(1),
-});
-
 export const threadRenameSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   threadId: z.string().trim().min(1),

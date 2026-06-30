@@ -156,11 +156,6 @@ export interface ThreadTurnsPageResult {
   };
 }
 
-export interface ThreadStatusProbeResult {
-  thread: unknown;
-  status: unknown;
-}
-
 export type ApprovalPolicy = "untrusted" | "on-request" | "never";
 export type ReasoningEffort = string;
 

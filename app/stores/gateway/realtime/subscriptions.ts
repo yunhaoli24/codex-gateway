@@ -40,6 +40,11 @@ export function connectThreadEvents(
       ? ctx.state.lastEventId
       : 0);
   const subscription = { hostId, threadId, afterId };
+  const current = ctx.state.realtimeThreadSubscriptions[key];
+  if (current?.hostId === hostId && current.threadId === threadId && current.afterId === afterId) {
+    ctx.connectRealtime();
+    return;
+  }
   ctx.state.realtimeThreadSubscriptions = {
     ...ctx.state.realtimeThreadSubscriptions,
     [key]: subscription,

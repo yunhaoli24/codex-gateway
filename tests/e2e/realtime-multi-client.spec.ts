@@ -63,15 +63,11 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     "data-state",
     "closed",
   );
-  const probedMarker = `E2E 状态探头 ${Date.now()}`;
-  const statusProbeResponsePromise = page.waitForResponse(
-    (response) => response.url().includes("/api/threads/status?") && response.status() === 200,
-    { timeout: 120_000 },
-  );
-  await sendTextTurn(page, probedMarker);
+  const reconnectedMarker = `E2E WS重连 ${Date.now()}`;
+  await sendTextTurn(page, reconnectedMarker);
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "运行中");
   await closeRealtimeSockets(page);
-  await statusProbeResponsePromise;
+  await expect.poll(() => realtimeSockets.size, { timeout: 30_000 }).toBe(1);
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
     timeout: 120_000,
   });

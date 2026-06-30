@@ -92,18 +92,29 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await expect(page.getByPlaceholder("输入后续修改要求")).toHaveValue(secondDraft);
   await page.getByPlaceholder("输入后续修改要求").fill("");
 
-  const openResponses: number[] = [];
-  page.on("response", (response) => {
-    const request = response.request();
+  let openRequestsAfterCacheWarm = 0;
+  page.on("request", (request) => {
     if (request.url().endsWith("/api/threads/open") && request.method() === "POST") {
-      openResponses.push(response.status());
+      openRequestsAfterCacheWarm += 1;
     }
   });
   await page.getByTestId(`thread-button-${threadId}`).click();
+  await expect(page.getByTestId(`thread-button-${threadId}`)).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
   await page.getByTestId(`thread-button-${secondThreadId}`).click();
+  await expect(page.getByTestId(`thread-button-${secondThreadId}`)).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
   await page.getByTestId(`thread-button-${threadId}`).click();
-  await expect.poll(() => openResponses.length, { timeout: 10_000 }).toBeGreaterThanOrEqual(3);
-  expect(openResponses.every((status) => status >= 200 && status < 300)).toBe(true);
+  await expect(page.getByTestId(`thread-button-${threadId}`)).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
+  await page.waitForTimeout(1_000);
+  expect(openRequestsAfterCacheWarm).toBe(0);
   expect(realtimeSockets.size).toBe(1);
 
   const marker = `E2E 置顶恢复 ${Date.now()}`;

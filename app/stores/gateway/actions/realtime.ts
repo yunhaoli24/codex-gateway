@@ -18,7 +18,6 @@ import {
   scheduleRealtimeReconnect,
   sendRealtimeMessage,
 } from "../realtime/socket";
-import { probeRunningThreadStatuses } from "../realtime/thread-status-probe";
 import { setThreadRunning, setThreadStatus, setThreadTokenUsage } from "../realtime/thread-status";
 import type { GatewayStoreContext, ThreadRuntimeStatus, ThreadStatusUpdateOptions } from "../types";
 
@@ -85,10 +84,6 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
 
     applyLiveEvent(event: GatewayEvent, options?: { notifyTerminal?: boolean }) {
       applyLiveThreadEvent(ctx, event, options);
-    },
-
-    probeRunningThreadStatuses() {
-      return probeRunningThreadStatuses(ctx);
     },
   };
 }

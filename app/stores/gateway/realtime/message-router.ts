@@ -1,7 +1,6 @@
 import type { RealtimeServerMessage } from "~~/shared/types";
 import { handleRealtimeThreadEvent } from "./event-recording";
 import { handleHostLifecycleRealtime } from "./host-lifecycle";
-import { probeRunningThreadStatuses } from "./thread-status-probe";
 import type { GatewayStoreContext } from "../types";
 
 export function routeRealtimeMessage(
@@ -13,7 +12,6 @@ export function routeRealtimeMessage(
     ctx.state.realtimeSocketConnected = true;
     ctx.state.realtimeSocketReconnectAttempt = 0;
     ctx.resubscribeRealtime();
-    void probeRunningThreadStatuses(ctx);
     return;
   }
   if (message.type === "host.lifecycle") {
