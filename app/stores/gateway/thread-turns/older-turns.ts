@@ -1,4 +1,6 @@
 import type { ThreadTurnsPageResult } from "~~/shared/types";
+import { OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
+import { gatewayApi } from "@/utils/gateway-api";
 import { mergeThreadTurns } from "../thread-history/turns";
 import { messageFromError } from "../thread-utils/identity";
 import type { GatewayStoreContext } from "../types";
@@ -18,12 +20,12 @@ export async function loadOlderTurns(ctx: GatewayStoreContext) {
   const threadId = ctx.state.selectedThreadId;
   ctx.state.loadingOlderTurns = true;
   try {
-    const result = await $fetch<ThreadTurnsPageResult>("/api/threads/turns", {
+    const result = await gatewayApi<ThreadTurnsPageResult>("/api/threads/turns", {
       query: {
         hostId,
         threadId,
         cursor: ctx.state.olderTurnsCursor,
-        limit: 20,
+        limit: OLDER_TURN_PAGE_LIMIT,
         sortDirection: "desc",
       },
     });

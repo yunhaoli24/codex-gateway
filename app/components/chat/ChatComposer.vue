@@ -177,9 +177,9 @@ function handleComposerKeydown(event: KeyboardEvent) {
           @paste="handlePaste"
         />
         <div
-          class="flex flex-col gap-2 pt-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+          class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 pt-1.5 sm:flex sm:flex-row sm:flex-wrap sm:justify-between sm:gap-2"
         >
-          <div class="flex min-w-0 items-center gap-1 overflow-x-auto text-base text-ink-muted">
+          <div class="flex min-w-0 items-center gap-1 text-base text-ink-muted">
             <Badge v-if="planModeActive" variant="outline" class="border-primary/30 text-primary">
               {{ t("app.planModeActive") }}
             </Badge>
@@ -197,21 +197,23 @@ function handleComposerKeydown(event: KeyboardEvent) {
             </Button>
             <ApprovalPolicyPicker v-model="selectedApprovalMode" />
           </div>
-          <div class="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
+          <div class="contents sm:flex sm:min-w-0 sm:items-center sm:justify-end sm:gap-2">
             <ContextUsageMeter :token-usage="selectedThreadTokenUsage" />
-            <ModelEffortPicker
-              :models="models"
-              :loading-models="loadingModels"
-              :active-model="activeModel"
-              :active-model-label="activeModelLabel"
-              :active-effort-value="activeEffortValue"
-              :active-effort-compact-label="activeEffortCompactLabel"
-              :effort-options="effortOptions"
-              :label-effort-option="labelEffortOption"
-              :model-option-value="modelOptionValue"
-              @select-model="setSelectedModel"
-              @select-effort="setSelectedEffort"
-            />
+            <div class="min-w-0 justify-self-center sm:contents">
+              <ModelEffortPicker
+                :models="models"
+                :loading-models="loadingModels"
+                :active-model="activeModel"
+                :active-model-label="activeModelLabel"
+                :active-effort-value="activeEffortValue"
+                :active-effort-compact-label="activeEffortCompactLabel"
+                :effort-options="effortOptions"
+                :label-effort-option="labelEffortOption"
+                :model-option-value="modelOptionValue"
+                @select-model="setSelectedModel"
+                @select-effort="setSelectedEffort"
+              />
+            </div>
             <Button
               data-testid="send-turn-button"
               class="size-11 shrink-0 rounded-full bg-primary p-0 text-primary-foreground hover:bg-primary-active"

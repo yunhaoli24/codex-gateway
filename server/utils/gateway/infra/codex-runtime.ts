@@ -303,7 +303,8 @@ export class CodexRuntimeService {
 }
 
 function isActiveThreadStatus(status: any) {
-  return status === "active" || status?.type === "active";
+  const value = typeof status === "string" ? status : status?.type;
+  return value === "active" || value === "inProgress" || value === "running";
 }
 
 function parseAppServerRuntimeStateOutput(

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ChevronDownIcon, ChevronRightIcon, FilePenIcon, Loader2Icon } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import HighlightedCode from "@/components/common/HighlightedCode.vue";
-import StickToBottomScrollArea from "@/components/common/StickToBottomScrollArea.vue";
+import TanStackStickToBottomScrollArea from "@/components/common/TanStackStickToBottomScrollArea.vue";
 import MarkdownContent from "@/components/common/MarkdownContent.vue";
 import { languageFromPath } from "@/utils/code-highlight";
 import { useGatewayStore } from "@/stores/gateway";
@@ -16,6 +16,7 @@ const { t } = useI18n();
 const store = useGatewayStore();
 const responding = ref(false);
 const fileChanges = computed(() => (Array.isArray(props.item.changes) ? props.item.changes : []));
+const openChangeKeys = ref(new Set<string>());
 const output = computed(() => props.item.aggregatedOutput || props.item.result?.text || "");
 const itemStatus = computed(() =>
   typeof props.item.status === "string" ? props.item.status : props.item.status?.type,
@@ -34,6 +35,10 @@ const title = computed(() => {
 
 function changePath(change: Record<string, any>) {
   return change.path || change.filePath || change.pathAfter || change.pathBefore || "unknown";
+}
+
+function changeKey(change: Record<string, any>) {
+  return `${changePath(change)}:${changeKind(change)}`;
 }
 
 function changeKind(change: Record<string, any>) {
@@ -68,6 +73,21 @@ function changeLanguage(change: Record<string, any>) {
   return languageFromPath(changePath(change));
 }
 
+function isChangeOpen(change: Record<string, any>) {
+  return openChangeKeys.value.has(changeKey(change));
+}
+
+function setChangeOpen(change: Record<string, any>, open: boolean) {
+  const next = new Set(openChangeKeys.value);
+  const key = changeKey(change);
+  if (open) {
+    next.add(key);
+  } else {
+    next.delete(key);
+  }
+  openChangeKeys.value = next;
+}
+
 async function respond(decision: "accept" | "decline") {
   if (!pendingApproval.value?.requestId || !store.selectedThreadId) {
     return;
@@ -81,6 +101,25 @@ async function respond(decision: "accept" | "decline") {
     responding.value = false;
   }
 }
+
+watch(
+  () => fileChanges.value.map((change) => changeKey(change)),
+  (changes) => {
+    const next = new Set(openChangeKeys.value);
+    for (const key of changes) {
+      if (!next.has(key)) {
+        next.add(key);
+      }
+    }
+    for (const key of next) {
+      if (!changes.includes(key)) {
+        next.delete(key);
+      }
+    }
+    openChangeKeys.value = next;
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -122,35 +161,45 @@ async function respond(decision: "accept" | "decline") {
       </div>
     </div>
     <div v-if="fileChanges.length" class="mt-3 space-y-2">
-      <ScrollArea v-if="output" class="h-56 rounded-lg border border-hairline bg-canvas-soft">
+      <ScrollArea
+        v-if="output"
+        class="h-56 rounded-lg border border-hairline bg-canvas-soft"
+        viewport-class="overflow-auto"
+        orientation="both"
+      >
         <HighlightedCode
           :code="output"
           language="shell"
-          pre-class="syntax-highlight p-3 text-xs leading-5 text-ink-secondary"
+          pre-class="syntax-highlight min-w-max whitespace-pre p-3 text-xs leading-5 text-ink-secondary"
         />
       </ScrollArea>
       <Collapsible
         v-for="change in fileChanges"
-        :key="`${changePath(change)}-${changeKind(change)}`"
+        :key="changeKey(change)"
         v-slot="{ open }"
-        default-open
+        :open="isChangeOpen(change)"
         class="rounded-lg border border-hairline bg-surface"
+        @update:open="setChangeOpen(change, $event)"
       >
-        <CollapsibleTrigger
-          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas-soft"
-        >
-          <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-ink-faint" />
-          <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
-          <span class="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-ink-secondary">{{
-            changePath(change)
-          }}</span>
-          <Badge variant="outline">{{ changeKindLabel(change) }}</Badge>
+        <CollapsibleTrigger as-child>
+          <button
+            type="button"
+            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas-soft"
+          >
+            <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-ink-faint" />
+            <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
+            <span class="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-ink-secondary">{{
+              changePath(change)
+            }}</span>
+            <Badge variant="outline">{{ changeKindLabel(change) }}</Badge>
+          </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <StickToBottomScrollArea
-            v-if="changeDiff(change)"
+          <TanStackStickToBottomScrollArea
+            v-if="open && changeDiff(change)"
             class="diff-markdown max-h-[min(55vh,26rem)] border-t border-hairline bg-surface"
             viewport-class="max-h-[min(55vh,26rem)]"
+            horizontal
             :threshold="48"
             :follow-key="changeFollowKey(change)"
           >
@@ -159,7 +208,7 @@ async function respond(decision: "accept" | "decline") {
               :diff-language="changeLanguage(change)"
               compact
             />
-          </StickToBottomScrollArea>
+          </TanStackStickToBottomScrollArea>
           <div v-else class="border-t border-hairline px-3 py-2 text-sm text-ink-faint">
             {{ t("app.noDiff") }}
           </div>
@@ -169,11 +218,13 @@ async function respond(decision: "accept" | "decline") {
     <ScrollArea
       v-else-if="output"
       class="mt-3 h-56 rounded-lg border border-hairline bg-canvas-soft"
+      viewport-class="overflow-auto"
+      orientation="both"
     >
       <HighlightedCode
         :code="output"
         language="shell"
-        pre-class="syntax-highlight p-3 text-xs leading-5 text-ink-secondary"
+        pre-class="syntax-highlight min-w-max whitespace-pre p-3 text-xs leading-5 text-ink-secondary"
       />
     </ScrollArea>
     <div

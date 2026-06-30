@@ -18,6 +18,10 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
+      CODEX_GATEWAY_DB_PATH: /data/codex-gateway.db
+      CODEX_GATEWAY_CONFIG_SECRET: ${CODEX_GATEWAY_CONFIG_SECRET:?CODEX_GATEWAY_CONFIG_SECRET is required}
+    volumes:
+      - ./data:/data
     networks:
       - web-common
 

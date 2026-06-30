@@ -1,4 +1,5 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
+import { gatewayApi } from "@/utils/gateway-api";
 import type { GatewayStoreContext } from "../types";
 
 export function startNewTurn(
@@ -7,7 +8,7 @@ export function startNewTurn(
   clientUserMessageId: string,
   options: ComposerTurnOptions,
 ) {
-  return $fetch<any>("/api/turns/start", {
+  return gatewayApi<any>("/api/turns/start", {
     method: "POST",
     body: {
       hostId: ctx.state.selectedHostId,
@@ -32,7 +33,7 @@ export function steerActiveTurn(
   expectedTurnId: string,
   options: ComposerTurnOptions,
 ) {
-  return $fetch<any>("/api/turns/steer", {
+  return gatewayApi<any>("/api/turns/steer", {
     method: "POST",
     body: {
       hostId: ctx.state.selectedHostId,

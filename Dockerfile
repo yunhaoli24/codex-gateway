@@ -20,6 +20,7 @@ FROM deps AS build
 COPY i18n ./i18n
 COPY components.json nuxt.config.ts tailwind.config.ts tsconfig.json ./
 COPY public ./public
+COPY scripts ./scripts
 COPY shared ./shared
 COPY server ./server
 COPY app ./app
@@ -34,6 +35,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/.output ./.output
+COPY --from=build /app/scripts ./scripts
 EXPOSE 3000
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", ".output/server/index.mjs"]

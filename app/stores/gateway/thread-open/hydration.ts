@@ -20,7 +20,7 @@ export function applyOpenedThreadResult(
   }
   applyCommonThreadResult(ctx, threadId, result);
   for (const event of result.recentEvents) {
-    ctx.applyLiveEvent(event);
+    ctx.applyLiveEvent(event, { notifyTerminal: false });
   }
   syncRuntimeStatusFromThread(ctx, result.thread, result.history);
   ctx.upsertPinnedMetadataFromThread(result.thread as any);
@@ -65,7 +65,7 @@ function syncRuntimeStatusFromThread(ctx: GatewayStoreContext, thread: unknown, 
   }
   const status = runtimeStatusFromThreadState(thread, history);
   if (status) {
-    ctx.setThreadStatus(hostId, threadId, status);
+    ctx.setThreadStatus(hostId, threadId, status, { notifyTerminal: false });
   }
 }
 

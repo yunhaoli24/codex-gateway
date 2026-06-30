@@ -1,15 +1,13 @@
 <script setup lang="ts">
-import { FolderIcon } from "@lucide/vue";
+import { FolderIcon, Loader2Icon } from "@lucide/vue";
 import { storeToRefs } from "pinia";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
+import ChatPanelScrollArea from "@/components/chat/ChatPanelScrollArea.vue";
 import ProjectThreadList from "@/components/chat/ProjectThreadList.vue";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
-import ThreadTurnView from "@/components/thread/ThreadTurnView.vue";
-import { useStickToBottomScroll } from "@/composables/useStickToBottomScroll";
+import ThreadVirtualTimeline from "@/components/thread/ThreadVirtualTimeline.vue";
 import { useGatewayStore } from "@/stores/gateway";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
@@ -32,22 +30,6 @@ const {
   scrollToLatestToken,
 } = storeToRefs(store);
 
-const scrollAreaRef = ref<any>(null);
-const {
-  contentRef,
-  followLatest,
-  scrollViewport,
-  scrollToBottom,
-  resetFollowLatest,
-  handleScroll,
-} = useStickToBottomScroll(scrollAreaRef, {
-  onTopReached: () => {
-    if (olderTurnsCursor.value && !loadingOlderTurns.value) {
-      void loadOlderTurns();
-    }
-  },
-});
-
 const threadTitle = computed(() => {
   if (!selectedThreadId.value && selectedProject.value) {
     return selectedProject.value.name;
@@ -64,11 +46,16 @@ const historyTurns = computed(() => {
 const threadItems = computed(() => {
   return historyTurns.value.flatMap((turn: any) => turn.items || []);
 });
+const hasThreadContent = computed(() => selectedThreadId.value && historyTurns.value.length > 0);
+const openingThread = computed(
+  () => selectedThreadId.value && loading.value && !hasThreadContent.value,
+);
 const outputSignature = computed(() => {
   return threadItems.value
     .filter((item: any) => item?.type === "commandExecution" || item?.type === "fileChange")
     .map(
-      (item: any) => `${item.id || ""}:${item.aggregatedOutput?.length || 0}:${item.status || ""}`,
+      (item: any) =>
+        `${item.id || ""}:${item.aggregatedOutput?.length || 0}:${fileChangeDiffSignature(item)}:${item.status || ""}`,
     )
     .join("|");
 });
@@ -89,57 +76,18 @@ const visibleError = computed(() => {
   return current.message;
 });
 
-async function loadOlderTurns() {
-  const viewport = scrollViewport();
-  const previousHeight = viewport?.scrollHeight ?? 0;
-  await store.loadOlderTurns();
-  await nextTick();
-  if (viewport) {
-    viewport.scrollTop += viewport.scrollHeight - previousHeight;
-  }
+function loadOlderTurns() {
+  void store.loadOlderTurns();
 }
 
-watch(
-  () => [selectedThreadId.value, scrollToLatestToken.value, initializing.value] as const,
-  (
-    [threadId, scrollToken, isInitializing],
-    [previousThreadId, previousScrollToken, wasInitializing] = [null, -1, false],
-  ) => {
-    if (!threadId || isInitializing) {
-      return;
-    }
-    if (threadId !== previousThreadId || scrollToken !== previousScrollToken || wasInitializing) {
-      resetFollowLatest();
-    }
-  },
-  { flush: "post", immediate: true },
-);
-
-watch(
-  () => [selectedThreadId.value, historyTurns.value.length, initializing.value] as const,
-  (
-    [threadId, turnsLength, isInitializing],
-    [, previousTurnsLength, wasInitializing] = [null, 0, false],
-  ) => {
-    if (!threadId || isInitializing || !turnsLength) {
-      return;
-    }
-    if (wasInitializing || !previousTurnsLength) {
-      resetFollowLatest();
-    }
-  },
-  { flush: "post" },
-);
-
-watch(
-  () => [threadItems.value.length, events.value.length, outputSignature.value],
-  () => {
-    if (followLatest.value) {
-      void scrollToBottom();
-    }
-  },
-  { flush: "post" },
-);
+function fileChangeDiffSignature(item: any) {
+  if (item?.type !== "fileChange" || !Array.isArray(item.changes)) {
+    return "";
+  }
+  return item.changes
+    .map((change: any) => `${change?.path || change?.filePath || ""}:${change?.diff?.length || 0}`)
+    .join(",");
+}
 </script>
 
 <template>
@@ -159,73 +107,44 @@ watch(
     </header>
 
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <ScrollArea
-        ref="scrollAreaRef"
-        data-testid="chat-scroll-area"
-        class="h-full min-h-0 flex-1 overflow-hidden"
-        @scroll.capture="handleScroll"
+      <ChatPanelScrollArea
+        v-if="initializing || openingThread"
+        class="flex items-center justify-center text-[0.9375rem] text-ink-muted"
       >
-        <div
-          ref="contentRef"
-          class="mx-auto flex min-h-[calc(100dvh-14rem)] w-full max-w-5xl flex-col gap-5 px-[clamp(0.875rem,4vw,2rem)] py-4 md:min-h-[calc(100vh-16rem)] md:gap-8 md:py-[clamp(2rem,6vh,3rem)]"
-        >
-          <div
-            v-if="!initializing && selectedThreadId && olderTurnsCursor"
-            class="flex justify-center"
-          >
-            <Button
-              data-testid="load-older-turns-button"
-              variant="outline"
-              size="sm"
-              :disabled="loadingOlderTurns"
-              @click="loadOlderTurns"
-            >
-              {{ loadingOlderTurns ? t("app.loadingOlder") : t("app.loadOlder") }}
-            </Button>
-          </div>
-
-          <div
-            v-if="initializing"
-            class="mx-auto flex min-h-60 max-w-3xl items-center justify-center text-[0.9375rem] text-ink-muted md:min-h-80"
-          >
-            {{ t("app.loadingGateway") }}
-          </div>
-
-          <div v-else-if="selectedThreadId && historyTurns.length" class="space-y-5 md:space-y-8">
-            <ThreadTurnView
-              v-for="turn in historyTurns"
-              :key="turn.id || `turn-${JSON.stringify(turn).length}`"
-              :turn="turn"
-              :host-id="selectedHostId"
-            />
-          </div>
-          <ProjectThreadList v-else-if="selectedProjectId && !selectedThreadId" />
-          <div
-            v-else
-            class="max-w-3xl rounded-2xl bg-canvas-soft px-4 py-3 text-[0.9375rem] leading-7 text-ink md:ml-auto md:px-5 md:py-4"
-          >
-            <div class="mb-2 flex items-center gap-2 text-ink-muted">
-              <FolderIcon class="size-4" />
-              {{ selectedProjectId ? t("app.selectThreadFirst") : t("app.selectProjectFirst") }}
-            </div>
-            {{ selectedProjectId ? t("app.noThread") : t("app.chooseProject") }}
-          </div>
-
-          <div
-            v-if="loading && !initializing && selectedThreadId"
-            class="max-w-3xl text-[0.9375rem] text-ink-faint"
-          >
-            {{ t("app.thinking") }}
-          </div>
-
-          <div
-            v-if="visibleError"
-            class="mx-auto max-w-3xl whitespace-pre-line rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-          >
-            {{ visibleError }}
-          </div>
+        <div class="flex items-center gap-2">
+          <Loader2Icon class="size-4 animate-spin" />
+          <span>{{ t("app.loadingGateway") }}</span>
         </div>
-      </ScrollArea>
+      </ChatPanelScrollArea>
+
+      <ThreadVirtualTimeline
+        v-else-if="selectedThreadId"
+        :thread-id="selectedThreadId"
+        :turns="historyTurns"
+        :host-id="selectedHostId"
+        :loading="loading"
+        :loading-older="loadingOlderTurns"
+        :older-turns-cursor="olderTurnsCursor"
+        :visible-error="visibleError"
+        :follow-key="[scrollToLatestToken, threadItems.length, events.length, outputSignature]"
+        @load-older="loadOlderTurns"
+      />
+
+      <ChatPanelScrollArea v-else-if="selectedProjectId">
+        <ProjectThreadList />
+      </ChatPanelScrollArea>
+
+      <ChatPanelScrollArea v-else class="flex items-start">
+        <div
+          class="max-w-3xl rounded-2xl bg-canvas-soft px-4 py-3 text-[0.9375rem] leading-7 text-ink md:ml-auto md:px-5 md:py-4"
+        >
+          <div class="mb-2 flex items-center gap-2 text-ink-muted">
+            <FolderIcon class="size-4" />
+            {{ selectedProjectId ? t("app.selectThreadFirst") : t("app.selectProjectFirst") }}
+          </div>
+          {{ selectedProjectId ? t("app.noThread") : t("app.chooseProject") }}
+        </div>
+      </ChatPanelScrollArea>
 
       <ChatComposer v-if="selectedThreadId || selectedProjectId" />
     </div>

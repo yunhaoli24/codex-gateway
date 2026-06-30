@@ -1,4 +1,5 @@
 import type { ThreadSettingsState } from "~~/shared/types";
+import { gatewayApi } from "@/utils/gateway-api";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError, pinnedKey } from "../thread-utils/identity";
 import { mergeThreadSettings, normalizeThreadSettings } from "../thread-utils/settings";
@@ -34,7 +35,7 @@ export function createThreadSettingsActions(ctx: GatewayStoreContext) {
       const threadId = ctx.state.selectedThreadId;
       ctx.updateSelectedThreadSettings(settings);
       try {
-        await $fetch("/api/threads/settings", {
+        await gatewayApi("/api/threads/settings", {
           method: "POST",
           body: {
             hostId,

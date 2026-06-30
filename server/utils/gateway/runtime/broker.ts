@@ -187,6 +187,23 @@ class ThreadBroker {
     return client.request("model/list", params);
   }
 
+  async readThreadStatus(host: HostRecord, threadId: string) {
+    const client = await this.registry.getHostClient(host);
+    const result = await client.request<any>(
+      "thread/read",
+      {
+        threadId,
+        includeTurns: false,
+      },
+      30_000,
+    );
+    const thread = result?.thread ?? result;
+    return {
+      thread,
+      status: thread?.status ?? result?.status ?? null,
+    };
+  }
+
   async renameThread(host: HostRecord, threadId: string, name: string) {
     const controller = await this.registry.getController(host, threadId);
     await controller.ensureSubscribed();

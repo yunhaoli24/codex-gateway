@@ -37,7 +37,7 @@
 - 同一 host 在 gateway 后端只维护一个共享 SSH 连接；多个浏览器页面必须复用同一个 gateway-side SSH/RPC 生命周期管理。
 - Codex app-server/thread 是事实源。前端和 gateway 只做配置、索引、缓存和广播，不发明不可失效的二次 timeline。
 - 远端 Codex 低于 npm latest 时，gateway 负责升级并重启 app-server；升级/重启状态必须推送到前端。
-- 配置以 Pinia/localStorage JSON 为准，服务端只接收同步后的运行时配置；不要重新引入 sqlite/PostgreSQL 作为配置事实源。
+- 连接配置以服务端 SQLite 为事实源，按用户加密保存 host/project/thread runtime config；浏览器只保存 Bearer token 和轻量路由选择，不再使用 localStorage 保存连接配置。
 - UI 默认中文，交互布局参考 Codex Desktop。不要做营销页或假数据页面。
 - 前端业务界面必须全局响应式布局；业务组件和业务样式禁止使用 `px` 级固定宽高、固定列宽、固定弹窗尺寸或固定字体，优先使用 Tailwind scale、`rem`、`clamp()`、`min()/max()`、`minmax()` 和容器约束。`app/components/ui/` 的 shadcn-vue 基础组件除非任务明确要求，不作为业务布局清理范围。
 - 业务组件按领域拆分；通用能力沉到 `app/components/common/` 或对应领域目录。避免单文件持续膨胀。

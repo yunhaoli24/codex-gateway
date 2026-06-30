@@ -1,4 +1,5 @@
 import { ref, type Ref } from "vue";
+import { gatewayApi } from "@/utils/gateway-api";
 import type { UploadedFileRecord } from "~~/shared/types";
 import type { ComposerAttachment } from "@/composables/useComposerDraft";
 import { useGatewayStore } from "@/stores/gateway";
@@ -57,7 +58,7 @@ export function useAttachmentUpload(
       for (const file of otherFiles) {
         form.append("files", file, file.name);
       }
-      const result = await $fetch<{ files: UploadedFileRecord[] }>("/api/uploads", {
+      const result = await gatewayApi<{ files: UploadedFileRecord[] }>("/api/uploads", {
         method: "POST",
         query: { hostId },
         body: form,

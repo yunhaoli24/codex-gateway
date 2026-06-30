@@ -1,8 +1,8 @@
-import { expect, type Browser, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { Client } from "ssh2";
 import { envFile } from "../docker-environment";
-import { openApp, reloadApp } from "./app";
+import { authenticatedFetch } from "./app";
 
 export interface RemoteCodexEnv {
   host: string;
@@ -85,21 +85,24 @@ export async function addRemoteHost(
   name = `docker-codex-${Date.now()}`,
 ) {
   await openSettingsTab(page, "主机");
-  await page.getByTestId("host-name-input").fill(name);
-  await page.getByTestId("host-ssh-input").fill(remote.host);
-  await page.getByPlaceholder("用户").fill(remote.username);
-  await page.getByPlaceholder("端口").fill(remote.port);
+  const hostForm = page
+    .getByTestId("add-host-button")
+    .locator("xpath=ancestor::div[.//*[@data-testid='host-name-input']][1]");
+  await hostForm.getByTestId("host-name-input").fill(name);
+  await hostForm.getByTestId("host-ssh-input").fill(remote.host);
+  await hostForm.getByPlaceholder("用户").fill(remote.username);
+  await hostForm.getByPlaceholder("端口").fill(remote.port);
   if (remote.proxyUrl !== undefined) {
-    await page.getByTestId("host-proxy-url-input").fill(remote.proxyUrl ?? "");
+    await hostForm.getByTestId("host-proxy-url-input").fill(remote.proxyUrl ?? "");
   }
-  await page.getByTestId("host-auth-select").click();
+  await hostForm.getByTestId("host-auth-select").click();
   await page.getByTestId("host-auth-password-option").click();
-  await page.getByPlaceholder("SSH 密码").fill(remote.password);
+  await hostForm.getByPlaceholder("SSH 密码").fill(remote.password);
 
   const hostResponsePromise = page.waitForResponse(
     (response) => response.url().endsWith("/api/hosts") && response.request().method() === "POST",
   );
-  await page.getByTestId("add-host-button").click();
+  await hostForm.getByTestId("add-host-button").click();
   const host = (await (await hostResponsePromise).json()) as UiHost;
   await closeSettings(page);
   const verifyResponsePromise = page.waitForResponse(
@@ -177,20 +180,6 @@ export async function startRemoteThreadFromProjectMenu(page: Page, projectId: nu
   return threadId;
 }
 
-export async function duplicateConfiguredPage(browser: Browser, sourcePage: Page) {
-  const configText = await sourcePage.evaluate(() => localStorage.getItem("codex-gateway-config"));
-  expect(configText).toBeTruthy();
-
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await openApp(page);
-  await page.evaluate((config) => {
-    localStorage.setItem("codex-gateway-config", config);
-  }, configText!);
-  await reloadApp(page);
-  return { context, page };
-}
-
 export async function sendTextTurn(
   page: Page,
   marker: string,
@@ -225,31 +214,17 @@ export async function sendTextTurnThroughGateway(
     (response) =>
       response.url().endsWith("/api/turns/start") && response.request().method() === "POST",
   );
-  await page.evaluate(
-    async ({ hostId, threadId, cwd, text, model }) => {
-      const response = await fetch("/api/turns/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          hostId,
-          threadId,
-          cwd,
-          text,
-          model: model || undefined,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-    },
-    {
+  await authenticatedFetch(page, {
+    url: "/api/turns/start",
+    method: "POST",
+    body: {
       hostId: hostId!,
       threadId: threadId!,
       cwd: context?.cwd ?? remote.projectPath,
       text,
-      model: remote.testModel ?? null,
+      model: remote.testModel || undefined,
     },
-  );
+  });
   await responsePromise;
 }
 
@@ -268,26 +243,18 @@ export async function sendImageTurnThroughGateway(
     (response) =>
       response.url().endsWith("/api/turns/start") && response.request().method() === "POST",
   );
-  await page.evaluate(
-    async ({ hostId, threadId, cwd, imagePath, marker, model }) => {
-      const response = await fetch("/api/turns/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          hostId,
-          threadId,
-          cwd,
-          text: `回复：${marker}`,
-          model: model || undefined,
-          images: [{ path: imagePath, detail: "original" }],
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
+  await authenticatedFetch(page, {
+    url: "/api/turns/start",
+    method: "POST",
+    body: {
+      hostId: params.hostId,
+      threadId: params.threadId,
+      cwd: params.cwd,
+      text: `回复：${params.marker}`,
+      model: remote.testModel || undefined,
+      images: [{ path: params.imagePath, detail: "original" }],
     },
-    { ...params, model: remote.testModel ?? null },
-  );
+  });
   await responsePromise;
 }
 

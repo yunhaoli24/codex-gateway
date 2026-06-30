@@ -10,10 +10,11 @@ const props = defineProps<
   ScrollAreaRootProps & {
     class?: HTMLAttributes["class"];
     viewportClass?: HTMLAttributes["class"];
+    orientation?: "vertical" | "horizontal" | "both";
   }
 >();
 
-const delegatedProps = reactiveOmit(props, "class", "viewportClass");
+const delegatedProps = reactiveOmit(props, "class", "viewportClass", "orientation");
 </script>
 
 <template>
@@ -34,7 +35,11 @@ const delegatedProps = reactiveOmit(props, "class", "viewportClass");
     >
       <slot />
     </ScrollAreaViewport>
-    <ScrollBar />
+    <ScrollBar v-if="props.orientation !== 'horizontal'" />
+    <ScrollBar
+      v-if="props.orientation === 'horizontal' || props.orientation === 'both'"
+      orientation="horizontal"
+    />
     <ScrollAreaCorner />
   </ScrollAreaRoot>
 </template>

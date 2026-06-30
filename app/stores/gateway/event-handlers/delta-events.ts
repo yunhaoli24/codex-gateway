@@ -45,6 +45,7 @@ function emitOutputDelta(
     hostId: event.hostId,
     threadId,
     status: "running",
+    turnId: params.turnId ? String(params.turnId) : null,
   });
   ctx.events.emit({
     type: "history-item-output-delta",

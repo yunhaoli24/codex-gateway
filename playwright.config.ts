@@ -23,7 +23,8 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 240_000,
     env: {
-      CODEX_GATEWAY_DATA_DIR: ".data-e2e",
+      CODEX_GATEWAY_CONFIG_SECRET: process.env.CODEX_GATEWAY_CONFIG_SECRET || "e2e-config-secret",
+      CODEX_GATEWAY_DB_PATH: process.env.CODEX_GATEWAY_DB_PATH || ".data-e2e/codex-gateway.db",
       NUXT_IGNORE_LOCK: "1",
     },
   },

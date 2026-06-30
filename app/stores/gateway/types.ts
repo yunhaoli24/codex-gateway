@@ -80,6 +80,7 @@ export interface GatewayStoreState {
   openingPinnedThreadKey: string | null;
   runningThreadKeys: string[];
   threadStatuses: Record<string, ThreadRuntimeStatus>;
+  activeTurnIdsByThreadKey: Record<string, string>;
   threadSettingsByKey: Record<string, ThreadSettingsState>;
   threadTokenUsageByKey: Record<string, ThreadTokenUsageState>;
   composerDraftsByKey: Record<string, ComposerDraft>;
@@ -104,6 +105,9 @@ export interface GatewayStoreState {
   realtimeSocketReconnectTimer: ReturnType<typeof window.setTimeout> | null;
   realtimeSocketReconnectAttempt: number;
   realtimeSocketGeneration: number;
+  runningThreadStatusProbeTimer: ReturnType<typeof window.setTimeout> | null;
+  probingThreadStatusKeys: string[];
+  deliveredNotificationKeys: string[];
   realtimeHostLifecycleSubscribed: boolean;
   realtimeThreadSubscriptions: Record<
     string,
@@ -128,4 +132,9 @@ export interface GatewayStoreContext {
   selectedThreadTokenUsage: ThreadTokenUsageState | null;
   selectedComposerDraft: ComposerDraft;
   [action: string]: any;
+}
+
+export interface ThreadStatusUpdateOptions {
+  notifyTerminal?: boolean;
+  turnId?: string | null;
 }

@@ -2,12 +2,14 @@ import { terminalTurnStatus } from "../thread-utils/status";
 import type { GatewayEventHandlerRegistry } from "./types";
 
 export const turnEventHandlers: GatewayEventHandlerRegistry = {
-  "turn/started": (ctx, event, params, threadId) => {
+  "turn/started": (ctx, event, params, threadId, eventContext) => {
     ctx.events.emit({
       type: "thread-status-detected",
       hostId: event.hostId,
       threadId,
       status: "running",
+      notifyTerminal: eventContext.notifyTerminal,
+      turnId: params.turn?.id ? String(params.turn.id) : null,
     });
     if (params.turn) {
       ctx.events.emit({
@@ -18,12 +20,14 @@ export const turnEventHandlers: GatewayEventHandlerRegistry = {
       });
     }
   },
-  "turn/completed": (ctx, event, params, threadId) => {
+  "turn/completed": (ctx, event, params, threadId, eventContext) => {
     ctx.events.emit({
       type: "thread-status-detected",
       hostId: event.hostId,
       threadId,
       status: terminalTurnStatus(params.turn?.status),
+      notifyTerminal: eventContext.notifyTerminal,
+      turnId: params.turn?.id ? String(params.turn.id) : null,
     });
     if (params.turn) {
       ctx.events.emit({

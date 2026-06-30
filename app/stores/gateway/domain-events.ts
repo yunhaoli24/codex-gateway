@@ -7,6 +7,8 @@ export type GatewayDomainEvent =
       hostId: number;
       threadId: string;
       status: ThreadRuntimeStatus;
+      notifyTerminal?: boolean;
+      turnId?: string | null;
     }
   | {
       type: "thread-settings-detected";

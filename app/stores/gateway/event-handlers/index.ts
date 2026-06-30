@@ -5,7 +5,11 @@ import { threadIdFromParams } from "../thread-utils/identity";
 import { appServerEventHandlers } from "./registry";
 import { upsertUnhandledServerRequest } from "./request-events";
 
-export function applyAppServerEvent(ctx: GatewayStoreContext, event: GatewayEvent) {
+export function applyAppServerEvent(
+  ctx: GatewayStoreContext,
+  event: GatewayEvent,
+  options: { notifyTerminal?: boolean } = {},
+) {
   const payload = event.payload as any;
   const params = payload?.params || {};
   const targetThreadId = threadIdFromParams(params) ?? event.threadId;
@@ -14,9 +18,10 @@ export function applyAppServerEvent(ctx: GatewayStoreContext, event: GatewayEven
   }
 
   const threadId = String(targetThreadId);
+  const eventContext = { notifyTerminal: options.notifyTerminal ?? false };
   const handler = appServerEventHandlers[event.method];
   if (handler) {
-    handler(ctx, event, params, threadId);
+    handler(ctx, event, params, threadId, eventContext);
     return;
   }
   if (payload?.id !== undefined && isThreadServerRequestMethod(event.method)) {

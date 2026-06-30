@@ -18,8 +18,9 @@ import {
   scheduleRealtimeReconnect,
   sendRealtimeMessage,
 } from "../realtime/socket";
+import { probeRunningThreadStatuses } from "../realtime/thread-status-probe";
 import { setThreadRunning, setThreadStatus, setThreadTokenUsage } from "../realtime/thread-status";
-import type { GatewayStoreContext, ThreadRuntimeStatus } from "../types";
+import type { GatewayStoreContext, ThreadRuntimeStatus, ThreadStatusUpdateOptions } from "../types";
 
 export function createRealtimeActions(ctx: GatewayStoreContext) {
   const lifecycleNotificationKeys = new Set<string>();
@@ -57,8 +58,13 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
       setThreadRunning(ctx, hostId, threadId, running);
     },
 
-    setThreadStatus(hostId: number, threadId: string, status: ThreadRuntimeStatus) {
-      setThreadStatus(ctx, hostId, threadId, status);
+    setThreadStatus(
+      hostId: number,
+      threadId: string,
+      status: ThreadRuntimeStatus,
+      options?: ThreadStatusUpdateOptions,
+    ) {
+      setThreadStatus(ctx, hostId, threadId, status, options);
     },
 
     setThreadTokenUsage(hostId: number, threadId: string, tokenUsage: ThreadTokenUsageState) {
@@ -77,8 +83,12 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
       recordThreadEvent(ctx, event);
     },
 
-    applyLiveEvent(event: GatewayEvent) {
-      applyLiveThreadEvent(ctx, event);
+    applyLiveEvent(event: GatewayEvent, options?: { notifyTerminal?: boolean }) {
+      applyLiveThreadEvent(ctx, event, options);
+    },
+
+    probeRunningThreadStatuses() {
+      return probeRunningThreadStatuses(ctx);
     },
   };
 }

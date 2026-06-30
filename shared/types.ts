@@ -70,6 +70,10 @@ export interface GatewayEvent {
 
 export type RealtimeClientMessage =
   | {
+      type: "auth.authenticate";
+      token: string;
+    }
+  | {
       type: "host.lifecycle.subscribe";
     }
   | {
@@ -150,6 +154,11 @@ export interface ThreadTurnsPageResult {
     nextCursor: string | null;
     backwardsCursor: string | null;
   };
+}
+
+export interface ThreadStatusProbeResult {
+  thread: unknown;
+  status: unknown;
 }
 
 export type ApprovalPolicy = "untrusted" | "on-request" | "never";
@@ -263,6 +272,7 @@ export interface PinnedThreadRecord {
 export interface GatewayConfig {
   version: 1;
   hosts: HostRecord[];
+  projects: ProjectRecord[];
   pinnedThreads: PinnedThreadRecord[];
   lastOpenThread?: {
     hostId: number;

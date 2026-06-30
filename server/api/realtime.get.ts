@@ -1,14 +1,19 @@
 import type { GatewayEvent, RealtimeClientMessage, RealtimeServerMessage } from "~~/shared/types";
 import { randomUUID } from "node:crypto";
 import { threadBroker } from "../utils/gateway/runtime/broker";
+import { userStore } from "../utils/gateway/auth/users";
 import { requireRecord } from "../utils/gateway/http/validation";
 import { gatewayEventStore } from "../utils/gateway/state/gateway-events";
 import { hostLifecycleBus } from "../utils/gateway/state/host-events";
 import { hostStore } from "../utils/gateway/state/hosts";
+import { bindGatewayUser, runWithGatewayUser } from "../utils/gateway/state/memory";
 
 type Peer = Parameters<NonNullable<Parameters<typeof defineWebSocketHandler>[0]["open"]>>[0];
 
 interface RealtimePeerState {
+  authenticated: boolean;
+  userId: number | null;
+  authTimer?: ReturnType<typeof setTimeout>;
   hostLifecycleUnsubscribe?: () => void;
   threadUnsubscribers: Map<string, () => void>;
 }
@@ -32,10 +37,41 @@ function parseClientMessage(raw: string): RealtimeClientMessage {
 function stateFor(peer: Peer) {
   let state = peer.context.realtime as RealtimePeerState | undefined;
   if (!state) {
-    state = { threadUnsubscribers: new Map() };
+    state = { authenticated: false, userId: null, threadUnsubscribers: new Map() };
     peer.context.realtime = state;
   }
   return state;
+}
+
+function runPeerScoped<T>(peer: Peer, callback: () => T): T {
+  const userId = stateFor(peer).userId;
+  if (!userId) {
+    throw new Error("Realtime connection is not authenticated");
+  }
+  return runWithGatewayUser(userId, callback);
+}
+
+function authenticatePeer(
+  peer: Peer,
+  request: Extract<RealtimeClientMessage, { type: "auth.authenticate" }>,
+) {
+  const current = stateFor(peer);
+  if (current.authenticated) {
+    throw new Error("Realtime connection is already authenticated");
+  }
+  const user = userStore.authenticateToken(String(request.token || ""));
+  if (!user) {
+    throw new Error("Missing or invalid bearer token");
+  }
+  if (current.authTimer) {
+    clearTimeout(current.authTimer);
+  }
+  peer.context.realtime = {
+    authenticated: true,
+    userId: user.id,
+    threadUnsubscribers: new Map(),
+  } satisfies RealtimePeerState;
+  send(peer, { type: "ready", connectionId: randomUUID() });
 }
 
 async function subscribeThread(
@@ -68,16 +104,16 @@ async function subscribeThread(
   const unsubscribe = await threadBroker.subscribe(
     host,
     threadId,
-    (event) => {
+    bindGatewayUser((event) => {
       if (replaying) {
         liveQueue.push(event);
         return;
       }
       sendOnce(event);
-    },
-    () => {
+    }),
+    bindGatewayUser(() => {
       send(peer, { type: "thread.closed", hostId, threadId });
-    },
+    }),
   );
   state.threadUnsubscribers.set(key, unsubscribe);
 
@@ -122,6 +158,10 @@ function unsubscribeHostLifecycle(peer: Peer) {
 
 function cleanup(peer: Peer) {
   const state = stateFor(peer);
+  if (state.authTimer) {
+    clearTimeout(state.authTimer);
+    state.authTimer = undefined;
+  }
   state.hostLifecycleUnsubscribe?.();
   state.hostLifecycleUnsubscribe = undefined;
   for (const unsubscribe of state.threadUnsubscribers.values()) {
@@ -132,25 +172,45 @@ function cleanup(peer: Peer) {
 
 export default defineWebSocketHandler({
   open(peer) {
-    stateFor(peer);
-    send(peer, { type: "ready", connectionId: randomUUID() });
+    const state = stateFor(peer);
+    state.authTimer = setTimeout(() => {
+      if (!state.authenticated) {
+        send(peer, { type: "error", message: "Realtime authentication timed out" });
+        peer.close(1008, "Authentication required");
+      }
+    }, 10_000);
   },
 
   async message(peer, message) {
     let request: RealtimeClientMessage | undefined;
     try {
       request = parseClientMessage(message.text());
-      if (request.type === "host.lifecycle.subscribe") {
-        subscribeHostLifecycle(peer);
-      } else if (request.type === "host.lifecycle.unsubscribe") {
-        unsubscribeHostLifecycle(peer);
-      } else if (request.type === "thread.subscribe") {
-        await subscribeThread(peer, request);
-      } else if (request.type === "thread.unsubscribe") {
-        unsubscribeThread(peer, request);
-      } else if (request.type === "ping") {
-        send(peer, { type: "pong", nonce: request.nonce });
+      if (request.type === "auth.authenticate") {
+        authenticatePeer(peer, request);
+        return;
       }
+      if (!stateFor(peer).authenticated) {
+        send(peer, {
+          type: "error",
+          message: "Realtime connection is not authenticated",
+          request,
+        });
+        peer.close(1008, "Authentication required");
+        return;
+      }
+      await runPeerScoped(peer, async () => {
+        if (request.type === "host.lifecycle.subscribe") {
+          subscribeHostLifecycle(peer);
+        } else if (request.type === "host.lifecycle.unsubscribe") {
+          unsubscribeHostLifecycle(peer);
+        } else if (request.type === "thread.subscribe") {
+          await subscribeThread(peer, request);
+        } else if (request.type === "thread.unsubscribe") {
+          unsubscribeThread(peer, request);
+        } else if (request.type === "ping") {
+          send(peer, { type: "pong", nonce: request.nonce });
+        }
+      });
     } catch (error: any) {
       send(peer, {
         type: "error",

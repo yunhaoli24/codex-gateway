@@ -1,6 +1,7 @@
 import { extname } from "node:path";
 import { createError, getValidatedQuery, setHeader } from "h3";
 import { remoteFiles } from "../../utils/gateway/infra/host-services";
+import { defineGatewayEventHandler } from "../../utils/gateway/http/errors";
 import { remoteImageSchema, requireRecord } from "../../utils/gateway/http/validation";
 import { hostStore } from "../../utils/gateway/state/hosts";
 
@@ -15,7 +16,7 @@ const imageMimeTypes: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-export default defineEventHandler(async (event) => {
+export default defineGatewayEventHandler(async (event) => {
   const query = await getValidatedQuery(event, (body) => remoteImageSchema.parse(body));
   const host = requireRecord(hostStore.getWithSecret(query.hostId), "Host not found");
 

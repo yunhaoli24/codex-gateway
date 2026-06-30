@@ -1,4 +1,5 @@
 import type { ModelListResult, ProjectRecord, RemoteDirectoryEntry } from "~~/shared/types";
+import { gatewayApi } from "@/utils/gateway-api";
 import type { GatewayStoreContext } from "../types";
 import { writeGatewayRouteSelection } from "../route-state";
 import { messageFromError } from "../thread-utils/identity";
@@ -30,12 +31,15 @@ export function createProjectActions(ctx: GatewayStoreContext) {
         return { path, entries: [] as RemoteDirectoryEntry[] };
       }
 
-      return $fetch<{ path: string; entries: RemoteDirectoryEntry[] }>("/api/remote/directories", {
-        query: {
-          hostId,
-          path,
+      return gatewayApi<{ path: string; entries: RemoteDirectoryEntry[] }>(
+        "/api/remote/directories",
+        {
+          query: {
+            hostId,
+            path,
+          },
         },
-      });
+      );
     },
 
     async listModels() {
@@ -49,7 +53,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       const projectId = ctx.state.selectedProjectId;
       const threadId = ctx.state.selectedThreadId;
       try {
-        const response = await $fetch<ModelListResult>("/api/models", {
+        const response = await gatewayApi<ModelListResult>("/api/models", {
           query: {
             hostId,
             includeHidden: false,
@@ -72,7 +76,10 @@ export function createProjectActions(ctx: GatewayStoreContext) {
     },
 
     async createProject(input: Record<string, unknown>) {
-      const project = await $fetch<ProjectRecord>("/api/projects", { method: "POST", body: input });
+      const project = await gatewayApi<ProjectRecord>("/api/projects", {
+        method: "POST",
+        body: input,
+      });
       const index = ctx.state.projects.findIndex((item) => item.id === project.id);
       if (index >= 0) {
         ctx.state.projects[index] = project;
@@ -99,7 +106,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
     },
 
     async updateProject(projectId: number, input: Record<string, unknown>) {
-      const project = await $fetch<ProjectRecord>(`/api/projects/${projectId}`, {
+      const project = await gatewayApi<ProjectRecord>(`/api/projects/${projectId}`, {
         method: "PATCH",
         body: input,
       });
@@ -132,7 +139,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
 
     async deleteProject(projectId: number) {
       const project = ctx.state.projects.find((item) => item.id === projectId);
-      await $fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+      await gatewayApi(`/api/projects/${projectId}`, { method: "DELETE" });
       ctx.state.projects = ctx.state.projects.filter((item) => item.id !== projectId);
 
       if (ctx.state.selectedProjectId !== projectId) {

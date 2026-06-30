@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { openApp, reloadApp } from "./helpers/app";
+import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
 import { readRemoteEnv } from "./helpers/remote-codex";
 
 test("uses the mobile layout with hidden sidebar and usable composer shell", async ({ page }) => {
@@ -58,57 +58,28 @@ async function createConfiguredHostAndProject(
   page: Page,
   remote: Awaited<ReturnType<typeof readRemoteEnv>>,
 ) {
-  const host = (await page.evaluate(
-    async ({ remote }) => {
-      const response = await fetch("/api/hosts", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: `mobile-longpress-host-${Date.now()}`,
-          sshHost: remote.host,
-          username: remote.username,
-          port: Number(remote.port),
-          authMode: "password",
-          password: remote.password,
-          proxyUrl: remote.proxyUrl ?? null,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      return await response.json();
+  const host = await authenticatedFetch<{ id: number }>(page, {
+    url: "/api/hosts",
+    method: "POST",
+    body: {
+      name: `mobile-longpress-host-${Date.now()}`,
+      sshHost: remote.host,
+      username: remote.username,
+      port: Number(remote.port),
+      authMode: "password",
+      password: remote.password,
+      proxyUrl: remote.proxyUrl ?? null,
     },
-    { remote },
-  )) as { id: number };
-  const project = (await page.evaluate(
-    async ({ hostId, remote }) => {
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          hostId,
-          name: `mobile-longpress-project-${Date.now()}`,
-          remotePath: remote.projectPath,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      return await response.json();
+  });
+  const project = await authenticatedFetch<{ id: number }>(page, {
+    url: "/api/projects",
+    method: "POST",
+    body: {
+      hostId: host.id,
+      name: `mobile-longpress-project-${Date.now()}`,
+      remotePath: remote.projectPath,
     },
-    { hostId: host.id, remote },
-  )) as { id: number };
-  await page.evaluate((hostRecord) => {
-    localStorage.setItem(
-      "codex-gateway-config",
-      JSON.stringify({
-        version: 1,
-        hosts: [hostRecord],
-        pinnedThreads: [],
-        lastOpenThread: null,
-      }),
-    );
-  }, host);
+  });
   return { host, project };
 }
 

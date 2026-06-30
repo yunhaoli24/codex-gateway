@@ -15,7 +15,7 @@ export function handleRealtimeThreadEvent(ctx: GatewayStoreContext, event: Gatew
   }
   appendSelectedThreadEvent(ctx, event);
   recordThreadEvent(ctx, event);
-  applyAppServerEvent(ctx, event);
+  applyAppServerEvent(ctx, event, { notifyTerminal: event.method === "turn/completed" });
   advanceThreadSubscriptionCursor(ctx, event);
 }
 
@@ -33,8 +33,12 @@ export function recordThreadEvent(ctx: GatewayStoreContext, event: GatewayEvent)
   };
 }
 
-export function applyLiveThreadEvent(ctx: GatewayStoreContext, event: GatewayEvent) {
-  applyAppServerEvent(ctx, event);
+export function applyLiveThreadEvent(
+  ctx: GatewayStoreContext,
+  event: GatewayEvent,
+  options?: { notifyTerminal?: boolean },
+) {
+  applyAppServerEvent(ctx, event, options);
 }
 
 function appendSelectedThreadEvent(ctx: GatewayStoreContext, event: GatewayEvent) {

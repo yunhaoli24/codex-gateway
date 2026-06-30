@@ -1,4 +1,5 @@
 import type { HostRecord } from "~~/shared/types";
+import { gatewayApi } from "@/utils/gateway-api";
 import type { GatewayStoreContext } from "../types";
 import { writeGatewayRouteSelection } from "../route-state";
 import { messageFromError } from "../thread-utils/identity";
@@ -6,7 +7,7 @@ import { messageFromError } from "../thread-utils/identity";
 export function createHostActions(ctx: GatewayStoreContext) {
   return {
     async createHost(input: Record<string, unknown>) {
-      const host = await $fetch<HostRecord>("/api/hosts", { method: "POST", body: input });
+      const host = await gatewayApi<HostRecord>("/api/hosts", { method: "POST", body: input });
       ctx.state.hosts.push(host);
       ctx.persistConfig();
       ctx.beginViewTransition();
@@ -32,7 +33,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
         [hostId]: { status: "connecting", updatedAt: Date.now() },
       };
       try {
-        const result = await $fetch<any>(`/api/hosts/${hostId}/verify`, { method: "POST" });
+        const result = await gatewayApi<any>(`/api/hosts/${hostId}/verify`, { method: "POST" });
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
           [hostId]: {
@@ -56,7 +57,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
     },
 
     async updateHost(hostId: number, input: Record<string, unknown>) {
-      const host = await $fetch<HostRecord>(`/api/hosts/${hostId}`, {
+      const host = await gatewayApi<HostRecord>(`/api/hosts/${hostId}`, {
         method: "PATCH",
         body: input,
       });
@@ -68,7 +69,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
     },
 
     async deleteHost(hostId: number) {
-      await $fetch(`/api/hosts/${hostId}`, { method: "DELETE" });
+      await gatewayApi(`/api/hosts/${hostId}`, { method: "DELETE" });
       for (const key of Object.keys(ctx.state.realtimeThreadSubscriptions)) {
         if (key.startsWith(`${hostId}:`)) {
           const subscription = ctx.state.realtimeThreadSubscriptions[key];

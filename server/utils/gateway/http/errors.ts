@@ -1,5 +1,12 @@
 import { defineEventHandler, getRequestURL, setResponseStatus, type H3Event } from "h3";
 import type { HostRecord } from "~~/shared/types";
+import { userStore } from "../auth/users";
+import {
+  buildGatewayMemoryState,
+  currentGatewayMemoryState,
+  replaceCurrentGatewayMemoryState,
+  runWithGatewayUser,
+} from "../state/memory";
 
 export class CodexRpcError extends Error {
   constructor(
@@ -27,7 +34,14 @@ export function logGatewayApiError(
 export function defineGatewayEventHandler<T>(handler: (event: H3Event) => Promise<T> | T) {
   return defineEventHandler(async (event) => {
     try {
-      return await handler(event);
+      const user = event.context.auth?.user;
+      if (!user) {
+        return await handler(event);
+      }
+      return await runWithGatewayUser(user.id, async () => {
+        ensureUserConfigLoaded(user.id);
+        return await handler(event);
+      });
     } catch (error) {
       const url = getRequestURL(event);
       const context = gatewayRequestLogContext(event);
@@ -51,6 +65,38 @@ export function defineGatewayEventHandler<T>(handler: (event: H3Event) => Promis
       };
     }
   });
+}
+
+export function ensureUserConfigLoaded(userId: number) {
+  const state = currentGatewayMemoryState();
+  if (state.configLoaded) {
+    return;
+  }
+  const nextState = buildGatewayMemoryState(userStore.loadConfig(userId));
+  nextState.configLoaded = true;
+  replaceCurrentGatewayMemoryState(nextState);
+}
+
+export function saveCurrentUserConfig(event: H3Event) {
+  const user = event.context.auth?.user;
+  if (!user) {
+    return;
+  }
+  userStore.saveConfig(user.id, runtimeConfigFromMemory());
+}
+
+export function runtimeConfigFromMemory() {
+  const state = currentGatewayMemoryState();
+  return {
+    version: 1,
+    hosts: state.hosts.map((host) => ({
+      ...host,
+      hasPassword: Boolean(host.password),
+    })),
+    projects: state.projects,
+    pinnedThreads: state.pinnedThreads,
+    lastOpenThread: state.lastOpenThread ?? null,
+  };
 }
 
 export function setGatewayRequestLogContext(

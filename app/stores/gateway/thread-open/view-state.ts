@@ -60,7 +60,7 @@ export function clearCurrentThreadView(ctx: GatewayStoreContext) {
   ctx.state.lastEventId = 0;
 }
 
-export function rememberOpenThread(ctx: GatewayStoreContext, threadId: string) {
+export async function rememberOpenThread(ctx: GatewayStoreContext, threadId: string) {
   if (!ctx.state.selectedHostId) {
     return;
   }
@@ -70,6 +70,7 @@ export function rememberOpenThread(ctx: GatewayStoreContext, threadId: string) {
     threadId,
   };
   ctx.persistConfig();
+  await ctx.syncConfigToServer();
 }
 
 export function requestScrollToLatest(ctx: GatewayStoreContext) {
@@ -95,4 +96,14 @@ export function activateThreadView(
   ctx.state.selectedHostId = hostId;
   ctx.state.selectedProjectId = projectId;
   clearCurrentThreadView(ctx);
+}
+
+export function activatePendingThreadView(
+  ctx: GatewayStoreContext,
+  hostId: number,
+  projectId: number | null,
+  threadId: string,
+) {
+  activateThreadView(ctx, hostId, projectId);
+  ctx.state.selectedThreadId = threadId;
 }

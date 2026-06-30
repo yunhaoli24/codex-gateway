@@ -1,4 +1,5 @@
 import type { RealtimeClientMessage, RealtimeServerMessage } from "~~/shared/types";
+import { useAuthStore } from "@/stores/auth";
 import type { GatewayStoreContext } from "../types";
 
 export function connectRealtimeSocket(ctx: GatewayStoreContext) {
@@ -20,6 +21,8 @@ export function connectRealtimeSocket(ctx: GatewayStoreContext) {
   const generation = ctx.state.realtimeSocketGeneration + 1;
   ctx.state.realtimeSocketGeneration = generation;
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const auth = useAuthStore();
+  auth.hydrate();
   const socket = new WebSocket(`${protocol}//${window.location.host}/api/realtime`);
   ctx.state.realtimeSocket = socket;
 
@@ -28,9 +31,7 @@ export function connectRealtimeSocket(ctx: GatewayStoreContext) {
       socket.close();
       return;
     }
-    ctx.state.realtimeSocketConnected = true;
-    ctx.state.realtimeSocketReconnectAttempt = 0;
-    ctx.resubscribeRealtime();
+    socket.send(JSON.stringify({ type: "auth.authenticate", token: auth.token }));
   });
 
   socket.addEventListener("message", (message) => {

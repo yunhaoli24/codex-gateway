@@ -1,6 +1,7 @@
 import type { GatewayEvent, HostRecord } from "~~/shared/types";
 import { CodexRpcClient } from "../infra/rpc";
 import { gatewayEventStore } from "../state/gateway-events";
+import { bindGatewayUser } from "../state/memory";
 import type { CloseSubscriber, Subscriber, ThreadOpenSnapshot } from "./types";
 import { DEFAULT_TURN_PAGE_LIMIT } from "./types";
 
@@ -28,9 +29,18 @@ export class ThreadController {
     this.connected = connected;
     this.subscribed = subscribed;
     if (this.ownsClient) {
-      this.client.on("notification", (message: any) => this.handleNotification(message));
-      this.client.on("stderr", (text) => this.handleStderr(text));
-      this.client.on("close", () => this.handleClose());
+      this.client.on(
+        "notification",
+        bindGatewayUser((message: any) => this.handleNotification(message)),
+      );
+      this.client.on(
+        "stderr",
+        bindGatewayUser((text) => this.handleStderr(text)),
+      );
+      this.client.on(
+        "close",
+        bindGatewayUser(() => this.handleClose()),
+      );
     }
   }
 
@@ -118,6 +128,7 @@ export class ThreadController {
     const resume = await this.enqueue(() =>
       this.client.request<any>("thread/resume", {
         threadId: this.threadId,
+        excludeTurns: true,
         initialTurnsPage: {
           limit,
           sortDirection: "desc",

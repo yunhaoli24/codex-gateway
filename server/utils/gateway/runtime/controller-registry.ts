@@ -1,10 +1,11 @@
 import type { HostRecord } from "~~/shared/types";
+import { currentGatewayUserId } from "../state/memory";
 import { HostRpcSession } from "./host-rpc-session";
 import { ThreadController } from "./thread-controller";
 
 export class ControllerRegistry {
   private readonly controllers = new Map<string, ThreadController>();
-  private readonly hostSessions = new Map<number, HostRpcSession>();
+  private readonly hostSessions = new Map<string, HostRpcSession>();
 
   async getController(host: HostRecord, threadId: string) {
     const key = this.key(host.id, threadId);
@@ -39,7 +40,8 @@ export class ControllerRegistry {
   }
 
   async getHostClient(host: HostRecord) {
-    let session = this.hostSessions.get(host.id);
+    const key = this.hostKey(host.id);
+    let session = this.hostSessions.get(key);
     if (!session) {
       session = new HostRpcSession(
         host,
@@ -47,7 +49,7 @@ export class ControllerRegistry {
         (hostId) => this.controllersForHost(hostId),
         () => this.disposeHostSession(host.id, session),
       );
-      this.hostSessions.set(host.id, session);
+      this.hostSessions.set(key, session);
     }
     return session.connect();
   }
@@ -69,8 +71,9 @@ export class ControllerRegistry {
       controller.close();
       this.controllers.delete(this.key(hostId, controller.threadId));
     }
-    const session = this.hostSessions.get(hostId);
-    this.hostSessions.delete(hostId);
+    const key = this.hostKey(hostId);
+    const session = this.hostSessions.get(key);
+    this.hostSessions.delete(key);
     session?.close();
   }
 
@@ -84,8 +87,9 @@ export class ControllerRegistry {
   }
 
   private disposeHostSession(hostId: number, session: HostRpcSession | undefined) {
-    if (session && this.hostSessions.get(hostId) === session) {
-      this.hostSessions.delete(hostId);
+    const hostKey = this.hostKey(hostId);
+    if (session && this.hostSessions.get(hostKey) === session) {
+      this.hostSessions.delete(hostKey);
     }
     for (const controller of this.controllersForHost(hostId)) {
       controller.disposeAfterTransportClose();
@@ -94,6 +98,18 @@ export class ControllerRegistry {
   }
 
   private key(hostId: number, threadId: string) {
-    return `${hostId}:${threadId}`;
+    return `${this.userKey()}:${hostId}:${threadId}`;
+  }
+
+  private hostKey(hostId: number) {
+    return `${this.userKey()}:${hostId}`;
+  }
+
+  private userKey() {
+    const userId = currentGatewayUserId();
+    if (!userId) {
+      throw new Error("Gateway runtime requires an authenticated user scope");
+    }
+    return userId;
   }
 }

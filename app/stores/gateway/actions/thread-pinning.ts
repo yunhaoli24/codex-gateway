@@ -1,4 +1,5 @@
 import type { PinnedThreadRecord, ProjectRecord } from "~~/shared/types";
+import { gatewayApi } from "@/utils/gateway-api";
 import type { GatewayStoreContext } from "../types";
 import { pinnedKey, sortThreads, titleForThread } from "../thread-utils/identity";
 
@@ -35,9 +36,10 @@ export function createThreadPinningActions(ctx: GatewayStoreContext) {
           String(thread.id) === threadId ? { ...thread, pinned } : thread,
         ),
       );
+      await ctx.syncConfigToServer();
     },
 
-    setPinnedThread(thread: PinnedThreadRecord, pinned: boolean) {
+    async setPinnedThread(thread: PinnedThreadRecord, pinned: boolean) {
       const key = pinnedKey(thread.hostId, thread.threadId);
       ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.filter(
         (item) => pinnedKey(item.hostId, item.threadId) !== key,
@@ -53,6 +55,7 @@ export function createThreadPinningActions(ctx: GatewayStoreContext) {
           ),
         );
       }
+      await ctx.syncConfigToServer();
     },
 
     async openPinnedThread(thread: PinnedThreadRecord) {
@@ -95,13 +98,16 @@ export function createThreadPinningActions(ctx: GatewayStoreContext) {
         ),
       };
       ctx.persistConfig();
+      void ctx.syncConfigToServer().catch((error: any) => {
+        ctx.setError(error?.message || ctx.t("app.configSyncFailed"));
+      });
     },
 
     async renameThread(threadId: string, name: string) {
       if (!ctx.state.selectedHostId) {
         return;
       }
-      await $fetch("/api/threads/rename", {
+      await gatewayApi("/api/threads/rename", {
         method: "POST",
         body: {
           hostId: ctx.state.selectedHostId,
@@ -117,6 +123,7 @@ export function createThreadPinningActions(ctx: GatewayStoreContext) {
         pinnedKey(thread.hostId, thread.threadId) === key ? { ...thread, title: name } : thread,
       );
       ctx.persistConfig();
+      await ctx.syncConfigToServer();
       if (
         ctx.state.selectedThreadId === threadId &&
         ctx.state.currentThread &&

@@ -1,3 +1,5 @@
+import { currentGatewayUserId, runWithGatewayUser } from "./memory";
+
 export type HostLifecycleStatus =
   | "checkingVersion"
   | "upgrading"
@@ -16,22 +18,38 @@ export interface HostLifecycleEvent {
 type HostLifecycleSubscriber = (event: HostLifecycleEvent) => void;
 
 class HostLifecycleBus {
-  private subscribers = new Set<HostLifecycleSubscriber>();
+  private subscribers = new Map<number, Set<HostLifecycleSubscriber>>();
 
   emit(event: Omit<HostLifecycleEvent, "createdAt">) {
+    const userId = currentGatewayUserId();
+    if (!userId) {
+      return;
+    }
     const payload = {
       ...event,
       createdAt: new Date().toISOString(),
     };
-    for (const subscriber of this.subscribers) {
-      subscriber(payload);
+    for (const subscriber of this.subscribers.get(userId) ?? []) {
+      runWithGatewayUser(userId, () => subscriber(payload));
     }
   }
 
   subscribe(subscriber: HostLifecycleSubscriber) {
-    this.subscribers.add(subscriber);
+    const userId = currentGatewayUserId();
+    if (!userId) {
+      throw new Error("Host lifecycle subscription requires an authenticated user scope");
+    }
+    let subscribers = this.subscribers.get(userId);
+    if (!subscribers) {
+      subscribers = new Set();
+      this.subscribers.set(userId, subscribers);
+    }
+    subscribers.add(subscriber);
     return () => {
-      this.subscribers.delete(subscriber);
+      subscribers.delete(subscriber);
+      if (!subscribers.size) {
+        this.subscribers.delete(userId);
+      }
     };
   }
 }

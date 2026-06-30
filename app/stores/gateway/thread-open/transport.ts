@@ -1,4 +1,6 @@
 import type { ComposerTurnOptions, ThreadOpenResult } from "~~/shared/types";
+import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
+import { gatewayApi } from "@/utils/gateway-api";
 import type { GatewayStoreContext } from "../types";
 
 export function requestOpenThread(input: {
@@ -6,19 +8,19 @@ export function requestOpenThread(input: {
   projectId: number | null;
   threadId: string;
 }) {
-  return $fetch<ThreadOpenResult>("/api/threads/open", {
+  return gatewayApi<ThreadOpenResult>("/api/threads/open", {
     method: "POST",
     body: {
       hostId: input.hostId,
       projectId: input.projectId,
       threadId: input.threadId,
-      limit: 20,
+      limit: INITIAL_TURN_PAGE_LIMIT,
     },
   });
 }
 
 export function requestStartThread(ctx: GatewayStoreContext, options: ComposerTurnOptions) {
-  return $fetch<ThreadOpenResult>("/api/threads/start", {
+  return gatewayApi<ThreadOpenResult>("/api/threads/start", {
     method: "POST",
     body: {
       hostId: ctx.state.selectedHostId,

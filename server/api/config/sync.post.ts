@@ -1,11 +1,12 @@
 import { readValidatedBody } from "h3";
 import { sshConnections } from "../../utils/gateway/infra/host-services";
+import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
 import { gatewayConfigSchema } from "../../utils/gateway/http/validation";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
 import { hostStore } from "../../utils/gateway/state/hosts";
 import { runtimeConfigStore } from "../../utils/gateway/state/runtime-config";
 
-export default defineEventHandler(async (event) => {
+export default defineGatewayEventHandler(async (event) => {
   const previousHosts = hostStore.listWithSecret();
   const config = await readValidatedBody(event, (body) => gatewayConfigSchema.parse(body));
   runtimeConfigStore.replace(config);
@@ -14,6 +15,7 @@ export default defineEventHandler(async (event) => {
     threadBroker.closeHost(host.id);
   }
   sshConnections.syncHosts(nextHosts);
+  saveCurrentUserConfig(event);
   return runtimeConfigStore.export();
 });
 

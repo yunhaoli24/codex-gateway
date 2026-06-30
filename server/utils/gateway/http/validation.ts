@@ -1,5 +1,6 @@
 import { createError } from "h3";
 import { z } from "zod";
+import { INITIAL_TURN_PAGE_LIMIT, OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
 
 const optionalPositiveInt = z.preprocess(
   (value) => (value === "" || value == null ? undefined : value),
@@ -69,6 +70,20 @@ export const gatewayConfigSchema = z
           .superRefine(validateHostProxy),
       )
       .default([]),
+    projects: z
+      .array(
+        z
+          .object({
+            id: z.coerce.number().int().positive(),
+            hostId: z.coerce.number().int().positive(),
+            name: z.string().trim().min(1),
+            remotePath: z.string().trim().min(1),
+            createdAt: z.string().optional(),
+            updatedAt: z.string().optional(),
+          })
+          .strict(),
+      )
+      .default([]),
     pinnedThreads: z
       .array(
         z
@@ -126,15 +141,20 @@ export const threadOpenSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   projectId: optionalPositiveInt,
   threadId: z.string().trim().min(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(100).default(INITIAL_TURN_PAGE_LIMIT),
 });
 
 export const threadTurnsListSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   threadId: z.string().trim().min(1),
   cursor: z.string().trim().nullable().optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(100).default(OLDER_TURN_PAGE_LIMIT),
   sortDirection: z.enum(["asc", "desc"]).default("desc"),
+});
+
+export const threadStatusSchema = z.object({
+  hostId: z.coerce.number().int().positive(),
+  threadId: z.string().trim().min(1),
 });
 
 export const threadRenameSchema = z.object({

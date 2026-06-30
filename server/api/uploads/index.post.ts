@@ -5,10 +5,11 @@ import { basename, extname, join } from "node:path";
 import { getValidatedQuery, readMultipartFormData } from "h3";
 import type { UploadResult } from "~~/shared/types";
 import { remoteFiles } from "../../utils/gateway/infra/host-services";
+import { defineGatewayEventHandler } from "../../utils/gateway/http/errors";
 import { requireRecord, uploadQuerySchema } from "../../utils/gateway/http/validation";
 import { hostStore } from "../../utils/gateway/state/hosts";
 
-export default defineEventHandler(async (event): Promise<UploadResult> => {
+export default defineGatewayEventHandler(async (event): Promise<UploadResult> => {
   const query = await getValidatedQuery(event, (body) => uploadQuerySchema.parse(body));
   const host = requireRecord(hostStore.getWithSecret(query.hostId), "Host not found");
   const form = await readMultipartFormData(event);

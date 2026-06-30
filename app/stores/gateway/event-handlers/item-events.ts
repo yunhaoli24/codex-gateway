@@ -5,7 +5,7 @@ import type { AppServerEventParams, GatewayEventHandlerRegistry } from "./types"
 
 export const itemEventHandlers: GatewayEventHandlerRegistry = {
   "item/started": (ctx, event, params, threadId) => {
-    emitRunning(ctx, event, threadId);
+    emitRunning(ctx, event, params, threadId);
     upsertStartedOrCompletedItem(ctx, event, params, threadId, "started");
   },
   "item/completed": (ctx, event, params, threadId) => {
@@ -50,7 +50,7 @@ export const itemEventHandlers: GatewayEventHandlerRegistry = {
     });
   },
   "item/fileChange/patchUpdated": (ctx, event, params, threadId) => {
-    emitRunning(ctx, event, threadId);
+    emitRunning(ctx, event, params, threadId);
     ctx.events.emit({
       type: "history-item-upsert",
       hostId: event.hostId,
@@ -66,12 +66,18 @@ export const itemEventHandlers: GatewayEventHandlerRegistry = {
   },
 };
 
-function emitRunning(ctx: GatewayStoreContext, event: GatewayEvent, threadId: string) {
+function emitRunning(
+  ctx: GatewayStoreContext,
+  event: GatewayEvent,
+  params: AppServerEventParams,
+  threadId: string,
+) {
   ctx.events.emit({
     type: "thread-status-detected",
     hostId: event.hostId,
     threadId,
     status: "running",
+    turnId: params.turnId ? String(params.turnId) : null,
   });
 }
 

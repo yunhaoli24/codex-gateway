@@ -15,6 +15,14 @@ function normalizeProject(input: ProjectCreateInput, id = nextId(gatewayMemorySt
 }
 
 export const projectStore = {
+  replaceProjects(projects: ProjectRecord[]) {
+    gatewayMemoryState.projects = projects.map((project) => ({
+      ...project,
+      name: project.name.trim(),
+      remotePath: project.remotePath.trim(),
+    }));
+  },
+
   pruneToHosts(hostIds: Set<number>) {
     gatewayMemoryState.projects = gatewayMemoryState.projects.filter((project) =>
       hostIds.has(project.hostId),

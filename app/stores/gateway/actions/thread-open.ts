@@ -5,6 +5,7 @@ import { applyOpenedThreadResult, applyStartedThreadResult } from "../thread-ope
 import { requestOpenThread, requestStartThread } from "../thread-open/transport";
 import {
   activateThreadView,
+  activatePendingThreadView,
   beginViewTransition,
   cacheSelectedThreadSnapshot,
   clearCurrentThreadView,
@@ -37,8 +38,8 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       clearCurrentThreadView(ctx);
     },
 
-    rememberOpenThread(threadId: string) {
-      rememberOpenThread(ctx, threadId);
+    async rememberOpenThread(threadId: string) {
+      await rememberOpenThread(ctx, threadId);
     },
 
     requestScrollToLatest() {
@@ -68,16 +69,16 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         ctx.state.currentThread &&
         ctx.state.history
       ) {
-        ctx.rememberOpenThread(threadId);
+        await ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.connectEvents();
         ctx.requestScrollToLatest();
         return;
       }
       const viewEpoch = ctx.beginViewTransition();
-      activateThreadView(ctx, targetHostId, targetProjectId);
+      activatePendingThreadView(ctx, targetHostId, targetProjectId, threadId);
       if (ctx.restoreThreadSnapshot(targetHostId, threadId)) {
-        ctx.rememberOpenThread(threadId);
+        await ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.connectEvents();
         ctx.requestScrollToLatest();
@@ -97,7 +98,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         applyOpenedThreadResult(ctx, threadId, result);
         ctx.cacheSelectedThreadSnapshot();
         ctx.connectEvents();
-        ctx.rememberOpenThread(threadId);
+        await ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.requestScrollToLatest();
       } catch (error: any) {
@@ -149,7 +150,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       ctx.connectEvents();
       await ctx.listThreads();
       ctx.cacheSelectedThreadSnapshot();
-      ctx.rememberOpenThread(threadId);
+      await ctx.rememberOpenThread(threadId);
       ctx.syncSelectedRoute();
     },
   };

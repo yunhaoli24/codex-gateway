@@ -3,6 +3,7 @@ import { CopyIcon, MoveIcon, RotateCcwIcon, ZoomInIcon, ZoomOutIcon } from "@luc
 import { toast } from "vue-sonner";
 import { computed, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/stores/auth";
 import {
   Dialog,
   DialogContent,
@@ -94,7 +95,14 @@ function stopDrag(event: PointerEvent) {
 
 async function copyImage() {
   try {
-    const response = await fetch(props.source);
+    const auth = useAuthStore();
+    auth.hydrate();
+    const response = await fetch(props.source, {
+      headers:
+        props.source.startsWith("/api/") && auth.token
+          ? { authorization: `Bearer ${auth.token}` }
+          : {},
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }

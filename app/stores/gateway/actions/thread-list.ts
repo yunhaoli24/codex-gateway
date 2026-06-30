@@ -1,4 +1,5 @@
 import type { GatewayStoreContext, ThreadListResponse } from "../types";
+import { gatewayApi } from "@/utils/gateway-api";
 import { messageFromError, pinnedKey, sortThreads } from "../thread-utils/identity";
 import { runtimeStatusFromAppThreadStatus } from "../thread-utils/status";
 
@@ -17,7 +18,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
             [host.id]: { status: "connecting", updatedAt: Date.now() },
           };
           try {
-            const response = await $fetch<ThreadListResponse>("/api/threads", {
+            const response = await gatewayApi<ThreadListResponse>("/api/threads", {
               query: {
                 hostId: host.id,
                 limit: 50,
@@ -70,7 +71,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
         if (searchTerm) {
           query.searchTerm = searchTerm;
         }
-        const response = await $fetch<ThreadListResponse>("/api/threads", { query });
+        const response = await gatewayApi<ThreadListResponse>("/api/threads", { query });
         if (ctx.state.selectedHostId !== hostId || ctx.state.selectedProjectId !== projectId) {
           return;
         }
@@ -129,6 +130,13 @@ function syncThreadStatusesFromList(ctx: GatewayStoreContext, hostId: number, th
     if (!thread?.id || !thread.status) {
       continue;
     }
-    ctx.setThreadStatus(hostId, String(thread.id), runtimeStatusFromAppThreadStatus(thread.status));
+    ctx.setThreadStatus(
+      hostId,
+      String(thread.id),
+      runtimeStatusFromAppThreadStatus(thread.status),
+      {
+        notifyTerminal: false,
+      },
+    );
   }
 }

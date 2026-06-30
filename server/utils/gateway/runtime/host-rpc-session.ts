@@ -2,6 +2,7 @@ import type { HostRecord } from "~~/shared/types";
 import { buildCurrentTimeReadResponse, isCurrentTimeReadRequest } from "~~/shared/server-requests";
 import { CodexRpcClient } from "../infra/rpc";
 import { gatewayEventStore } from "../state/gateway-events";
+import { bindGatewayUser } from "../state/memory";
 import type { HostControllerLookup, HostControllersLookup } from "./types";
 import { threadIdFromNotification } from "../protocol/thread-payload";
 
@@ -17,13 +18,25 @@ export class HostRpcSession {
     private readonly onClose?: () => void,
   ) {
     this.client = new CodexRpcClient(host);
-    this.client.on("notification", (message: any) => this.routeNotification(message));
-    this.client.on("request", (message: any) => this.routeRequest(message));
-    this.client.on("stderr", (text) => this.routeStderr(text));
-    this.client.on("close", () => {
-      this.connected = false;
-      this.onClose?.();
-    });
+    this.client.on(
+      "notification",
+      bindGatewayUser((message: any) => this.routeNotification(message)),
+    );
+    this.client.on(
+      "request",
+      bindGatewayUser((message: any) => this.routeRequest(message)),
+    );
+    this.client.on(
+      "stderr",
+      bindGatewayUser((text) => this.routeStderr(text)),
+    );
+    this.client.on(
+      "close",
+      bindGatewayUser(() => {
+        this.connected = false;
+        this.onClose?.();
+      }),
+    );
   }
 
   async connect() {

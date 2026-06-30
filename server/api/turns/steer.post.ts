@@ -1,10 +1,14 @@
 import { readValidatedBody } from "h3";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
 import { requireRecord, turnSteerSchema } from "../../utils/gateway/http/validation";
-import { hostLogContext, setGatewayRequestLogContext } from "../../utils/gateway/http/errors";
+import {
+  defineGatewayEventHandler,
+  hostLogContext,
+  setGatewayRequestLogContext,
+} from "../../utils/gateway/http/errors";
 import { hostStore } from "../../utils/gateway/state/hosts";
 
-export default defineEventHandler(async (event) => {
+export default defineGatewayEventHandler(async (event) => {
   const input = await readValidatedBody(event, (body) => turnSteerSchema.parse(body));
   const host = requireRecord(hostStore.getWithSecret(input.hostId), "Host not found");
   setGatewayRequestLogContext(event, "turns/steer", {

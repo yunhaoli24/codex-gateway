@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page, type WebSocket } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { openApp, reloadApp } from "./helpers/app";
+import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
 import {
   addRemoteHost,
   addRemoteProject,
@@ -14,30 +14,17 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   page,
 }) => {
   const remote = await readRemoteEnv();
-  const realtimeSockets: string[] = [];
-  page.on("websocket", (webSocket) => {
-    if (webSocket.url().endsWith("/api/realtime")) {
-      realtimeSockets.push(webSocket.url());
-    }
-  });
+  const realtimeSockets = trackActiveRealtimeSockets(page);
 
   await openApp(page);
   await expect(page.getByPlaceholder("输入后续修改要求")).toBeHidden();
-  await expect.poll(() => realtimeSockets.length, { timeout: 10_000 }).toBe(1);
+  await expect.poll(() => realtimeSockets.size, { timeout: 10_000 }).toBe(1);
 
   const host = await addRemoteHost(page, remote);
   const discovered = await createRemoteHistoricalRollout(remote);
-  const discoveryResponse = await page.evaluate(
-    async ({ hostId }) => {
-      const response = await fetch(`/api/threads?hostId=${hostId}&limit=50`);
-      const text = await response.text();
-      if (!response.ok) {
-        throw new Error(text);
-      }
-      return JSON.parse(text);
-    },
-    { hostId: host.id },
-  );
+  const discoveryResponse = await authenticatedFetch<any>(page, {
+    url: `/api/threads?hostId=${host.id}&limit=50`,
+  });
   expect(
     discoveryResponse.projects.some(
       (candidate: any) =>
@@ -117,7 +104,7 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await page.getByTestId(`thread-button-${threadId}`).click();
   await expect.poll(() => openResponses.length, { timeout: 10_000 }).toBeGreaterThanOrEqual(3);
   expect(openResponses.every((status) => status >= 200 && status < 300)).toBe(true);
-  expect(realtimeSockets).toHaveLength(1);
+  expect(realtimeSockets.size).toBe(1);
 
   const marker = `E2E 置顶恢复 ${Date.now()}`;
   await sendTextTurn(page, marker);
@@ -222,6 +209,20 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   expect(deleteProjectResponse.ok(), await deleteProjectResponse.text()).toBe(true);
   await expect(page.getByTestId(`project-button-${project.id}`)).toBeHidden();
 });
+
+function trackActiveRealtimeSockets(page: Page) {
+  const sockets = new Set<WebSocket>();
+  page.on("websocket", (webSocket) => {
+    if (!webSocket.url().endsWith("/api/realtime")) {
+      return;
+    }
+    sockets.add(webSocket);
+    webSocket.on("close", () => {
+      sockets.delete(webSocket);
+    });
+  });
+  return sockets;
+}
 
 async function createRemoteHistoricalRollout(remote: Awaited<ReturnType<typeof readRemoteEnv>>) {
   const suffix = Date.now();

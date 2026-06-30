@@ -1,4 +1,5 @@
 import type { GatewayStoreContext } from "../types";
+import { gatewayApi } from "@/utils/gateway-api";
 
 export async function respondToServerRequest(
   ctx: GatewayStoreContext,
@@ -9,7 +10,7 @@ export async function respondToServerRequest(
   if (!ctx.state.selectedHostId) {
     return;
   }
-  await $fetch("/api/server-requests/respond", {
+  await gatewayApi("/api/server-requests/respond", {
     method: "POST",
     body: {
       hostId: ctx.state.selectedHostId,

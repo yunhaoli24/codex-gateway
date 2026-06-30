@@ -97,7 +97,9 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
           threadId,
         });
         if (!shouldSteerActiveTurn) {
-          ctx.setThreadRunning(ctx.state.selectedHostId, ctx.state.selectedThreadId, false);
+          ctx.setThreadStatus(ctx.state.selectedHostId, ctx.state.selectedThreadId, "completed", {
+            notifyTerminal: false,
+          });
         }
       } finally {
         ctx.state.loading = false;

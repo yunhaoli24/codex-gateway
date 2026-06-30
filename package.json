@@ -6,6 +6,7 @@
     "build": "nuxt build",
     "dev": "nuxt dev",
     "lint": "oxlint app server shared tests nuxt.config.ts playwright.config.ts tailwind.config.ts --ignore-pattern 'third_party/**' --fix --type-aware && oxfmt app server shared tests nuxt.config.ts playwright.config.ts tailwind.config.ts '!third_party/**'",
+    "user:create": "node scripts/create-user.mjs",
     "test:e2e": "tests/e2e/run-in-containers.sh",
     "postinstall": "nuxt prepare"
   },
@@ -15,6 +16,7 @@
     "@nuxtjs/i18n": "^10.4.0",
     "@pinia/nuxt": "^0.11.3",
     "@tanstack/vue-table": "^8.21.3",
+    "@tanstack/vue-virtual": "^3.13.30",
     "@vueuse/core": "^14.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

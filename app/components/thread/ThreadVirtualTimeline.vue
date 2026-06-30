@@ -1,0 +1,263 @@
+<script setup lang="ts">
+import { Loader2Icon } from "@lucide/vue";
+import { useVirtualizer, type VirtualItem } from "@tanstack/vue-virtual";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import ThreadTurnView from "@/components/thread/ThreadTurnView.vue";
+
+type TimelineRow =
+  | { key: string; type: "older" }
+  | { key: string; type: "turn"; turn: Record<string, any> }
+  | { key: string; type: "error"; message: string };
+
+const props = defineProps<{
+  threadId: string | null;
+  turns: Record<string, any>[];
+  hostId: number | null;
+  loading: boolean;
+  loadingOlder: boolean;
+  olderTurnsCursor: string | null;
+  visibleError: string | null;
+  followKey: unknown;
+}>();
+
+const emit = defineEmits<{
+  loadOlder: [];
+}>();
+
+const { t } = useI18n();
+const scrollAreaRef = ref<any>(null);
+const followLatest = ref(true);
+const initialBottomAligned = ref(false);
+const rowElements = new Map<number, Element>();
+let resizeObserver: ResizeObserver | null = null;
+const threshold = 120;
+
+const rows = computed<TimelineRow[]>(() => {
+  const timelineRows: TimelineRow[] = [];
+  if (props.threadId && props.olderTurnsCursor) {
+    timelineRows.push({ key: "older-turns", type: "older" });
+  }
+  for (const turn of props.turns) {
+    timelineRows.push({
+      key: `turn-${turn.id || JSON.stringify(turn).length}`,
+      type: "turn",
+      turn,
+    });
+  }
+  if (props.visibleError) {
+    timelineRows.push({
+      key: `error-${props.visibleError}`,
+      type: "error",
+      message: props.visibleError,
+    });
+  }
+  return timelineRows;
+});
+
+const virtualizer = useVirtualizer(
+  computed(() => ({
+    count: rows.value.length,
+    getScrollElement: scrollViewport,
+    getItemKey: (index: number) => rows.value[index]?.key ?? index,
+    estimateSize: (index: number) => estimatedRowSize(rows.value[index]),
+    overscan: 6,
+    anchorTo: "end",
+    followOnAppend: "auto",
+    scrollEndThreshold: threshold,
+    initialOffset: () => 1_000_000_000,
+  })),
+);
+
+const virtualRows = computed(() => virtualizer.value.getVirtualItems());
+const totalSize = computed(() => virtualizer.value.getTotalSize());
+
+function scrollViewport() {
+  const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value;
+  return root?.querySelector?.('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+}
+
+function estimatedRowSize(row: TimelineRow | undefined) {
+  if (!row) {
+    return 160;
+  }
+  if (row.type === "older") {
+    return 56;
+  }
+  if (row.type === "error") {
+    return 96;
+  }
+  return 520;
+}
+
+function isNearBottom(viewport = scrollViewport()) {
+  return (
+    virtualizer.value.isAtEnd(threshold) ||
+    Boolean(viewport && viewport.scrollHeight <= viewport.clientHeight)
+  );
+}
+
+async function scrollToBottom() {
+  await nextTick();
+  measureVisibleRows();
+  if (!rows.value.length) {
+    initialBottomAligned.value = true;
+    return;
+  }
+  virtualizer.value.scrollToEnd({ behavior: "auto" });
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  measureVisibleRows();
+  initialBottomAligned.value = true;
+}
+
+function resetFollowLatest() {
+  followLatest.value = true;
+  initialBottomAligned.value = false;
+  void scrollToBottom();
+}
+
+function handleScroll(event: Event) {
+  const viewport = event.target as HTMLElement;
+  if (viewport !== scrollViewport()) {
+    return;
+  }
+  followLatest.value = isNearBottom(viewport);
+  if (viewport.scrollTop <= 80 && props.olderTurnsCursor && !props.loadingOlder) {
+    emit("loadOlder");
+  }
+}
+
+function setRowRef(element: Element | null) {
+  if (!element) {
+    return;
+  }
+  const index = Number((element as HTMLElement).dataset.index);
+  if (Number.isFinite(index)) {
+    rowElements.set(index, element);
+  }
+  virtualizer.value.measureElement(element);
+  observeRows();
+}
+
+function measureVisibleRows() {
+  for (const virtualRow of virtualRows.value) {
+    const element = rowElements.get(virtualRow.index);
+    if (element?.isConnected) {
+      virtualizer.value.measureElement(element);
+    } else {
+      rowElements.delete(virtualRow.index);
+    }
+  }
+}
+
+function rowStyle(virtualRow: VirtualItem) {
+  return {
+    position: "absolute",
+    top: "0",
+    left: "0",
+    width: "100%",
+    transform: `translateY(${virtualRow.start}px)`,
+  };
+}
+
+watch(
+  () => props.threadId,
+  () => {
+    resetFollowLatest();
+  },
+  { flush: "post" },
+);
+
+watch(
+  () => [rows.value.length, props.followKey] as const,
+  async () => {
+    await nextTick();
+    measureVisibleRows();
+    if (followLatest.value) {
+      void scrollToBottom();
+    }
+  },
+  { flush: "post" },
+);
+
+onMounted(() => {
+  observeRows();
+  resetFollowLatest();
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+});
+
+function observeRows() {
+  if (typeof ResizeObserver !== "function") {
+    return;
+  }
+  resizeObserver?.disconnect();
+  resizeObserver = new ResizeObserver(() => {
+    measureVisibleRows();
+    if (followLatest.value) {
+      void scrollToBottom();
+    }
+  });
+  for (const element of rowElements.values()) {
+    if (element.isConnected) {
+      resizeObserver.observe(element);
+    }
+  }
+}
+</script>
+
+<template>
+  <ScrollArea
+    ref="scrollAreaRef"
+    data-testid="chat-scroll-area"
+    class="h-full min-h-0 flex-1 overflow-hidden"
+    @scroll.capture="handleScroll"
+  >
+    <div
+      class="mx-auto min-h-[calc(100dvh-14rem)] w-full max-w-5xl px-[clamp(0.875rem,4vw,2rem)] py-4 md:min-h-[calc(100vh-16rem)] md:py-[clamp(2rem,6vh,3rem)]"
+      :class="initialBottomAligned ? 'opacity-100' : 'opacity-0'"
+    >
+      <div class="relative" :style="{ height: `${totalSize}px` }">
+        <div
+          v-for="virtualRow in virtualRows"
+          :key="virtualRow.key"
+          :ref="setRowRef"
+          :data-index="virtualRow.index"
+          class="pb-5 md:pb-8"
+          :style="rowStyle(virtualRow)"
+        >
+          <template v-if="rows[virtualRow.index]?.type === 'older'">
+            <div class="flex justify-center">
+              <Button
+                data-testid="load-older-turns-button"
+                variant="outline"
+                size="sm"
+                :disabled="loadingOlder"
+                @click="emit('loadOlder')"
+              >
+                {{ loadingOlder ? t("app.loadingOlder") : t("app.loadOlder") }}
+              </Button>
+            </div>
+          </template>
+
+          <ThreadTurnView
+            v-else-if="rows[virtualRow.index]?.type === 'turn'"
+            :turn="(rows[virtualRow.index] as any).turn"
+            :host-id="hostId"
+          />
+
+          <div
+            v-else-if="rows[virtualRow.index]?.type === 'error'"
+            class="mx-auto max-w-3xl whitespace-pre-line rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            {{ (rows[virtualRow.index] as any).message }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </ScrollArea>
+</template>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ImageIcon, Maximize2Icon } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { computed, ref, toRef } from "vue";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ImageViewer from "@/components/common/ImageViewer.vue";
+import { useAuthorizedObjectUrl } from "@/composables/useAuthorizedObjectUrl";
 
 const props = defineProps<{
   source: string;
@@ -13,9 +14,9 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const open = ref(false);
-const failed = ref(false);
 
 const altText = computed(() => props.label || props.detail || t("app.imageAttachment"));
+const { objectUrl, loading, error } = useAuthorizedObjectUrl(toRef(props, "source"));
 </script>
 
 <template>
@@ -30,15 +31,16 @@ const altText = computed(() => props.label || props.detail || t("app.imageAttach
         @keydown.enter="open = true"
       >
         <img
-          v-if="!failed"
-          :src="source"
+          v-if="objectUrl"
+          :src="objectUrl"
           :alt="altText"
           class="max-h-72 w-full bg-surface object-contain"
-          @error="failed = true"
         />
         <div v-else class="flex min-h-24 items-center gap-2 px-3 py-2 text-sm text-ink-secondary">
           <ImageIcon class="size-4 shrink-0" />
-          <span class="min-w-0 truncate">{{ label || source }}</span>
+          <span class="min-w-0 truncate">{{
+            loading ? t("app.loadingGateway") : error?.message || label || source
+          }}</span>
         </div>
       </button>
       <div
@@ -66,7 +68,7 @@ const altText = computed(() => props.label || props.detail || t("app.imageAttach
 
     <ImageViewer
       v-model:open="open"
-      :source="source"
+      :source="objectUrl || source"
       :title="altText"
       :description="detail || label || source"
       :alt="altText"

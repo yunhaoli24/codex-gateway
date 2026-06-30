@@ -1,5 +1,24 @@
 import { expect, test } from "@playwright/test";
-import { openApp } from "./helpers/app";
+import { authenticatedFetch, openApp } from "./helpers/app";
+
+test("requires bearer auth for protected HTTP APIs", async ({ page }) => {
+  await openApp(page);
+  const unauthorized = await page.evaluate(async () => {
+    const response = await fetch("/api/config/export");
+    return {
+      ok: response.ok,
+      status: response.status,
+      body: await response.json().catch(() => null),
+    };
+  });
+  expect(unauthorized.ok).toBe(false);
+  expect(unauthorized.status).toBe(401);
+
+  const config = await authenticatedFetch<{ version: number }>(page, {
+    url: "/api/config/export",
+  });
+  expect(config.version).toBe(1);
+});
 
 test("defaults to Chinese and can switch to English", async ({ page }) => {
   await openApp(page);

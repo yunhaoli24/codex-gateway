@@ -1,6 +1,7 @@
 import type { GatewayConfig } from "~~/shared/types";
 import { gatewayEventStore } from "./gateway-events";
 import { gatewayMemoryState } from "./memory";
+import { normalizePinnedThreads } from "./memory";
 import { hostStore } from "./hosts";
 import { projectStore } from "./projects";
 import { threadMetadataStore } from "./thread-metadata";
@@ -8,10 +9,14 @@ import { threadMetadataStore } from "./thread-metadata";
 export const runtimeConfigStore = {
   replace(config: GatewayConfig) {
     hostStore.replaceHosts(config.hosts);
+    projectStore.replaceProjects(config.projects ?? []);
     const hostIds = hostStore.hostIds();
     projectStore.pruneToHosts(hostIds);
     threadMetadataStore.pruneToHosts(hostIds);
     gatewayEventStore.pruneToHosts(hostIds);
+    gatewayMemoryState.pinnedThreads = normalizePinnedThreads(config.pinnedThreads ?? []).filter(
+      (thread) => hostIds.has(thread.hostId),
+    );
     gatewayMemoryState.lastOpenThread = config.lastOpenThread ?? null;
   },
 
@@ -22,7 +27,8 @@ export const runtimeConfigStore = {
         ...host,
         hasPassword: Boolean(host.password),
       })),
-      pinnedThreads: [],
+      projects: projectStore.list(),
+      pinnedThreads: gatewayMemoryState.pinnedThreads,
       lastOpenThread: gatewayMemoryState.lastOpenThread ?? null,
     };
   },

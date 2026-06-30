@@ -18,9 +18,11 @@ test("fans out a real remote app-server thread to multiple browser clients acros
 }) => {
   const remote = await readRemoteEnv();
   const realtimeSockets = trackActiveRealtimeSockets(page);
+  await installRealtimeSocketCloser(page);
 
   await openApp(page);
   await expect.poll(() => realtimeSockets.size, { timeout: 10_000 }).toBe(1);
+  expect([...realtimeSockets].every((socket) => isTokenlessRealtimeUrl(socket.url()))).toBe(true);
 
   const host = await addRemoteHost(page, remote);
   const project = await addRemoteProject(page, remote, host.id);
@@ -61,6 +63,19 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     "data-state",
     "closed",
   );
+  const probedMarker = `E2E 状态探头 ${Date.now()}`;
+  const statusProbeResponsePromise = page.waitForResponse(
+    (response) => response.url().includes("/api/threads/status?") && response.status() === 200,
+    { timeout: 120_000 },
+  );
+  await sendTextTurn(page, probedMarker);
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "运行中");
+  await closeRealtimeSockets(page);
+  await statusProbeResponsePromise;
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
+    timeout: 120_000,
+  });
+  await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("已完成")).toBeVisible();
   await page.getByRole("button", { name: /中间过程/ }).click();
   await expect(
     page
@@ -81,15 +96,10 @@ test("fans out a real remote app-server thread to multiple browser clients acros
       .getByText(steerMarker),
   ).toBeVisible({ timeout: 30_000 });
 
-  const configText = await page.evaluate(() => localStorage.getItem("codex-gateway-config"));
-  expect(configText).toBeTruthy();
   const secondContext = await browser.newContext();
-  await secondContext.addInitScript((config) => {
-    localStorage.setItem("codex-gateway-config", config);
-  }, configText!);
   const secondPage = await secondContext.newPage();
   const secondRealtimeSockets = trackActiveRealtimeSockets(secondPage);
-  await openApp(secondPage);
+  await openApp(secondPage, { resetConfig: false });
   try {
     await expect.poll(() => secondRealtimeSockets.size, { timeout: 10_000 }).toBe(1);
     await expect(secondPage.getByTestId(`project-button-${project.id}`)).toBeVisible();
@@ -164,4 +174,38 @@ function trackActiveRealtimeSockets(page: Page) {
     });
   });
   return sockets;
+}
+
+function isTokenlessRealtimeUrl(rawUrl: string) {
+  const url = new URL(rawUrl);
+  return url.pathname === "/api/realtime" && url.search === "";
+}
+
+async function closeRealtimeSockets(page: Page) {
+  await page.evaluate(() => {
+    (window as any).__closeGatewayRealtimeSockets?.();
+  });
+}
+
+async function installRealtimeSocketCloser(page: Page) {
+  await page.addInitScript(() => {
+    const OriginalWebSocket = window.WebSocket;
+    const sockets = new Set<WebSocket>();
+    class TrackedWebSocket extends OriginalWebSocket {
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        const rawUrl = String(url);
+        if (rawUrl.endsWith("/api/realtime")) {
+          sockets.add(this);
+          this.addEventListener("close", () => sockets.delete(this));
+        }
+      }
+    }
+    window.WebSocket = TrackedWebSocket;
+    (window as any).__closeGatewayRealtimeSockets = () => {
+      for (const socket of sockets) {
+        socket.close();
+      }
+    };
+  });
 }

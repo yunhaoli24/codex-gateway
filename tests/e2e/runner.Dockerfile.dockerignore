@@ -5,6 +5,8 @@
 !i18n/**
 !public/
 !public/**
+!scripts/
+!scripts/**
 !server/
 !server/**
 !shared/

@@ -38,6 +38,7 @@ export default defineGatewayEventHandler(async (event) => {
 
   if (shouldDiscoverHostProjects(query)) {
     await discoverHostProjects(host, result, listParams);
+    saveCurrentUserConfig(event);
   }
   const mergedThreads = mergeThreads(
     threads,

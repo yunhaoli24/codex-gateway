@@ -70,10 +70,12 @@ const activeApprovalOption = computed(
         type="button"
         variant="ghost"
         size="lg"
-        class="h-10 shrink-0 gap-2 px-2 text-sm font-normal text-ink-muted hover:bg-canvas-soft hover:text-ink-secondary md:text-base"
+        class="h-10 shrink-0 gap-1.5 px-1.5 text-sm font-normal text-ink-muted hover:bg-canvas-soft hover:text-ink-secondary sm:gap-2 sm:px-2 md:text-base"
       >
         <SettingsIcon class="size-5" />
-        <span>{{ t(`app.${activeApprovalOption.shortLabelKey}`) }}</span>
+        <span class="max-w-[4.5rem] truncate sm:max-w-none">{{
+          t(`app.${activeApprovalOption.shortLabelKey}`)
+        }}</span>
         <ChevronDownIcon class="size-4" />
       </Button>
     </PopoverTrigger>

@@ -1,6 +1,7 @@
 import { toast } from "vue-sonner";
+import { gatewayApi } from "@/utils/gateway-api";
 import type { GatewayConfig, GatewayStatus } from "~~/shared/types";
-import { CONFIG_STORAGE_KEY, defaultGatewayConfig } from "../config";
+import { defaultGatewayConfig } from "../config";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError } from "../thread-utils/identity";
 import {
@@ -12,45 +13,44 @@ import {
 export function createCoreActions(ctx: GatewayStoreContext) {
   return {
     hydrateConfig() {
-      if (!import.meta.client) {
-        return;
-      }
-      try {
-        const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
-        ctx.state.gatewayConfig = raw
-          ? { ...defaultGatewayConfig(), ...JSON.parse(raw) }
-          : defaultGatewayConfig();
-        ctx.state.hosts = ctx.state.gatewayConfig.hosts;
-      } catch {
-        ctx.state.gatewayConfig = defaultGatewayConfig();
-      }
+      ctx.state.gatewayConfig = defaultGatewayConfig();
+      ctx.state.hosts = [];
+      ctx.state.projects = [];
     },
 
     persistConfig() {
       ctx.state.gatewayConfig = {
         version: 1,
         hosts: ctx.state.hosts,
+        projects: ctx.state.projects,
         pinnedThreads: ctx.state.gatewayConfig.pinnedThreads,
         lastOpenThread: ctx.state.gatewayConfig.lastOpenThread ?? null,
       };
-      if (import.meta.client) {
-        localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(ctx.state.gatewayConfig));
-      }
     },
 
     async syncConfigToServer() {
-      const config = await $fetch<GatewayConfig>("/api/config/sync", {
+      ctx.persistConfig();
+      const syncedConfig = await gatewayApi<GatewayConfig>("/api/config/sync", {
         method: "POST",
         body: ctx.state.gatewayConfig,
       });
+      ctx.state.gatewayConfig = { ...defaultGatewayConfig(), ...syncedConfig };
+      ctx.state.hosts = ctx.state.gatewayConfig.hosts;
+      ctx.state.projects = ctx.state.gatewayConfig.projects;
+    },
+
+    applyConfig(config: GatewayConfig) {
       ctx.state.gatewayConfig = {
         ...defaultGatewayConfig(),
         ...config,
-        pinnedThreads: ctx.state.gatewayConfig.pinnedThreads.length
-          ? ctx.state.gatewayConfig.pinnedThreads
-          : config.pinnedThreads,
       };
       ctx.state.hosts = ctx.state.gatewayConfig.hosts;
+      ctx.state.projects = ctx.state.gatewayConfig.projects;
+    },
+
+    async loadConfigFromServer() {
+      const config = await gatewayApi<GatewayConfig>("/api/config/export");
+      ctx.applyConfig(config);
       ctx.persistConfig();
     },
 
@@ -61,13 +61,13 @@ export function createCoreActions(ctx: GatewayStoreContext) {
 
     async importConfigText(text: string) {
       const config = JSON.parse(text) as GatewayConfig;
-      const syncedConfig = await $fetch<GatewayConfig>("/api/config/sync", {
+      const syncedConfig = await gatewayApi<GatewayConfig>("/api/config/sync", {
         method: "POST",
         body: { ...defaultGatewayConfig(), ...config },
       });
       ctx.state.gatewayConfig = { ...defaultGatewayConfig(), ...syncedConfig };
       ctx.state.hosts = ctx.state.gatewayConfig.hosts;
-      ctx.state.projects = [];
+      ctx.state.projects = ctx.state.gatewayConfig.projects;
       ctx.persistConfig();
       await ctx.refresh();
     },
@@ -79,13 +79,12 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       ctx.clearError();
       try {
         const routeSelection = readGatewayRouteSelection();
-        ctx.hydrateConfig();
         ctx.connectHostLifecycleEvents();
         ctx.state.projects = [];
         ctx.state.threads = [];
         ctx.state.models = [];
-        await ctx.syncConfigToServer();
-        const status = await $fetch<GatewayStatus>("/api/status");
+        await ctx.loadConfigFromServer();
+        const status = await gatewayApi<GatewayStatus>("/api/status");
         ctx.state.status = status;
 
         const routeHostExists = routeSelection.hostId
