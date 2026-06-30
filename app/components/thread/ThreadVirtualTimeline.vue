@@ -5,6 +5,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ThreadTurnView from "@/components/thread/ThreadTurnView.vue";
+import { shouldAdjustVirtualScrollForResize } from "@/utils/virtual-scroll";
 
 type TimelineRow =
   | { key: string; type: "older" }
@@ -63,10 +64,10 @@ const virtualizer = useVirtualizer(
     getItemKey: (index: number) => rows.value[index]?.key ?? index,
     estimateSize: (index: number) => estimatedRowSize(rows.value[index]),
     overscan: 6,
-    anchorTo: "end",
-    followOnAppend: "auto",
     scrollEndThreshold: threshold,
     initialOffset: () => 1_000_000_000,
+    shouldAdjustScrollPositionOnItemSizeChange: (item, _delta, instance) =>
+      shouldAdjustVirtualScrollForResize(followLatest.value, item, instance),
   })),
 );
 
@@ -92,10 +93,10 @@ function estimatedRowSize(row: TimelineRow | undefined) {
 }
 
 function isNearBottom(viewport = scrollViewport()) {
-  return (
-    virtualizer.value.isAtEnd(threshold) ||
-    Boolean(viewport && viewport.scrollHeight <= viewport.clientHeight)
-  );
+  if (!viewport) {
+    return false;
+  }
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= threshold;
 }
 
 async function scrollToBottom() {

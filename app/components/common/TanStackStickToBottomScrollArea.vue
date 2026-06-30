@@ -3,6 +3,7 @@ import type { HTMLAttributes } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { shouldAdjustVirtualScrollForResize } from "@/utils/virtual-scroll";
 
 const props = withDefaults(
   defineProps<{
@@ -32,10 +33,10 @@ const virtualizer = useVirtualizer(
     getItemKey: () => "content",
     estimateSize: () => props.estimateSize,
     overscan: 0,
-    anchorTo: "end",
-    followOnAppend: "auto",
     scrollEndThreshold: props.threshold,
     initialOffset: () => 1_000_000_000,
+    shouldAdjustScrollPositionOnItemSizeChange: (item, _delta, instance) =>
+      shouldAdjustVirtualScrollForResize(followLatest.value, item, instance),
   })),
 );
 
@@ -50,10 +51,10 @@ function scrollViewport() {
 }
 
 function isNearBottom(viewport = scrollViewport()) {
-  return (
-    virtualizer.value.isAtEnd(props.threshold) ||
-    Boolean(viewport && viewport.scrollHeight <= viewport.clientHeight)
-  );
+  if (!viewport) {
+    return false;
+  }
+  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= props.threshold;
 }
 
 async function scrollToBottom() {
