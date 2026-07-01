@@ -34,7 +34,7 @@ const hostConnectionLabelKeyByStatus: Record<string, string> = {
   restarting: "app.hostRestarting",
   connecting: "app.hostConnecting",
   connected: "app.connected",
-  failed: "app.verifyFailed",
+  failed: "app.hostConnectionFailed",
   idle: "app.hostDisconnected",
 };
 

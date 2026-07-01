@@ -1,4 +1,4 @@
-export const SUPPORTED_CODEX_VERSION = "0.142.2";
+export const SUPPORTED_CODEX_VERSION = "0.142.5";
 
 export interface ParsedCodexVersion {
   raw: string;

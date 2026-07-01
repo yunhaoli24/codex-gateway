@@ -2,7 +2,6 @@ import type { HostRecord } from "~~/shared/types";
 import { gatewayApi } from "@/utils/gateway-api";
 import type { GatewayStoreContext } from "../types";
 import { writeGatewayRouteSelection } from "../route-state";
-import { messageFromError } from "../thread-utils/identity";
 
 export function createHostActions(ctx: GatewayStoreContext) {
   return {
@@ -25,35 +24,6 @@ export function createHostActions(ctx: GatewayStoreContext) {
         await ctx.listThreads();
       }
       return host;
-    },
-
-    async verifyHost(hostId: number) {
-      ctx.state.hostConnectionStatuses = {
-        ...ctx.state.hostConnectionStatuses,
-        [hostId]: { status: "connecting", updatedAt: Date.now() },
-      };
-      try {
-        const result = await gatewayApi<any>(`/api/hosts/${hostId}/verify`, { method: "POST" });
-        ctx.state.hostConnectionStatuses = {
-          ...ctx.state.hostConnectionStatuses,
-          [hostId]: {
-            status: result?.ok === false ? "failed" : "connected",
-            message: result?.ok === false ? result.stderr || result.stdout || undefined : undefined,
-            updatedAt: Date.now(),
-          },
-        };
-        return result;
-      } catch (error) {
-        ctx.state.hostConnectionStatuses = {
-          ...ctx.state.hostConnectionStatuses,
-          [hostId]: {
-            status: "failed",
-            message: messageFromError(error, ctx.t("app.verifyFailed"), ctx.errorLabels),
-            updatedAt: Date.now(),
-          },
-        };
-        throw error;
-      }
     },
 
     async updateHost(hostId: number, input: Record<string, unknown>) {

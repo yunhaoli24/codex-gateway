@@ -1,46 +1,18 @@
 <script setup lang="ts">
-import { Loader2Icon, ServerIcon, Trash2Icon, WifiIcon } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { ServerIcon, Trash2Icon } from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  hostConnectionClass,
-  hostConnectionIsBusy,
-  hostConnectionLabelKey,
-} from "@/components/sidebar/sidebar-utils";
+import { hostConnectionClass, hostConnectionLabelKey } from "@/components/sidebar/sidebar-utils";
 import { useGatewayStore } from "@/stores/gateway";
-import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const { hosts, hostConnectionStatuses, selectedHostId } = storeToRefs(store);
 const { t } = useI18n();
-const errorLabels = computed(() => errorMessageLabels(t));
-const verifyingHostId = ref<number | null>(null);
-const verifyResults = ref<Record<number, { ok?: boolean; message: string }>>({});
 
 async function selectHost(hostId: number) {
   await store.selectHost(hostId);
-}
-
-async function verifyHost(hostId: number) {
-  verifyingHostId.value = hostId;
-  try {
-    const result = (await store.verifyHost(hostId)) as any;
-    verifyResults.value[hostId] = {
-      ok: Boolean(result.ok),
-      message:
-        result.stdout || result.stderr || (result.ok ? t("app.connected") : t("app.verifyFailed")),
-    };
-  } catch (error: any) {
-    verifyResults.value[hostId] = {
-      ok: false,
-      message: messageFromError(error, t("app.verifyFailed"), errorLabels.value),
-    };
-  } finally {
-    verifyingHostId.value = null;
-  }
 }
 
 async function deleteHost(hostId: number) {
@@ -60,14 +32,14 @@ function hostConnectionLabel(hostId: number) {
 }
 
 function hostStatusMessage(hostId: number) {
-  return hostConnectionLabel(hostId) || verifyResults.value[hostId]?.message || "";
+  return hostConnectionLabel(hostId);
 }
 
 function hostStatusClass(hostId: number) {
   if (hostConnectionLabel(hostId)) {
     return hostConnectionClass(hostConnectionStatus(hostId).status);
   }
-  return verifyResults.value[hostId]?.ok ? "text-accent-green" : "text-destructive";
+  return "text-destructive";
 }
 </script>
 
@@ -99,27 +71,6 @@ function hostStatusClass(hostId: number) {
                   {{ host.sshHost }}
                 </span>
               </span>
-            </Button>
-            <Button
-              :data-testid="`verify-host-button-${host.id}`"
-              variant="ghost"
-              size="sm"
-              class="size-8 p-0"
-              :aria-label="t('app.verifyHost')"
-              :disabled="
-                verifyingHostId === host.id ||
-                hostConnectionIsBusy(hostConnectionStatus(host.id).status)
-              "
-              @click="verifyHost(host.id)"
-            >
-              <Loader2Icon
-                v-if="
-                  verifyingHostId === host.id ||
-                  hostConnectionIsBusy(hostConnectionStatus(host.id).status)
-                "
-                class="size-4 animate-spin"
-              />
-              <WifiIcon v-else class="size-4" />
             </Button>
             <Button
               variant="ghost"

@@ -69,9 +69,9 @@ export class CodexRpcClient extends EventEmitter {
       return;
     }
 
-    if (!this.options.skipVersionCheck) {
-      await codexRuntime.ensureCodexVersion(this.host);
-    }
+    const versionState = this.options.skipVersionCheck
+      ? null
+      : await codexRuntime.ensureCodexVersion(this.host);
 
     await this.connectRemoteProxyWebSocket();
 
@@ -95,7 +95,15 @@ export class CodexRpcClient extends EventEmitter {
     hostLifecycleBus.emit({
       hostId: this.host.id,
       status: "connected",
-      message: `${this.host.name || this.host.sshHost} 已连接`,
+      message: [
+        versionState?.upgraded
+          ? `Upgraded Codex ${versionState.beforeVersion} -> ${versionState.version}`
+          : null,
+        versionState ? `codex-cli ${versionState.version}` : null,
+        "app-server RPC OK",
+      ]
+        .filter(Boolean)
+        .join("\n"),
     });
   }
 

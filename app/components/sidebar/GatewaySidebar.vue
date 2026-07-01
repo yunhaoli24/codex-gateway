@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { SettingsIcon } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,7 +13,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import SettingsPanel from "@/components/settings/SettingsPanel.vue";
 import { useLongPressContextMenu } from "@/composables/useLongPressContextMenu";
 import { useGatewayStore } from "@/stores/gateway";
-import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
 import AddProjectDialog from "./AddProjectDialog.vue";
 import HostTree from "./HostTree.vue";
 import PinnedThreadList from "./PinnedThreadList.vue";
@@ -22,12 +21,8 @@ import { useThreadRename } from "./useThreadRename";
 
 const store = useGatewayStore();
 const { t } = useI18n();
-const errorLabels = computed(() => errorMessageLabels(t));
 const showSettings = ref(false);
 const projectEditor = ref<{ host: any; project: any | null } | null>(null);
-const verifyingHostId = ref<number | null>(null);
-const verifyResults = ref<Record<number, { ok?: boolean; message: string }>>({});
-const verifyResultTimers = new Map<number, ReturnType<typeof window.setTimeout>>();
 const { longPressTriggered, longPressContextMenuHandlers } = useLongPressContextMenu();
 const sidebarTree = useSidebarTree(store, longPressTriggered);
 const threadRename = useThreadRename(store);
@@ -35,29 +30,6 @@ const threadRename = useThreadRename(store);
 defineOptions({
   inheritAttrs: false,
 });
-
-async function verifyHost(hostId: number) {
-  verifyingHostId.value = hostId;
-  try {
-    const result = (await store.verifyHost(hostId)) as any;
-    verifyResults.value[hostId] = {
-      ok: Boolean(result.ok),
-      message:
-        result.stdout || result.stderr || (result.ok ? t("app.connected") : t("app.verifyFailed")),
-    };
-    if (result.ok !== false) {
-      clearVerifyResultLater(hostId);
-    }
-  } catch (error: any) {
-    clearVerifyResultTimer(hostId);
-    verifyResults.value[hostId] = {
-      ok: false,
-      message: messageFromError(error, t("app.verifyFailed"), errorLabels.value),
-    };
-  } finally {
-    verifyingHostId.value = null;
-  }
-}
 
 function openAddProject(host: any) {
   projectEditor.value = { host, project: null };
@@ -69,26 +41,6 @@ function openEditProject(project: any) {
     return;
   }
   projectEditor.value = { host, project };
-}
-
-function clearVerifyResultLater(hostId: number) {
-  clearVerifyResultTimer(hostId);
-  verifyResultTimers.set(
-    hostId,
-    window.setTimeout(() => {
-      const { [hostId]: _removed, ...rest } = verifyResults.value;
-      verifyResults.value = rest;
-      verifyResultTimers.delete(hostId);
-    }, 4000),
-  );
-}
-
-function clearVerifyResultTimer(hostId: number) {
-  const timer = verifyResultTimers.get(hostId);
-  if (timer) {
-    window.clearTimeout(timer);
-    verifyResultTimers.delete(hostId);
-  }
 }
 </script>
 
@@ -125,8 +77,6 @@ function clearVerifyResultTimer(hostId: number) {
           :selected-host-id="sidebarTree.selectedHostId.value"
           :selected-project-id="sidebarTree.selectedProjectId.value"
           :selected-thread-id="sidebarTree.selectedThreadId.value"
-          :verifying-host-id="verifyingHostId"
-          :verify-results="verifyResults"
           :host-connection-statuses="sidebarTree.hostConnectionStatuses.value"
           :renaming-thread-id="threadRename.renamingThreadId.value"
           :rename-value="threadRename.renameValue.value"
@@ -134,7 +84,6 @@ function clearVerifyResultTimer(hostId: number) {
           :thread-runtime-status="sidebarTree.threadRuntimeStatus"
           @select-host="sidebarTree.selectHost"
           @add-project="openAddProject"
-          @verify-host="verifyHost"
           @delete-host="store.deleteHost"
           @select-project="sidebarTree.selectProject"
           @edit-project="openEditProject"

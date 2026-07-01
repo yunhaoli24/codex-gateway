@@ -1,6 +1,7 @@
 import { createReadStream, readFileSync } from "node:fs";
+import { connect as connectTcp } from "node:net";
 import { Client, type ClientChannel } from "ssh2";
-import type { CommandResult, HostWithSecret } from "./ssh-types";
+import type { CommandResult, HostWithSecret, ReverseTcpForwardOptions } from "./ssh-types";
 import { createProxySocket, expandHome, resolveSshConfig, sshConnectionKey } from "./ssh-config";
 
 export class SshConnectionPool {
@@ -135,6 +136,43 @@ export class SshConnectionPool {
     return remotePath;
   }
 
+  async withReverseTcpForward<T>(
+    host: HostWithSecret,
+    options: ReverseTcpForwardOptions,
+    callback: (remotePort: number) => Promise<T>,
+  ) {
+    const client = await this.connect(host);
+    const remotePort = await this.forwardIn(client, options.remoteHost, options.remotePort);
+    const listener = (
+      details: {
+        destIP: string;
+        destPort: number;
+      },
+      accept: () => ClientChannel,
+      reject: () => void,
+    ) => {
+      if (details.destPort !== remotePort) {
+        reject();
+        return;
+      }
+      const channel = accept();
+      const upstream = connectTcp(options.targetPort, options.targetHost);
+      channel.pipe(upstream);
+      upstream.pipe(channel);
+      upstream.on("error", () => channel.close());
+      channel.on("error", () => upstream.destroy());
+      channel.on("close", () => upstream.destroy());
+    };
+
+    client.on("tcp connection", listener);
+    try {
+      return await callback(remotePort);
+    } finally {
+      client.off("tcp connection", listener);
+      await this.unforwardIn(client, options.remoteHost, remotePort);
+    }
+  }
+
   syncHosts(hosts: HostWithSecret[]) {
     const activeKeys = new Set<string>();
     this.hostKeys.clear();
@@ -169,6 +207,24 @@ export class SshConnectionPool {
     const client = this.clients.get(key);
     this.clients.delete(key);
     void client?.then((connection) => connection.end()).catch(() => {});
+  }
+
+  private async forwardIn(client: Client, remoteHost: string, remotePort: number) {
+    return await new Promise<number>((resolve, reject) => {
+      client.forwardIn(remoteHost, remotePort, (error, assignedPort) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(assignedPort || remotePort);
+      });
+    });
+  }
+
+  private async unforwardIn(client: Client, remoteHost: string, remotePort: number) {
+    await new Promise<void>((resolve) => {
+      client.unforwardIn(remoteHost, remotePort, () => resolve());
+    });
   }
 }
 

@@ -1,19 +1,21 @@
 export function codexRemotePayload(command: string) {
   return [
     "printf '%b' '\\254\\341\\117\\004\\120\\367\\316\\361' >/dev/null;",
-    codexPathBootstrap(),
+    codexPathBootstrap({ requireCodex: true }),
     command,
   ].join(" ");
 }
 
-function codexPathBootstrap() {
+function codexPathBootstrap(options: { requireCodex: boolean }) {
   return [
     'for dir in "${CODEX_INSTALL_DIR:-$HOME/.local/bin}" "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.bun/bin" "$HOME/.nvm/current/bin" "$HOME/.nvm/versions/node"/*/bin /usr/local/bin /usr/bin /opt/homebrew/bin /opt/node/bin; do if [ -d "$dir" ]; then PATH="$dir:$PATH"; fi; done; export PATH;',
     'CODEX_BIN="$(command -v codex 2>/dev/null || true)";',
     'if [ -z "$CODEX_BIN" ] && [ -x "${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex" ]; then CODEX_BIN="${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex"; fi;',
     'if [ -z "$CODEX_BIN" ] && command -v npm >/dev/null 2>&1; then NPM_PREFIX="$(npm prefix -g 2>/dev/null || true)"; if [ -n "$NPM_PREFIX" ] && [ -x "$NPM_PREFIX/bin/codex" ]; then CODEX_BIN="$NPM_PREFIX/bin/codex"; fi; fi;',
     'if [ -z "$CODEX_BIN" ] && command -v npm >/dev/null 2>&1; then NPM_ROOT="$(npm root -g 2>/dev/null || true)"; if [ -n "$NPM_ROOT" ] && [ -x "$NPM_ROOT/.bin/codex" ]; then CODEX_BIN="$NPM_ROOT/.bin/codex"; fi; fi;',
-    'if [ -z "$CODEX_BIN" ]; then echo "codex executable not found. Install @openai/codex or set CODEX_INSTALL_DIR to the directory containing codex." >&2; exit 127; fi;',
+    options.requireCodex
+      ? 'if [ -z "$CODEX_BIN" ]; then echo "codex executable not found. Install @openai/codex or set CODEX_INSTALL_DIR to the directory containing codex." >&2; exit 127; fi;'
+      : "",
     "export CODEX_BIN;",
   ].join(" ");
 }
@@ -70,10 +72,14 @@ export function codexRemoteVersionPayload() {
   return codexRemotePayload('"$CODEX_BIN" --version');
 }
 
-export function codexRemoteUpgradeAndRestartPayload(version: string) {
-  return codexRemotePayload(`
+export function codexRemoteUpgradeAndRestartPayload(version: string, proxyUrl?: string | null) {
+  return [
+    "printf '%b' '\\254\\341\\117\\004\\120\\367\\316\\361' >/dev/null;",
+    codexPathBootstrap({ requireCodex: false }),
+    `
 set -eu
-npm install -g @openai/codex@${shellQuote(version)}
+${npmProxyEnvSnippet(proxyUrl)}
+npm install -g --include=optional @openai/codex@${shellQuote(version)}
 codex_home="\${CODEX_HOME:-$HOME/.codex}"
 managed_codex="$codex_home/packages/standalone/current/codex"
 mkdir -p "$(dirname "$managed_codex")"
@@ -105,7 +111,8 @@ if [ -z "$CODEX_BIN" ]; then
 fi
 ln -sf "$CODEX_BIN" "$managed_codex"
 "$CODEX_BIN" --version
-`);
+`,
+  ].join(" ");
 }
 
 export function codexRemoteTerminateUnmanagedAppServerPayload() {
@@ -249,5 +256,22 @@ codex_gateway_socket_has_listener() {
   fi
   return 0
 }
+`;
+}
+
+function npmProxyEnvSnippet(proxyUrl?: string | null) {
+  if (!proxyUrl) {
+    return "";
+  }
+  const quoted = shellQuote(proxyUrl);
+  return `
+export HTTP_PROXY=${quoted}
+export HTTPS_PROXY=${quoted}
+export ALL_PROXY=${quoted}
+export http_proxy=${quoted}
+export https_proxy=${quoted}
+export all_proxy=${quoted}
+export npm_config_proxy=${quoted}
+export npm_config_https_proxy=${quoted}
 `;
 }

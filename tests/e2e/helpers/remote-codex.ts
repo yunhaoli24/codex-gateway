@@ -105,40 +105,20 @@ export async function addRemoteHost(
   await hostForm.getByTestId("add-host-button").click();
   const host = (await (await hostResponsePromise).json()) as UiHost;
   await closeSettings(page);
-  const verifyResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().endsWith(`/api/hosts/${host.id}/verify`) &&
-      response.request().method() === "POST",
-  );
-  await page.getByTestId(`verify-host-button-${host.id}`).click();
-  const verifyResponse = await verifyResponsePromise;
-  const verifyResult = (await verifyResponse.json()) as {
-    ok?: boolean;
-    stdout?: string;
-    statusMessage?: string;
-    message?: string;
-    codexVersion?: string;
-    supportedCodexVersion?: string;
-    upgraded?: boolean;
-  };
-  expect(
-    verifyResult.ok,
-    `verify host failed: HTTP ${verifyResponse.status()} ${JSON.stringify(verifyResult)}`,
-  ).toBe(true);
-  await expect(page.getByText(/codex-cli|app-server RPC OK/)).toBeVisible({ timeout: 60_000 });
+  await expect(hostConnectedIndicator(page, host.id)).toBeVisible({ timeout: 120_000 });
   if (
     remote.initialCodexVersion &&
     remote.supportedCodexVersion &&
     remote.initialCodexVersion !== remote.supportedCodexVersion
   ) {
-    expect(verifyResult.codexVersion).toBe(remote.supportedCodexVersion);
-    await expect(
-      page.getByText(new RegExp(`codex-cli ${escapeRegExp(remote.supportedCodexVersion)}`)),
-    ).toBeVisible({ timeout: 120_000 });
     const upgradedVersionResponse = await runRemoteCodexVersion(remote);
     expect(upgradedVersionResponse).toContain(remote.supportedCodexVersion);
   }
   return host;
+}
+
+function hostConnectedIndicator(page: Page, hostId: number) {
+  return page.getByTestId(`host-button-${hostId}`).getByLabel(/已连接|Connected/);
 }
 
 export async function addRemoteProject(
@@ -298,10 +278,6 @@ async function closeSettings(page: Page) {
   }
   await page.getByTestId("settings-close-button").last().click();
   await expect(panel).toBeHidden();
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function shellQuote(value: string) {

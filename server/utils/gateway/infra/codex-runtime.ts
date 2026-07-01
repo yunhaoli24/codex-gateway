@@ -9,6 +9,7 @@ import {
 } from "./remote-command";
 import { isCodexVersionAtLeast, parseCodexVersion, SUPPORTED_CODEX_VERSION } from "./codex-version";
 import { hostLifecycleBus } from "../state/host-events";
+import { LocalHttpConnectProxy } from "./http-connect-proxy";
 import type { SshConnectionPool } from "./ssh-connection";
 
 export class CodexRuntimeService {
@@ -40,18 +41,24 @@ export class CodexRuntimeService {
         { limit: 1, useStateDbOnly: true },
         30_000,
       );
+      const stdout = [
+        versionState.upgraded
+          ? `Upgraded Codex ${versionState.beforeVersion} -> ${versionState.version}`
+          : null,
+        probe.stdout.trim(),
+        "app-server RPC OK",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      hostLifecycleBus.emit({
+        hostId: host.id,
+        status: "connected",
+        message: stdout,
+      });
       return {
         ok: true,
         code: 0,
-        stdout: [
-          versionState.upgraded
-            ? `Upgraded Codex ${versionState.beforeVersion} -> ${versionState.version}`
-            : null,
-          probe.stdout.trim(),
-          "app-server RPC OK",
-        ]
-          .filter(Boolean)
-          .join("\n"),
+        stdout,
         stderr: probe.stderr.trim(),
         codexVersion: versionState.version,
         appServerVersion: versionState.appServerVersion,
@@ -85,7 +92,7 @@ export class CodexRuntimeService {
         message: `正在检查 ${hostDisplayName(host)} 的远端 Codex 版本`,
       });
       const supportedVersion = SUPPORTED_CODEX_VERSION;
-      const beforeVersion = await this.readCodexVersion(host);
+      const beforeVersion = await this.readCodexVersionOrRecoverableMissing(host);
       const runtimeState = await this.readAppServerRuntimeState(host);
       const appServerVersion = runtimeState.running
         ? await this.readRunningAppServerVersion(host)
@@ -187,10 +194,28 @@ export class CodexRuntimeService {
   }
 
   private async upgradeCodex(host: HostWithSecret, version: string) {
-    const result = await this.ssh.exec(
-      host,
-      remoteLoginShellCommand(codexRemoteUpgradeAndRestartPayload(version)),
-    );
+    const proxy = new LocalHttpConnectProxy();
+    const localProxyPort = await proxy.listen();
+    const result = await this.ssh
+      .withReverseTcpForward(
+        host,
+        {
+          remoteHost: "127.0.0.1",
+          remotePort: 0,
+          targetHost: "127.0.0.1",
+          targetPort: localProxyPort,
+        },
+        async (remoteProxyPort) =>
+          await this.ssh.exec(
+            host,
+            remoteLoginShellCommand(
+              codexRemoteUpgradeAndRestartPayload(version, `http://127.0.0.1:${remoteProxyPort}`),
+            ),
+          ),
+      )
+      .finally(async () => {
+        await proxy.close();
+      });
     if (result.code !== 0) {
       throw new Error(result.stderr || result.stdout || "Failed to upgrade remote Codex");
     }
@@ -199,6 +224,22 @@ export class CodexRuntimeService {
       throw new Error(`Unable to parse upgraded remote Codex version: ${result.stdout.trim()}`);
     }
     return parsed.version;
+  }
+
+  private async readCodexVersionOrRecoverableMissing(host: HostWithSecret) {
+    try {
+      return await this.readCodexVersion(host);
+    } catch (error) {
+      if (!isRecoverableCodexInstallError(error)) {
+        throw error;
+      }
+      hostLifecycleBus.emit({
+        hostId: host.id,
+        status: "upgrading",
+        message: `${hostDisplayName(host)} 的远端 Codex 安装缺失或损坏，正在重新安装 ${SUPPORTED_CODEX_VERSION}`,
+      });
+      return "0.0.0";
+    }
   }
 
   private async ensureAppServerStoppedAfterUpgrade(host: HostWithSecret) {
@@ -329,4 +370,11 @@ function hostDisplayName(host: HostWithSecret) {
 
 function messageFromError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isRecoverableCodexInstallError(error: unknown) {
+  const message = messageFromError(error);
+  return /codex executable not found|Missing optional dependency @openai\/codex-|Cannot find module .*@openai\/codex-|Failed to read remote Codex version/i.test(
+    message,
+  );
 }

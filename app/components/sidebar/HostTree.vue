@@ -4,11 +4,9 @@ import {
   ChevronRightIcon,
   FolderIcon,
   FolderOpenIcon,
-  Loader2Icon,
   PlusIcon,
   ServerIcon,
   Trash2Icon,
-  WifiIcon,
 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,8 +29,6 @@ const props = defineProps<{
   selectedHostId: number | null;
   selectedProjectId: number | null;
   selectedThreadId: string | null;
-  verifyingHostId: number | null;
-  verifyResults: Record<number, { ok?: boolean; message: string }>;
   hostConnectionStatuses: Record<number, { status: string; message: string | null }>;
   renamingThreadId: string | null;
   renameValue: string;
@@ -43,7 +39,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectHost: [hostId: number];
   addProject: [host: any];
-  verifyHost: [hostId: number];
   deleteHost: [hostId: number];
   selectProject: [projectId: number, event: MouseEvent];
   editProject: [project: any];
@@ -99,10 +94,6 @@ function hostConnectionStatus(hostId: number) {
                 <FolderIcon class="mr-2 size-4" />
                 {{ $t("app.addProject") }}
               </ContextMenuItem>
-              <ContextMenuItem @select="emit('verifyHost', host.id)">
-                <WifiIcon class="mr-2 size-4" />
-                {{ $t("app.verifyHost") }}
-              </ContextMenuItem>
               <ContextMenuItem
                 class="text-destructive focus:text-destructive"
                 @select="emit('deleteHost', host.id)"
@@ -113,18 +104,6 @@ function hostConnectionStatus(hostId: number) {
             </ContextMenuContent>
           </ContextMenu>
           <Button
-            :data-testid="`verify-host-button-${host.id}`"
-            variant="ghost"
-            size="sm"
-            class="size-8 shrink-0 p-0"
-            :aria-label="$t('app.verifyHost')"
-            :disabled="verifyingHostId === host.id"
-            @click="emit('verifyHost', host.id)"
-          >
-            <Loader2Icon v-if="verifyingHostId === host.id" class="size-4 animate-spin" />
-            <WifiIcon v-else class="size-4" />
-          </Button>
-          <Button
             variant="ghost"
             size="sm"
             class="size-8 shrink-0 p-0 text-destructive hover:text-destructive/80"
@@ -133,13 +112,6 @@ function hostConnectionStatus(hostId: number) {
           >
             <Trash2Icon class="size-4" />
           </Button>
-        </div>
-        <div
-          v-if="verifyResults[host.id]"
-          class="whitespace-pre-line px-3 pb-2 text-[0.6875rem]"
-          :class="verifyResults[host.id].ok ? 'text-accent-green' : 'text-destructive'"
-        >
-          {{ verifyResults[host.id].message }}
         </div>
 
         <div v-if="expandedHostIds.has(host.id)" class="mt-1 space-y-1 pl-5">
