@@ -2,6 +2,7 @@ import type { ComposerTurnOptions } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError, pinnedKey } from "../thread-utils/identity";
+import { runtimeStatusFromThreadState } from "../thread-utils/status";
 import { applyOpenedThreadResult, applyStartedThreadResult } from "../thread-open/hydration";
 import { requestOpenThread, requestStartThread } from "../thread-open/transport";
 import {
@@ -74,44 +75,47 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.connectEvents();
         ctx.requestScrollToLatest();
+        if (ctx.selectedThreadStatus === "running") {
+          await syncOpenThreadFromServer(ctx, {
+            hostId: targetHostId,
+            projectId: targetProjectId,
+            threadId,
+            viewEpoch: ctx.state.viewEpoch,
+            replaceRoute: context?.replaceRoute,
+            showLoading: false,
+          });
+        }
         return;
       }
       const viewEpoch = ctx.beginViewTransition();
       activatePendingThreadView(ctx, targetHostId, targetProjectId, threadId);
       if (ctx.restoreThreadSnapshot(targetHostId, threadId)) {
+        syncRestoredThreadStatus(ctx, targetHostId, threadId);
         await ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.connectEvents();
         ctx.requestScrollToLatest();
+        if (ctx.selectedThreadStatus === "running") {
+          await syncOpenThreadFromServer(ctx, {
+            hostId: targetHostId,
+            projectId: targetProjectId,
+            threadId,
+            viewEpoch,
+            replaceRoute: context?.replaceRoute,
+            showLoading: false,
+          });
+        }
         return;
       }
 
-      ctx.state.loading = true;
-      ctx.clearError();
-      try {
-        const result = await requestOpenThread({
-          hostId: targetHostId,
-          projectId: targetProjectId,
-          threadId,
-        });
-        if (!ctx.isCurrentViewTransition(viewEpoch)) {
-          return;
-        }
-        applyOpenedThreadResult(ctx, threadId, result);
-        ctx.cacheSelectedThreadSnapshot();
-        ctx.connectEvents();
-        await ctx.rememberOpenThread(threadId);
-        ctx.syncSelectedRoute({ replace: context?.replaceRoute });
-        ctx.requestScrollToLatest();
-      } catch (error: any) {
-        ctx.setError(messageFromError(error, ctx.t("app.openThreadFailed"), ctx.errorLabels), {
-          hostId: targetHostId,
-          projectId: targetProjectId,
-          threadId,
-        });
-      } finally {
-        ctx.state.loading = false;
-      }
+      await syncOpenThreadFromServer(ctx, {
+        hostId: targetHostId,
+        projectId: targetProjectId,
+        threadId,
+        viewEpoch,
+        replaceRoute: context?.replaceRoute,
+        showLoading: true,
+      });
     },
 
     async openThreadPreview(
@@ -269,4 +273,58 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       ctx.syncSelectedRoute();
     },
   };
+}
+
+function syncRestoredThreadStatus(ctx: GatewayStoreContext, hostId: number, threadId: string) {
+  const status = runtimeStatusFromThreadState(
+    ctx.state.currentThread,
+    ctx.state.history,
+    ctx.state.events,
+  );
+  if (status) {
+    ctx.setThreadStatus(hostId, threadId, status);
+  }
+}
+
+async function syncOpenThreadFromServer(
+  ctx: GatewayStoreContext,
+  input: {
+    hostId: number;
+    projectId: number | null;
+    threadId: string;
+    viewEpoch: number;
+    replaceRoute?: boolean;
+    showLoading: boolean;
+  },
+) {
+  if (input.showLoading) {
+    ctx.state.loading = true;
+  }
+  ctx.clearError();
+  try {
+    const result = await requestOpenThread({
+      hostId: input.hostId,
+      projectId: input.projectId,
+      threadId: input.threadId,
+    });
+    if (!ctx.isCurrentViewTransition(input.viewEpoch)) {
+      return;
+    }
+    applyOpenedThreadResult(ctx, input.threadId, result);
+    ctx.cacheSelectedThreadSnapshot();
+    ctx.connectEvents();
+    await ctx.rememberOpenThread(input.threadId);
+    ctx.syncSelectedRoute({ replace: input.replaceRoute });
+    ctx.requestScrollToLatest();
+  } catch (error: any) {
+    ctx.setError(messageFromError(error, ctx.t("app.openThreadFailed"), ctx.errorLabels), {
+      hostId: input.hostId,
+      projectId: input.projectId,
+      threadId: input.threadId,
+    });
+  } finally {
+    if (input.showLoading) {
+      ctx.state.loading = false;
+    }
+  }
 }
