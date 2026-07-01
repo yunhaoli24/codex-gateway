@@ -37,6 +37,8 @@ export function setThreadStatus(
     runningKeys.add(key);
   } else {
     runningKeys.delete(key);
+    const { [key]: _completedTurnId, ...activeTurnIds } = ctx.state.activeTurnIdsByThreadKey;
+    ctx.state.activeTurnIdsByThreadKey = activeTurnIds;
   }
   ctx.state.runningThreadKeys = [...runningKeys];
   if (status === "running") {

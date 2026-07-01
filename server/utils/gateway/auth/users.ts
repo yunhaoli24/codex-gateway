@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { GatewayConfig } from "~~/shared/types";
 import { defaultGatewayConfig } from "../../../../shared/config";
-import { gatewayDatabase } from "../storage/database";
+import { gatewayDatabase, gatewayDatabaseExists } from "../storage/database";
 import {
   decryptJson,
   encryptJson,
@@ -134,6 +134,33 @@ export const userStore = {
         `,
       )
       .run(userId, encrypted, config.version || 1, now);
+  },
+
+  listStoredConfigs(): Array<{ user: AuthenticatedUser; config: GatewayConfig }> {
+    if (!gatewayDatabaseExists()) {
+      return [];
+    }
+    const rows = gatewayDatabase()
+      .prepare(
+        `
+          SELECT users.id, users.username, user_configs.encrypted_config_json
+          FROM users
+          JOIN user_configs ON user_configs.user_id = users.id
+          WHERE users.is_active = 1
+          ORDER BY users.id ASC
+        `,
+      )
+      .all();
+    return rows.map((row: any) => ({
+      user: {
+        id: Number(row.id),
+        username: String(row.username),
+      },
+      config: {
+        ...defaultGatewayConfig(),
+        ...decryptJson<GatewayConfig>(String(row.encrypted_config_json)),
+      },
+    }));
   },
 };
 

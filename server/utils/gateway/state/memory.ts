@@ -22,12 +22,20 @@ export interface ThreadMetadataRecord {
   updatedAt: number;
 }
 
+export interface ThreadSnapshotRecord {
+  hostId: number;
+  threadId: string;
+  snapshot: unknown;
+  updatedAt: string;
+}
+
 export interface GatewayMemoryState {
   hosts: StoredHostRecord[];
   projects: ProjectRecord[];
   pinnedThreads: PinnedThreadRecord[];
   lastOpenThread: GatewayConfig["lastOpenThread"];
   threadMetadata: ThreadMetadataRecord[];
+  threadSnapshots: ThreadSnapshotRecord[];
   events: GatewayEvent[];
   nextEventId: number;
   configLoaded: boolean;
@@ -40,6 +48,7 @@ function createGatewayMemoryState(): GatewayMemoryState {
     pinnedThreads: [],
     lastOpenThread: null,
     threadMetadata: [],
+    threadSnapshots: [],
     events: [],
     nextEventId: 1,
     configLoaded: false,
@@ -122,6 +131,7 @@ export const initialGatewayMemoryState: GatewayMemoryState = {
   pinnedThreads: [],
   lastOpenThread: null,
   threadMetadata: [],
+  threadSnapshots: [],
   events: [],
   nextEventId: 1,
   configLoaded: false,

@@ -68,6 +68,8 @@ export interface GatewayEvent {
   createdAt: string;
 }
 
+export type ThreadRuntimeStatus = "idle" | "running" | "completed" | "failed" | "interrupted";
+
 export type RealtimeClientMessage =
   | {
       type: "auth.authenticate";
@@ -105,6 +107,13 @@ export type RealtimeClientMessage =
       }>;
     }
   | {
+      type: "turn.interrupt";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      turnId: string;
+    }
+  | {
       type: "ping";
       nonce?: string;
     };
@@ -134,16 +143,17 @@ export type RealtimeServerMessage =
       event: GatewayEvent;
     }
   | {
-      type: "thread.closed";
-      hostId: number;
-      threadId: string;
-    }
-  | {
       type: "turn.steer.accepted";
       requestId: string;
       hostId: number;
       threadId: string;
       turnId?: string;
+    }
+  | {
+      type: "turn.interrupt.accepted";
+      requestId: string;
+      hostId: number;
+      threadId: string;
     }
   | {
       type: "error";
@@ -159,6 +169,7 @@ export type RealtimeServerMessage =
 export interface ThreadOpenResult {
   thread: unknown;
   history: unknown;
+  runtimeStatus?: ThreadRuntimeStatus | null;
   threadSettings?: ThreadSettingsState | null;
   tokenUsage?: ThreadTokenUsageState | null;
   projectId?: number | null;
@@ -265,8 +276,6 @@ export interface GatewayStatus {
   activeControllers: Array<{
     hostId: number;
     threadId: string;
-    subscribers: number;
-    eventBufferSize: number;
   }>;
 }
 

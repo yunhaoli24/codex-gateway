@@ -22,7 +22,10 @@ export function applyOpenedThreadResult(
   for (const event of result.recentEvents) {
     ctx.applyLiveEvent(event, { notifyTerminal: false });
   }
-  syncRuntimeStatusFromThread(ctx, result.thread, result.history);
+  syncRuntimeStatusFromResult(ctx, threadId, result, {
+    thread: ctx.state.currentThread,
+    history: ctx.state.history,
+  });
   ctx.upsertPinnedMetadataFromThread(result.thread as any);
 }
 
@@ -54,16 +57,25 @@ function applyCommonThreadResult(
   } else {
     syncTokenUsageFromRecentEvents(ctx, result.recentEvents);
   }
-  syncRuntimeStatusFromThread(ctx, result.thread, result.history);
+  syncRuntimeStatusFromResult(ctx, threadId, result);
 }
 
-function syncRuntimeStatusFromThread(ctx: GatewayStoreContext, thread: unknown, history: unknown) {
+function syncRuntimeStatusFromResult(
+  ctx: GatewayStoreContext,
+  threadId: string,
+  result: ThreadOpenResult,
+  fallbackState: { thread: unknown; history: unknown } = {
+    thread: result.thread,
+    history: result.history,
+  },
+) {
   const hostId = ctx.state.selectedHostId;
-  const threadId = ctx.state.selectedThreadId;
   if (!hostId || !threadId) {
     return;
   }
-  const status = runtimeStatusFromThreadState(thread, history);
+  const status =
+    result.runtimeStatus ??
+    runtimeStatusFromThreadState(fallbackState.thread, fallbackState.history);
   if (status) {
     ctx.setThreadStatus(hostId, threadId, status, { notifyTerminal: false });
   }

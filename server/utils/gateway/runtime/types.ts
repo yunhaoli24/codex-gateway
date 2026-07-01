@@ -1,15 +1,11 @@
 import type {
   ApprovalPolicy,
-  GatewayEvent,
   HostRecord,
   ReasoningEffort,
   ThreadSettingsState,
   ThreadTokenUsageState,
 } from "~~/shared/types";
 import { OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
-
-export type Subscriber = (event: GatewayEvent) => void;
-export type CloseSubscriber = () => void;
 
 export const DEFAULT_TURN_PAGE_LIMIT = OLDER_TURN_PAGE_LIMIT;
 

@@ -59,26 +59,3 @@ export function closeThreadEvents(ctx: GatewayStoreContext, hostId: number, thre
   ctx.state.realtimeThreadSubscriptions = subscriptions;
   ctx.sendRealtime({ type: "thread.unsubscribe", hostId, threadId });
 }
-
-export function retryThreadSubscription(
-  ctx: GatewayStoreContext,
-  hostId: number,
-  threadId: string,
-) {
-  if (!import.meta.client) {
-    return;
-  }
-  const key = pinnedKey(hostId, threadId);
-  window.setTimeout(() => {
-    const subscription = ctx.state.realtimeThreadSubscriptions[key];
-    if (!subscription) {
-      return;
-    }
-    ctx.sendRealtime({
-      type: "thread.subscribe",
-      hostId: subscription.hostId,
-      threadId: subscription.threadId,
-      afterId: subscription.afterId,
-    });
-  }, 1_000);
-}

@@ -1,20 +1,17 @@
-import type { GatewayEvent, HostRecord } from "~~/shared/types";
+import type { HostRecord } from "~~/shared/types";
+import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
 import { CodexRpcClient } from "../infra/rpc";
-import { gatewayEventStore } from "../state/gateway-events";
 import { bindGatewayUser } from "../state/memory";
-import type { CloseSubscriber, Subscriber, ThreadOpenSnapshot } from "./types";
-import { DEFAULT_TURN_PAGE_LIMIT } from "./types";
+import { threadSnapshotStore } from "../state/thread-snapshots";
+import { threadRuntimeEvents } from "./thread-runtime-events";
+import type { ThreadOpenSnapshot } from "./types";
 
 export class ThreadController {
   readonly client: CodexRpcClient;
-  readonly subscribers = new Set<Subscriber>();
-  readonly closeSubscribers = new Set<CloseSubscriber>();
-  readonly buffer: GatewayEvent[] = [];
   private operationQueue: Promise<unknown> = Promise.resolve();
   private connected = false;
   private subscribed = false;
   private closed = false;
-  private openSnapshot: ThreadOpenSnapshot | null = null;
 
   constructor(
     readonly host: HostRecord,
@@ -45,15 +42,7 @@ export class ThreadController {
   }
 
   publish(method: string, payload: any) {
-    const event = gatewayEventStore.add(this.host.id, this.threadId, method, payload);
-    this.buffer.push(event);
-    if (this.buffer.length > 200) {
-      this.buffer.shift();
-    }
-    for (const subscriber of this.subscribers) {
-      subscriber(event);
-    }
-    return event;
+    return threadRuntimeEvents.record(this.host.id, this.threadId, method, payload);
   }
 
   async ensureConnected() {
@@ -72,33 +61,19 @@ export class ThreadController {
 
   handleNotification(message: any) {
     const method = message.method || "notification";
-    const event = gatewayEventStore.add(this.host.id, this.threadId, method, message);
-    this.buffer.push(event);
-    if (this.buffer.length > 200) {
-      this.buffer.shift();
-    }
-    for (const subscriber of this.subscribers) {
-      subscriber(event);
-    }
+    threadRuntimeEvents.record(this.host.id, this.threadId, method, message);
   }
 
   handleStderr(text: string) {
-    const event = gatewayEventStore.add(this.host.id, this.threadId, "gateway/stderr", {
+    threadRuntimeEvents.record(this.host.id, this.threadId, "gateway/stderr", {
       method: "gateway/stderr",
       params: { text },
     });
-    for (const subscriber of this.subscribers) {
-      subscriber(event);
-    }
   }
 
   handleClose() {
     this.connected = false;
     this.subscribed = false;
-    for (const subscriber of this.closeSubscribers) {
-      subscriber();
-    }
-    this.closeSubscribers.clear();
   }
 
   async ensureSubscribed() {
@@ -123,7 +98,7 @@ export class ThreadController {
     return this.subscribed;
   }
 
-  async resumeWithInitialTurns(limit = DEFAULT_TURN_PAGE_LIMIT) {
+  async resumeWithInitialTurns(limit = INITIAL_TURN_PAGE_LIMIT) {
     await this.ensureConnected();
     const resume = await this.enqueue(() =>
       this.client.request<any>("thread/resume", {
@@ -141,35 +116,23 @@ export class ThreadController {
   }
 
   setOpenSnapshot(snapshot: ThreadOpenSnapshot) {
-    this.openSnapshot = snapshot;
+    threadSnapshotStore.set(this.host.id, this.threadId, snapshot);
   }
 
   getOpenSnapshot() {
-    return this.openSnapshot;
+    return threadSnapshotStore.get(this.host.id, this.threadId);
   }
 
   private isFreshUnmaterializedThread() {
-    const turns = (this.openSnapshot?.history as any)?.thread?.turns;
-    return Boolean(this.openSnapshot && Array.isArray(turns) && turns.length === 0);
+    const snapshot = this.getOpenSnapshot();
+    const turns = (snapshot?.history as any)?.thread?.turns;
+    return Boolean(snapshot && Array.isArray(turns) && turns.length === 0);
   }
 
   enqueue<T>(operation: () => Promise<T>) {
     const run = this.operationQueue.then(operation, operation);
     this.operationQueue = run.catch(() => {});
     return run;
-  }
-
-  subscribe(callback: Subscriber, onClose?: CloseSubscriber) {
-    this.subscribers.add(callback);
-    if (onClose) {
-      this.closeSubscribers.add(onClose);
-    }
-    return () => {
-      this.subscribers.delete(callback);
-      if (onClose) {
-        this.closeSubscribers.delete(onClose);
-      }
-    };
   }
 
   close() {
@@ -186,11 +149,6 @@ export class ThreadController {
     if (this.ownsClient) {
       this.client.close();
     }
-    for (const subscriber of this.closeSubscribers) {
-      subscriber();
-    }
-    this.subscribers.clear();
-    this.closeSubscribers.clear();
     this.onClose?.();
   }
 
@@ -201,11 +159,6 @@ export class ThreadController {
     this.closed = true;
     this.connected = false;
     this.subscribed = false;
-    for (const subscriber of this.closeSubscribers) {
-      subscriber();
-    }
-    this.subscribers.clear();
-    this.closeSubscribers.clear();
     this.onClose?.();
   }
 }

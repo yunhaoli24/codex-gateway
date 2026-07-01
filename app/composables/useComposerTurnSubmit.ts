@@ -22,6 +22,7 @@ export function useComposerTurnSubmit(input: {
 }) {
   const store = useGatewayStore();
   const planModeActive = ref(false);
+  const interruptingTurn = ref(false);
   const hasComposerInput = computed(() =>
     Boolean(input.turnText.value.trim() || input.attachedFiles.value.length),
   );
@@ -59,6 +60,18 @@ export function useComposerTurnSubmit(input: {
     );
   }
 
+  async function interruptTurn() {
+    if (interruptingTurn.value) {
+      return;
+    }
+    interruptingTurn.value = true;
+    try {
+      await store.interruptActiveTurn();
+    } finally {
+      interruptingTurn.value = false;
+    }
+  }
+
   function planCollaborationMode() {
     if (!planModeActive.value || !input.activeModel.value) {
       return undefined;
@@ -77,9 +90,11 @@ export function useComposerTurnSubmit(input: {
   return {
     planModeActive,
     hasComposerInput,
+    interruptingTurn,
     activatePlanMode,
     startNewThread,
     submitTurn,
+    interruptTurn,
   };
 }
 

@@ -244,6 +244,12 @@ export const turnSteerSchema = z.object({
     .default([]),
 });
 
+export const turnInterruptSchema = z.object({
+  hostId: z.coerce.number().int().positive(),
+  threadId: z.string().trim().min(1),
+  turnId: z.string().trim().min(1),
+});
+
 export const serverRequestResponseSchema = z
   .object({
     hostId: z.coerce.number().int().positive(),

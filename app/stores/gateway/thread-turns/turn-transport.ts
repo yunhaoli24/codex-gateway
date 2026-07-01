@@ -21,6 +21,12 @@ export interface TurnSteerRequestInput {
   options: ComposerTurnOptions;
 }
 
+export interface TurnInterruptRequestInput {
+  hostId: number;
+  threadId: string;
+  turnId: string;
+}
+
 export function requestTurnStart(input: TurnStartRequestInput) {
   return gatewayApi<any>("/api/turns/start", {
     method: "POST",
@@ -56,6 +62,16 @@ export function requestTurnSteer(ctx: GatewayStoreContext, input: TurnSteerReque
   );
 }
 
+export function requestTurnInterrupt(ctx: GatewayStoreContext, input: TurnInterruptRequestInput) {
+  return sendRealtimeRequest<{ type: "turn.interrupt.accepted" }>(ctx, (requestId) => ({
+    type: "turn.interrupt",
+    requestId,
+    hostId: input.hostId,
+    threadId: input.threadId,
+    turnId: input.turnId,
+  }));
+}
+
 export function startNewTurn(
   ctx: GatewayStoreContext,
   text: string,
@@ -86,5 +102,13 @@ export function steerActiveTurn(
     text,
     clientUserMessageId,
     options,
+  });
+}
+
+export function interruptActiveTurn(ctx: GatewayStoreContext, turnId: string) {
+  return requestTurnInterrupt(ctx, {
+    hostId: ctx.state.selectedHostId!,
+    threadId: ctx.state.selectedThreadId!,
+    turnId,
   });
 }

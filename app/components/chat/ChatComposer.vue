@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckIcon, Loader2Icon, PlusIcon, SendIcon } from "@lucide/vue";
+import { CheckIcon, Loader2Icon, PlusIcon, SendIcon, SquareIcon } from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
@@ -65,22 +65,35 @@ const selectedTurnOptions = () => {
       selectedApprovalMode.value === "custom" ? undefined : selectedApprovalMode.value,
   };
 };
-const { planModeActive, hasComposerInput, activatePlanMode, startNewThread, submitTurn } =
-  useComposerTurnSubmit({
-    turnText,
-    attachedFiles,
-    clearDraft,
-    selectedTurnOptions,
-    activeModel,
-    selectedEffort,
-    fileReferencesLabel: computed(() => t("app.attachedFileReferences")),
-  });
+const {
+  planModeActive,
+  hasComposerInput,
+  interruptingTurn,
+  activatePlanMode,
+  startNewThread,
+  submitTurn,
+  interruptTurn,
+} = useComposerTurnSubmit({
+  turnText,
+  attachedFiles,
+  clearDraft,
+  selectedTurnOptions,
+  activeModel,
+  selectedEffort,
+  fileReferencesLabel: computed(() => t("app.attachedFileReferences")),
+});
 const canSendTurn = computed(() =>
   Boolean(selectedThreadId.value && hasComposerInput.value && !uploadingAttachments.value),
 );
+const canInterruptTurn = computed(() =>
+  Boolean(selectedThreadId.value && isThreadRunning.value && !hasComposerInput.value),
+);
+const canUsePrimaryAction = computed(() =>
+  Boolean((canSendTurn.value || canInterruptTurn.value) && !uploadingAttachments.value),
+);
 const sendButtonLabel = computed(() => {
   if (hasComposerInput.value) return t("app.send");
-  if (isThreadRunning.value) return t("app.running");
+  if (isThreadRunning.value) return t("app.interruptTurn");
   if (selectedThreadStatus.value === "completed") return t("app.completed");
   if (selectedThreadStatus.value === "failed") return t("app.failed");
   if (selectedThreadStatus.value === "interrupted") return t("app.interrupted");
@@ -139,6 +152,14 @@ function handleComposerKeydown(event: KeyboardEvent) {
   }
   event.preventDefault();
   if (!selectedThreadId.value) {
+    return;
+  }
+  void submitTurn();
+}
+
+function handlePrimaryAction() {
+  if (canInterruptTurn.value) {
+    void interruptTurn();
     return;
   }
   void submitTurn();
@@ -218,12 +239,13 @@ function handleComposerKeydown(event: KeyboardEvent) {
               data-testid="send-turn-button"
               class="size-11 shrink-0 rounded-full bg-primary p-0 text-primary-foreground hover:bg-primary-active"
               :aria-label="sendButtonLabel"
-              :disabled="!canSendTurn"
-              @click="submitTurn"
+              :disabled="!canUsePrimaryAction || interruptingTurn"
+              @click="handlePrimaryAction"
             >
               <Loader2Icon v-if="uploadingAttachments" class="size-5 animate-spin" />
-              <Loader2Icon v-else-if="isThreadRunning" class="size-5 animate-spin" />
+              <Loader2Icon v-else-if="interruptingTurn" class="size-5 animate-spin" />
               <SendIcon v-else-if="hasComposerInput" class="size-5" />
+              <SquareIcon v-else-if="isThreadRunning" class="size-5 fill-current" />
               <CheckIcon v-else-if="selectedThreadStatus === 'completed'" class="size-5" />
               <SendIcon v-else class="size-5 opacity-60" />
             </Button>

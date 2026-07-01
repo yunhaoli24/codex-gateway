@@ -3,6 +3,7 @@ import { sshConnections } from "../../utils/gateway/infra/host-services";
 import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
 import { gatewayConfigSchema } from "../../utils/gateway/http/validation";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
+import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-supervisor";
 import { hostStore } from "../../utils/gateway/state/hosts";
 import { runtimeConfigStore } from "../../utils/gateway/state/runtime-config";
 
@@ -15,6 +16,7 @@ export default defineGatewayEventHandler(async (event) => {
     threadBroker.closeHost(host.id);
   }
   sshConnections.syncHosts(nextHosts);
+  hostRuntimeSupervisor.syncCurrentUserConfig();
   saveCurrentUserConfig(event);
   return runtimeConfigStore.export();
 });

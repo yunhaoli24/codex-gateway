@@ -3,6 +3,7 @@ import { sshConnections } from "../../utils/gateway/infra/host-services";
 import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
 import { hostUpdateSchema, requireRecord } from "../../utils/gateway/http/validation";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
+import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-supervisor";
 import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineGatewayEventHandler(async (event) => {
@@ -11,6 +12,7 @@ export default defineGatewayEventHandler(async (event) => {
   const host = requireRecord(hostStore.update(id, input), "Host not found");
   threadBroker.closeHost(id);
   sshConnections.syncHosts(hostStore.listWithSecret());
+  hostRuntimeSupervisor.syncCurrentUserConfig();
   saveCurrentUserConfig(event);
   return host;
 });

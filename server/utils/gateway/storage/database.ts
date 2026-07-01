@@ -3,10 +3,34 @@ import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 let database: DatabaseSync | null = null;
+let ready = false;
+const readyCallbacks = new Set<() => void>();
+
+function gatewayDatabasePath() {
+  return resolve(process.env.CODEX_GATEWAY_DB_PATH || "/data/codex-gateway.db");
+}
+
+export function gatewayDatabaseExists() {
+  return existsSync(gatewayDatabasePath());
+}
+
+export function gatewayDatabaseReady() {
+  return ready;
+}
+
+export function onGatewayDatabaseReady(callback: () => void) {
+  readyCallbacks.add(callback);
+  if (ready) {
+    callback();
+  }
+  return () => {
+    readyCallbacks.delete(callback);
+  };
+}
 
 export function gatewayDatabase() {
   if (!database) {
-    const path = resolve(process.env.CODEX_GATEWAY_DB_PATH || "/data/codex-gateway.db");
+    const path = gatewayDatabasePath();
     const directory = dirname(path);
     if (!existsSync(directory)) {
       mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -16,8 +40,19 @@ export function gatewayDatabase() {
     database.exec("PRAGMA foreign_keys = ON");
     database.exec("PRAGMA busy_timeout = 5000");
     migrate(database);
+    markGatewayDatabaseReady();
   }
   return database;
+}
+
+function markGatewayDatabaseReady() {
+  if (ready) {
+    return;
+  }
+  ready = true;
+  for (const callback of Array.from(readyCallbacks)) {
+    callback();
+  }
 }
 
 function migrate(db: DatabaseSync) {

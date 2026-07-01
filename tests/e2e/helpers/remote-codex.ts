@@ -164,6 +164,7 @@ export async function addRemoteProject(
 }
 
 export async function startRemoteThreadFromProjectMenu(page: Page, projectId: number) {
+  const remote = await readRemoteEnv();
   const startThreadResponsePromise = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/threads/start") && response.request().method() === "POST",
@@ -177,6 +178,17 @@ export async function startRemoteThreadFromProjectMenu(page: Page, projectId: nu
   await expect
     .poll(async () => (await currentRouteSelection(page)).threadId, { timeout: 10_000 })
     .toBe(threadId);
+  if (remote.testModel) {
+    await page.evaluate(async (model) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const pinia = app?.config?.globalProperties?.$pinia;
+      const store = pinia?._s?.get("gateway");
+      if (!store) {
+        throw new Error("Unable to locate gateway Pinia store");
+      }
+      await store.saveSelectedThreadSettings({ model });
+    }, remote.testModel);
+  }
   return threadId;
 }
 

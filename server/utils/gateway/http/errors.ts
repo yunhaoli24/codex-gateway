@@ -1,6 +1,7 @@
 import { defineEventHandler, getRequestURL, setResponseStatus, type H3Event } from "h3";
 import type { HostRecord } from "~~/shared/types";
 import { userStore } from "../auth/users";
+import { hostRuntimeSupervisor } from "../runtime/host-runtime-supervisor";
 import {
   buildGatewayMemoryState,
   currentGatewayMemoryState,
@@ -75,6 +76,7 @@ export function ensureUserConfigLoaded(userId: number) {
   const nextState = buildGatewayMemoryState(userStore.loadConfig(userId));
   nextState.configLoaded = true;
   replaceCurrentGatewayMemoryState(nextState);
+  hostRuntimeSupervisor.syncCurrentUserConfig();
 }
 
 export function saveCurrentUserConfig(event: H3Event) {

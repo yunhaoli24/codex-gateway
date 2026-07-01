@@ -18,7 +18,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
 }) => {
   const remote = await readRemoteEnv();
   const realtimeSockets = trackActiveRealtimeSockets(page);
-  await installRealtimeSocketCloser(page);
+  await installRealtimeSocketProbe(page);
 
   await openApp(page);
   await expect.poll(() => realtimeSockets.size, { timeout: 10_000 }).toBe(1);
@@ -31,13 +31,17 @@ test("fans out a real remote app-server thread to multiple browser clients acros
 
   const firstMarker = `E2E 第一轮 ${Date.now()}`;
   await sendTextTurn(page, firstMarker);
-  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "运行中");
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "停止生成");
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("运行中")).toBeVisible();
   await expect(
     page.getByTestId(`thread-button-${threadId}`).locator(".animate-spin"),
   ).toBeVisible();
   const steerMarker = `E2E steer ${Date.now()}`;
+  const steerMessageOffset = await realtimeClientMessageCount(page);
   await sendSteerText(page, steerMarker);
+  const steerMessage = await waitForRealtimeClientMessage(page, "turn.steer", steerMessageOffset);
+  expect(steerMessage.threadId).toBe(threadId);
+  expect(steerMessage.text).toContain(steerMarker);
   await expect(
     page
       .getByTestId("intermediate-steps")
@@ -47,7 +51,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   await expect(page.getByTestId("chat-scroll-area").getByText(firstMarker)).toBeVisible({
     timeout: 120_000,
   });
-  const processToggle = page.getByRole("button", { name: /中间过程/ });
+  const processToggle = firstIntermediateStepsToggle(page);
   if (
     (await processToggle.isVisible().catch(() => false)) &&
     (await processToggle.getAttribute("data-state")) !== "open"
@@ -59,20 +63,17 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     timeout: 120_000,
   });
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("已完成")).toBeVisible();
-  await expect(page.getByRole("button", { name: /中间过程/ })).toHaveAttribute(
-    "data-state",
-    "closed",
-  );
+  await expect(firstIntermediateStepsToggle(page)).toHaveAttribute("data-state", "closed");
   const reconnectedMarker = `E2E WS重连 ${Date.now()}`;
   await sendTextTurn(page, reconnectedMarker);
-  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "运行中");
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "停止生成");
   await closeRealtimeSockets(page);
   await expect.poll(() => realtimeSockets.size, { timeout: 30_000 }).toBe(1);
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
     timeout: 120_000,
   });
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("已完成")).toBeVisible();
-  await page.getByRole("button", { name: /中间过程/ }).click();
+  await firstIntermediateStepsToggle(page).click();
   await expect(
     page
       .getByTestId("intermediate-steps")
@@ -80,11 +81,8 @@ test("fans out a real remote app-server thread to multiple browser clients acros
       .getByText(steerMarker),
   ).toBeVisible();
   await reloadApp(page);
-  await expect(page.getByRole("button", { name: /中间过程/ })).toHaveAttribute(
-    "data-state",
-    "closed",
-  );
-  await page.getByRole("button", { name: /中间过程/ }).click();
+  await expect(firstIntermediateStepsToggle(page)).toHaveAttribute("data-state", "closed");
+  await firstIntermediateStepsToggle(page).click();
   await expect(
     page
       .getByTestId("intermediate-steps")
@@ -141,11 +139,48 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     await expect(
       page.getByTestId("chat-scroll-area").getByText(`回复：${secondMarker}`),
     ).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
+      timeout: 120_000,
+    });
     expect(realtimeSockets.size).toBe(1);
     expect(secondRealtimeSockets.size).toBe(1);
   } finally {
     await secondContext.close();
   }
+
+  const interruptMarker = `E2E interrupt ${Date.now()}`;
+  const turnStartResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/turns/start") && response.request().method() === "POST",
+  );
+  await page
+    .getByPlaceholder("输入后续修改要求")
+    .fill(
+      [
+        `请执行一个较长命令来等待中断：${interruptMarker}`,
+        "运行 python - <<'PY'",
+        "import time",
+        "time.sleep(30)",
+        "print('interrupt target finished')",
+        "PY",
+      ].join("\n"),
+    );
+  await page.getByTestId("send-turn-button").click();
+  const turnStartResponse = await turnStartResponsePromise;
+  expect(turnStartResponse.ok(), await turnStartResponse.text()).toBe(true);
+  const startedTurn = await turnStartResponse.json();
+  const activeTurnId = String(startedTurn?.turn?.id || "");
+  expect(activeTurnId).toBeTruthy();
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "停止生成");
+  const interruptMessageOffset = await realtimeClientMessageCount(page);
+  await page.getByTestId("send-turn-button").click();
+  const interruptMessage = await waitForRealtimeClientMessage(
+    page,
+    "turn.interrupt",
+    interruptMessageOffset,
+  );
+  expect(interruptMessage.threadId).toBe(threadId);
+  expect(interruptMessage.turnId).toBe(activeTurnId);
 });
 
 function trackActiveRealtimeSockets(page: Page) {
@@ -167,16 +202,21 @@ function isTokenlessRealtimeUrl(rawUrl: string) {
   return url.pathname === "/api/realtime" && url.search === "";
 }
 
+function firstIntermediateStepsToggle(page: Page) {
+  return page.getByRole("button", { name: /中间过程/ }).first();
+}
+
 async function closeRealtimeSockets(page: Page) {
   await page.evaluate(() => {
     (window as any).__closeGatewayRealtimeSockets?.();
   });
 }
 
-async function installRealtimeSocketCloser(page: Page) {
+async function installRealtimeSocketProbe(page: Page) {
   await page.addInitScript(() => {
     const OriginalWebSocket = window.WebSocket;
     const sockets = new Set<WebSocket>();
+    const messages: any[] = [];
     class TrackedWebSocket extends OriginalWebSocket {
       constructor(url: string | URL, protocols?: string | string[]) {
         super(url, protocols);
@@ -186,6 +226,20 @@ async function installRealtimeSocketCloser(page: Page) {
           this.addEventListener("close", () => sockets.delete(this));
         }
       }
+
+      send(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+        if (typeof data === "string") {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed && typeof parsed.type === "string") {
+              messages.push(parsed);
+            }
+          } catch {
+            // Non-JSON WebSocket frames are not gateway protocol messages.
+          }
+        }
+        return super.send(data);
+      }
     }
     window.WebSocket = TrackedWebSocket;
     (window as any).__closeGatewayRealtimeSockets = () => {
@@ -193,5 +247,28 @@ async function installRealtimeSocketCloser(page: Page) {
         socket.close();
       }
     };
+    (window as any).__gatewayRealtimeClientMessages = messages;
   });
+}
+
+async function realtimeClientMessageCount(page: Page) {
+  return page.evaluate(() => ((window as any).__gatewayRealtimeClientMessages ?? []).length);
+}
+
+async function waitForRealtimeClientMessage(page: Page, type: string, offset: number) {
+  await page.waitForFunction(
+    ({ expectedType, startIndex }) =>
+      ((window as any).__gatewayRealtimeClientMessages ?? [])
+        .slice(startIndex)
+        .some((message: any) => message.type === expectedType),
+    { expectedType: type, startIndex: offset },
+    { timeout: 30_000 },
+  );
+  return page.evaluate(
+    ({ expectedType, startIndex }) =>
+      ((window as any).__gatewayRealtimeClientMessages ?? [])
+        .slice(startIndex)
+        .find((message: any) => message.type === expectedType),
+    { expectedType: type, startIndex: offset },
+  );
 }

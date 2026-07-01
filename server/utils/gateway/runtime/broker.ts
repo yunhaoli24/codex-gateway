@@ -1,9 +1,10 @@
 import type { HostRecord, ThreadSettingsState } from "~~/shared/types";
+import { INITIAL_TURN_PAGE_LIMIT, SERVER_TURN_CACHE_LIMIT } from "~~/shared/config";
+import { runtimeStatusFromThreadState } from "~~/shared/thread-runtime-status";
 import { randomUUID } from "node:crypto";
 import type {
-  CloseSubscriber,
   ServerRequestResponseInput,
-  Subscriber,
+  ThreadOpenSnapshot,
   TurnsPage,
   TurnStartInput,
   TurnSteerInput,
@@ -19,6 +20,8 @@ import {
 import { gatewayEventStore } from "../state/gateway-events";
 import { projectStore } from "../state/projects";
 import { threadMetadataStore } from "../state/thread-metadata";
+import { threadSnapshotStore } from "../state/thread-snapshots";
+import { runtimeLog } from "./runtime-log";
 
 class ThreadBroker {
   private readonly registry = new ControllerRegistry();
@@ -27,25 +30,24 @@ class ThreadBroker {
     host: HostRecord,
     threadId: string,
     projectId: number | null,
-    limit = DEFAULT_TURN_PAGE_LIMIT,
+    limit = INITIAL_TURN_PAGE_LIMIT,
   ) {
-    const controller = await this.registry.getController(host, threadId);
-    const activeSnapshot = controller.getOpenSnapshot();
-    if (activeSnapshot && this.isFreshUnmaterializedSnapshot(activeSnapshot)) {
-      const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
-      const resolvedProjectId = activeSnapshot.projectId ?? projectId;
-      return {
-        thread: activeSnapshot.thread,
-        history: activeSnapshot.history,
-        projectId: resolvedProjectId,
-        project: resolvedProjectId ? projectStore.get(resolvedProjectId) : null,
-        turnsPage: activeSnapshot.turnsPage,
-        threadSettings: activeSnapshot.threadSettings,
-        tokenUsage: latestTokenUsageFromEvents(recentEvents) ?? activeSnapshot.tokenUsage,
-        recentEvents,
-      };
+    const cachedSnapshot = threadSnapshotStore.get(host.id, threadId);
+    if (cachedSnapshot) {
+      return this.openSnapshotResult(host, threadId, projectId, cachedSnapshot);
     }
 
+    const controller = await this.registry.getController(host, threadId);
+    const connectedSnapshot = controller.getOpenSnapshot();
+    if (connectedSnapshot) {
+      return this.openSnapshotResult(host, threadId, projectId, connectedSnapshot);
+    }
+
+    runtimeLog("thread cache miss", {
+      hostId: host.id,
+      threadId,
+      limit,
+    });
     const resume = await controller.resumeWithInitialTurns(limit);
     const thread = resume.thread ?? resume;
     const initialTurnsPage = resume.initialTurnsPage;
@@ -60,6 +62,7 @@ class ThreadBroker {
     const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
     const history = this.pageToFullHistory(thread, initialTurnsPage);
     const turnsPage = this.pageCursorState(initialTurnsPage);
+    const runtimeStatus = runtimeStatusFromThreadState(thread, history, recentEvents);
     controller.setOpenSnapshot({
       thread,
       history,
@@ -72,11 +75,38 @@ class ThreadBroker {
     return {
       thread,
       history,
+      runtimeStatus,
       projectId: resolvedProjectId,
       project: resolvedProjectId ? projectStore.get(resolvedProjectId) : null,
       turnsPage,
       threadSettings: extractThreadSettings(resume),
       tokenUsage: latestTokenUsageFromEvents(recentEvents),
+      recentEvents,
+    };
+  }
+
+  private openSnapshotResult(
+    host: HostRecord,
+    threadId: string,
+    projectId: number | null,
+    snapshot: ThreadOpenSnapshot,
+  ) {
+    const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
+    const resolvedProjectId = snapshot.projectId ?? projectId;
+    runtimeLog("thread cache hit", {
+      hostId: host.id,
+      threadId,
+      projectId: resolvedProjectId,
+    });
+    return {
+      thread: snapshot.thread,
+      history: snapshot.history,
+      runtimeStatus: runtimeStatusFromThreadState(snapshot.thread, snapshot.history, recentEvents),
+      projectId: resolvedProjectId,
+      project: resolvedProjectId ? projectStore.get(resolvedProjectId) : null,
+      turnsPage: snapshot.turnsPage,
+      threadSettings: snapshot.threadSettings,
+      tokenUsage: latestTokenUsageFromEvents(recentEvents) ?? snapshot.tokenUsage,
       recentEvents,
     };
   }
@@ -92,9 +122,7 @@ class ThreadBroker {
     threadMetadataStore.record(host.id, projectId, thread);
     const threadId = String(thread.id);
     const controller = await this.registry.attachStartedThread(host, threadId, client);
-    const recentEvents = gatewayEventStore
-      .list(host.id, threadId, 0, 200)
-      .concat(controller.buffer);
+    const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
     const history = { thread: { ...thread, turns: thread.turns ?? [] } };
     const turnsPage = {
       nextCursor: null,
@@ -113,6 +141,7 @@ class ThreadBroker {
     return {
       thread,
       history,
+      runtimeStatus: runtimeStatusFromThreadState(thread, history, recentEvents) ?? "running",
       threadSettings: extractThreadSettings(result),
       tokenUsage: latestTokenUsageFromEvents(recentEvents),
       turnsPage,
@@ -144,6 +173,18 @@ class ThreadBroker {
         expectedTurnId: input.expectedTurnId,
         clientUserMessageId,
         input: buildUserInput(input),
+      }),
+    );
+  }
+
+  async interruptTurn(host: HostRecord, threadId: string, turnId: string) {
+    const controller = await this.registry.getController(host, threadId);
+    await controller.ensureSubscribed();
+    await controller.ensureConnected();
+    return controller.enqueue(() =>
+      controller.client.request<Record<string, never>>("turn/interrupt", {
+        threadId,
+        turnId,
       }),
     );
   }
@@ -233,17 +274,11 @@ class ThreadBroker {
     return this.registry.controllersForHost(hostId);
   }
 
-  async subscribe(
-    host: HostRecord,
-    threadId: string,
-    callback: Subscriber,
-    onClose?: CloseSubscriber,
-  ) {
+  async ensureUpstreamSubscribed(host: HostRecord, threadId: string) {
     const controller = await this.registry.getController(host, threadId);
     if (!controller.isSubscribed()) {
       await controller.ensureSubscribed();
     }
-    return controller.subscribe(callback, onClose);
   }
 
   close(hostId: number, threadId: string) {
@@ -266,7 +301,7 @@ class ThreadBroker {
   }
 
   private pageToFullHistory(thread: any, page: TurnsPage) {
-    const turns = [...(page.data ?? [])].reverse();
+    const turns = [...(page.data ?? [])].reverse().slice(-SERVER_TURN_CACHE_LIMIT);
     return {
       thread: {
         ...thread,
@@ -280,11 +315,6 @@ class ThreadBroker {
       nextCursor: page.nextCursor ?? null,
       backwardsCursor: page.backwardsCursor ?? null,
     };
-  }
-
-  private isFreshUnmaterializedSnapshot(snapshot: { history?: any }) {
-    const turns = snapshot.history?.thread?.turns ?? snapshot.history?.turns;
-    return Array.isArray(turns) && turns.length === 0;
   }
 }
 

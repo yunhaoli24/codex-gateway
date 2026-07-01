@@ -7,6 +7,8 @@ import { gatewayEventStore } from "../state/gateway-events";
 import { hostLifecycleBus } from "../state/host-events";
 import { hostStore } from "../state/hosts";
 import { bindGatewayUser, runWithGatewayUser } from "../state/memory";
+import { threadRuntimeEvents } from "../runtime/thread-runtime-events";
+import { interruptTurnFromRealtime } from "./turn-interrupt";
 import { steerTurnFromRealtime } from "./turn-steer";
 
 export interface RealtimePeer {
@@ -42,6 +44,7 @@ const authenticatedHandlers = {
   "thread.subscribe": subscribeThread,
   "thread.unsubscribe": unsubscribeThread,
   "turn.steer": steerTurn,
+  "turn.interrupt": interruptTurn,
   ping: ping,
 } satisfies RealtimeMessageHandlerRegistry;
 
@@ -198,8 +201,8 @@ async function subscribeThread(
 
   let replaying = true;
   const liveQueue: GatewayEvent[] = [];
-  const unsubscribe = await threadBroker.subscribe(
-    host,
+  const unsubscribe = threadRuntimeEvents.subscribe(
+    hostId,
     threadId,
     bindGatewayUser((event) => {
       if (replaying) {
@@ -208,11 +211,19 @@ async function subscribeThread(
       }
       sendOnce(event);
     }),
-    bindGatewayUser(() => {
-      send(peer, { type: "thread.closed", hostId, threadId });
-    }),
   );
   state.threadUnsubscribers.set(key, unsubscribe);
+
+  void runPeerScoped(peer, () =>
+    threadBroker.ensureUpstreamSubscribed(host, threadId).catch((error: any) => {
+      threadRuntimeEvents.record(hostId, threadId, "gateway/error", {
+        method: "gateway/error",
+        params: {
+          message: error?.message || "Failed to subscribe thread upstream",
+        },
+      });
+    }),
+  );
 
   for (const event of gatewayEventStore.list(hostId, threadId, afterId, 200)) {
     sendOnce(event);
@@ -264,6 +275,19 @@ async function steerTurn(
     hostId: request.hostId,
     threadId: request.threadId,
     turnId: result?.turnId,
+  });
+}
+
+async function interruptTurn(
+  peer: RealtimePeer,
+  request: Extract<RealtimeClientMessage, { type: "turn.interrupt" }>,
+) {
+  await interruptTurnFromRealtime(request);
+  send(peer, {
+    type: "turn.interrupt.accepted",
+    requestId: request.requestId,
+    hostId: request.hostId,
+    threadId: request.threadId,
   });
 }
 

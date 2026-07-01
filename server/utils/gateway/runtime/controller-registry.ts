@@ -1,6 +1,7 @@
 import type { HostRecord } from "~~/shared/types";
 import { currentGatewayUserId } from "../state/memory";
 import { HostRpcSession } from "./host-rpc-session";
+import { hostSessionEvents } from "./host-session-events";
 import { ThreadController } from "./thread-controller";
 
 export class ControllerRegistry {
@@ -81,8 +82,6 @@ export class ControllerRegistry {
     return Array.from(this.controllers.values()).map((controller) => ({
       hostId: controller.host.id,
       threadId: controller.threadId,
-      subscribers: controller.subscribers.size,
-      eventBufferSize: controller.buffer.length,
     }));
   }
 
@@ -95,6 +94,7 @@ export class ControllerRegistry {
       controller.disposeAfterTransportClose();
       this.controllers.delete(this.key(hostId, controller.threadId));
     }
+    hostSessionEvents.emitClosed(hostId);
   }
 
   private key(hostId: number, threadId: string) {

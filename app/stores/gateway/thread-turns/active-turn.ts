@@ -4,9 +4,13 @@ export function activeRemoteTurnId(history: unknown) {
     const turn = turns[index];
     const status = typeof turn?.status === "string" ? turn.status : turn?.status?.type;
     const id = turn?.id ? String(turn.id) : "";
-    if (status === "inProgress" && id && !id.startsWith("client-")) {
+    if (isRunningTurnStatus(status) && id && !id.startsWith("client-")) {
       return id;
     }
   }
   return null;
+}
+
+function isRunningTurnStatus(status: unknown) {
+  return status === "inProgress" || status === "running" || status === "active";
 }

@@ -26,10 +26,10 @@ const realtimeServerMessageHandlers = {
   "thread.event": (ctx, message) => {
     handleRealtimeThreadEvent(ctx, message.event);
   },
-  "thread.closed": (ctx, message) => {
-    ctx.retryThreadSubscription(message.hostId, message.threadId);
-  },
   "turn.steer.accepted": (_ctx, message) => {
+    resolveRealtimeRequest(message);
+  },
+  "turn.interrupt.accepted": (_ctx, message) => {
     resolveRealtimeRequest(message);
   },
   error: (ctx, message) => {

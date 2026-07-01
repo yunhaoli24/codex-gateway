@@ -1,10 +1,10 @@
 import type { HostRecord } from "~~/shared/types";
 import { buildCurrentTimeReadResponse, isCurrentTimeReadRequest } from "~~/shared/server-requests";
 import { CodexRpcClient } from "../infra/rpc";
-import { gatewayEventStore } from "../state/gateway-events";
 import { bindGatewayUser } from "../state/memory";
 import type { HostControllerLookup, HostControllersLookup } from "./types";
 import { threadIdFromNotification } from "../protocol/thread-payload";
+import { threadRuntimeEvents } from "./thread-runtime-events";
 
 export class HostRpcSession {
   readonly client: CodexRpcClient;
@@ -66,7 +66,7 @@ export class HostRpcSession {
     if (controller) {
       controller.handleNotification(message);
     } else {
-      gatewayEventStore.add(this.host.id, threadId, message.method || "notification", message);
+      threadRuntimeEvents.record(this.host.id, threadId, message.method || "notification", message);
     }
   }
 
@@ -78,14 +78,14 @@ export class HostRpcSession {
 
     const threadId = threadIdFromNotification(message);
     if (!threadId) {
-      gatewayEventStore.add(this.host.id, "gateway", message.method || "request", message);
+      threadRuntimeEvents.record(this.host.id, "gateway", message.method || "request", message);
       return;
     }
     const controller = this.controllerForThread(this.host.id, threadId);
     if (controller) {
       controller.handleNotification(message);
     } else {
-      gatewayEventStore.add(this.host.id, threadId, message.method || "request", message);
+      threadRuntimeEvents.record(this.host.id, threadId, message.method || "request", message);
     }
   }
 

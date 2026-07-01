@@ -11,7 +11,6 @@ import {
   connectThreadEvents,
   closeThreadEvents,
   resubscribeRealtime,
-  retryThreadSubscription,
 } from "../realtime/subscriptions";
 import {
   connectRealtimeSocket,
@@ -47,10 +46,6 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
 
     handleRealtimeMessage(message: RealtimeServerMessage) {
       routeRealtimeMessage(ctx, message, lifecycleNotificationKeys);
-    },
-
-    retryThreadSubscription(hostId: number, threadId: string) {
-      retryThreadSubscription(ctx, hostId, threadId);
     },
 
     setThreadRunning(hostId: number, threadId: string, running: boolean) {

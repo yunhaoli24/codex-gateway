@@ -1,6 +1,6 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
 import type { GatewayStoreContext } from "../types";
-import { messageFromError } from "../thread-utils/identity";
+import { messageFromError, pinnedKey } from "../thread-utils/identity";
 import { activeRemoteTurnId } from "../thread-turns/active-turn";
 import {
   mergeStartedTurn,
@@ -19,7 +19,11 @@ import {
 } from "../thread-turns/retry";
 import { respondToServerRequest } from "../thread-turns/server-requests";
 import { createClientUserMessageId, optimisticUserContent } from "../thread-turns/turn-content";
-import { startNewTurn, steerActiveTurn } from "../thread-turns/turn-transport";
+import {
+  interruptActiveTurn as sendTurnInterrupt,
+  startNewTurn,
+  steerActiveTurn,
+} from "../thread-turns/turn-transport";
 
 export function createThreadTurnActions(ctx: GatewayStoreContext) {
   return {
@@ -140,6 +144,38 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
 
     async loadOlderTurns() {
       await loadOlderTurns(ctx);
+    },
+
+    async interruptActiveTurn() {
+      if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
+        return;
+      }
+      const hostId = ctx.state.selectedHostId;
+      const threadId = ctx.state.selectedThreadId;
+      const key = pinnedKey(hostId, threadId);
+      const turnId =
+        activeRemoteTurnId(ctx.state.history) ?? ctx.state.activeTurnIdsByThreadKey[key];
+      if (!turnId) {
+        ctx.setError(ctx.t("app.noActiveTurnToInterrupt"), {
+          hostId,
+          projectId: ctx.state.selectedProjectId,
+          threadId,
+        });
+        return;
+      }
+      ctx.state.loading = true;
+      ctx.clearError();
+      try {
+        await sendTurnInterrupt(ctx, turnId);
+      } catch (error: any) {
+        ctx.setError(messageFromError(error, ctx.t("app.interruptTurnFailed"), ctx.errorLabels), {
+          hostId,
+          projectId: ctx.state.selectedProjectId,
+          threadId,
+        });
+      } finally {
+        ctx.state.loading = false;
+      }
     },
 
     queuePendingSteer(

@@ -7,6 +7,7 @@ import type {
   PinnedThreadRecord,
   ProjectRecord,
   ComposerTurnOptions,
+  ThreadRuntimeStatus,
   ThreadSettingsState,
   ThreadTokenUsageState,
   UploadedFileRecord,
@@ -14,7 +15,7 @@ import type {
 import type { GatewayDomainEvents } from "./domain-events";
 import type { ErrorMessageLabels } from "./thread-utils/identity";
 
-export type ThreadRuntimeStatus = "idle" | "running" | "completed" | "failed" | "interrupted";
+export type { ThreadRuntimeStatus };
 export type HostConnectionStatus =
   | "idle"
   | "checkingVersion"

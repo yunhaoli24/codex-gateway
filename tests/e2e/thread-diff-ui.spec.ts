@@ -161,6 +161,116 @@ test("opening completed history does not replay terminal notifications or show f
     .toBe(0);
 });
 
+test("opening a cached thread applies terminal events before deriving composer state", async ({
+  page,
+}) => {
+  await openApp(page);
+  const threadId = "e2e-cached-terminal-thread";
+  const staleTurn = {
+    id: "turn-stale-1",
+    status: "inProgress",
+    items: [
+      {
+        id: "user-stale-1",
+        type: "userMessage",
+        content: [{ type: "text", text: "stale cached request" }],
+      },
+    ],
+  };
+  const completedTurn = {
+    ...staleTurn,
+    status: "completed",
+    items: [
+      ...staleTurn.items,
+      {
+        id: "agent-stale-1",
+        type: "agentMessage",
+        phase: "final_answer",
+        text: "cached turn is done",
+      },
+    ],
+  };
+
+  await page.route("**/api/threads/open", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        thread: { id: threadId, name: "Cached Terminal Thread" },
+        history: { thread: { id: threadId, turns: [staleTurn] } },
+        threadSettings: {},
+        tokenUsage: null,
+        projectId: 1,
+        project: { id: 1, hostId: 1, name: "E2E Project", remotePath: "/tmp/e2e" },
+        turnsPage: { nextCursor: null, backwardsCursor: null },
+        recentEvents: [
+          {
+            id: 1,
+            hostId: 1,
+            threadId,
+            method: "turn/completed",
+            payload: { params: { threadId, turn: completedTurn } },
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }),
+    });
+  });
+  await page.route("**/api/config/sync", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        version: 1,
+        hosts: [],
+        projects: [],
+        pinnedThreads: [],
+        lastOpenThread: { hostId: 1, projectId: 1, threadId },
+      }),
+    });
+  });
+
+  await page.evaluate(async (targetThreadId) => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    store.hosts = [
+      {
+        id: 1,
+        name: "E2E Host",
+        sshHost: "localhost",
+        username: "codex",
+        port: 22,
+        authMode: "password",
+        privateKeyPath: null,
+        privateKey: null,
+        password: null,
+        proxyUrl: null,
+        hasPassword: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+    store.projects = [{ id: 1, hostId: 1, name: "E2E Project", remotePath: "/tmp/e2e" }];
+    store.initializing = false;
+    await store.openThread(targetThreadId, { hostId: 1, projectId: 1 });
+  }, threadId);
+
+  await expect(page.getByText("cached turn is done")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+        const pinia = app?.config?.globalProperties?.$pinia;
+        const store = pinia?._s?.get("gateway");
+        return store?.selectedThreadStatus;
+      }),
+    )
+    .toBe("completed");
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成");
+});
+
 test("repeated terminal events for the same turn only notify once", async ({ page }) => {
   await page.addInitScript(() => {
     const notifications: Array<{ title: string; body?: string }> = [];
