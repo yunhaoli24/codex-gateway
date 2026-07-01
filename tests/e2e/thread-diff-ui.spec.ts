@@ -248,6 +248,87 @@ test("opening a cached thread applies terminal events before deriving composer s
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成");
 });
 
+test("live terminal event updates selected thread even when snapshot cursor is ahead", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-terminal-cursor-thread";
+    const turnId = "turn-terminal-cursor";
+    const runningTurn = {
+      id: turnId,
+      status: "inProgress",
+      items: [
+        {
+          id: "user-terminal-cursor",
+          type: "userMessage",
+          content: [{ type: "text", text: "cursor race request" }],
+        },
+      ],
+    };
+    const completedTurn = {
+      ...runningTurn,
+      status: "completed",
+      items: [
+        ...runningTurn.items,
+        {
+          id: "agent-terminal-cursor",
+          type: "agentMessage",
+          phase: "final_answer",
+          text: "cursor race done",
+        },
+      ],
+    };
+
+    store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+    store.projects = [{ id: 1, hostId: 1, name: "E2E Project", remotePath: "/tmp/e2e" }];
+    store.selectedHostId = 1;
+    store.selectedProjectId = 1;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Cursor Race Thread" };
+    store.history = { thread: { id: threadId, turns: [runningTurn] } };
+    store.events = [];
+    store.lastEventId = 10;
+    store.threadSnapshots["1:e2e-terminal-cursor-thread"] = {
+      hostId: 1,
+      projectId: 1,
+      threadId,
+      currentThread: store.currentThread,
+      history: store.history,
+      events: [],
+      olderTurnsCursor: null,
+      newerTurnsCursor: null,
+      lastEventId: 11,
+    };
+    store.initializing = false;
+    store.loading = false;
+    store.setThreadStatus(1, threadId, "running", { turnId });
+    store.handleRealtimeMessage({
+      type: "thread.event",
+      event: {
+        id: 11,
+        hostId: 1,
+        threadId,
+        method: "turn/completed",
+        payload: {
+          method: "turn/completed",
+          params: { threadId, turn: completedTurn },
+        },
+        createdAt: new Date().toISOString(),
+      },
+    });
+  });
+
+  await expect(page.getByText("cursor race done")).toBeVisible();
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成");
+});
+
 test("streaming output does not force scroll when the user is reading earlier content", async ({
   page,
 }) => {

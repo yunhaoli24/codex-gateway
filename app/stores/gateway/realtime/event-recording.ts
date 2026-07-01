@@ -5,12 +5,12 @@ import type { GatewayStoreContext } from "../types";
 
 export function handleRealtimeThreadEvent(ctx: GatewayStoreContext, event: GatewayEvent) {
   const eventKey = pinnedKey(event.hostId, event.threadId);
-  const snapshotLastEventId = ctx.state.threadSnapshots[eventKey]?.lastEventId ?? 0;
-  const currentLastEventId =
-    event.hostId === ctx.state.selectedHostId && event.threadId === ctx.state.selectedThreadId
-      ? ctx.state.lastEventId
-      : 0;
-  if (event.id <= Math.max(snapshotLastEventId, currentLastEventId)) {
+  const isSelected =
+    event.hostId === ctx.state.selectedHostId && event.threadId === ctx.state.selectedThreadId;
+  const lastAppliedEventId = isSelected
+    ? ctx.state.lastEventId
+    : (ctx.state.threadSnapshots[eventKey]?.lastEventId ?? 0);
+  if (event.id <= lastAppliedEventId) {
     return;
   }
   appendSelectedThreadEvent(ctx, event);

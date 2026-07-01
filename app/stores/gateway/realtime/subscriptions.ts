@@ -35,10 +35,9 @@ export function connectThreadEvents(
 
   const key = pinnedKey(hostId, threadId);
   const afterId =
-    ctx.state.threadSnapshots[key]?.lastEventId ??
-    (hostId === ctx.state.selectedHostId && threadId === ctx.state.selectedThreadId
+    hostId === ctx.state.selectedHostId && threadId === ctx.state.selectedThreadId
       ? ctx.state.lastEventId
-      : 0);
+      : (ctx.state.threadSnapshots[key]?.lastEventId ?? 0);
   const subscription = { hostId, threadId, afterId };
   const current = ctx.state.realtimeThreadSubscriptions[key];
   if (current?.hostId === hostId && current.threadId === threadId && current.afterId === afterId) {
