@@ -20,7 +20,7 @@ export function applyOpenedThreadResult(
   }
   applyCommonThreadResult(ctx, threadId, result);
   for (const event of result.recentEvents) {
-    ctx.applyLiveEvent(event, { notifyTerminal: false });
+    ctx.applyLiveEvent(event);
   }
   syncRuntimeStatusFromResult(ctx, threadId, result, {
     thread: ctx.state.currentThread,
@@ -77,7 +77,7 @@ function syncRuntimeStatusFromResult(
     result.runtimeStatus ??
     runtimeStatusFromThreadState(fallbackState.thread, fallbackState.history);
   if (status) {
-    ctx.setThreadStatus(hostId, threadId, status, { notifyTerminal: false });
+    ctx.setThreadStatus(hostId, threadId, status);
   }
 }
 

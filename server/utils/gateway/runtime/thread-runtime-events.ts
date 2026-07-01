@@ -2,6 +2,7 @@ import type { GatewayEvent } from "~~/shared/types";
 import { gatewayEventStore } from "../state/gateway-events";
 import { currentGatewayUserId } from "../state/memory";
 import { threadSnapshotStore } from "../state/thread-snapshots";
+import { notifyThreadTurnCompleted } from "../notifications/thread-terminal-notifier";
 import { applyEventToOpenSnapshot } from "./open-snapshot-events";
 
 type ThreadEventSubscriber = (event: GatewayEvent) => void;
@@ -15,6 +16,7 @@ class ThreadRuntimeEventBus {
       applyEventToOpenSnapshot(snapshot, method, payload),
     );
     this.publish(event);
+    notifyThreadTurnCompleted(event);
     return event;
   }
 

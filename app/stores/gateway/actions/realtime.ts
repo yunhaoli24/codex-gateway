@@ -77,8 +77,8 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
       recordThreadEvent(ctx, event);
     },
 
-    applyLiveEvent(event: GatewayEvent, options?: { notifyTerminal?: boolean }) {
-      applyLiveThreadEvent(ctx, event, options);
+    applyLiveEvent(event: GatewayEvent) {
+      applyLiveThreadEvent(ctx, event);
     },
   };
 }

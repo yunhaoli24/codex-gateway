@@ -135,7 +135,6 @@ export interface GatewayStoreState {
   realtimeSocketReconnectTimer: ReturnType<typeof window.setTimeout> | null;
   realtimeSocketReconnectAttempt: number;
   realtimeSocketGeneration: number;
-  deliveredNotificationKeys: string[];
   realtimeHostLifecycleSubscribed: boolean;
   realtimeThreadSubscriptions: Record<
     string,
@@ -163,6 +162,5 @@ export interface GatewayStoreContext {
 }
 
 export interface ThreadStatusUpdateOptions {
-  notifyTerminal?: boolean;
   turnId?: string | null;
 }

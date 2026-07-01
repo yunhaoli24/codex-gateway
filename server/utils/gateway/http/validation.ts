@@ -1,6 +1,11 @@
 import { createError } from "h3";
 import { z } from "zod";
-import { INITIAL_TURN_PAGE_LIMIT, OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
+import {
+  DEFAULT_BARK_GROUP,
+  DEFAULT_BARK_SERVER_URL,
+  INITIAL_TURN_PAGE_LIMIT,
+  OLDER_TURN_PAGE_LIMIT,
+} from "~~/shared/config";
 
 const optionalPositiveInt = z.preprocess(
   (value) => (value === "" || value == null ? undefined : value),
@@ -108,6 +113,32 @@ export const gatewayConfigSchema = z
       .strict()
       .nullable()
       .optional(),
+    notifications: z
+      .object({
+        bark: z
+          .object({
+            enabled: z.boolean().default(false),
+            serverUrl: z.string().trim().url().default(DEFAULT_BARK_SERVER_URL),
+            deviceKey: z.string().trim().default(""),
+            group: z.string().trim().nullable().optional().default(DEFAULT_BARK_GROUP),
+          })
+          .strict()
+          .default({
+            enabled: false,
+            serverUrl: DEFAULT_BARK_SERVER_URL,
+            deviceKey: "",
+            group: DEFAULT_BARK_GROUP,
+          }),
+      })
+      .strict()
+      .default({
+        bark: {
+          enabled: false,
+          serverUrl: DEFAULT_BARK_SERVER_URL,
+          deviceKey: "",
+          group: DEFAULT_BARK_GROUP,
+        },
+      }),
   })
   .strict();
 

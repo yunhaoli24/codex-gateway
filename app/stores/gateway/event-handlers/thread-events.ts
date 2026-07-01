@@ -4,7 +4,7 @@ import { runtimeStatusFromAppThreadStatus } from "../thread-utils/status";
 import type { GatewayEventHandlerRegistry } from "./types";
 
 export const threadEventHandlers: GatewayEventHandlerRegistry = {
-  "thread/status/changed": (ctx, event, params, _threadId, eventContext) => {
+  "thread/status/changed": (ctx, event, params) => {
     const threadId = threadIdFromParams(params);
     if (threadId) {
       ctx.events.emit({
@@ -12,7 +12,6 @@ export const threadEventHandlers: GatewayEventHandlerRegistry = {
         hostId: event.hostId,
         threadId: String(threadId),
         status: runtimeStatusFromAppThreadStatus(params.status),
-        notifyTerminal: eventContext.notifyTerminal,
       });
     }
   },

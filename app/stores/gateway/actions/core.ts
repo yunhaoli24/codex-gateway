@@ -1,7 +1,7 @@
 import { toast } from "vue-sonner";
 import { gatewayApi } from "@/utils/gateway-api";
-import type { GatewayConfig, GatewayStatus } from "~~/shared/types";
-import { defaultGatewayConfig } from "../config";
+import type { GatewayConfig, GatewayNotificationSettings, GatewayStatus } from "~~/shared/types";
+import { defaultGatewayConfig, normalizeNotificationSettings } from "../config";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError } from "../thread-utils/identity";
 import {
@@ -24,6 +24,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         hosts: ctx.state.hosts,
         projects: ctx.state.projects,
         pinnedThreads: ctx.state.gatewayConfig.pinnedThreads,
+        notifications: normalizeNotificationSettings(ctx.state.gatewayConfig.notifications),
         lastOpenThread: ctx.state.gatewayConfig.lastOpenThread ?? null,
       };
     },
@@ -70,6 +71,14 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       ctx.state.projects = ctx.state.gatewayConfig.projects;
       ctx.persistConfig();
       await ctx.refresh();
+    },
+
+    async saveNotificationSettings(notifications: GatewayNotificationSettings) {
+      ctx.state.gatewayConfig.notifications = normalizeNotificationSettings(notifications);
+      await ctx.syncConfigToServer();
+      if (import.meta.client) {
+        toast.success(ctx.t("app.notificationSettingsSaved"));
+      }
     },
 
     async refresh() {

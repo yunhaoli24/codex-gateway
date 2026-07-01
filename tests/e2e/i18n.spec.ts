@@ -67,3 +67,25 @@ test("config JSON editor scrolls to the bottom inside settings", async ({ page }
     )
     .toBeLessThan(4);
 });
+
+test("Bark notification settings are saved to server config", async ({ page }) => {
+  await openApp(page);
+  await page.getByTestId("settings-toggle").click();
+  await page.getByRole("tab", { name: "通知" }).click();
+  await page.getByRole("switch", { name: "启用 Bark" }).click();
+  await page.getByLabel("Bark 服务地址").fill("https://bark.e2e.test");
+  await page.getByLabel("Bark 设备 Key").fill("e2e-device-key");
+  await page.getByLabel("Bark 分组").fill("E2E Group");
+  await page.getByRole("button", { name: "保存通知设置" }).click();
+  await expect(page.getByText("通知设置已保存")).toBeVisible();
+
+  const config = await authenticatedFetch<any>(page, { url: "/api/config/export" });
+  expect(config.notifications).toEqual({
+    bark: {
+      enabled: true,
+      serverUrl: "https://bark.e2e.test",
+      deviceKey: "e2e-device-key",
+      group: "E2E Group",
+    },
+  });
+});

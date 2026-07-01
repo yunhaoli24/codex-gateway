@@ -1,4 +1,5 @@
 import type { GatewayConfig } from "~~/shared/types";
+import { normalizeNotificationSettings } from "~~/shared/config";
 import { gatewayEventStore } from "./gateway-events";
 import { gatewayMemoryState } from "./memory";
 import { normalizePinnedThreads } from "./memory";
@@ -19,6 +20,7 @@ export const runtimeConfigStore = {
     gatewayMemoryState.pinnedThreads = normalizePinnedThreads(config.pinnedThreads ?? []).filter(
       (thread) => hostIds.has(thread.hostId),
     );
+    gatewayMemoryState.notifications = normalizeNotificationSettings(config.notifications);
     gatewayMemoryState.lastOpenThread = config.lastOpenThread ?? null;
   },
 
@@ -31,6 +33,7 @@ export const runtimeConfigStore = {
       })),
       projects: projectStore.list(),
       pinnedThreads: gatewayMemoryState.pinnedThreads,
+      notifications: normalizeNotificationSettings(gatewayMemoryState.notifications),
       lastOpenThread: gatewayMemoryState.lastOpenThread ?? null,
     };
   },

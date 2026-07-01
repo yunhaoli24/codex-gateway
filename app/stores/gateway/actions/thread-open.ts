@@ -174,7 +174,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
           [key]: preview,
         };
         for (const event of result.recentEvents) {
-          ctx.applyLiveEvent(event, { notifyTerminal: false });
+          ctx.applyLiveEvent(event);
         }
         const hydratedPreview = ctx.state.threadPreviews[key] ?? preview;
         const hydratedSnapshot = ctx.state.threadSnapshots[key] ?? preview;

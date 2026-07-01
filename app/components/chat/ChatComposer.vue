@@ -243,7 +243,10 @@ function handlePrimaryAction() {
               @click="handlePrimaryAction"
             >
               <Loader2Icon v-if="uploadingAttachments" class="size-5 animate-spin" />
-              <Loader2Icon v-else-if="interruptingTurn" class="size-5 animate-spin" />
+              <Loader2Icon
+                v-else-if="interruptingTurn || (isThreadRunning && hasComposerInput)"
+                class="size-5 animate-spin"
+              />
               <SendIcon v-else-if="hasComposerInput" class="size-5" />
               <SquareIcon v-else-if="isThreadRunning" class="size-5 fill-current" />
               <CheckIcon v-else-if="selectedThreadStatus === 'completed'" class="size-5" />

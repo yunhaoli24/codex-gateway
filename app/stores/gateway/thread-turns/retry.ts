@@ -220,9 +220,7 @@ async function retryStoredTurnRequest(ctx: GatewayStoreContext, key: string) {
     retryTimer: null,
     pendingRetryTurnId: null,
   });
-  ctx.setThreadStatus(request.hostId, request.threadId, "running", {
-    notifyTerminal: false,
-  });
+  ctx.setThreadStatus(request.hostId, request.threadId, "running");
   clearThreadScopedError(ctx, request.hostId, request.threadId);
   try {
     if (request.kind === "start") {

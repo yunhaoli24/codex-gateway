@@ -76,27 +76,7 @@ test("file diff blocks can collapse and expand after virtual timeline measuremen
   await expect(diffText).toBeVisible();
 });
 
-test("opening completed history does not replay terminal notifications or show fake thinking", async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    const notifications: Array<{ title: string; body?: string }> = [];
-    class TestNotification {
-      static permission = "granted";
-      static async requestPermission() {
-        return "granted";
-      }
-
-      constructor(title: string, options?: NotificationOptions) {
-        notifications.push({ title, body: options?.body });
-      }
-    }
-    Object.defineProperty(window, "Notification", {
-      configurable: true,
-      value: TestNotification,
-    });
-    (window as any).__gatewayNotifications = notifications;
-  });
+test("opening completed history does not show fake thinking", async ({ page }) => {
   await openApp(page);
   await page.evaluate(() => {
     const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
@@ -149,16 +129,13 @@ test("opening completed history does not replay terminal notifications or show f
     store.initializing = false;
     store.loading = true;
     for (const event of store.events) {
-      store.applyLiveEvent(event, { notifyTerminal: false });
+      store.applyLiveEvent(event);
     }
-    store.setThreadStatus(1, threadId, "completed", { notifyTerminal: false });
+    store.setThreadStatus(1, threadId, "completed");
   });
 
   await expect(page.getByText("completed history")).toBeVisible();
   await expect(page.getByText("思考中")).toBeHidden();
-  await expect
-    .poll(() => page.evaluate(() => (window as any).__gatewayNotifications.length))
-    .toBe(0);
 });
 
 test("opening a cached thread applies terminal events before deriving composer state", async ({
@@ -269,70 +246,6 @@ test("opening a cached thread applies terminal events before deriving composer s
     )
     .toBe("completed");
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成");
-});
-
-test("repeated terminal events for the same turn only notify once", async ({ page }) => {
-  await page.addInitScript(() => {
-    const notifications: Array<{ title: string; body?: string }> = [];
-    class TestNotification {
-      static permission = "granted";
-      static async requestPermission() {
-        return "granted";
-      }
-
-      constructor(title: string, options?: NotificationOptions) {
-        notifications.push({ title, body: options?.body });
-      }
-    }
-    Object.defineProperty(window, "Notification", {
-      configurable: true,
-      value: TestNotification,
-    });
-    (window as any).__gatewayNotifications = notifications;
-  });
-  await openApp(page);
-  await page.evaluate(() => {
-    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-    const pinia = app?.config?.globalProperties?.$pinia;
-    const store = pinia?._s?.get("gateway");
-    if (!store) {
-      throw new Error("Unable to locate gateway Pinia store");
-    }
-
-    const threadId = "e2e-terminal-dedupe-thread";
-    const turn = { id: "turn-dedupe-1", status: "completed", items: [] };
-    const startedEvent = {
-      id: 10,
-      hostId: 1,
-      threadId,
-      method: "turn/started",
-      payload: { params: { threadId, turn: { id: turn.id, status: "inProgress", items: [] } } },
-    };
-    const completedEvent = {
-      id: 11,
-      hostId: 1,
-      threadId,
-      method: "turn/completed",
-      payload: { params: { threadId, turn } },
-    };
-
-    store.hosts = [{ id: 1, name: "NC-VPS", sshHost: "localhost", sshUser: "codex" }];
-    store.selectedHostId = 1;
-    store.selectedThreadId = threadId;
-    store.currentThread = { id: threadId, name: "Terminal Dedupe" };
-    store.history = { thread: { id: threadId, turns: [] } };
-    store.initializing = false;
-    store.loading = false;
-
-    store.applyLiveEvent(startedEvent, { notifyTerminal: true });
-    store.applyLiveEvent(completedEvent, { notifyTerminal: true });
-    store.applyLiveEvent(startedEvent, { notifyTerminal: true });
-    store.applyLiveEvent(completedEvent, { notifyTerminal: true });
-  });
-
-  await expect
-    .poll(() => page.evaluate(() => (window as any).__gatewayNotifications.length))
-    .toBe(1);
 });
 
 test("streaming output does not force scroll when the user is reading earlier content", async ({

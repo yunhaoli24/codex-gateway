@@ -1,5 +1,6 @@
 import { defineEventHandler, getRequestURL, setResponseStatus, type H3Event } from "h3";
 import type { HostRecord } from "~~/shared/types";
+import { normalizeNotificationSettings } from "~~/shared/config";
 import { userStore } from "../auth/users";
 import { hostRuntimeSupervisor } from "../runtime/host-runtime-supervisor";
 import {
@@ -97,6 +98,7 @@ export function runtimeConfigFromMemory() {
     })),
     projects: state.projects,
     pinnedThreads: state.pinnedThreads,
+    notifications: normalizeNotificationSettings(state.notifications),
     lastOpenThread: state.lastOpenThread ?? null,
   };
 }

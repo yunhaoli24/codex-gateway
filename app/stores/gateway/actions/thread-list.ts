@@ -130,13 +130,6 @@ function syncThreadStatusesFromList(ctx: GatewayStoreContext, hostId: number, th
     if (!thread?.id || !thread.status) {
       continue;
     }
-    ctx.setThreadStatus(
-      hostId,
-      String(thread.id),
-      runtimeStatusFromAppThreadStatus(thread.status),
-      {
-        notifyTerminal: false,
-      },
-    );
+    ctx.setThreadStatus(hostId, String(thread.id), runtimeStatusFromAppThreadStatus(thread.status));
   }
 }

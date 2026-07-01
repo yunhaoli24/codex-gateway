@@ -5,6 +5,7 @@ import type {
   PinnedThreadRecord,
   ProjectRecord,
 } from "~~/shared/types";
+import { normalizeNotificationSettings } from "~~/shared/config";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 export type StoredHostRecord = HostRecord;
@@ -33,11 +34,13 @@ export interface GatewayMemoryState {
   hosts: StoredHostRecord[];
   projects: ProjectRecord[];
   pinnedThreads: PinnedThreadRecord[];
+  notifications: GatewayConfig["notifications"];
   lastOpenThread: GatewayConfig["lastOpenThread"];
   threadMetadata: ThreadMetadataRecord[];
   threadSnapshots: ThreadSnapshotRecord[];
   events: GatewayEvent[];
   nextEventId: number;
+  deliveredNotificationKeys: string[];
   configLoaded: boolean;
 }
 
@@ -46,11 +49,13 @@ function createGatewayMemoryState(): GatewayMemoryState {
     hosts: [],
     projects: [],
     pinnedThreads: [],
+    notifications: normalizeNotificationSettings(),
     lastOpenThread: null,
     threadMetadata: [],
     threadSnapshots: [],
     events: [],
     nextEventId: 1,
+    deliveredNotificationKeys: [],
     configLoaded: false,
   };
 }
@@ -121,6 +126,7 @@ export function buildGatewayMemoryState(config: GatewayConfig): GatewayMemorySta
       remotePath: project.remotePath.trim(),
     })),
     pinnedThreads: normalizePinnedThreads(config.pinnedThreads ?? []),
+    notifications: normalizeNotificationSettings(config.notifications),
     lastOpenThread: config.lastOpenThread ?? null,
   };
 }
@@ -129,11 +135,13 @@ export const initialGatewayMemoryState: GatewayMemoryState = {
   hosts: [],
   projects: [],
   pinnedThreads: [],
+  notifications: normalizeNotificationSettings(),
   lastOpenThread: null,
   threadMetadata: [],
   threadSnapshots: [],
   events: [],
   nextEventId: 1,
+  deliveredNotificationKeys: [],
   configLoaded: false,
 };
 

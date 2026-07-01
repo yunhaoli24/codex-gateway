@@ -15,7 +15,6 @@ import { pinnedKey } from "./thread-utils/identity";
 export function registerGatewayDomainSubscribers(ctx: GatewayStoreContext) {
   ctx.events.on("thread-status-detected", (event) => {
     ctx.setThreadStatus(event.hostId, event.threadId, event.status, {
-      notifyTerminal: event.notifyTerminal,
       turnId: event.turnId,
     });
   });
