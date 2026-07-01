@@ -104,11 +104,21 @@ function updateThreadHistory(
 
   const key = pinnedKey(hostId, threadId);
   const snapshot = ctx.state.threadSnapshots[key];
-  if (!snapshot) {
-    return;
+  if (snapshot) {
+    ctx.state.threadSnapshots[key] = {
+      ...snapshot,
+      history: update(snapshot.history, snapshot.currentThread),
+    };
   }
-  ctx.state.threadSnapshots[key] = {
-    ...snapshot,
-    history: update(snapshot.history, snapshot.currentThread),
-  };
+
+  const preview = ctx.state.threadPreviews[key];
+  if (preview) {
+    ctx.state.threadPreviews = {
+      ...ctx.state.threadPreviews,
+      [key]: {
+        ...preview,
+        history: update(preview.history, preview.currentThread),
+      },
+    };
+  }
 }

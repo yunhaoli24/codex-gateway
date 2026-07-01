@@ -91,6 +91,20 @@ export type RealtimeClientMessage =
       threadId: string;
     }
   | {
+      type: "turn.steer";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      expectedTurnId: string;
+      text: string;
+      clientUserMessageId?: string | null;
+      images?: Array<{
+        path?: string;
+        url?: string;
+        detail?: "low" | "high" | "auto" | "original";
+      }>;
+    }
+  | {
       type: "ping";
       nonce?: string;
     };
@@ -125,8 +139,16 @@ export type RealtimeServerMessage =
       threadId: string;
     }
   | {
+      type: "turn.steer.accepted";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      turnId?: string;
+    }
+  | {
       type: "error";
       message: string;
+      requestId?: string;
       request?: RealtimeClientMessage;
     }
   | {

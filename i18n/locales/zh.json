@@ -40,6 +40,9 @@
     "history": "历史",
     "liveEvents": "实时事件",
     "noEvents": "这个会话还没有网关事件",
+    "realtimeDisconnected": "实时连接已断开",
+    "realtimeRequestTimedOut": "实时请求超时",
+    "realtimeUnavailable": "实时连接不可用",
     "composerPlaceholder": "输入后续修改要求",
     "send": "发送",
     "newThread": "新建",
@@ -165,6 +168,12 @@
     "exitedReviewMode": "退出审查模式",
     "contextCompaction": "压缩上下文",
     "subAgentActivity": "子代理活动",
+    "subAgentPanel": "子代理",
+    "openSubAgent": "打开子代理",
+    "closeSubAgentPanel": "关闭子代理面板",
+    "closeSubAgentTab": "关闭子代理 {title}",
+    "loadingSubAgent": "正在加载子代理",
+    "noSubAgentTurns": "这个子代理还没有可显示的回合",
     "collabAgentToolCall": "协作代理调用",
     "todoPlan": "待办计划",
     "hookPrompt": "Hook 提示",
@@ -211,6 +220,207 @@
     "dynamicToolRequest": "动态工具请求",
     "dynamicToolResponse": "动态工具响应",
     "submitResponse": "提交响应",
+    "submitResponseFailed": "提交响应失败",
+    "serverRequestMissingContext": "无法提交响应：缺少请求上下文",
+    "serverRequestResolved": "请求已处理",
+    "invalidJsonResponse": "响应不是合法 JSON",
+    "appServerError": "app-server 错误",
+    "appServerErrorCode": "错误类型：{code}",
+    "appServerWillRetry": "app-server 正在自动重试",
+    "appServerWillNotRetry": "app-server 不会自动重试",
+    "appServerAutoRetryTitle": "网关自动重试",
+    "appServerAutoRetrying": "模型当前繁忙，正在自动重试（{attempt}/{max}）",
+    "appServerAutoRetryExhausted": "自动重试 {max} 次后仍然失败",
+    "appServerNotification": "app-server 通知",
+    "showNotificationDetails": "查看详情",
+    "hideNotificationDetails": "收起详情",
+    "notifications": {
+      "terminalProcessFallback": "进程 {processId}",
+      "threadArchived": {
+        "title": "会话已归档",
+        "message": "app-server 已将这个会话归档。"
+      },
+      "threadDeleted": {
+        "title": "会话已删除",
+        "message": "app-server 已删除这个会话。"
+      },
+      "threadUnarchived": {
+        "title": "会话已取消归档",
+        "message": "这个会话已重新出现在普通列表中。"
+      },
+      "threadClosed": {
+        "title": "会话已关闭",
+        "message": "app-server 已关闭这个会话的活动连接。"
+      },
+      "threadNameUpdated": {
+        "title": "会话标题已更新",
+        "message": "新标题：{name}"
+      },
+      "threadGoalUpdated": {
+        "title": "目标已更新",
+        "message": "{goal}"
+      },
+      "threadGoalCleared": {
+        "title": "目标已清除",
+        "message": "这个会话的目标已被清空。"
+      },
+      "skillsChanged": {
+        "title": "Skills 已更新",
+        "message": "app-server 检测到可用 skills 发生变化。"
+      },
+      "hookStarted": {
+        "title": "Hook 开始执行",
+        "message": "{event} · {status} {message}"
+      },
+      "hookCompleted": {
+        "title": "Hook 执行完成",
+        "message": "{event} · {status} {message}"
+      },
+      "guardianReviewStarted": {
+        "title": "自动审批审查开始",
+        "message": "{action} · 风险：{risk} · {rationale}"
+      },
+      "guardianReviewCompleted": {
+        "title": "自动审批审查完成",
+        "message": "{action} · {status} · 风险：{risk} · {rationale}"
+      },
+      "rawResponseItemCompleted": {
+        "title": "模型原始响应项完成",
+        "message": "{item}"
+      },
+      "terminalWait": {
+        "title": "查看后台命令输出",
+        "message": "agent 正在等待命令：{command}"
+      },
+      "terminalInteraction": {
+        "title": "向后台命令发送输入",
+        "message": "agent 向命令 stdin 写入：{stdin}\n命令：{command}"
+      },
+      "mcpToolCallProgress": {
+        "title": "MCP 工具进度",
+        "message": "{message}"
+      },
+      "mcpOauthLoginCompleted": {
+        "title": "MCP 登录完成",
+        "message": "{server} 已完成 OAuth 登录。"
+      },
+      "mcpOauthLoginFailed": {
+        "title": "MCP 登录失败",
+        "message": "{server} 登录失败：{error}"
+      },
+      "mcpServerStatusUpdated": {
+        "title": "MCP 服务状态更新",
+        "message": "{server} · {status} {error}"
+      },
+      "accountUpdated": {
+        "title": "账号状态已更新",
+        "message": "认证模式：{authMode} · 套餐：{planType}"
+      },
+      "accountRateLimitsUpdated": {
+        "title": "账号限额已更新",
+        "message": "套餐：{plan} · 限额：{limit} · 当前触发：{reached}"
+      },
+      "appListUpdated": {
+        "title": "应用列表已更新",
+        "message": "当前返回 {count} 个应用。"
+      },
+      "remoteControlStatusChanged": {
+        "title": "远程控制状态变化",
+        "message": "{server} · {status}"
+      },
+      "externalAgentConfigImportProgress": {
+        "title": "外部代理配置导入中",
+        "message": "成功 {successes} 项，失败 {failures} 项。"
+      },
+      "externalAgentConfigImportCompleted": {
+        "title": "外部代理配置导入完成",
+        "message": "成功 {successes} 项，失败 {failures} 项。"
+      },
+      "fsChanged": {
+        "title": "文件系统发生变化",
+        "message": "{count} 个路径发生变化：{paths}"
+      },
+      "reasoningSummaryPartAdded": {
+        "title": "新增推理摘要片段",
+        "message": "摘要片段索引：{index}"
+      },
+      "threadCompacted": {
+        "title": "上下文已压缩",
+        "message": "app-server 已完成这个会话的上下文压缩。"
+      },
+      "modelRerouted": {
+        "title": "模型已自动切换",
+        "message": "{from} -> {to}，原因：{reason}"
+      },
+      "modelVerification": {
+        "title": "模型验证已更新",
+        "message": "收到 {count} 条验证结果：{items}"
+      },
+      "turnModerationMetadata": {
+        "title": "安全审查元数据",
+        "message": "本轮返回了 moderation metadata：{summary}"
+      },
+      "modelSafetyBufferingEnabled": {
+        "title": "安全缓冲已启用",
+        "message": "{model} 正在进行安全缓冲；可选更快模型：{fasterModel}；原因：{reasons}"
+      },
+      "modelSafetyBufferingDisabled": {
+        "title": "安全缓冲已关闭",
+        "message": "{model} 已关闭安全缓冲。"
+      },
+      "warning": {
+        "title": "app-server 警告",
+        "message": "{message}"
+      },
+      "guardianWarning": {
+        "title": "Guardian 警告",
+        "message": "{message}"
+      },
+      "deprecationNotice": {
+        "title": "弃用提醒",
+        "message": "{summary}"
+      },
+      "configWarning": {
+        "title": "配置警告",
+        "message": "{summary} {path}"
+      },
+      "fuzzyFileSearchUpdated": {
+        "title": "文件搜索更新",
+        "message": "查询「{query}」返回 {count} 个候选文件。"
+      },
+      "fuzzyFileSearchCompleted": {
+        "title": "文件搜索完成",
+        "message": "模糊文件搜索会话已结束。"
+      },
+      "realtimeStarted": {
+        "title": "实时会话已开始",
+        "message": "Realtime session：{session}"
+      },
+      "realtimeClosed": {
+        "title": "实时会话已关闭",
+        "message": "原因：{reason}"
+      },
+      "windowsWorldWritableWarning": {
+        "title": "Windows 沙箱路径警告",
+        "message": "{count} 个 world-writable 路径可能无法被沙箱保护：{paths}"
+      },
+      "windowsSandboxSetupCompleted": {
+        "title": "Windows 沙箱设置完成",
+        "message": "模式：{mode}"
+      },
+      "windowsSandboxSetupFailed": {
+        "title": "Windows 沙箱设置失败",
+        "message": "模式：{mode} · {error}"
+      },
+      "accountLoginCompleted": {
+        "title": "账号登录完成",
+        "message": "登录 ID：{loginId}"
+      },
+      "accountLoginFailed": {
+        "title": "账号登录失败",
+        "message": "{error}"
+      }
+    },
     "chatgptAuthRefreshRequest": "ChatGPT 认证令牌刷新",
     "chatgptAuthRefreshDescription": "app-server 请求刷新外部管理的 ChatGPT 认证令牌。这里必须提交来自真实认证源的令牌。",
     "reason": "原因",

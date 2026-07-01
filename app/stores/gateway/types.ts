@@ -6,6 +6,7 @@ import type {
   ModelRecord,
   PinnedThreadRecord,
   ProjectRecord,
+  ComposerTurnOptions,
   ThreadSettingsState,
   ThreadTokenUsageState,
   UploadedFileRecord,
@@ -42,6 +43,17 @@ export interface ThreadSnapshot {
   lastEventId: number;
 }
 
+export interface ThreadPreviewState extends ThreadSnapshot {
+  loading: boolean;
+  error: string | null;
+}
+
+export interface SubAgentPanelState {
+  hostId: number;
+  threadId: string;
+  title: string;
+}
+
 export interface ComposerDraft {
   text: string;
   attachedFiles: Array<UploadedFileRecord & { id: string; dataUrl?: string }>;
@@ -56,6 +68,19 @@ export interface PendingSteerInput {
     url?: string;
     detail?: "low" | "high" | "auto" | "original";
   }>;
+}
+
+export interface SubmittedTurnRequestState {
+  kind: "start" | "steer";
+  hostId: number;
+  projectId: number | null;
+  threadId: string;
+  cwd: string | null;
+  text: string;
+  options: ComposerTurnOptions;
+  retryCount: number;
+  pendingRetryTurnId: string | null;
+  retryTimer: ReturnType<typeof window.setTimeout> | null;
 }
 
 export interface GatewayErrorState {
@@ -84,8 +109,12 @@ export interface GatewayStoreState {
   threadSettingsByKey: Record<string, ThreadSettingsState>;
   threadTokenUsageByKey: Record<string, ThreadTokenUsageState>;
   composerDraftsByKey: Record<string, ComposerDraft>;
+  submittedTurnRequestsByKey: Record<string, SubmittedTurnRequestState>;
   pendingSteersByKey: Record<string, PendingSteerInput[]>;
   threadSnapshots: Record<string, ThreadSnapshot>;
+  threadPreviews: Record<string, ThreadPreviewState>;
+  subAgentPanels: SubAgentPanelState[];
+  activeSubAgentPanelKey: string | null;
   selectedHostId: number | null;
   selectedProjectId: number | null;
   selectedThreadId: string | null;
@@ -118,7 +147,7 @@ export interface GatewayStoreState {
 export interface GatewayStoreContext {
   state: GatewayStoreState;
   events: GatewayDomainEvents;
-  t: (key: string) => string;
+  t: (key: string, values?: Record<string, unknown>) => string;
   errorLabels: ErrorMessageLabels;
   selectedHost: HostRecord | null;
   selectedProject: ProjectRecord | null;

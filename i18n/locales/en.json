@@ -43,6 +43,9 @@
     "history": "History",
     "liveEvents": "Live events",
     "noEvents": "No gateway events for this thread yet",
+    "realtimeDisconnected": "Realtime connection disconnected",
+    "realtimeRequestTimedOut": "Realtime request timed out",
+    "realtimeUnavailable": "Realtime connection unavailable",
     "composerPlaceholder": "Ask for follow-up changes",
     "send": "Send",
     "newThread": "New",
@@ -168,6 +171,12 @@
     "exitedReviewMode": "Exited review mode",
     "contextCompaction": "Context compaction",
     "subAgentActivity": "Sub-agent activity",
+    "subAgentPanel": "Sub-agent",
+    "openSubAgent": "Open sub-agent",
+    "closeSubAgentPanel": "Close sub-agent panel",
+    "closeSubAgentTab": "Close sub-agent {title}",
+    "loadingSubAgent": "Loading sub-agent",
+    "noSubAgentTurns": "This sub-agent has no visible turns yet",
     "collabAgentToolCall": "Collab agent call",
     "todoPlan": "Todo plan",
     "hookPrompt": "Hook prompt",
@@ -214,6 +223,207 @@
     "dynamicToolRequest": "Dynamic tool request",
     "dynamicToolResponse": "Dynamic tool response",
     "submitResponse": "Submit response",
+    "submitResponseFailed": "Failed to submit response",
+    "serverRequestMissingContext": "Cannot submit response: missing request context",
+    "serverRequestResolved": "Request handled",
+    "invalidJsonResponse": "Response is not valid JSON",
+    "appServerError": "app-server error",
+    "appServerErrorCode": "Error type: {code}",
+    "appServerWillRetry": "app-server is retrying automatically",
+    "appServerWillNotRetry": "app-server will not retry automatically",
+    "appServerAutoRetryTitle": "Gateway auto retry",
+    "appServerAutoRetrying": "Model is at capacity, retrying automatically ({attempt}/{max})",
+    "appServerAutoRetryExhausted": "Still failed after {max} automatic retries",
+    "appServerNotification": "app-server notification",
+    "showNotificationDetails": "Show details",
+    "hideNotificationDetails": "Hide details",
+    "notifications": {
+      "terminalProcessFallback": "process {processId}",
+      "threadArchived": {
+        "title": "Thread archived",
+        "message": "The app-server archived this thread."
+      },
+      "threadDeleted": {
+        "title": "Thread deleted",
+        "message": "The app-server deleted this thread."
+      },
+      "threadUnarchived": {
+        "title": "Thread unarchived",
+        "message": "This thread is visible in the normal list again."
+      },
+      "threadClosed": {
+        "title": "Thread closed",
+        "message": "The app-server closed the active connection for this thread."
+      },
+      "threadNameUpdated": {
+        "title": "Thread title updated",
+        "message": "New title: {name}"
+      },
+      "threadGoalUpdated": {
+        "title": "Goal updated",
+        "message": "{goal}"
+      },
+      "threadGoalCleared": {
+        "title": "Goal cleared",
+        "message": "The goal for this thread was cleared."
+      },
+      "skillsChanged": {
+        "title": "Skills changed",
+        "message": "The app-server detected a change in available skills."
+      },
+      "hookStarted": {
+        "title": "Hook started",
+        "message": "{event} · {status} {message}"
+      },
+      "hookCompleted": {
+        "title": "Hook completed",
+        "message": "{event} · {status} {message}"
+      },
+      "guardianReviewStarted": {
+        "title": "Auto-approval review started",
+        "message": "{action} · risk: {risk} · {rationale}"
+      },
+      "guardianReviewCompleted": {
+        "title": "Auto-approval review completed",
+        "message": "{action} · {status} · risk: {risk} · {rationale}"
+      },
+      "rawResponseItemCompleted": {
+        "title": "Raw model response item completed",
+        "message": "{item}"
+      },
+      "terminalWait": {
+        "title": "Waited for background terminal",
+        "message": "The agent is waiting for command: {command}"
+      },
+      "terminalInteraction": {
+        "title": "Interacted with background terminal",
+        "message": "The agent wrote to command stdin: {stdin}\nCommand: {command}"
+      },
+      "mcpToolCallProgress": {
+        "title": "MCP tool progress",
+        "message": "{message}"
+      },
+      "mcpOauthLoginCompleted": {
+        "title": "MCP login completed",
+        "message": "{server} completed OAuth login."
+      },
+      "mcpOauthLoginFailed": {
+        "title": "MCP login failed",
+        "message": "{server} login failed: {error}"
+      },
+      "mcpServerStatusUpdated": {
+        "title": "MCP server status updated",
+        "message": "{server} · {status} {error}"
+      },
+      "accountUpdated": {
+        "title": "Account updated",
+        "message": "Auth mode: {authMode} · plan: {planType}"
+      },
+      "accountRateLimitsUpdated": {
+        "title": "Account rate limits updated",
+        "message": "Plan: {plan} · limit: {limit} · reached: {reached}"
+      },
+      "appListUpdated": {
+        "title": "App list updated",
+        "message": "The response includes {count} apps."
+      },
+      "remoteControlStatusChanged": {
+        "title": "Remote control status changed",
+        "message": "{server} · {status}"
+      },
+      "externalAgentConfigImportProgress": {
+        "title": "External agent config import in progress",
+        "message": "{successes} succeeded, {failures} failed."
+      },
+      "externalAgentConfigImportCompleted": {
+        "title": "External agent config import completed",
+        "message": "{successes} succeeded, {failures} failed."
+      },
+      "fsChanged": {
+        "title": "Filesystem changed",
+        "message": "{count} paths changed: {paths}"
+      },
+      "reasoningSummaryPartAdded": {
+        "title": "Reasoning summary part added",
+        "message": "Summary part index: {index}"
+      },
+      "threadCompacted": {
+        "title": "Context compacted",
+        "message": "The app-server compacted this thread context."
+      },
+      "modelRerouted": {
+        "title": "Model rerouted",
+        "message": "{from} -> {to}; reason: {reason}"
+      },
+      "modelVerification": {
+        "title": "Model verification updated",
+        "message": "Received {count} verification results: {items}"
+      },
+      "turnModerationMetadata": {
+        "title": "Safety moderation metadata",
+        "message": "This turn returned moderation metadata: {summary}"
+      },
+      "modelSafetyBufferingEnabled": {
+        "title": "Safety buffering enabled",
+        "message": "{model} is safety-buffering; faster model: {fasterModel}; reasons: {reasons}"
+      },
+      "modelSafetyBufferingDisabled": {
+        "title": "Safety buffering disabled",
+        "message": "{model} disabled safety buffering."
+      },
+      "warning": {
+        "title": "app-server warning",
+        "message": "{message}"
+      },
+      "guardianWarning": {
+        "title": "Guardian warning",
+        "message": "{message}"
+      },
+      "deprecationNotice": {
+        "title": "Deprecation notice",
+        "message": "{summary}"
+      },
+      "configWarning": {
+        "title": "Config warning",
+        "message": "{summary} {path}"
+      },
+      "fuzzyFileSearchUpdated": {
+        "title": "File search updated",
+        "message": "Query \"{query}\" returned {count} candidate files."
+      },
+      "fuzzyFileSearchCompleted": {
+        "title": "File search completed",
+        "message": "The fuzzy file search session finished."
+      },
+      "realtimeStarted": {
+        "title": "Realtime session started",
+        "message": "Realtime session: {session}"
+      },
+      "realtimeClosed": {
+        "title": "Realtime session closed",
+        "message": "Reason: {reason}"
+      },
+      "windowsWorldWritableWarning": {
+        "title": "Windows sandbox path warning",
+        "message": "{count} world-writable paths may not be protected by the sandbox: {paths}"
+      },
+      "windowsSandboxSetupCompleted": {
+        "title": "Windows sandbox setup completed",
+        "message": "Mode: {mode}"
+      },
+      "windowsSandboxSetupFailed": {
+        "title": "Windows sandbox setup failed",
+        "message": "Mode: {mode} · {error}"
+      },
+      "accountLoginCompleted": {
+        "title": "Account login completed",
+        "message": "Login ID: {loginId}"
+      },
+      "accountLoginFailed": {
+        "title": "Account login failed",
+        "message": "{error}"
+      }
+    },
     "chatgptAuthRefreshRequest": "ChatGPT auth token refresh",
     "chatgptAuthRefreshDescription": "App-server requested fresh externally managed ChatGPT auth tokens. Submit real tokens from the configured auth source.",
     "reason": "Reason",

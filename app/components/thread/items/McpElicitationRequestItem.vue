@@ -5,34 +5,38 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { useGatewayStore } from "@/stores/gateway";
+import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
 import { jsonPreview } from "@/utils/thread-items";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+  threadId: string | null;
+}>();
 const { t } = useI18n();
-const store = useGatewayStore();
-const responding = ref(false);
 const contentText = ref("{}");
 const params = computed(() => props.item.params || {});
+const requestId = computed(() => props.item.requestId);
+const {
+  canRespond,
+  responding,
+  respond: respondToRequest,
+  respondWithParsedJson,
+} = useServerRequestResponder({
+  hostId: computed(() => props.hostId),
+  threadId: computed(() => props.threadId),
+  requestId,
+});
 
 async function respond(action: "accept" | "decline" | "cancel") {
-  if (!props.item.requestId || !store.selectedThreadId) {
-    return;
-  }
-  let content: unknown = null;
   if (action === "accept") {
-    content = JSON.parse(contentText.value || "{}");
-  }
-  responding.value = true;
-  try {
-    await store.respondToServerRequest(store.selectedThreadId, props.item.requestId, {
+    return await respondWithParsedJson(contentText.value || "{}", (content) => ({
       action,
       content,
       _meta: null,
-    });
-  } finally {
-    responding.value = false;
+    }));
   }
+  return await respondToRequest({ action, content: null, _meta: null });
 }
 </script>
 
@@ -65,11 +69,12 @@ async function respond(action: "accept" | "decline" | "cancel") {
       </ScrollArea>
     </div>
     <Textarea
+      v-if="canRespond"
       v-model="contentText"
       class="mt-3 min-h-24 bg-surface font-mono text-xs"
       :placeholder="t('app.jsonResponse')"
     />
-    <div class="mt-3 flex flex-wrap gap-2">
+    <div v-if="canRespond" class="mt-3 flex flex-wrap gap-2">
       <Button
         size="sm"
         :disabled="responding"
@@ -96,6 +101,9 @@ async function respond(action: "accept" | "decline" | "cancel") {
       >
         {{ t("app.cancel") }}
       </Button>
+    </div>
+    <div v-else class="mt-3 rounded-md bg-surface/80 px-3 py-2 text-xs text-ink-muted">
+      {{ t("app.serverRequestResolved") }}
     </div>
   </div>
 </template>

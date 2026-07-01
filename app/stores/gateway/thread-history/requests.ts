@@ -19,15 +19,27 @@ export function resolveServerRequestInHistory(
     }
     let turnChanged = false;
     const items = turn.items.map((item: any) => {
-      if (String(item?.pendingApproval?.requestId ?? "") !== requestId) {
+      const pendingApprovalRequestId = String(item?.pendingApproval?.requestId ?? "");
+      const itemRequestId = String(item?.requestId ?? "");
+      if (pendingApprovalRequestId !== requestId && itemRequestId !== requestId) {
         return item;
       }
-      const { pendingApproval: _pendingApproval, ...rest } = item;
       turnChanged = true;
       changed = true;
-      return rest;
+      return resolveServerRequestItem(item, itemRequestId === requestId);
     });
     return turnChanged ? { ...turn, items } : turn;
   });
   return changed ? nextHistory : history;
+}
+
+function resolveServerRequestItem(item: any, isStandaloneRequest: boolean) {
+  const { pendingApproval: _pendingApproval, requestId: _requestId, ...rest } = item;
+  if (!isStandaloneRequest) {
+    return rest;
+  }
+  return {
+    ...rest,
+    status: "completed",
+  };
 }

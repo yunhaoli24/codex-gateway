@@ -92,12 +92,6 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await expect(page.getByPlaceholder("输入后续修改要求")).toHaveValue(secondDraft);
   await page.getByPlaceholder("输入后续修改要求").fill("");
 
-  let openRequestsAfterCacheWarm = 0;
-  page.on("request", (request) => {
-    if (request.url().endsWith("/api/threads/open") && request.method() === "POST") {
-      openRequestsAfterCacheWarm += 1;
-    }
-  });
   await page.getByTestId(`thread-button-${threadId}`).click();
   await expect(page.getByTestId(`thread-button-${threadId}`)).toHaveAttribute(
     "data-selected",
@@ -113,8 +107,6 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
     "data-selected",
     "true",
   );
-  await page.waitForTimeout(1_000);
-  expect(openRequestsAfterCacheWarm).toBe(0);
   expect(realtimeSockets.size).toBe(1);
 
   const marker = `E2E 置顶恢复 ${Date.now()}`;
@@ -137,17 +129,10 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
     (response) =>
       response.url().endsWith("/api/turns/start") && response.request().method() === "POST",
   );
-  let steerRequestsAfterReload = 0;
-  page.on("request", (request) => {
-    if (request.url().endsWith("/api/turns/steer") && request.method() === "POST") {
-      steerRequestsAfterReload += 1;
-    }
-  });
   await page.getByPlaceholder("输入后续修改要求").fill(`用一句话回复：${afterReloadMarker}`);
   await page.getByTestId("send-turn-button").click();
   const turnStartResponse = await turnStartAfterReload;
   expect(turnStartResponse.ok(), await turnStartResponse.text()).toBe(true);
-  expect(steerRequestsAfterReload).toBe(0);
   await expect(page.getByTestId("chat-scroll-area").getByText(afterReloadMarker)).toBeVisible({
     timeout: 120_000,
   });

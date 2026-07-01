@@ -4,32 +4,35 @@ import { computed, ref } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useGatewayStore } from "@/stores/gateway";
+import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+  threadId: string | null;
+}>();
 
 const { t } = useI18n();
-const store = useGatewayStore();
-const responding = ref(false);
 const accessToken = ref("");
 const accountId = ref("");
 const planType = ref("");
 const params = computed(() => props.item.params || {});
+const requestId = computed(() => props.item.requestId);
+const { canRespond, responding, respond } = useServerRequestResponder({
+  hostId: computed(() => props.hostId),
+  threadId: computed(() => props.threadId),
+  requestId,
+});
 
 async function submit() {
-  if (!props.item.requestId || !store.selectedThreadId || !accessToken.value || !accountId.value) {
+  if (!accessToken.value || !accountId.value) {
     return;
   }
-  responding.value = true;
-  try {
-    await store.respondToServerRequest(store.selectedThreadId, props.item.requestId, {
-      accessToken: accessToken.value,
-      chatgptAccountId: accountId.value,
-      chatgptPlanType: planType.value || null,
-    });
-  } finally {
-    responding.value = false;
-  }
+  await respond({
+    accessToken: accessToken.value,
+    chatgptAccountId: accountId.value,
+    chatgptPlanType: planType.value || null,
+  });
 }
 </script>
 
@@ -59,15 +62,26 @@ async function submit() {
         <div class="mt-1 font-mono text-xs">{{ params.previousAccountId }}</div>
       </div>
       <Input
+        v-if="canRespond"
         v-model="accessToken"
         type="password"
         autocomplete="off"
         :placeholder="t('app.accessToken')"
       />
-      <Input v-model="accountId" autocomplete="off" :placeholder="t('app.chatgptAccountId')" />
-      <Input v-model="planType" autocomplete="off" :placeholder="t('app.chatgptPlanType')" />
+      <Input
+        v-if="canRespond"
+        v-model="accountId"
+        autocomplete="off"
+        :placeholder="t('app.chatgptAccountId')"
+      />
+      <Input
+        v-if="canRespond"
+        v-model="planType"
+        autocomplete="off"
+        :placeholder="t('app.chatgptPlanType')"
+      />
     </div>
-    <div class="mt-3 flex gap-2">
+    <div v-if="canRespond" class="mt-3 flex gap-2">
       <Button
         size="sm"
         :disabled="responding || !accessToken || !accountId"
@@ -76,6 +90,9 @@ async function submit() {
       >
         {{ t("app.submitResponse") }}
       </Button>
+    </div>
+    <div v-else class="mt-3 rounded-md bg-surface/80 px-3 py-2 text-xs text-ink-muted">
+      {{ t("app.serverRequestResolved") }}
     </div>
   </div>
 </template>

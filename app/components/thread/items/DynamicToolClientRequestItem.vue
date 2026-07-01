@@ -5,33 +5,32 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { useGatewayStore } from "@/stores/gateway";
+import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
 import { jsonPreview } from "@/utils/thread-items";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+  threadId: string | null;
+}>();
 
 const { t } = useI18n();
-const store = useGatewayStore();
-const responding = ref(false);
 const responseText = ref(
   '{\n  "contentItems": [\n    { "type": "inputText", "text": "" }\n  ],\n  "success": true\n}',
 );
 const params = computed(() => props.item.params || {});
+const requestId = computed(() => props.item.requestId);
+const { canRespond, responding, respondWithJson } = useServerRequestResponder({
+  hostId: computed(() => props.hostId),
+  threadId: computed(() => props.threadId),
+  requestId,
+});
 const title = computed(
   () => [params.value.namespace, params.value.tool].filter(Boolean).join(" · ") || "dynamic tool",
 );
 
 async function submit() {
-  if (!props.item.requestId || !store.selectedThreadId) {
-    return;
-  }
-  const result = JSON.parse(responseText.value);
-  responding.value = true;
-  try {
-    await store.respondToServerRequest(store.selectedThreadId, props.item.requestId, result);
-  } finally {
-    responding.value = false;
-  }
+  await respondWithJson(responseText.value);
 }
 </script>
 
@@ -52,16 +51,19 @@ async function submit() {
         <pre class="p-2 text-xs">{{ jsonPreview(params.arguments) }}</pre>
       </ScrollArea>
     </div>
-    <div class="mt-3">
+    <div v-if="canRespond" class="mt-3">
       <div class="mb-1 text-xs font-medium uppercase text-primary">
         {{ t("app.dynamicToolResponse") }}
       </div>
       <Textarea v-model="responseText" class="min-h-32 bg-surface font-mono text-xs" />
     </div>
-    <div class="mt-3 flex gap-2">
+    <div v-if="canRespond" class="mt-3 flex gap-2">
       <Button size="sm" :disabled="responding" data-testid="dynamic-tool-submit" @click="submit">
         {{ t("app.submitResponse") }}
       </Button>
+    </div>
+    <div v-else class="mt-3 rounded-md bg-surface/80 px-3 py-2 text-xs text-ink-muted">
+      {{ t("app.serverRequestResolved") }}
     </div>
   </div>
 </template>

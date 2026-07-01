@@ -1,18 +1,30 @@
 <script setup lang="ts">
 import { ShieldQuestionIcon } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useGatewayStore } from "@/stores/gateway";
+import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
 import { jsonPreview } from "@/utils/thread-items";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+  threadId: string | null;
+}>();
 
 const { t } = useI18n();
-const store = useGatewayStore();
-const responding = ref(false);
 const params = computed(() => props.item.params || {});
+const requestId = computed(() => props.item.requestId);
+const {
+  canRespond,
+  responding,
+  respond: respondToRequest,
+} = useServerRequestResponder({
+  hostId: computed(() => props.hostId),
+  threadId: computed(() => props.threadId),
+  requestId,
+});
 const requested = computed(() => params.value.permissions || {});
 const networkEnabled = computed(() => requested.value.network?.enabled === true);
 const fileSystem = computed(() => requested.value.fileSystem || null);
@@ -41,15 +53,7 @@ async function decline() {
 }
 
 async function respond(result: unknown) {
-  if (!props.item.requestId || !store.selectedThreadId) {
-    return;
-  }
-  responding.value = true;
-  try {
-    await store.respondToServerRequest(store.selectedThreadId, props.item.requestId, result);
-  } finally {
-    responding.value = false;
-  }
+  await respondToRequest(result);
 }
 </script>
 
@@ -102,7 +106,7 @@ async function respond(result: unknown) {
         </ScrollArea>
       </div>
     </div>
-    <div class="mt-3 flex flex-wrap gap-2">
+    <div v-if="canRespond" class="mt-3 flex flex-wrap gap-2">
       <Button
         size="sm"
         :disabled="responding"
@@ -129,6 +133,9 @@ async function respond(result: unknown) {
       >
         {{ t("app.decline") }}
       </Button>
+    </div>
+    <div v-else class="mt-3 rounded-md bg-surface/80 px-3 py-2 text-xs text-ink-muted">
+      {{ t("app.serverRequestResolved") }}
     </div>
   </div>
 </template>

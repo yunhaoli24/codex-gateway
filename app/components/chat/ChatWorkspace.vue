@@ -7,6 +7,7 @@ import ChatComposer from "@/components/chat/ChatComposer.vue";
 import ChatPanelScrollArea from "@/components/chat/ChatPanelScrollArea.vue";
 import ProjectThreadList from "@/components/chat/ProjectThreadList.vue";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
+import SubAgentThreadPanel from "@/components/thread/SubAgentThreadPanel.vue";
 import ThreadVirtualTimeline from "@/components/thread/ThreadVirtualTimeline.vue";
 import { useGatewayStore } from "@/stores/gateway";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
@@ -28,6 +29,7 @@ const {
   olderTurnsCursor,
   error,
   scrollToLatestToken,
+  subAgentPanels,
 } = storeToRefs(store);
 
 const threadTitle = computed(() => {
@@ -91,7 +93,7 @@ function fileChangeDiffSignature(item: any) {
 </script>
 
 <template>
-  <section class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface">
+  <section class="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface">
     <header
       class="hidden min-h-16 shrink-0 items-center justify-between border-b border-hairline px-[clamp(1rem,2.5vw,1.5rem)] md:flex"
     >
@@ -106,47 +108,56 @@ function fileChangeDiffSignature(item: any) {
       </div>
     </header>
 
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <ChatPanelScrollArea
-        v-if="initializing || openingThread"
-        class="flex items-center justify-center text-[0.9375rem] text-ink-muted"
+    <div class="relative flex min-h-0 flex-1 overflow-hidden">
+      <div
+        data-testid="chat-main-pane"
+        class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[flex-basis,max-width] duration-300 ease-out md:flex-none"
+        :class="
+          subAgentPanels.length ? 'md:basis-[72%] md:max-w-[72%]' : 'md:basis-full md:max-w-full'
+        "
       >
-        <div class="flex items-center gap-2">
-          <Loader2Icon class="size-4 animate-spin" />
-          <span>{{ t("app.loadingGateway") }}</span>
-        </div>
-      </ChatPanelScrollArea>
-
-      <ThreadVirtualTimeline
-        v-else-if="selectedThreadId"
-        :thread-id="selectedThreadId"
-        :turns="historyTurns"
-        :host-id="selectedHostId"
-        :loading="loading"
-        :loading-older="loadingOlderTurns"
-        :older-turns-cursor="olderTurnsCursor"
-        :visible-error="visibleError"
-        :follow-key="[scrollToLatestToken, threadItems.length, events.length, outputSignature]"
-        @load-older="loadOlderTurns"
-      />
-
-      <ChatPanelScrollArea v-else-if="selectedProjectId">
-        <ProjectThreadList />
-      </ChatPanelScrollArea>
-
-      <ChatPanelScrollArea v-else class="flex items-start">
-        <div
-          class="max-w-3xl rounded-2xl bg-canvas-soft px-4 py-3 text-[0.9375rem] leading-7 text-ink md:ml-auto md:px-5 md:py-4"
+        <ChatPanelScrollArea
+          v-if="initializing || openingThread"
+          class="flex items-center justify-center text-[0.9375rem] text-ink-muted"
         >
-          <div class="mb-2 flex items-center gap-2 text-ink-muted">
-            <FolderIcon class="size-4" />
-            {{ selectedProjectId ? t("app.selectThreadFirst") : t("app.selectProjectFirst") }}
+          <div class="flex items-center gap-2">
+            <Loader2Icon class="size-4 animate-spin" />
+            <span>{{ t("app.loadingGateway") }}</span>
           </div>
-          {{ selectedProjectId ? t("app.noThread") : t("app.chooseProject") }}
-        </div>
-      </ChatPanelScrollArea>
+        </ChatPanelScrollArea>
 
-      <ChatComposer v-if="selectedThreadId || selectedProjectId" />
+        <ThreadVirtualTimeline
+          v-else-if="selectedThreadId"
+          :thread-id="selectedThreadId"
+          :turns="historyTurns"
+          :host-id="selectedHostId"
+          :loading="loading"
+          :loading-older="loadingOlderTurns"
+          :older-turns-cursor="olderTurnsCursor"
+          :visible-error="visibleError"
+          :follow-key="[scrollToLatestToken, threadItems.length, events.length, outputSignature]"
+          @load-older="loadOlderTurns"
+        />
+
+        <ChatPanelScrollArea v-else-if="selectedProjectId">
+          <ProjectThreadList />
+        </ChatPanelScrollArea>
+
+        <ChatPanelScrollArea v-else class="flex items-start">
+          <div
+            class="max-w-3xl rounded-2xl bg-canvas-soft px-4 py-3 text-[0.9375rem] leading-7 text-ink md:ml-auto md:px-5 md:py-4"
+          >
+            <div class="mb-2 flex items-center gap-2 text-ink-muted">
+              <FolderIcon class="size-4" />
+              {{ selectedProjectId ? t("app.selectThreadFirst") : t("app.selectProjectFirst") }}
+            </div>
+            {{ selectedProjectId ? t("app.noThread") : t("app.chooseProject") }}
+          </div>
+        </ChatPanelScrollArea>
+
+        <ChatComposer v-if="selectedThreadId || selectedProjectId" />
+      </div>
+      <SubAgentThreadPanel />
     </div>
   </section>
 </template>

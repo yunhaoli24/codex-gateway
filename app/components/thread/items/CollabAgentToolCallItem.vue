@@ -1,16 +1,58 @@
 <script setup lang="ts">
-import { BotIcon, ChevronDownIcon, ChevronRightIcon } from "@lucide/vue";
+import { BotIcon } from "@lucide/vue";
 import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import MarkdownContent from "@/components/common/MarkdownContent.vue";
+import { Button } from "@/components/ui/button";
 import { isItemInProgress } from "@/utils/thread-items";
+import { useGatewayStore } from "@/stores/gateway";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+}>();
 const { t } = useI18n();
+const store = useGatewayStore();
 
 const title = computed(() => props.item.tool || t("app.collabAgentToolCall"));
-const agents = computed(() => Object.entries(props.item.agentsStates || {}));
+const agentRows = computed(() => {
+  const rows = new Map<
+    string,
+    { threadId: string; status: string | null; message: string | null; receiver: boolean }
+  >();
+  const receiverThreadIds = Array.isArray(props.item.receiverThreadIds)
+    ? props.item.receiverThreadIds
+    : [];
+  for (const threadId of receiverThreadIds) {
+    const id = String(threadId);
+    rows.set(id, { threadId: id, status: null, message: null, receiver: true });
+  }
+  for (const [threadId, state] of Object.entries(props.item.agentsStates || {})) {
+    const id = String(threadId);
+    const current = rows.get(id) || {
+      threadId: id,
+      status: null,
+      message: null,
+      receiver: false,
+    };
+    rows.set(id, {
+      ...current,
+      status: String((state as any)?.status || ""),
+      message: (state as any)?.message ? String((state as any).message) : null,
+    });
+  }
+  return [...rows.values()];
+});
+
+function openReceiverThread(threadId: string) {
+  if (!props.hostId || !threadId) {
+    return;
+  }
+  void store.openSubAgentPanel({
+    hostId: props.hostId,
+    threadId,
+    title: `agent-${threadId.slice(0, 8)}`,
+  });
+}
 </script>
 
 <template>
@@ -21,53 +63,31 @@ const agents = computed(() => Object.entries(props.item.agentsStates || {}));
       <Badge variant="secondary">{{ item.status }}</Badge>
       <Badge v-if="isItemInProgress(item)" variant="outline">{{ t("app.running") }}</Badge>
     </div>
-    <Collapsible
-      v-if="item.prompt || agents.length || item.receiverThreadIds?.length"
-      v-slot="{ open }"
-      class="mt-2 rounded-lg border border-hairline bg-surface"
-    >
-      <CollapsibleTrigger
-        class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas-soft"
+    <div v-if="agentRows.length" class="mt-2 flex flex-col gap-1.5">
+      <Button
+        v-for="agent in agentRows"
+        :key="agent.threadId"
+        type="button"
+        variant="outline"
+        class="h-auto w-full justify-start px-2 py-1.5 text-left"
+        data-testid="open-collab-subagent-panel"
+        @click="openReceiverThread(agent.threadId)"
       >
-        <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-ink-faint" />
-        <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
-        <span class="min-w-0 flex-1 truncate">{{ t("app.agentDetails") }}</span>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div class="space-y-3 border-t border-hairline px-3 py-3 text-sm leading-6">
-          <MarkdownContent v-if="item.prompt" :content="item.prompt" compact />
-          <div v-if="item.receiverThreadIds?.length" class="space-y-1">
-            <div class="text-xs font-medium uppercase text-ink-faint">
+        <div class="min-w-0 flex-1">
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="min-w-0 flex-1 truncate font-mono text-xs text-ink-secondary">
+              {{ agent.threadId }}
+            </span>
+            <Badge v-if="agent.status" variant="outline">{{ agent.status }}</Badge>
+            <Badge v-else-if="agent.receiver" variant="secondary">
               {{ t("app.receiverThreads") }}
-            </div>
-            <div
-              v-for="threadId in item.receiverThreadIds"
-              :key="threadId"
-              class="truncate font-mono text-xs text-ink-secondary"
-            >
-              {{ threadId }}
-            </div>
+            </Badge>
           </div>
-          <div v-if="agents.length" class="space-y-2">
-            <div class="text-xs font-medium uppercase text-ink-faint">
-              {{ t("app.agentStates") }}
-            </div>
-            <div
-              v-for="[threadId, state] in agents"
-              :key="threadId"
-              class="rounded-md border border-hairline bg-surface px-2 py-1"
-            >
-              <div class="truncate font-mono text-xs text-ink-secondary">{{ threadId }}</div>
-              <div class="mt-1 flex items-center gap-2 text-xs text-ink-muted">
-                <Badge variant="outline">{{ (state as any).status }}</Badge>
-                <span v-if="(state as any).message" class="truncate">{{
-                  (state as any).message
-                }}</span>
-              </div>
-            </div>
+          <div v-if="agent.message" class="mt-1 truncate text-xs text-ink-muted">
+            {{ agent.message }}
           </div>
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+      </Button>
+    </div>
   </div>
 </template>

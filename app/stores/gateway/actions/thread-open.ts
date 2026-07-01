@@ -1,6 +1,7 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
+import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
 import type { GatewayStoreContext } from "../types";
-import { messageFromError } from "../thread-utils/identity";
+import { messageFromError, pinnedKey } from "../thread-utils/identity";
 import { applyOpenedThreadResult, applyStartedThreadResult } from "../thread-open/hydration";
 import { requestOpenThread, requestStartThread } from "../thread-open/transport";
 import {
@@ -110,6 +111,119 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         });
       } finally {
         ctx.state.loading = false;
+      }
+    },
+
+    async openThreadPreview(
+      hostId: number,
+      threadId: string,
+      context: { projectId?: number | null; limit?: number } = {},
+    ) {
+      const key = pinnedKey(hostId, threadId);
+      const existing = ctx.state.threadPreviews[key];
+      if (existing?.history && !existing.error) {
+        ctx.connectEvents(hostId, threadId);
+        return existing;
+      }
+
+      ctx.state.threadPreviews = {
+        ...ctx.state.threadPreviews,
+        [key]: {
+          ...(existing ?? {
+            hostId,
+            projectId: context.projectId ?? null,
+            threadId,
+            currentThread: null,
+            history: null,
+            events: [],
+            olderTurnsCursor: null,
+            newerTurnsCursor: null,
+            lastEventId: 0,
+          }),
+          loading: true,
+          error: null,
+        },
+      };
+
+      try {
+        const result = await requestOpenThread({
+          hostId,
+          projectId: context.projectId ?? null,
+          threadId,
+          limit: context.limit ?? INITIAL_TURN_PAGE_LIMIT,
+        });
+        const preview = {
+          hostId,
+          projectId: result.projectId ?? context.projectId ?? null,
+          threadId,
+          currentThread: result.thread,
+          history: result.history,
+          events: [],
+          olderTurnsCursor: result.turnsPage.nextCursor,
+          newerTurnsCursor: result.turnsPage.backwardsCursor,
+          lastEventId: 0,
+          loading: false,
+          error: null,
+        };
+        ctx.state.threadSnapshots = {
+          ...ctx.state.threadSnapshots,
+          [key]: preview,
+        };
+        ctx.state.threadPreviews = {
+          ...ctx.state.threadPreviews,
+          [key]: preview,
+        };
+        for (const event of result.recentEvents) {
+          ctx.applyLiveEvent(event, { notifyTerminal: false });
+        }
+        const hydratedPreview = ctx.state.threadPreviews[key] ?? preview;
+        const hydratedSnapshot = ctx.state.threadSnapshots[key] ?? preview;
+        const lastEventId = result.recentEvents.at(-1)?.id ?? 0;
+        ctx.state.threadSnapshots = {
+          ...ctx.state.threadSnapshots,
+          [key]: {
+            ...hydratedSnapshot,
+            events: [...result.recentEvents],
+            olderTurnsCursor: result.turnsPage.nextCursor,
+            newerTurnsCursor: result.turnsPage.backwardsCursor,
+            lastEventId,
+          },
+        };
+        ctx.state.threadPreviews = {
+          ...ctx.state.threadPreviews,
+          [key]: {
+            ...hydratedPreview,
+            events: [...result.recentEvents],
+            olderTurnsCursor: result.turnsPage.nextCursor,
+            newerTurnsCursor: result.turnsPage.backwardsCursor,
+            lastEventId,
+            loading: false,
+            error: null,
+          },
+        };
+        ctx.connectEvents(hostId, threadId);
+        return ctx.state.threadPreviews[key];
+      } catch (error: any) {
+        const message = messageFromError(error, ctx.t("app.openThreadFailed"), ctx.errorLabels);
+        ctx.state.threadPreviews = {
+          ...ctx.state.threadPreviews,
+          [key]: {
+            ...(ctx.state.threadPreviews[key] ?? {
+              hostId,
+              projectId: context.projectId ?? null,
+              threadId,
+              currentThread: null,
+              history: null,
+              events: [],
+              olderTurnsCursor: null,
+              newerTurnsCursor: null,
+              lastEventId: 0,
+            }),
+            loading: false,
+            error: message,
+          },
+        };
+        throw error;
       }
     },
 

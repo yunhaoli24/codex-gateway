@@ -7,6 +7,7 @@ export function requestOpenThread(input: {
   hostId: number;
   projectId: number | null;
   threadId: string;
+  limit?: number;
 }) {
   return gatewayApi<ThreadOpenResult>("/api/threads/open", {
     method: "POST",
@@ -14,7 +15,7 @@ export function requestOpenThread(input: {
       hostId: input.hostId,
       projectId: input.projectId,
       threadId: input.threadId,
-      limit: INITIAL_TURN_PAGE_LIMIT,
+      limit: input.limit ?? INITIAL_TURN_PAGE_LIMIT,
     },
   });
 }

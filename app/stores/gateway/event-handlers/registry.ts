@@ -1,5 +1,7 @@
 import { deltaEventHandlers } from "./delta-events";
+import { errorEventHandlers } from "./error-events";
 import { itemEventHandlers } from "./item-events";
+import { notificationEventHandlers } from "./notification-events";
 import { requestEventHandlers } from "./request-events";
 import { threadEventHandlers } from "./thread-events";
 import { turnEventHandlers } from "./turn-events";
@@ -11,4 +13,6 @@ export const appServerEventHandlers: GatewayEventHandlerRegistry = {
   ...itemEventHandlers,
   ...deltaEventHandlers,
   ...requestEventHandlers,
+  ...errorEventHandlers,
+  ...notificationEventHandlers,
 };

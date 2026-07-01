@@ -20,9 +20,11 @@ import ProtocolMismatchRequestItem from "@/components/thread/items/ProtocolMisma
 import HookPromptItem from "@/components/thread/items/HookPromptItem.vue";
 import SubAgentActivityItem from "@/components/thread/items/SubAgentActivityItem.vue";
 import CollabAgentToolCallItem from "@/components/thread/items/CollabAgentToolCallItem.vue";
+import AppNotificationItem from "@/components/thread/items/AppNotificationItem.vue";
 
 const threadItemComponents = {
   agentMessage: AgentMessageItem,
+  appNotification: AppNotificationItem,
   attestationRequest: ProtocolMismatchRequestItem,
   chatgptAuthTokensRefreshRequest: ChatgptAuthTokensRefreshRequestItem,
   commandExecution: CommandExecutionItem,

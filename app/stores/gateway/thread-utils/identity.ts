@@ -1,3 +1,5 @@
+import { unknownGatewayErrorFromError } from "../errors";
+
 export interface ErrorMessageLabels {
   scope: string;
   host: string;
@@ -29,41 +31,7 @@ export function messageFromError(
   fallback: string,
   labels: ErrorMessageLabels = defaultErrorLabels,
 ) {
-  const payload = error?.data || error?.response?._data || error;
-  const message =
-    payload?.message ||
-    payload?.statusMessage ||
-    error?.statusMessage ||
-    error?.message ||
-    fallback;
-  const details = payload?.details;
-  if (!details || typeof details !== "object") {
-    return message;
-  }
-
-  const context = [
-    labelValue(labels.scope, details.scope),
-    labelValue(labels.host, details.hostName),
-    labelValue(labels.ssh, sshTarget(details)),
-    labelValue(labels.auth, details.authMode),
-    labelValue(
-      labels.password,
-      details.hasPassword === true
-        ? labels.passwordConfigured
-        : details.hasPassword === false
-          ? labels.passwordMissing
-          : null,
-    ),
-    labelValue(
-      labels.proxy,
-      details.hasProxy === true
-        ? labels.proxyEnabled
-        : details.hasProxy === false
-          ? labels.proxyNone
-          : null,
-    ),
-  ].filter(Boolean);
-  return context.length ? `${message}\n${context.join(" · ")}` : message;
+  return unknownGatewayErrorFromError(error, fallback, labels).toDisplayMessage();
 }
 
 export function errorMessageLabels(t: (key: string) => string): ErrorMessageLabels {
@@ -79,31 +47,6 @@ export function errorMessageLabels(t: (key: string) => string): ErrorMessageLabe
     proxyEnabled: t("app.errorProxyEnabled"),
     proxyNone: t("app.errorProxyNone"),
   };
-}
-
-function labelValue(label: string, value: unknown) {
-  const text = stringFromDetail(value);
-  return text ? `${label}: ${text}` : null;
-}
-
-function sshTarget(details: Record<string, unknown>) {
-  const host = stringFromDetail(details.sshHost);
-  if (!host) {
-    return null;
-  }
-  const user = stringFromDetail(details.sshUser);
-  const port = stringFromDetail(details.sshPort);
-  return `${user ? `${user}@` : ""}${host}${port ? `:${port}` : ""}`;
-}
-
-function stringFromDetail(value: unknown) {
-  if (value == null || value === "") {
-    return "";
-  }
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  return JSON.stringify(value);
 }
 
 export function pinnedKey(hostId: number, threadId: string) {

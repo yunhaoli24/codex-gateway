@@ -6,18 +6,20 @@ import {
   TerminalIcon,
   XCircleIcon,
 } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import HighlightedCode from "@/components/common/HighlightedCode.vue";
 import TanStackStickToBottomScrollArea from "@/components/common/TanStackStickToBottomScrollArea.vue";
-import { useGatewayStore } from "@/stores/gateway";
+import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+  threadId: string | null;
+}>();
 const { t } = useI18n();
-const store = useGatewayStore();
-const responding = ref(false);
 const title = computed(() => props.item.command || "Command");
 const rawOutput = computed(() => props.item.aggregatedOutput || props.item.result?.text || "");
 const output = computed(() => rawOutput.value);
@@ -25,23 +27,23 @@ const commandStatus = computed(() =>
   typeof props.item.status === "string" ? props.item.status : props.item.status?.type,
 );
 const pendingApproval = computed(() => props.item.pendingApproval || null);
+const requestId = computed(() => pendingApproval.value?.requestId);
+const {
+  canRespond,
+  responding,
+  respond: respondToRequest,
+} = useServerRequestResponder({
+  hostId: computed(() => props.hostId),
+  threadId: computed(() => props.threadId),
+  requestId,
+});
 const isInProgress = computed(() => {
   const value = commandStatus.value;
   return value === "inProgress" || value === "running" || value === "active";
 });
 
 async function respond(decision: "accept" | "decline") {
-  if (!pendingApproval.value?.requestId || !store.selectedThreadId) {
-    return;
-  }
-  responding.value = true;
-  try {
-    await store.respondToServerRequest(store.selectedThreadId, pendingApproval.value.requestId, {
-      decision,
-    });
-  } finally {
-    responding.value = false;
-  }
+  await respondToRequest({ decision });
 }
 </script>
 
@@ -71,7 +73,7 @@ async function respond(decision: "accept" | "decline") {
         <div v-if="pendingApproval.params?.reason" class="mt-1 text-accent-orange-deep">
           {{ pendingApproval.params.reason }}
         </div>
-        <div class="mt-2 flex flex-wrap gap-2">
+        <div v-if="canRespond" class="mt-2 flex flex-wrap gap-2">
           <Button
             size="sm"
             :disabled="responding"
@@ -90,12 +92,16 @@ async function respond(decision: "accept" | "decline") {
             {{ t("app.decline") }}
           </Button>
         </div>
+        <div v-else class="mt-2 text-xs text-accent-orange-deep">
+          {{ t("app.serverRequestResolved") }}
+        </div>
       </div>
       <TanStackStickToBottomScrollArea
         v-if="output"
         class="mt-2 max-h-56 rounded-lg border border-hairline bg-canvas-soft"
         viewport-class="max-h-56"
         horizontal
+        natural-height
         :threshold="48"
         :estimate-size="44"
         :follow-key="rawOutput.length"

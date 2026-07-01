@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { Loader2Icon } from "@lucide/vue";
 import { useVirtualizer, type VirtualItem } from "@tanstack/vue-virtual";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ThreadTurnView from "@/components/thread/ThreadTurnView.vue";
+import { useVirtualStickToBottom } from "@/composables/useVirtualStickToBottom";
 import { shouldAdjustVirtualScrollForResize } from "@/utils/virtual-scroll";
 
 type TimelineRow =
@@ -29,11 +30,19 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const scrollAreaRef = ref<any>(null);
-const followLatest = ref(true);
-const initialBottomAligned = ref(false);
 const rowElements = new Map<number, Element>();
-let resizeObserver: ResizeObserver | null = null;
 const threshold = 120;
+
+const sticky = useVirtualStickToBottom({
+  threshold,
+  getViewport: scrollViewport,
+  measure: measureVisibleRows,
+  scrollToBottom: () => {
+    if (rows.value.length) {
+      virtualizer.value.scrollToEnd({ behavior: "auto" });
+    }
+  },
+});
 
 const rows = computed<TimelineRow[]>(() => {
   const timelineRows: TimelineRow[] = [];
@@ -65,9 +74,9 @@ const virtualizer = useVirtualizer(
     estimateSize: (index: number) => estimatedRowSize(rows.value[index]),
     overscan: 6,
     scrollEndThreshold: threshold,
-    initialOffset: () => 1_000_000_000,
+    initialOffset: 0,
     shouldAdjustScrollPositionOnItemSizeChange: (item, _delta, instance) =>
-      shouldAdjustVirtualScrollForResize(followLatest.value, item, instance),
+      shouldAdjustVirtualScrollForResize(sticky.followLatest.value, item, instance),
   })),
 );
 
@@ -92,38 +101,15 @@ function estimatedRowSize(row: TimelineRow | undefined) {
   return 520;
 }
 
-function isNearBottom(viewport = scrollViewport()) {
-  if (!viewport) {
-    return false;
-  }
-  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= threshold;
-}
-
-async function scrollToBottom() {
-  await nextTick();
-  measureVisibleRows();
-  if (!rows.value.length) {
-    initialBottomAligned.value = true;
-    return;
-  }
-  virtualizer.value.scrollToEnd({ behavior: "auto" });
-  await new Promise((resolve) => requestAnimationFrame(resolve));
-  measureVisibleRows();
-  initialBottomAligned.value = true;
-}
-
 function resetFollowLatest() {
-  followLatest.value = true;
-  initialBottomAligned.value = false;
-  void scrollToBottom();
+  sticky.reset();
 }
 
 function handleScroll(event: Event) {
   const viewport = event.target as HTMLElement;
-  if (viewport !== scrollViewport()) {
+  if (!sticky.handleScroll(event)) {
     return;
   }
-  followLatest.value = isNearBottom(viewport);
   if (viewport.scrollTop <= 80 && props.olderTurnsCursor && !props.loadingOlder) {
     emit("loadOlder");
   }
@@ -173,11 +159,7 @@ watch(
 watch(
   () => [rows.value.length, props.followKey] as const,
   async () => {
-    await nextTick();
-    measureVisibleRows();
-    if (followLatest.value) {
-      void scrollToBottom();
-    }
+    sticky.stickIfFollowing();
   },
   { flush: "post" },
 );
@@ -187,27 +169,8 @@ onMounted(() => {
   resetFollowLatest();
 });
 
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect();
-  resizeObserver = null;
-});
-
 function observeRows() {
-  if (typeof ResizeObserver !== "function") {
-    return;
-  }
-  resizeObserver?.disconnect();
-  resizeObserver = new ResizeObserver(() => {
-    measureVisibleRows();
-    if (followLatest.value) {
-      void scrollToBottom();
-    }
-  });
-  for (const element of rowElements.values()) {
-    if (element.isConnected) {
-      resizeObserver.observe(element);
-    }
-  }
+  sticky.observeElements(rowElements.values());
 }
 </script>
 
@@ -219,8 +182,8 @@ function observeRows() {
     @scroll.capture="handleScroll"
   >
     <div
-      class="mx-auto min-h-[calc(100dvh-14rem)] w-full max-w-5xl px-[clamp(0.875rem,4vw,2rem)] py-4 md:min-h-[calc(100vh-16rem)] md:py-[clamp(2rem,6vh,3rem)]"
-      :class="initialBottomAligned ? 'opacity-100' : 'opacity-0'"
+      class="mx-auto min-h-[calc(100dvh-14rem)] w-full max-w-4xl px-[clamp(0.875rem,4vw,2rem)] py-4 md:min-h-[calc(100vh-16rem)] md:py-[clamp(2rem,6vh,3rem)]"
+      :class="sticky.initialBottomAligned.value ? 'opacity-100' : 'opacity-0'"
     >
       <div class="relative" :style="{ height: `${totalSize}px` }">
         <div
@@ -249,6 +212,7 @@ function observeRows() {
             v-else-if="rows[virtualRow.index]?.type === 'turn'"
             :turn="(rows[virtualRow.index] as any).turn"
             :host-id="hostId"
+            :thread-id="threadId"
           />
 
           <div

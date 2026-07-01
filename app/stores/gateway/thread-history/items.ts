@@ -34,7 +34,7 @@ export function mergeItemIntoLatestTurn(
   let turnIndex = turns.findIndex((candidate: any) => turnId(candidate) === targetTurnId);
   let turn = turnIndex >= 0 ? turns[turnIndex] : null;
   if (!turn) {
-    turn = { id: targetTurnId, items: [], status: "inProgress" };
+    turn = { id: targetTurnId, items: [], status: statusForNewTurn(item) };
     turns.push(turn);
     turnIndex = turns.length - 1;
   }
@@ -53,6 +53,21 @@ export function mergeItemIntoLatestTurn(
   turns[turnIndex] = turn;
   nextHistory.thread.turns = [...turns];
   return nextHistory;
+}
+
+function statusForNewTurn(item: any) {
+  const status = typeof item?.status === "string" ? item.status : item?.status?.type;
+  return isActiveItemStatus(status) ? "inProgress" : "completed";
+}
+
+function isActiveItemStatus(status: unknown) {
+  return (
+    status === "inProgress" ||
+    status === "running" ||
+    status === "active" ||
+    status === "waitingForClient" ||
+    status === "waitingForApproval"
+  );
 }
 
 export function insertSteerItemIntoActiveTurn(

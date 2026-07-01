@@ -68,7 +68,7 @@ function openThread(threadId: string) {
 </script>
 
 <template>
-  <section data-testid="project-thread-list" class="mx-auto w-full max-w-5xl">
+  <section data-testid="project-thread-list" class="mx-auto w-full max-w-4xl">
     <div class="mb-8 flex items-start justify-between gap-4 border-b border-hairline pb-5">
       <div class="min-w-0">
         <div class="mb-2 flex items-center gap-2 text-sm text-ink-muted">

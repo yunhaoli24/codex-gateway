@@ -51,6 +51,15 @@ export const useGatewayStore = defineStore("gateway", () => {
       ? (state.composerDraftsByKey[key] ?? { text: "", attachedFiles: [] })
       : { text: "", attachedFiles: [] };
   });
+  const activeSubAgentPanel = computed(() => {
+    const key = state.activeSubAgentPanelKey;
+    if (!key) {
+      return null;
+    }
+    return (
+      state.subAgentPanels.find((panel) => pinnedKey(panel.hostId, panel.threadId) === key) ?? null
+    );
+  });
 
   const ctx = {} as GatewayStoreContext;
   Object.assign(ctx, {
@@ -111,6 +120,7 @@ export const useGatewayStore = defineStore("gateway", () => {
     selectedThreadSettings,
     selectedThreadTokenUsage,
     selectedComposerDraft,
+    activeSubAgentPanel,
     ...actions,
   };
 });

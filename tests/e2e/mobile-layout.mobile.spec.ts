@@ -54,6 +54,89 @@ test("opens sidebar context actions with long press on mobile", async ({ page })
   await expect(page.getByTestId(`pinned-thread-button-${threadId}`)).toBeVisible();
 });
 
+test("opens and closes the subagent side panel on mobile", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "mobile-parent-thread";
+    const subThreadId = "mobile-subagent-thread";
+    store.hosts = [{ id: 1, name: "Mobile Host", sshHost: "localhost", sshUser: "codex" }];
+    store.selectedHostId = 1;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Mobile Parent" };
+    store.history = {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "mobile-parent-turn",
+            status: "running",
+            items: [
+              {
+                id: "mobile-subagent-activity",
+                type: "subAgentActivity",
+                kind: "started",
+                agentThreadId: subThreadId,
+                agentPath: "mobile-agent",
+              },
+            ],
+          },
+        ],
+      },
+    };
+    store.threadPreviews = {
+      "1:mobile-subagent-thread": {
+        hostId: 1,
+        projectId: null,
+        threadId: subThreadId,
+        currentThread: { id: subThreadId, name: "mobile-agent" },
+        history: {
+          thread: {
+            id: subThreadId,
+            turns: [
+              {
+                id: "mobile-sub-turn",
+                status: "completed",
+                items: [
+                  {
+                    id: "mobile-sub-agent",
+                    type: "agentMessage",
+                    phase: "final_answer",
+                    text: "Mobile subagent timeline is readable.",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        events: [],
+        olderTurnsCursor: null,
+        newerTurnsCursor: null,
+        lastEventId: 0,
+        loading: false,
+        error: null,
+      },
+    };
+    store.initializing = false;
+    store.loading = false;
+  });
+
+  await page.getByTestId("open-subagent-panel").click();
+  const panel = page.getByTestId("subagent-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText("Mobile subagent timeline is readable.")).toBeVisible();
+  const panelBox = await panel.boundingBox();
+  const viewport = page.viewportSize();
+  expect(panelBox?.width).toBeGreaterThan((viewport?.width ?? 0) * 0.9);
+  await page.getByLabel("关闭子代理面板").click();
+  await expect(panel).toBeHidden();
+});
+
 async function createConfiguredHostAndProject(
   page: Page,
   remote: Awaited<ReturnType<typeof readRemoteEnv>>,

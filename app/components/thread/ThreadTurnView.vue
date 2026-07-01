@@ -8,6 +8,7 @@ import ThreadItemView from "@/components/thread/ThreadItemView.vue";
 const props = defineProps<{
   turn: Record<string, any>;
   hostId: number | null;
+  threadId: string | null;
 }>();
 
 const { t } = useI18n();
@@ -55,7 +56,11 @@ function findFinalAgentIndex(turnItems: any[], status: unknown) {
   if (status !== "completed") {
     return -1;
   }
-  return findLastIndex(turnItems, (item) => item?.type === "agentMessage");
+  const finalAgentMessageIndex = findLastIndex(turnItems, (item) => item?.type === "agentMessage");
+  if (finalAgentMessageIndex >= 0) {
+    return finalAgentMessageIndex;
+  }
+  return findLastIndex(turnItems, (item) => item?.type === "appNotification");
 }
 
 function findLastIndex<T>(list: T[], predicate: (item: T) => boolean) {
@@ -108,6 +113,7 @@ function isActiveTurnStatus(status: unknown) {
       :key="item.id || item.clientId || `${item.type}-user-${JSON.stringify(item).length}`"
       :item="item"
       :host-id="hostId"
+      :thread-id="threadId"
       :user-message-variant="userMessageVariant(item)"
     />
 
@@ -133,6 +139,7 @@ function isActiveTurnStatus(status: unknown) {
             :key="item.id || `${item.type}-middle-${JSON.stringify(item).length}`"
             :item="item"
             :host-id="hostId"
+            :thread-id="threadId"
             :user-message-variant="userMessageVariant(item)"
           />
         </div>
@@ -144,6 +151,7 @@ function isActiveTurnStatus(status: unknown) {
       :key="item.id || `${item.type}-final-${JSON.stringify(item).length}`"
       :item="item"
       :host-id="hostId"
+      :thread-id="threadId"
       :user-message-variant="userMessageVariant(item)"
     />
   </div>

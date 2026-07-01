@@ -22,15 +22,27 @@ export function handleRealtimeThreadEvent(ctx: GatewayStoreContext, event: Gatew
 export function recordThreadEvent(ctx: GatewayStoreContext, event: GatewayEvent) {
   const key = pinnedKey(event.hostId, event.threadId);
   const snapshot = ctx.state.threadSnapshots[key];
-  if (!snapshot || event.id <= snapshot.lastEventId) {
-    return;
+  if (snapshot && event.id > snapshot.lastEventId) {
+    const events = [...snapshot.events, event].slice(-500);
+    ctx.state.threadSnapshots[key] = {
+      ...snapshot,
+      events,
+      lastEventId: event.id,
+    };
   }
-  const events = [...snapshot.events, event].slice(-500);
-  ctx.state.threadSnapshots[key] = {
-    ...snapshot,
-    events,
-    lastEventId: event.id,
-  };
+
+  const preview = ctx.state.threadPreviews[key];
+  if (preview && event.id > preview.lastEventId) {
+    const events = [...preview.events, event].slice(-500);
+    ctx.state.threadPreviews = {
+      ...ctx.state.threadPreviews,
+      [key]: {
+        ...preview,
+        events,
+        lastEventId: event.id,
+      },
+    };
+  }
 }
 
 export function applyLiveThreadEvent(

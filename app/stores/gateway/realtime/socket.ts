@@ -1,5 +1,6 @@
 import type { RealtimeClientMessage, RealtimeServerMessage } from "~~/shared/types";
 import { useAuthStore } from "@/stores/auth";
+import { rejectAllRealtimeRequests } from "./request-response";
 import type { GatewayStoreContext } from "../types";
 
 export function connectRealtimeSocket(ctx: GatewayStoreContext) {
@@ -47,6 +48,7 @@ export function connectRealtimeSocket(ctx: GatewayStoreContext) {
     }
     ctx.state.realtimeSocketConnected = false;
     ctx.state.realtimeSocket = null;
+    rejectAllRealtimeRequests(new Error(ctx.t("app.realtimeDisconnected")));
     ctx.scheduleRealtimeReconnect();
   });
 

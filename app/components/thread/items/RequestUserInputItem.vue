@@ -1,24 +1,29 @@
 <script setup lang="ts">
 import { MessageSquareIcon } from "@lucide/vue";
-import { computed, reactive, ref } from "vue";
+import { computed, reactive } from "vue";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useGatewayStore } from "@/stores/gateway";
+import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+  threadId: string | null;
+}>();
 const { t } = useI18n();
-const store = useGatewayStore();
-const responding = ref(false);
 const answers = reactive<Record<string, string>>({});
 const questions = computed(() =>
   Array.isArray(props.item.params?.questions) ? props.item.params.questions : [],
 );
+const requestId = computed(() => props.item.requestId);
+const { canRespond, responding, respond } = useServerRequestResponder({
+  hostId: computed(() => props.hostId),
+  threadId: computed(() => props.threadId),
+  requestId,
+});
 
 async function submit() {
-  if (!props.item.requestId || !store.selectedThreadId) {
-    return;
-  }
   const payload: Record<string, { answers: string[] }> = {};
   for (const question of questions.value) {
     const answer = answers[question.id];
@@ -26,14 +31,7 @@ async function submit() {
       payload[question.id] = { answers: [answer] };
     }
   }
-  responding.value = true;
-  try {
-    await store.respondToServerRequest(store.selectedThreadId, props.item.requestId, {
-      answers: payload,
-    });
-  } finally {
-    responding.value = false;
-  }
+  await respond({ answers: payload });
 }
 </script>
 
@@ -70,7 +68,7 @@ async function submit() {
         />
       </div>
     </div>
-    <div class="mt-3 flex gap-2">
+    <div v-if="canRespond" class="mt-3 flex gap-2">
       <Button
         size="sm"
         :disabled="responding || !questions.length"
@@ -79,6 +77,9 @@ async function submit() {
       >
         {{ t("app.submitAnswer") }}
       </Button>
+    </div>
+    <div v-else class="mt-3 rounded-md bg-surface/80 px-3 py-2 text-xs text-ink-muted">
+      {{ t("app.serverRequestResolved") }}
     </div>
   </div>
 </template>

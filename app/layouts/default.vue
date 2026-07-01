@@ -6,7 +6,7 @@ import GatewaySidebar from "@/components/sidebar/GatewaySidebar.vue";
 <template>
   <main data-testid="desktop-layout" class="h-[100dvh] overflow-hidden bg-canvas-soft text-ink">
     <div
-      class="grid h-full min-h-0 grid-cols-[clamp(18rem,22vw,21rem)_minmax(0,1fr)] overflow-hidden"
+      class="grid h-full min-h-0 grid-cols-[clamp(15.5rem,18vw,18rem)_minmax(0,1fr)] overflow-hidden"
     >
       <GatewaySidebar />
       <ChatWorkspace />

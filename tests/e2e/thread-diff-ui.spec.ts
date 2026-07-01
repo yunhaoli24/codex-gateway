@@ -63,6 +63,9 @@ test("file diff blocks can collapse and expand after virtual timeline measuremen
   const diffText = page.getByText("new_value =");
   await expect(toggle).toHaveAttribute("data-state", "open");
   await expect(diffText).toBeVisible();
+  await expect
+    .poll(async () => (await page.locator(".diff-markdown").first().boundingBox())?.height ?? 0)
+    .toBeGreaterThan(24);
 
   await toggle.click();
   await expect(toggle).toHaveAttribute("data-state", "closed");
@@ -390,6 +393,512 @@ test("short command output uses natural height instead of a fixed minimum", asyn
       }),
     )
     .toBeLessThan(96);
+});
+
+test("dynamic tool response submits through the server request responder and surfaces failures", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-dynamic-tool-thread";
+    store.hosts = [{ id: 7, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+    store.projects = [{ id: 3, hostId: 7, name: "E2E Project", remotePath: "/tmp/e2e" }];
+    store.selectedHostId = 7;
+    store.selectedProjectId = 3;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Dynamic Tool" };
+    store.history = {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "turn-dynamic-tool",
+            status: "running",
+            items: [
+              {
+                id: "server-request-42",
+                type: "dynamicToolClientRequest",
+                turnId: "turn-dynamic-tool",
+                status: "waitingForClient",
+                requestId: 42,
+                method: "item/tool/call",
+                params: {
+                  namespace: "codex_app",
+                  tool: "read_thread_terminal",
+                  arguments: {},
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    store.initializing = false;
+    store.loading = false;
+  });
+
+  let submittedBody: any = null;
+  await page.route("**/api/server-requests/respond", async (route) => {
+    submittedBody = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  });
+
+  await page.getByTestId("dynamic-tool-submit").click();
+  await expect
+    .poll(() => submittedBody)
+    .toMatchObject({
+      hostId: 7,
+      threadId: "e2e-dynamic-tool-thread",
+      requestId: 42,
+      result: {
+        contentItems: [{ type: "inputText", text: "" }],
+        success: true,
+      },
+    });
+
+  await page.unroute("**/api/server-requests/respond");
+  await page.route("**/api/server-requests/respond", async (route) => {
+    await route.fulfill({
+      status: 502,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "pending app-server request was not found" }),
+    });
+  });
+
+  await page.getByTestId("dynamic-tool-submit").click();
+  await expect(
+    page.getByTestId("chat-scroll-area").getByText("pending app-server request was not found"),
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    store.applyLiveEvent({
+      id: 43,
+      hostId: 7,
+      threadId: "e2e-dynamic-tool-thread",
+      method: "serverRequest/resolved",
+      payload: { params: { threadId: "e2e-dynamic-tool-thread", requestId: 42 } },
+      createdAt: new Date().toISOString(),
+    });
+  });
+  await expect(page.getByTestId("dynamic-tool-submit")).toBeHidden();
+  await expect(page.getByText("请求已处理")).toBeVisible();
+});
+
+test("sub-agent activity opens a side panel with the sub-agent timeline", async ({ page }) => {
+  await openApp(page);
+  const threadId = "e2e-parent-thread";
+  const subThreadId = "e2e-subagent-thread";
+  const secondSubThreadId = "e2e-subagent-thread-2";
+  await page.route("**/api/threads/open", async (route) => {
+    const requestBody = JSON.parse(route.request().postData() || "{}") as { threadId?: string };
+    const openedThreadId = requestBody?.threadId || subThreadId;
+    const threadName = openedThreadId === secondSubThreadId ? "agent-e2e-second" : "agent-e2e";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        thread: { id: openedThreadId, name: threadName },
+        history: { thread: { id: openedThreadId, turns: [] } },
+        projectId: null,
+        project: null,
+        threadSettings: null,
+        tokenUsage: null,
+        turnsPage: { nextCursor: null, backwardsCursor: null },
+        recentEvents: [
+          {
+            id: 12,
+            hostId: 1,
+            threadId: openedThreadId,
+            method: "item/started",
+            payload: {
+              params: {
+                threadId: openedThreadId,
+                turnId: "sub-turn",
+                item: {
+                  id: "sub-agent",
+                  type: "agentMessage",
+                  phase: "final_answer",
+                  text: `Sub-agent finding from ${threadName}.`,
+                },
+              },
+            },
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }),
+    });
+  });
+  await page.evaluate(
+    ({ threadId, subThreadId }) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const pinia = app?.config?.globalProperties?.$pinia;
+      const store = pinia?._s?.get("gateway");
+      if (!store) {
+        throw new Error("Unable to locate gateway Pinia store");
+      }
+      store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+      store.selectedHostId = 1;
+      store.selectedThreadId = threadId;
+      store.currentThread = { id: threadId, name: "Parent Thread" };
+      store.history = {
+        thread: {
+          id: threadId,
+          turns: [
+            {
+              id: "parent-turn",
+              status: "running",
+              items: [
+                {
+                  id: "subagent-activity",
+                  type: "subAgentActivity",
+                  kind: "started",
+                  agentThreadId: subThreadId,
+                  agentPath: "agent-e2e",
+                },
+                {
+                  id: "subagent-activity-2",
+                  type: "subAgentActivity",
+                  kind: "started",
+                  agentThreadId: subThreadId + "-2",
+                  agentPath: "agent-e2e-second",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      store.initializing = false;
+      store.loading = false;
+    },
+    { threadId, subThreadId },
+  );
+
+  const mainPane = page.getByTestId("chat-main-pane");
+  const widthBeforeOpen = (await mainPane.boundingBox())?.width ?? 0;
+  await page.getByTestId("open-subagent-panel").first().click();
+  const panel = page.getByTestId("subagent-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("subagent-panel-title")).toHaveText("agent-e2e");
+  await expect(panel.getByText("Sub-agent finding from agent-e2e.")).toBeVisible();
+  await expect
+    .poll(async () => (await mainPane.boundingBox())?.width ?? widthBeforeOpen)
+    .toBeLessThan(widthBeforeOpen * 0.85);
+  await expect(
+    page.getByTestId("chat-scroll-area").getByText("agent-e2e", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByTestId("open-subagent-panel").nth(1).click();
+  await expect(panel.getByTestId("subagent-tab")).toHaveCount(2);
+  await expect(panel.getByTestId("subagent-panel-title")).toHaveText("agent-e2e-second");
+  await expect(panel.getByText("Sub-agent finding from agent-e2e-second.")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+        const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+        return {
+          preview: Boolean(store.threadPreviews["1:e2e-subagent-thread"]),
+          secondPreview: Boolean(store.threadPreviews["1:e2e-subagent-thread-2"]),
+          snapshot: Boolean(store.threadSnapshots["1:e2e-subagent-thread"]),
+          subscribed: Boolean(store.realtimeThreadSubscriptions["1:e2e-subagent-thread"]),
+          secondSubscribed: Boolean(store.realtimeThreadSubscriptions["1:e2e-subagent-thread-2"]),
+        };
+      }),
+    )
+    .toEqual({
+      preview: true,
+      secondPreview: true,
+      snapshot: true,
+      subscribed: true,
+      secondSubscribed: true,
+    });
+  await page.getByLabel("关闭子代理面板").click();
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("subagent-tab")).toHaveCount(1);
+  await page.getByLabel("关闭子代理面板").click();
+  await expect(panel).toBeHidden();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+        const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+        return {
+          preview: Boolean(store.threadPreviews["1:e2e-subagent-thread"]),
+          secondPreview: Boolean(store.threadPreviews["1:e2e-subagent-thread-2"]),
+          snapshot: Boolean(store.threadSnapshots["1:e2e-subagent-thread"]),
+          subscribed: Boolean(store.realtimeThreadSubscriptions["1:e2e-subagent-thread"]),
+          secondSubscribed: Boolean(store.realtimeThreadSubscriptions["1:e2e-subagent-thread-2"]),
+        };
+      }),
+    )
+    .toEqual({
+      preview: false,
+      secondPreview: false,
+      snapshot: false,
+      subscribed: false,
+      secondSubscribed: false,
+    });
+});
+
+test("app-server error notifications are visible in the active thread", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-app-server-error-thread";
+    store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+    store.selectedHostId = 1;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Error Notification" };
+    store.history = { thread: { id: threadId, turns: [] } };
+    store.initializing = false;
+    store.loading = false;
+    store.applyLiveEvent({
+      id: 101,
+      hostId: 1,
+      threadId,
+      method: "error",
+      payload: {
+        params: {
+          threadId,
+          turnId: "turn-error",
+          willRetry: true,
+          error: {
+            message: "remote provider disconnected",
+            codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: 502 } },
+            additionalDetails: "stream closed before final response",
+          },
+        },
+      },
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  const chatScrollArea = page.getByTestId("chat-scroll-area");
+  await expect(chatScrollArea.getByText("remote provider disconnected")).toBeVisible();
+  await expect(chatScrollArea.getByText("错误类型：responseStreamDisconnected")).toBeVisible();
+  await expect(chatScrollArea.getByText("app-server 正在自动重试")).toBeVisible();
+});
+
+test("serverOverloaded errors auto-retry up to five times with visible status", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.addInitScript(() => {
+    const originalSetTimeout = window.setTimeout.bind(window);
+    window.setTimeout = ((handler: TimerHandler, _timeout?: number, ...args: any[]) =>
+      originalSetTimeout(handler, 0, ...args)) as typeof window.setTimeout;
+  });
+
+  let startCalls = 0;
+  await page.route("**/api/turns/start", async (route) => {
+    startCalls += 1;
+    const turnId = startCalls === 1 ? "turn-overload-1" : "turn-overload-2";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        turn: { id: turnId, status: "running", items: [] },
+      }),
+    });
+  });
+
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "retry-thread";
+    store.hosts = [{ id: 1, name: "Retry Host", sshHost: "localhost", sshUser: "codex" }];
+    store.projects = [{ id: 1, hostId: 1, name: "Retry Project", remotePath: "/tmp/retry" }];
+    store.selectedHostId = 1;
+    store.selectedProjectId = 1;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Retry Thread" };
+    store.history = { thread: { id: threadId, turns: [] } };
+    store.initializing = false;
+    store.loading = false;
+  });
+
+  await page.evaluate(async () => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    await store.sendTurn("retry me");
+    store.applyLiveEvent({
+      id: 201,
+      hostId: 1,
+      threadId: "retry-thread",
+      method: "error",
+      payload: {
+        params: {
+          threadId: "retry-thread",
+          turnId: "turn-overload-1",
+          willRetry: false,
+          error: {
+            message: "Selected model is at capacity. Please try a different model.",
+            codexErrorInfo: "serverOverloaded",
+            additionalDetails: null,
+          },
+        },
+      },
+      createdAt: new Date().toISOString(),
+    });
+    store.applyLiveEvent({
+      id: 202,
+      hostId: 1,
+      threadId: "retry-thread",
+      method: "turn/completed",
+      payload: {
+        params: {
+          threadId: "retry-thread",
+          turn: {
+            id: "turn-overload-1",
+            status: "failed",
+            error: {
+              message: "Selected model is at capacity. Please try a different model.",
+              codexErrorInfo: "serverOverloaded",
+              additionalDetails: null,
+            },
+            items: [],
+          },
+        },
+      },
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  await expect(
+    page.getByTestId("chat-scroll-area").getByText("模型当前繁忙，正在自动重试（1/5）", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect.poll(() => startCalls).toBe(2);
+});
+
+test("app-server moderation notifications render a readable summary before raw details", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-moderation-notification-thread";
+    store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+    store.selectedHostId = 1;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Moderation Notification" };
+    store.history = { thread: { id: threadId, turns: [] } };
+    store.initializing = false;
+    store.loading = false;
+    store.applyLiveEvent({
+      id: 201,
+      hostId: 1,
+      threadId,
+      method: "turn/moderationMetadata",
+      payload: {
+        params: {
+          threadId,
+          turnId: "turn-moderation",
+          metadata: {
+            flagged: true,
+            model: "omni-moderation-latest",
+            categories: { self_harm: true, violence: false },
+            raw: "only visible after expanding details",
+          },
+        },
+      },
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  const chatScrollArea = page.getByTestId("chat-scroll-area");
+  await expect(chatScrollArea.getByText("安全审查元数据")).toBeVisible();
+  await expect(chatScrollArea.getByText(/flagged=true/)).toBeVisible();
+  await expect(chatScrollArea.getByText(/categories=self_harm/)).toBeVisible();
+  await expect(chatScrollArea.getByText("only visible after expanding details")).toBeHidden();
+  await chatScrollArea.getByRole("button", { name: "查看详情" }).click();
+  await expect(chatScrollArea.getByText("only visible after expanding details")).toBeVisible();
+});
+
+test("terminal wait notifications mention the command being watched", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-terminal-wait-thread";
+    store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+    store.selectedHostId = 1;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Terminal Wait" };
+    store.history = { thread: { id: threadId, turns: [] } };
+    store.initializing = false;
+    store.loading = false;
+    store.applyLiveEvent({
+      id: 301,
+      hostId: 1,
+      threadId,
+      method: "item/started",
+      payload: {
+        params: {
+          threadId,
+          turnId: "turn-terminal",
+          item: {
+            id: "cmd-watch",
+            type: "commandExecution",
+            command: "pnpm dev",
+            cwd: "/workspace/codex-gateway",
+            processId: "proc-123",
+            status: "inProgress",
+            aggregatedOutput: "",
+            exitCode: null,
+            durationMs: null,
+          },
+        },
+      },
+      createdAt: new Date().toISOString(),
+    });
+    store.applyLiveEvent({
+      id: 302,
+      hostId: 1,
+      threadId,
+      method: "item/commandExecution/terminalInteraction",
+      payload: {
+        params: {
+          threadId,
+          turnId: "turn-terminal",
+          itemId: "cmd-watch",
+          processId: "proc-123",
+          stdin: "",
+        },
+      },
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  const chatScrollArea = page.getByTestId("chat-scroll-area");
+  await expect(chatScrollArea.getByText("agent 正在等待命令：pnpm dev")).toBeVisible();
 });
 
 async function parkChatViewportInMiddle(page: Page) {

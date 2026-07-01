@@ -36,6 +36,10 @@ export const turnEventHandlers: GatewayEventHandlerRegistry = {
         threadId,
         turn: params.turn,
       });
+      ctx.maybeRetryAfterTurnFailure(event.hostId, threadId, params.turn);
+      if (params.turn?.status !== "failed") {
+        ctx.clearSubmittedTurnRequest(event.hostId, threadId);
+      }
     }
   },
   "turn/diff/updated": (ctx, event, params, threadId) => {

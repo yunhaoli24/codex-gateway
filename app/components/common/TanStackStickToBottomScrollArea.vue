@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useVirtualStickToBottom } from "@/composables/useVirtualStickToBottom";
 import { shouldAdjustVirtualScrollForResize } from "@/utils/virtual-scroll";
 
 const props = withDefaults(
@@ -14,6 +15,7 @@ const props = withDefaults(
     threshold?: number;
     followKey?: unknown;
     estimateSize?: number;
+    naturalHeight?: boolean;
   }>(),
   {
     threshold: 120,
@@ -23,8 +25,17 @@ const props = withDefaults(
 
 const scrollAreaRef = ref<any>(null);
 const contentRef = ref<Element | null>(null);
-const followLatest = ref(true);
-let resizeObserver: ResizeObserver | null = null;
+const measuredContentHeight = ref(0);
+
+const sticky = useVirtualStickToBottom({
+  threshold: () => props.threshold,
+  getViewport: scrollViewport,
+  measure: measureContent,
+  scrollToBottom: (viewport) => {
+    virtualizer.value.scrollToOffset(bottomOffset(viewport), { behavior: "auto" });
+    viewport.scrollTop = bottomOffset(viewport);
+  },
+});
 
 const virtualizer = useVirtualizer(
   computed(() => ({
@@ -34,67 +45,63 @@ const virtualizer = useVirtualizer(
     estimateSize: () => props.estimateSize,
     overscan: 0,
     scrollEndThreshold: props.threshold,
-    initialOffset: () => 1_000_000_000,
+    initialOffset: 0,
     shouldAdjustScrollPositionOnItemSizeChange: (item, _delta, instance) =>
-      shouldAdjustVirtualScrollForResize(followLatest.value, item, instance),
+      shouldAdjustVirtualScrollForResize(sticky.followLatest.value, item, instance),
   })),
 );
 
 const virtualRow = computed(() => virtualizer.value.getVirtualItems()[0] ?? null);
 const totalSize = computed(() => virtualizer.value.getTotalSize());
+// Chat subpanels have an explicit flex height, but compact command output and
+// diff blocks should grow naturally until their max-height kicks in. Because
+// the virtual row is absolutely positioned, it cannot otherwise size the root.
+const rootStyle = computed(() =>
+  props.naturalHeight
+    ? { height: `${Math.max(1, measuredContentHeight.value || totalSize.value)}px` }
+    : undefined,
+);
 
 function scrollViewport() {
   const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value;
   return root?.querySelector?.('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
 }
 
-function isNearBottom(viewport = scrollViewport()) {
+function bottomOffset(viewport = scrollViewport()) {
   if (!viewport) {
-    return false;
+    return 0;
   }
-  return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= props.threshold;
-}
-
-async function scrollToBottom() {
-  await nextTick();
-  measureContent();
-  virtualizer.value.scrollToEnd({ behavior: "auto" });
-  await new Promise((resolve) => requestAnimationFrame(resolve));
-  measureContent();
+  return Math.max(0, viewport.scrollHeight - viewport.clientHeight);
 }
 
 function handleScroll(event: Event) {
-  const viewport = event.target as HTMLElement;
-  if (viewport !== scrollViewport()) {
-    return;
-  }
-  followLatest.value = isNearBottom(viewport);
+  sticky.handleScroll(event);
 }
 
 function setContentRef(element: Element | null) {
   contentRef.value = element;
-  resizeObserver?.disconnect();
-  resizeObserver = null;
   if (!element) {
+    sticky.observeElement(null);
     return;
   }
-  virtualizer.value.measureElement(element);
-  if (typeof ResizeObserver !== "function") {
-    return;
-  }
-  resizeObserver = new ResizeObserver(() => {
-    measureContent();
-    if (followLatest.value) {
-      void scrollToBottom();
-    }
-  });
-  resizeObserver.observe(element);
+  measureContent();
+  sticky.observeElement(element);
+  sticky.stickIfFollowing();
+  void sticky.settleAndStick();
 }
 
 function measureContent() {
   if (contentRef.value) {
+    const element = contentRef.value as HTMLElement;
+    // Measure the real slotted content, not the scroll viewport. This keeps the
+    // single virtual row accurate even when the viewport starts collapsed.
+    measuredContentHeight.value = Math.max(
+      element.scrollHeight,
+      element.getBoundingClientRect().height,
+    );
     virtualizer.value.measureElement(contentRef.value);
   } else {
+    measuredContentHeight.value = 0;
     virtualizer.value.measure();
   }
 }
@@ -102,23 +109,14 @@ function measureContent() {
 watch(
   () => props.followKey,
   async () => {
-    await nextTick();
-    measureContent();
-    if (followLatest.value) {
-      void scrollToBottom();
-    }
+    sticky.stickIfFollowing();
   },
   { flush: "post" },
 );
 
 onMounted(() => {
-  followLatest.value = true;
-  void scrollToBottom();
-});
-
-onBeforeUnmount(() => {
-  resizeObserver?.disconnect();
-  resizeObserver = null;
+  sticky.reset();
+  void sticky.settleAndStick();
 });
 </script>
 
@@ -130,6 +128,7 @@ onBeforeUnmount(() => {
       props.horizontal ? ['overflow-auto', props.viewportClass] : props.viewportClass
     "
     :orientation="props.horizontal ? 'both' : 'vertical'"
+    :style="rootStyle"
     @scroll.capture="handleScroll"
   >
     <div
@@ -142,7 +141,7 @@ onBeforeUnmount(() => {
         :ref="setContentRef"
         :data-index="virtualRow.index"
         :class="[
-          'absolute top-0 left-0',
+          'absolute left-0 top-0',
           props.horizontal ? 'min-w-full w-max' : 'w-full',
           props.contentClass,
         ]"

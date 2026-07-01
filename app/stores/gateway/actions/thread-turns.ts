@@ -10,6 +10,13 @@ import {
 } from "../thread-turns/optimistic-history";
 import { loadOlderTurns } from "../thread-turns/older-turns";
 import { flushPendingSteers, queuePendingSteer } from "../thread-turns/pending-steers";
+import {
+  clearSubmittedTurnRequest,
+  maybeQueueServerOverloadedRetry,
+  maybeRetryAfterTurnFailure,
+  rememberSubmittedTurnRequest,
+  runTurnRequestWithAutoRetry,
+} from "../thread-turns/retry";
 import { respondToServerRequest } from "../thread-turns/server-requests";
 import { createClientUserMessageId, optimisticUserContent } from "../thread-turns/turn-content";
 import { startNewTurn, steerActiveTurn } from "../thread-turns/turn-transport";
@@ -59,12 +66,36 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
       const hostId = ctx.state.selectedHostId;
       const threadId = ctx.state.selectedThreadId;
       const projectId = ctx.state.selectedProjectId;
+      const cwd = ctx.selectedProject?.remotePath ?? null;
+      const requestKind = shouldSteerActiveTurn ? "steer" : "start";
       ctx.state.loading = true;
       ctx.clearError();
       try {
-        const result = shouldSteerActiveTurn
-          ? await steerActiveTurn(ctx, text, clientUserMessageId, expectedSteerTurnId!, options)
-          : await startNewTurn(ctx, text, clientUserMessageId, options);
+        const result = await runTurnRequestWithAutoRetry(
+          ctx,
+          {
+            kind: requestKind,
+            hostId,
+            projectId,
+            threadId,
+            cwd,
+            text,
+            options,
+          },
+          () =>
+            shouldSteerActiveTurn
+              ? steerActiveTurn(ctx, text, clientUserMessageId, expectedSteerTurnId!, options)
+              : startNewTurn(ctx, text, clientUserMessageId, options),
+        );
+        rememberSubmittedTurnRequest(ctx, {
+          kind: requestKind,
+          hostId,
+          projectId,
+          threadId,
+          cwd,
+          text,
+          options,
+        });
         if (!shouldSteerActiveTurn && result?.turn) {
           mergeStartedTurn(ctx, ctx.state.selectedThreadId, result.turn);
           void ctx.flushPendingSteers(ctx.state.selectedHostId, ctx.state.selectedThreadId);
@@ -91,6 +122,7 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
           });
         }
       } catch (error: any) {
+        clearSubmittedTurnRequest(ctx, hostId, threadId);
         ctx.setError(messageFromError(error, ctx.t("app.sendMessageFailed"), ctx.errorLabels), {
           hostId,
           projectId,
@@ -127,8 +159,25 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
       await flushPendingSteers(ctx, hostId, threadId);
     },
 
-    async respondToServerRequest(threadId: string, requestId: string | number, result: unknown) {
-      await respondToServerRequest(ctx, threadId, requestId, result);
+    async respondToServerRequest(
+      hostId: number,
+      threadId: string,
+      requestId: string | number,
+      result: unknown,
+    ) {
+      await respondToServerRequest(ctx, hostId, threadId, requestId, result);
+    },
+
+    maybeQueueServerOverloadedRetry(hostId: number, threadId: string, turnId: string, error: any) {
+      return maybeQueueServerOverloadedRetry(ctx, hostId, threadId, turnId, error);
+    },
+
+    maybeRetryAfterTurnFailure(hostId: number, threadId: string, turn: Record<string, any>) {
+      maybeRetryAfterTurnFailure(ctx, hostId, threadId, turn);
+    },
+
+    clearSubmittedTurnRequest(hostId: number, threadId: string) {
+      clearSubmittedTurnRequest(ctx, hostId, threadId);
     },
   };
 }

@@ -9,12 +9,14 @@ import HighlightedCode from "@/components/common/HighlightedCode.vue";
 import TanStackStickToBottomScrollArea from "@/components/common/TanStackStickToBottomScrollArea.vue";
 import MarkdownContent from "@/components/common/MarkdownContent.vue";
 import { languageFromPath } from "@/utils/code-highlight";
-import { useGatewayStore } from "@/stores/gateway";
+import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+  threadId: string | null;
+}>();
 const { t } = useI18n();
-const store = useGatewayStore();
-const responding = ref(false);
 const fileChanges = computed(() => (Array.isArray(props.item.changes) ? props.item.changes : []));
 const openChangeKeys = ref(new Set<string>());
 const output = computed(() => props.item.aggregatedOutput || props.item.result?.text || "");
@@ -22,6 +24,16 @@ const itemStatus = computed(() =>
   typeof props.item.status === "string" ? props.item.status : props.item.status?.type,
 );
 const pendingApproval = computed(() => props.item.pendingApproval || null);
+const requestId = computed(() => pendingApproval.value?.requestId);
+const {
+  canRespond,
+  responding,
+  respond: respondToRequest,
+} = useServerRequestResponder({
+  hostId: computed(() => props.hostId),
+  threadId: computed(() => props.threadId),
+  requestId,
+});
 const isInProgress = computed(() => {
   const value = itemStatus.value;
   return value === "inProgress" || value === "running" || value === "active";
@@ -89,17 +101,7 @@ function setChangeOpen(change: Record<string, any>, open: boolean) {
 }
 
 async function respond(decision: "accept" | "decline") {
-  if (!pendingApproval.value?.requestId || !store.selectedThreadId) {
-    return;
-  }
-  responding.value = true;
-  try {
-    await store.respondToServerRequest(store.selectedThreadId, pendingApproval.value.requestId, {
-      decision,
-    });
-  } finally {
-    responding.value = false;
-  }
+  await respondToRequest({ decision });
 }
 
 watch(
@@ -140,7 +142,7 @@ watch(
       <div v-if="pendingApproval.params?.reason" class="mt-1 text-accent-orange-deep">
         {{ pendingApproval.params.reason }}
       </div>
-      <div class="mt-2 flex flex-wrap gap-2">
+      <div v-if="canRespond" class="mt-2 flex flex-wrap gap-2">
         <Button
           size="sm"
           :disabled="responding"
@@ -158,6 +160,9 @@ watch(
         >
           {{ t("app.decline") }}
         </Button>
+      </div>
+      <div v-else class="mt-2 text-xs text-accent-orange-deep">
+        {{ t("app.serverRequestResolved") }}
       </div>
     </div>
     <div v-if="fileChanges.length" class="mt-3 space-y-2">
@@ -200,6 +205,7 @@ watch(
             class="diff-markdown max-h-[min(55vh,26rem)] border-t border-hairline bg-surface"
             viewport-class="max-h-[min(55vh,26rem)]"
             horizontal
+            natural-height
             :threshold="48"
             :follow-key="changeFollowKey(change)"
           >
