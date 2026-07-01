@@ -28,11 +28,12 @@ test("defaults to Chinese and can switch to English", async ({ page }) => {
   await expect(page.getByText("Settings")).toBeVisible();
 });
 
-test("config JSON editor scrolls to the bottom inside settings", async ({ page }) => {
+test("config JSON editor shows current config by default and scrolls", async ({ page }) => {
   await openApp(page);
   await page.getByTestId("settings-toggle").click();
-  await page.getByTestId("settings-panel").getByRole("button", { name: "查看配置" }).click();
-  const textarea = page.getByTestId("config-json-textarea");
+  const editor = page.getByTestId("config-json-editor");
+  await expect(editor).toContainText('"version"');
+  await expect(editor).toContainText('"notifications"');
   const largeConfig = JSON.stringify(
     {
       version: 1,
@@ -55,13 +56,16 @@ test("config JSON editor scrolls to the bottom inside settings", async ({ page }
     null,
     2,
   );
-  await textarea.fill(largeConfig);
-  await textarea.evaluate((element) => {
+  await editor.locator(".cm-content").click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText(largeConfig);
+  const scroller = editor.locator(".cm-scroller");
+  await scroller.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
   });
   await expect
     .poll(async () =>
-      textarea.evaluate(
+      scroller.evaluate(
         (element) => element.scrollHeight - element.scrollTop - element.clientHeight,
       ),
     )
@@ -72,7 +76,9 @@ test("Bark notification settings are saved to server config", async ({ page }) =
   await openApp(page);
   await page.getByTestId("settings-toggle").click();
   await page.getByRole("tab", { name: "通知" }).click();
-  await page.getByRole("switch", { name: "启用 Bark" }).click();
+  const barkSwitch = page.getByRole("switch", { name: "启用 Bark" });
+  await barkSwitch.click();
+  await expect(barkSwitch).toHaveAttribute("aria-checked", "true");
   await page.getByLabel("Bark 服务地址").fill("https://bark.e2e.test");
   await page.getByLabel("Bark 设备 Key").fill("e2e-device-key");
   await page.getByLabel("Bark 分组").fill("E2E Group");

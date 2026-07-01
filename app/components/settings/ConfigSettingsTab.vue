@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ClipboardPasteIcon, EyeIcon } from "@lucide/vue";
-import { computed, ref } from "vue";
+import { ClipboardPasteIcon, RefreshCwIcon } from "@lucide/vue";
+import { computed, onMounted, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import ConfigJsonEditor from "@/components/settings/ConfigJsonEditor.vue";
 import { useGatewayStore } from "@/stores/gateway";
@@ -10,10 +10,12 @@ const emit = defineEmits<{ close: [] }>();
 const store = useGatewayStore();
 const { t } = useI18n();
 const errorLabels = computed(() => errorMessageLabels(t));
-const configText = ref("");
+const configText = ref(store.exportConfigText());
 const configError = ref("");
 
-function showConfig() {
+onMounted(refreshConfig);
+
+function refreshConfig() {
   configError.value = "";
   configText.value = store.exportConfigText();
 }
@@ -40,9 +42,9 @@ async function importConfig() {
       {{ configError }}
     </div>
     <div class="flex shrink-0 justify-end gap-2">
-      <Button variant="secondary" @click="showConfig">
-        <EyeIcon class="size-4" />
-        {{ t("app.viewConfig") }}
+      <Button variant="secondary" @click="refreshConfig">
+        <RefreshCwIcon class="size-4" />
+        {{ t("app.refreshConfig") }}
       </Button>
       <Button :disabled="!configText.trim()" @click="importConfig">
         <ClipboardPasteIcon class="size-4" />
