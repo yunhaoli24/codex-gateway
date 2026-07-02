@@ -1,7 +1,7 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError, pinnedKey } from "../thread-utils/identity";
-import { activeRemoteTurnId, activeTurnIdFromRuntimeState } from "../thread-turns/active-turn";
+import { projectThreadRuntime } from "../thread-runtime/projector";
 import {
   mergeStartedTurn,
   mergeTurnItems,
@@ -37,13 +37,8 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
       if (!hostId || !threadId) {
         return;
       }
-      const key = pinnedKey(hostId, threadId);
-      const expectedSteerTurnId = activeTurnIdFromRuntimeState(
-        ctx.state.history,
-        ctx.state.activeTerminalProcessByThreadKey[key]?.turnId,
-      );
-      const steerTurnId =
-        ctx.selectedThreadStatus === "running" && expectedSteerTurnId ? expectedSteerTurnId : null;
+      const runtime = projectThreadRuntime(ctx, hostId, threadId);
+      const steerTurnId = runtime.canSteer ? runtime.activeTurnId : null;
       const shouldSteerActiveTurn = Boolean(steerTurnId);
       const clientUserMessageId = createClientUserMessageId(
         shouldSteerActiveTurn ? "steer" : "turn",
@@ -239,13 +234,7 @@ async function interruptThreadTurn(
 }
 
 function activeTurnIdForThread(ctx: GatewayStoreContext, hostId: number, threadId: string) {
-  const key = pinnedKey(hostId, threadId);
-  return (
-    activeRemoteTurnId(historyForThread(ctx, hostId, threadId)) ??
-    ctx.state.activeTerminalProcessByThreadKey[key]?.turnId ??
-    ctx.state.activeTurnIdsByThreadKey[key] ??
-    null
-  );
+  return projectThreadRuntime(ctx, hostId, threadId).activeTurnId;
 }
 
 function historyForThread(ctx: GatewayStoreContext, hostId: number, threadId: string) {

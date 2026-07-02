@@ -1,34 +1,22 @@
 import type { HostRecord, ThreadGoalStatus, ThreadSettingsState } from "~~/shared/types";
-import { INITIAL_TURN_PAGE_LIMIT, SERVER_TURN_CACHE_LIMIT } from "~~/shared/config";
-import {
-  runtimeStatusFromSnapshotState,
-  runtimeStatusFromThreadState,
-} from "~~/shared/thread-runtime-status";
+import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
 import { randomUUID } from "node:crypto";
 import type {
   ServerRequestResponseInput,
-  ThreadOpenSnapshot,
   TurnsPage,
   TurnStartInput,
   TurnSteerInput,
 } from "./types";
 import { DEFAULT_TURN_PAGE_LIMIT } from "./types";
 import { ControllerRegistry } from "./controller-registry";
-import {
-  buildTurnStartParams,
-  buildUserInput,
-  extractThreadSettings,
-  latestTokenUsageFromEvents,
-} from "../protocol/thread-payload";
-import { gatewayEventStore } from "../state/gateway-events";
-import { projectStore } from "../state/projects";
-import { threadMetadataStore } from "../state/thread-metadata";
-import { threadSnapshotStore } from "../state/thread-snapshots";
+import { buildTurnStartParams, buildUserInput } from "../protocol/thread-payload";
+import { pageCursorState, pageToFullHistory } from "./thread-history-pages";
 import { runtimeLog } from "./runtime-log";
-import { threadRuntimeEvents } from "./thread-runtime-events";
+import { ThreadOpenService } from "./thread-open-service";
 
 class ThreadBroker {
   private readonly registry = new ControllerRegistry();
+  private readonly openService = new ThreadOpenService(this.registry);
 
   async openThread(
     host: HostRecord,
@@ -36,101 +24,16 @@ class ThreadBroker {
     projectId: number | null,
     limit = INITIAL_TURN_PAGE_LIMIT,
   ) {
-    const cachedSnapshot = threadSnapshotStore.get(host.id, threadId);
-    if (cachedSnapshot) {
-      const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
-      const cachedStatus = runtimeStatusFromThreadState(
-        cachedSnapshot.thread,
-        cachedSnapshot.history,
-        recentEvents,
-      );
-      if (cachedStatus === "running") {
-        runtimeLog("thread running cache refresh", {
-          hostId: host.id,
-          threadId,
-          projectId,
-        });
-        return this.refreshThreadState(host, threadId, projectId, limit);
-      }
-      return this.openSnapshotResult(host, threadId, projectId, cachedSnapshot);
-    }
-
-    const controller = await this.registry.getController(host, threadId);
-    const connectedSnapshot = controller.getOpenSnapshot();
-    if (connectedSnapshot) {
-      return this.openSnapshotResult(host, threadId, projectId, connectedSnapshot);
-    }
-
-    runtimeLog("thread cache miss", {
-      hostId: host.id,
-      threadId,
-      limit,
-    });
-    return this.refreshThreadState(host, threadId, projectId, limit);
-  }
-
-  private openSnapshotResult(
-    host: HostRecord,
-    threadId: string,
-    projectId: number | null,
-    snapshot: ThreadOpenSnapshot,
-  ) {
-    const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
-    const resolvedProjectId = snapshot.projectId ?? projectId;
-    runtimeLog("thread cache hit", {
-      hostId: host.id,
-      threadId,
-      projectId: resolvedProjectId,
-    });
-    return {
-      thread: snapshot.thread,
-      history: snapshot.history,
-      runtimeStatus: runtimeStatusFromThreadState(snapshot.thread, snapshot.history, recentEvents),
-      projectId: resolvedProjectId,
-      project: resolvedProjectId ? projectStore.get(resolvedProjectId) : null,
-      turnsPage: snapshot.turnsPage,
-      threadSettings: snapshot.threadSettings,
-      tokenUsage: latestTokenUsageFromEvents(recentEvents) ?? snapshot.tokenUsage,
-      recentEvents,
-    };
+    return this.openService.openThread(host, threadId, projectId, limit);
   }
 
   async startThread(host: HostRecord, params: Record<string, unknown>, projectId: number | null) {
     const client = await this.registry.getHostClient(host);
     const result = await client.request<any>("thread/start", params);
-    const thread = {
-      ...(result.thread ?? result),
-      cwd: (result.thread ?? result)?.cwd ?? params.cwd ?? null,
-    };
-
-    threadMetadataStore.record(host.id, projectId, thread);
-    const threadId = String(thread.id);
-    const controller = await this.registry.attachStartedThread(host, threadId, client);
-    const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
-    const history = { thread: { ...thread, turns: thread.turns ?? [] } };
-    const turnsPage = {
-      nextCursor: null,
-      backwardsCursor: null,
-    };
-
-    controller.setOpenSnapshot({
-      thread,
-      history,
-      projectId,
-      turnsPage,
-      threadSettings: extractThreadSettings(result),
-      tokenUsage: latestTokenUsageFromEvents(recentEvents),
-    });
-
-    return {
-      thread,
-      history,
-      runtimeStatus: runtimeStatusFromThreadState(thread, history, recentEvents) ?? "running",
-      threadSettings: extractThreadSettings(result),
-      tokenUsage: latestTokenUsageFromEvents(recentEvents),
-      turnsPage,
-      recentEvents,
-    };
+    const started = this.openService.startedThreadResult(host, projectId, result, params.cwd);
+    const controller = await this.registry.attachStartedThread(host, started.threadId, client);
+    controller.setOpenSnapshot(started.snapshot);
+    return started.result;
   }
 
   async startTurn(host: HostRecord, threadId: string, input: TurnStartInput) {
@@ -283,8 +186,8 @@ class ThreadBroker {
       }),
     );
     return {
-      history: this.pageToFullHistory({ id: threadId }, page),
-      turnsPage: this.pageCursorState(page),
+      history: pageToFullHistory({ id: threadId }, page),
+      turnsPage: pageCursorState(page),
     };
   }
 
@@ -325,87 +228,7 @@ class ThreadBroker {
     projectId: number | null,
     limit = INITIAL_TURN_PAGE_LIMIT,
   ) {
-    const { snapshot, resolvedProjectId } = await this.loadRemoteOpenSnapshot(
-      host,
-      threadId,
-      projectId,
-      limit,
-    );
-    const status = runtimeStatusFromSnapshotState(snapshot.thread, snapshot.history) ?? "completed";
-    threadRuntimeEvents.record(host.id, threadId, "thread/status/changed", {
-      method: "thread/status/changed",
-      params: {
-        threadId,
-        status,
-      },
-    });
-    const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
-    return {
-      thread: snapshot.thread,
-      history: snapshot.history,
-      runtimeStatus: runtimeStatusFromThreadState(snapshot.thread, snapshot.history, recentEvents),
-      projectId: resolvedProjectId,
-      project: resolvedProjectId ? projectStore.get(resolvedProjectId) : null,
-      turnsPage: snapshot.turnsPage,
-      threadSettings: snapshot.threadSettings,
-      tokenUsage: latestTokenUsageFromEvents(recentEvents) ?? snapshot.tokenUsage,
-      recentEvents,
-    };
-  }
-
-  private async loadRemoteOpenSnapshot(
-    host: HostRecord,
-    threadId: string,
-    projectId: number | null,
-    limit: number,
-  ) {
-    const controller = await this.registry.getController(host, threadId);
-    const resume = await controller.resumeWithInitialTurns(limit);
-    const thread = resume.thread ?? resume;
-    const initialTurnsPage = resume.initialTurnsPage;
-    if (!initialTurnsPage) {
-      throw new Error("thread/resume did not return initialTurnsPage");
-    }
-
-    const threadRecord = thread.thread ?? thread;
-    const resolvedProjectId = this.resolveProjectId(host.id, projectId, threadRecord?.cwd);
-    threadMetadataStore.record(host.id, resolvedProjectId, threadRecord);
-
-    const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
-    const baseSnapshot = {
-      thread,
-      history: this.pageToFullHistory(thread, initialTurnsPage),
-      projectId: resolvedProjectId,
-      turnsPage: this.pageCursorState(initialTurnsPage),
-      threadSettings: extractThreadSettings(resume),
-      tokenUsage: latestTokenUsageFromEvents(recentEvents),
-    };
-    controller.setOpenSnapshot(baseSnapshot);
-    return { snapshot: baseSnapshot, resolvedProjectId };
-  }
-
-  private resolveProjectId(hostId: number, projectId: number | null, cwd: unknown) {
-    if (projectId || typeof cwd !== "string" || !cwd.trim()) {
-      return projectId;
-    }
-    return projectStore.ensureForPath(hostId, cwd).id;
-  }
-
-  private pageToFullHistory(thread: any, page: TurnsPage) {
-    const turns = [...(page.data ?? [])].reverse().slice(-SERVER_TURN_CACHE_LIMIT);
-    return {
-      thread: {
-        ...thread,
-        turns,
-      },
-    };
-  }
-
-  private pageCursorState(page: TurnsPage) {
-    return {
-      nextCursor: page.nextCursor ?? null,
-      backwardsCursor: page.backwardsCursor ?? null,
-    };
+    return this.openService.refreshThreadState(host, threadId, projectId, limit);
   }
 }
 

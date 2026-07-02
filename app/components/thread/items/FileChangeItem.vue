@@ -2,14 +2,11 @@
 import { ChevronDownIcon, ChevronRightIcon, FilePenIcon, Loader2Icon } from "@lucide/vue";
 import { computed, ref, watch } from "vue";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import HighlightedCode from "@/components/common/HighlightedCode.vue";
-import TanStackStickToBottomScrollArea from "@/components/common/TanStackStickToBottomScrollArea.vue";
-import MarkdownContent from "@/components/common/MarkdownContent.vue";
-import { languageFromPath } from "@/utils/code-highlight";
-import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
+import FileChangeApprovalBar from "./FileChangeApprovalBar.vue";
+import FileChangeDiffPanel from "./FileChangeDiffPanel.vue";
+import FileChangeOutputPanel from "./FileChangeOutputPanel.vue";
+import { fileChangeKey, fileChangeKind, fileChangePath } from "./file-change-utils";
 
 const props = defineProps<{
   item: Record<string, any>;
@@ -24,16 +21,6 @@ const itemStatus = computed(() =>
   typeof props.item.status === "string" ? props.item.status : props.item.status?.type,
 );
 const pendingApproval = computed(() => props.item.pendingApproval || null);
-const requestId = computed(() => pendingApproval.value?.requestId);
-const {
-  canRespond,
-  responding,
-  respond: respondToRequest,
-} = useServerRequestResponder({
-  hostId: computed(() => props.hostId),
-  threadId: computed(() => props.threadId),
-  requestId,
-});
 const isInProgress = computed(() => {
   const value = itemStatus.value;
   return value === "inProgress" || value === "running" || value === "active";
@@ -45,53 +32,21 @@ const title = computed(() => {
   return t("app.filesChanged", { count: fileChanges.value.length });
 });
 
-function changePath(change: Record<string, any>) {
-  return change.path || change.filePath || change.pathAfter || change.pathBefore || "unknown";
-}
-
-function changeKey(change: Record<string, any>) {
-  return `${changePath(change)}:${changeKind(change)}`;
-}
-
-function changeKind(change: Record<string, any>) {
-  const kind = change.kind;
-  if (typeof kind === "string") return kind;
-  if (kind && typeof kind === "object") return kind.type || kind.kind || "update";
-  return "update";
-}
-
 function changeKindLabel(change: Record<string, any>) {
-  const kind = changeKind(change).toLowerCase();
+  const kind = fileChangeKind(change).toLowerCase();
   if (kind.includes("add") || kind === "create") return t("app.fileAdded");
   if (kind.includes("delete") || kind === "remove") return t("app.fileDeleted");
   if (kind.includes("move") || kind.includes("rename")) return t("app.fileMoved");
   return t("app.fileUpdated");
 }
 
-function changeDiff(change: Record<string, any>) {
-  return change.diff || "";
-}
-
-function diffMarkdown(change: Record<string, any>) {
-  const diff = changeDiff(change);
-  return diff ? `\`\`\`diff\n${diff.replaceAll("```", "``\\`")}\n\`\`\`` : "";
-}
-
-function changeFollowKey(change: Record<string, any>) {
-  return `${changePath(change)}:${changeDiff(change).length}`;
-}
-
-function changeLanguage(change: Record<string, any>) {
-  return languageFromPath(changePath(change));
-}
-
 function isChangeOpen(change: Record<string, any>) {
-  return openChangeKeys.value.has(changeKey(change));
+  return openChangeKeys.value.has(fileChangeKey(change));
 }
 
 function setChangeOpen(change: Record<string, any>, open: boolean) {
   const next = new Set(openChangeKeys.value);
-  const key = changeKey(change);
+  const key = fileChangeKey(change);
   if (open) {
     next.add(key);
   } else {
@@ -100,12 +55,8 @@ function setChangeOpen(change: Record<string, any>, open: boolean) {
   openChangeKeys.value = next;
 }
 
-async function respond(decision: "accept" | "decline") {
-  await respondToRequest({ decision });
-}
-
 watch(
-  () => fileChanges.value.map((change) => changeKey(change)),
+  () => fileChanges.value.map((change) => fileChangeKey(change)),
   (changes) => {
     const next = new Set(openChangeKeys.value);
     for (const key of changes) {
@@ -134,53 +85,18 @@ watch(
       <Badge v-if="pendingApproval" variant="outline">{{ t("app.waitingApproval") }}</Badge>
       <Badge v-if="isInProgress" variant="outline">{{ t("app.running") }}</Badge>
     </div>
-    <div
-      v-if="pendingApproval"
-      class="mt-3 rounded-lg border border-accent-orange/30 bg-accent-orange/10 px-3 py-2 text-sm text-accent-orange-deep"
-    >
-      <div class="font-medium">{{ t("app.fileApprovalRequired") }}</div>
-      <div v-if="pendingApproval.params?.reason" class="mt-1 text-accent-orange-deep">
-        {{ pendingApproval.params.reason }}
-      </div>
-      <div v-if="canRespond" class="mt-2 flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          :disabled="responding"
-          data-testid="file-approval-accept"
-          @click="respond('accept')"
-        >
-          {{ t("app.approve") }}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          :disabled="responding"
-          data-testid="file-approval-decline"
-          @click="respond('decline')"
-        >
-          {{ t("app.decline") }}
-        </Button>
-      </div>
-      <div v-else class="mt-2 text-xs text-accent-orange-deep">
-        {{ t("app.serverRequestResolved") }}
-      </div>
+    <div v-if="pendingApproval">
+      <FileChangeApprovalBar
+        :pending-approval="pendingApproval"
+        :host-id="hostId"
+        :thread-id="threadId"
+      />
     </div>
     <div v-if="fileChanges.length" class="mt-3 space-y-2">
-      <ScrollArea
-        v-if="output"
-        class="h-56 rounded-lg border border-hairline bg-canvas-soft"
-        viewport-class="overflow-auto"
-        orientation="both"
-      >
-        <HighlightedCode
-          :code="output"
-          language="shell"
-          pre-class="syntax-highlight min-w-max whitespace-pre p-3 text-xs leading-5 text-ink-secondary"
-        />
-      </ScrollArea>
+      <FileChangeOutputPanel v-if="output" :output="output" />
       <Collapsible
         v-for="change in fileChanges"
-        :key="changeKey(change)"
+        :key="fileChangeKey(change)"
         v-slot="{ open }"
         :open="isChangeOpen(change)"
         class="rounded-lg border border-hairline bg-surface"
@@ -194,45 +110,17 @@ watch(
             <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-ink-faint" />
             <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
             <span class="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-ink-secondary">{{
-              changePath(change)
+              fileChangePath(change)
             }}</span>
             <Badge variant="outline">{{ changeKindLabel(change) }}</Badge>
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <TanStackStickToBottomScrollArea
-            v-if="open && changeDiff(change)"
-            class="diff-markdown max-h-[min(55vh,26rem)] border-t border-hairline bg-surface"
-            viewport-class="max-h-[min(55vh,26rem)]"
-            horizontal
-            natural-height
-            :threshold="48"
-            :follow-key="changeFollowKey(change)"
-          >
-            <MarkdownContent
-              :content="diffMarkdown(change)"
-              :diff-language="changeLanguage(change)"
-              compact
-            />
-          </TanStackStickToBottomScrollArea>
-          <div v-else class="border-t border-hairline px-3 py-2 text-sm text-ink-faint">
-            {{ t("app.noDiff") }}
-          </div>
+          <FileChangeDiffPanel v-if="open" :change="change" />
         </CollapsibleContent>
       </Collapsible>
     </div>
-    <ScrollArea
-      v-else-if="output"
-      class="mt-3 h-56 rounded-lg border border-hairline bg-canvas-soft"
-      viewport-class="overflow-auto"
-      orientation="both"
-    >
-      <HighlightedCode
-        :code="output"
-        language="shell"
-        pre-class="syntax-highlight min-w-max whitespace-pre p-3 text-xs leading-5 text-ink-secondary"
-      />
-    </ScrollArea>
+    <FileChangeOutputPanel v-else-if="output" :output="output" extra-class="mt-3" />
     <div
       v-else-if="isInProgress"
       class="mt-3 rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink-muted"

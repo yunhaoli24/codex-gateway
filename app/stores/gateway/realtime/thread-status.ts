@@ -1,4 +1,5 @@
 import type { ThreadTokenUsageState } from "~~/shared/types";
+import { applyThreadRuntimeStatus } from "../thread-runtime/projector";
 import { pinnedKey } from "../thread-utils/identity";
 import type { GatewayStoreContext, ThreadRuntimeStatus, ThreadStatusUpdateOptions } from "../types";
 
@@ -18,38 +19,10 @@ export function setThreadStatus(
   status: ThreadRuntimeStatus,
   options: ThreadStatusUpdateOptions = {},
 ) {
-  const key = pinnedKey(hostId, threadId);
-  const runningKeys = new Set(ctx.state.runningThreadKeys);
-  ctx.state.threadStatuses = {
-    ...ctx.state.threadStatuses,
-    [key]: status,
-  };
-  if (options.turnId) {
-    ctx.state.activeTurnIdsByThreadKey = {
-      ...ctx.state.activeTurnIdsByThreadKey,
-      [key]: options.turnId,
-    };
-  }
-  if (status === "running") {
-    runningKeys.add(key);
-  } else {
-    const activeTerminalProcess = ctx.state.activeTerminalProcessByThreadKey[key];
-    if (activeTerminalProcess && activeTerminalProcess.turnId === options.turnId) {
-      // A turn/completed snapshot can arrive while Codex is still polling a
-      // background terminal process. Keep the turn interruptable until the
-      // matching command item completes.
-      runningKeys.add(key);
-      ctx.state.threadStatuses = {
-        ...ctx.state.threadStatuses,
-        [key]: "running",
-      };
-      return;
-    }
-    runningKeys.delete(key);
-    const { [key]: _completedTurnId, ...activeTurnIds } = ctx.state.activeTurnIdsByThreadKey;
-    ctx.state.activeTurnIdsByThreadKey = activeTurnIds;
-  }
-  ctx.state.runningThreadKeys = [...runningKeys];
+  applyThreadRuntimeStatus(ctx, hostId, threadId, {
+    status,
+    turnId: options.turnId,
+  });
 }
 
 export function setThreadTokenUsage(

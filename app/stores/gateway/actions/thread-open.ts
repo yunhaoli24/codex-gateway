@@ -151,22 +151,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
           loading: false,
           error: null,
         };
-        ctx.state.threadSnapshots = {
-          ...ctx.state.threadSnapshots,
-          [key]: preview,
-        };
-        ctx.state.threadPreviews = {
-          ...ctx.state.threadPreviews,
-          [key]: preview,
-        };
-        ctx.state.threadSnapshots = {
-          ...ctx.state.threadSnapshots,
-          [key]: preview,
-        };
-        ctx.state.threadPreviews = {
-          ...ctx.state.threadPreviews,
-          [key]: preview,
-        };
+        commitThreadPreview(ctx, key, preview);
         ctx.rememberThreadSubscription(hostId, threadId, result.lastEventId);
         return ctx.state.threadPreviews[key];
       } catch (error: any) {
@@ -234,6 +219,21 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       await ctx.rememberOpenThread(threadId);
       ctx.syncSelectedRoute();
     },
+  };
+}
+
+function commitThreadPreview(
+  ctx: GatewayStoreContext,
+  key: string,
+  preview: GatewayStoreContext["state"]["threadPreviews"][string],
+) {
+  ctx.state.threadSnapshots = {
+    ...ctx.state.threadSnapshots,
+    [key]: preview,
+  };
+  ctx.state.threadPreviews = {
+    ...ctx.state.threadPreviews,
+    [key]: preview,
   };
 }
 

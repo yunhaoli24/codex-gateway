@@ -17,8 +17,6 @@ import { useComposerTurnSubmit } from "@/composables/useComposerTurnSubmit";
 import { useSlashCommands, type SlashCommand } from "@/composables/useSlashCommands";
 import { useThreadSettingsControls } from "@/composables/useThreadSettingsControls";
 import { useGatewayStore } from "@/stores/gateway";
-import { activeTurnIdFromRuntimeState } from "@/stores/gateway/thread-turns/active-turn";
-import { pinnedKey } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const { t } = useI18n();
@@ -30,7 +28,6 @@ const {
   selectedThreadGoal,
   selectedThreadGoalObservedAt,
   selectedThreadTokenUsage,
-  history,
   models,
   loadingModels,
 } = storeToRefs(store);
@@ -58,22 +55,12 @@ const {
   removeAttachment,
 } = useAttachmentUpload(selectedHostId, attachedFiles);
 
-const selectedThreadKey = computed(() =>
+const selectedRuntime = computed(() =>
   selectedHostId.value && selectedThreadId.value
-    ? pinnedKey(selectedHostId.value, selectedThreadId.value)
+    ? store.threadRuntimeProjection(selectedHostId.value, selectedThreadId.value)
     : null,
 );
-const selectedActiveTurnId = computed(() =>
-  activeTurnIdFromRuntimeState(
-    history.value,
-    selectedThreadKey.value
-      ? store.activeTerminalProcessByThreadKey[selectedThreadKey.value]?.turnId
-      : null,
-  ),
-);
-const isThreadRunning = computed(
-  () => selectedThreadStatus.value === "running" && Boolean(selectedActiveTurnId.value),
-);
+const isThreadRunning = computed(() => Boolean(selectedRuntime.value?.canInterrupt));
 const composerInputEnabled = computed(() =>
   Boolean(selectedThreadId.value || selectedProjectId.value),
 );

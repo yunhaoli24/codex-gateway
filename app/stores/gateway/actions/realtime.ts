@@ -19,6 +19,7 @@ import {
   sendRealtimeMessage,
 } from "../realtime/socket";
 import { setThreadRunning, setThreadStatus, setThreadTokenUsage } from "../realtime/thread-status";
+import { projectThreadRuntime } from "../thread-runtime/projector";
 import type { GatewayStoreContext, ThreadRuntimeStatus, ThreadStatusUpdateOptions } from "../types";
 
 export function createRealtimeActions(ctx: GatewayStoreContext) {
@@ -64,6 +65,10 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
 
     setThreadTokenUsage(hostId: number, threadId: string, tokenUsage: ThreadTokenUsageState) {
       setThreadTokenUsage(ctx, hostId, threadId, tokenUsage);
+    },
+
+    threadRuntimeProjection(hostId: number, threadId: string) {
+      return projectThreadRuntime(ctx, hostId, threadId);
     },
 
     connectEvents(hostId = ctx.state.selectedHostId, threadId = ctx.state.selectedThreadId) {

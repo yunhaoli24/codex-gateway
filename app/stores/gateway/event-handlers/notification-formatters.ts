@@ -1,6 +1,29 @@
-import { jsonPreview } from "@/utils/thread-items";
 import type { GatewayStoreContext } from "../types";
-import { pinnedKey } from "../thread-utils/identity";
+import {
+  configRange,
+  count,
+  goalSummary,
+  itemSummary,
+  list,
+  numberText,
+  numeric,
+  simpleNotification,
+  text,
+  verificationSummary,
+  withDetails,
+  type NotificationFormatContext,
+  type NotificationFormatter,
+} from "./notification-formatters/common";
+import {
+  externalAgentConfigImportNotification,
+  guardianReviewNotification,
+  hookNotification,
+  modelSafetyBufferingNotification,
+  moderationMetadataNotification,
+  rateLimitsUpdatedNotification,
+  warningNotification,
+} from "./notification-formatters/rich";
+import { terminalInteractionNotification } from "./notification-formatters/terminal";
 
 export const visibleNotificationMethods = [
   "thread/archived",
@@ -48,24 +71,6 @@ export const visibleNotificationMethods = [
 
 export type VisibleNotificationMethod = (typeof visibleNotificationMethods)[number];
 
-export interface FormattedNotification {
-  title: string;
-  message: string;
-  details?: string;
-  level?: "info" | "warning";
-}
-
-type NotificationFormatter = (
-  ctx: GatewayStoreContext,
-  params: Record<string, any>,
-  context?: NotificationFormatContext,
-) => FormattedNotification;
-
-interface NotificationFormatContext {
-  hostId: number;
-  threadId: string;
-}
-
 const warningMethods = new Set<VisibleNotificationMethod>([
   "warning",
   "guardianWarning",
@@ -75,27 +80,31 @@ const warningMethods = new Set<VisibleNotificationMethod>([
 ]);
 
 const formatters: Record<VisibleNotificationMethod, NotificationFormatter> = {
-  "thread/archived": (ctx) => simple(ctx, "threadArchived"),
-  "thread/deleted": (ctx) => simple(ctx, "threadDeleted", "warning"),
-  "thread/unarchived": (ctx) => simple(ctx, "threadUnarchived"),
-  "thread/closed": (ctx) => simple(ctx, "threadClosed"),
+  "thread/archived": (ctx) => simpleNotification(ctx, "threadArchived"),
+  "thread/deleted": (ctx) => simpleNotification(ctx, "threadDeleted", "warning"),
+  "thread/unarchived": (ctx) => simpleNotification(ctx, "threadUnarchived"),
+  "thread/closed": (ctx) => simpleNotification(ctx, "threadClosed"),
   "thread/name/updated": (ctx, params) =>
-    simple(ctx, "threadNameUpdated", "info", { name: text(params.threadName) }),
+    simpleNotification(ctx, "threadNameUpdated", "info", { name: text(params.threadName) }),
   "thread/goal/updated": (ctx, params) =>
-    simple(ctx, "threadGoalUpdated", "info", { goal: goalSummary(params.goal) }),
-  "thread/goal/cleared": (ctx) => simple(ctx, "threadGoalCleared"),
-  "skills/changed": (ctx) => simple(ctx, "skillsChanged"),
+    simpleNotification(ctx, "threadGoalUpdated", "info", { goal: goalSummary(params.goal) }),
+  "thread/goal/cleared": (ctx) => simpleNotification(ctx, "threadGoalCleared"),
+  "skills/changed": (ctx) => simpleNotification(ctx, "skillsChanged"),
   "hook/started": (ctx, params) => hookNotification(ctx, params, "hookStarted"),
   "hook/completed": (ctx, params) => hookNotification(ctx, params, "hookCompleted"),
-  "item/autoApprovalReview/started": (ctx, params) => guardianReview(ctx, params, "started"),
-  "item/autoApprovalReview/completed": (ctx, params) => guardianReview(ctx, params, "completed"),
+  "item/autoApprovalReview/started": (ctx, params) =>
+    guardianReviewNotification(ctx, params, "started"),
+  "item/autoApprovalReview/completed": (ctx, params) =>
+    guardianReviewNotification(ctx, params, "completed"),
   "rawResponseItem/completed": (ctx, params) =>
-    simple(ctx, "rawResponseItemCompleted", "info", { item: itemSummary(params.item) }),
-  "item/commandExecution/terminalInteraction": (ctx, params) => terminalInteraction(ctx, params),
+    simpleNotification(ctx, "rawResponseItemCompleted", "info", {
+      item: itemSummary(params.item),
+    }),
+  "item/commandExecution/terminalInteraction": terminalInteractionNotification,
   "item/mcpToolCall/progress": (ctx, params) =>
-    simple(ctx, "mcpToolCallProgress", "info", { message: text(params.message) }),
+    simpleNotification(ctx, "mcpToolCallProgress", "info", { message: text(params.message) }),
   "mcpServer/oauthLogin/completed": (ctx, params) =>
-    simple(
+    simpleNotification(
       ctx,
       params.success ? "mcpOauthLoginCompleted" : "mcpOauthLoginFailed",
       params.success ? "info" : "warning",
@@ -105,81 +114,87 @@ const formatters: Record<VisibleNotificationMethod, NotificationFormatter> = {
       },
     ),
   "mcpServer/startupStatus/updated": (ctx, params) =>
-    simple(ctx, "mcpServerStatusUpdated", params.error ? "warning" : "info", {
+    simpleNotification(ctx, "mcpServerStatusUpdated", params.error ? "warning" : "info", {
       server: text(params.name),
       status: text(params.status),
       error: text(params.error),
     }),
   "account/updated": (ctx, params) =>
-    simple(ctx, "accountUpdated", "info", {
+    simpleNotification(ctx, "accountUpdated", "info", {
       authMode: text(params.authMode),
       planType: text(params.planType),
     }),
-  "account/rateLimits/updated": (ctx, params) => rateLimitsUpdated(ctx, params),
+  "account/rateLimits/updated": rateLimitsUpdatedNotification,
   "app/list/updated": (ctx, params) =>
-    simple(ctx, "appListUpdated", "info", { count: count(params.data) }),
+    simpleNotification(ctx, "appListUpdated", "info", { count: count(params.data) }),
   "remoteControl/status/changed": (ctx, params) =>
-    simple(ctx, "remoteControlStatusChanged", "info", {
+    simpleNotification(ctx, "remoteControlStatusChanged", "info", {
       server: text(params.serverName),
       status: text(params.status),
     }),
   "externalAgentConfig/import/progress": (ctx, params) =>
-    externalAgentConfigImport(ctx, params, "externalAgentConfigImportProgress"),
+    externalAgentConfigImportNotification(ctx, params, "externalAgentConfigImportProgress"),
   "externalAgentConfig/import/completed": (ctx, params) =>
-    externalAgentConfigImport(ctx, params, "externalAgentConfigImportCompleted"),
+    externalAgentConfigImportNotification(ctx, params, "externalAgentConfigImportCompleted"),
   "fs/changed": (ctx, params) =>
-    simple(ctx, "fsChanged", "info", {
+    simpleNotification(ctx, "fsChanged", "info", {
       count: count(params.changedPaths),
       paths: list(params.changedPaths, 3),
     }),
   "item/reasoning/summaryPartAdded": (ctx, params) =>
-    simple(ctx, "reasoningSummaryPartAdded", "info", { index: numberText(params.summaryIndex) }),
-  "thread/compacted": (ctx) => simple(ctx, "threadCompacted"),
+    simpleNotification(ctx, "reasoningSummaryPartAdded", "info", {
+      index: numberText(params.summaryIndex),
+    }),
+  "thread/compacted": (ctx) => simpleNotification(ctx, "threadCompacted"),
   "model/rerouted": (ctx, params) =>
-    simple(ctx, "modelRerouted", "info", {
+    simpleNotification(ctx, "modelRerouted", "info", {
       from: text(params.fromModel),
       to: text(params.toModel),
       reason: text(params.reason),
     }),
   "model/verification": (ctx, params) =>
-    simple(ctx, "modelVerification", "info", {
+    simpleNotification(ctx, "modelVerification", "info", {
       count: count(params.verifications),
       items: verificationSummary(params.verifications),
     }),
-  "turn/moderationMetadata": (ctx, params) => moderationMetadata(ctx, params),
-  "model/safetyBuffering/updated": (ctx, params) => modelSafetyBuffering(ctx, params),
+  "turn/moderationMetadata": moderationMetadataNotification,
+  "model/safetyBuffering/updated": modelSafetyBufferingNotification,
   warning: (ctx, params) => warningNotification(ctx, "warning", params),
   guardianWarning: (ctx, params) => warningNotification(ctx, "guardianWarning", params),
   deprecationNotice: (ctx, params) =>
     withDetails(
-      simple(ctx, "deprecationNotice", "warning", { summary: text(params.summary) }),
+      simpleNotification(ctx, "deprecationNotice", "warning", {
+        summary: text(params.summary),
+      }),
       params.details,
     ),
   configWarning: (ctx, params) =>
     withDetails(
-      simple(ctx, "configWarning", "warning", {
+      simpleNotification(ctx, "configWarning", "warning", {
         summary: text(params.summary),
         path: text(params.path),
       }),
       [params.details, configRange(params.range)].filter(Boolean).join("\n"),
     ),
   "fuzzyFileSearch/sessionUpdated": (ctx, params) =>
-    simple(ctx, "fuzzyFileSearchUpdated", "info", {
+    simpleNotification(ctx, "fuzzyFileSearchUpdated", "info", {
       query: text(params.query),
       count: count(params.files),
     }),
-  "fuzzyFileSearch/sessionCompleted": (ctx) => simple(ctx, "fuzzyFileSearchCompleted"),
+  "fuzzyFileSearch/sessionCompleted": (ctx) => simpleNotification(ctx, "fuzzyFileSearchCompleted"),
   "thread/realtime/started": (ctx, params) =>
-    simple(ctx, "realtimeStarted", "info", { session: text(params.realtimeSessionId) }),
+    simpleNotification(ctx, "realtimeStarted", "info", {
+      session: text(params.realtimeSessionId),
+    }),
   "thread/realtime/closed": (ctx, params) =>
-    simple(ctx, "realtimeClosed", "info", { reason: text(params.reason) }),
+    simpleNotification(ctx, "realtimeClosed", "info", { reason: text(params.reason) }),
   "windows/worldWritableWarning": (ctx, params) =>
-    simple(ctx, "windowsWorldWritableWarning", "warning", {
+    simpleNotification(ctx, "windowsWorldWritableWarning", "warning", {
       count: count(params.samplePaths) + numeric(params.extraCount),
       paths: list(params.samplePaths, 3),
     }),
   "windowsSandbox/setupCompleted": (ctx, params) =>
-    simple(
+    simpleNotification(
       ctx,
       params.success ? "windowsSandboxSetupCompleted" : "windowsSandboxSetupFailed",
       params.success ? "info" : "warning",
@@ -189,7 +204,7 @@ const formatters: Record<VisibleNotificationMethod, NotificationFormatter> = {
       },
     ),
   "account/login/completed": (ctx, params) =>
-    simple(
+    simpleNotification(
       ctx,
       params.success ? "accountLoginCompleted" : "accountLoginFailed",
       params.success ? "info" : "warning",
@@ -211,309 +226,4 @@ export function formatNotification(
     ...formatted,
     level: formatted.level ?? (warningMethods.has(method) ? "warning" : "info"),
   };
-}
-
-function simple(
-  ctx: GatewayStoreContext,
-  key: string,
-  level: "info" | "warning" = "info",
-  values: Record<string, unknown> = {},
-): FormattedNotification {
-  return {
-    title: ctx.t(`app.notifications.${key}.title`, values),
-    message: ctx.t(`app.notifications.${key}.message`, values),
-    level,
-  };
-}
-
-function terminalInteraction(
-  ctx: GatewayStoreContext,
-  params: Record<string, any>,
-  context?: NotificationFormatContext,
-): FormattedNotification {
-  const stdin = text(params.stdin);
-  if (!stdin) {
-    return simple(ctx, "terminalWait", "info", {
-      command: commandForTerminalInteraction(ctx, params, context),
-      processId: text(params.processId),
-    });
-  }
-  return simple(ctx, "terminalInteraction", "info", {
-    command: commandForTerminalInteraction(ctx, params, context),
-    processId: text(params.processId),
-    stdin: truncate(stdin, 120),
-  });
-}
-
-function commandForTerminalInteraction(
-  ctx: GatewayStoreContext,
-  params: Record<string, any>,
-  context?: NotificationFormatContext,
-) {
-  const processId = text(params.processId);
-  const lookupContext = context ?? {
-    hostId: ctx.state.selectedHostId ?? 0,
-    threadId: text(params.threadId) || ctx.state.selectedThreadId || "",
-  };
-  const command = findCommandItem(
-    ctx,
-    lookupContext.hostId,
-    lookupContext.threadId,
-    text(params.itemId),
-    processId,
-  )?.command;
-  return truncate(
-    text(command) || ctx.t("app.notifications.terminalProcessFallback", { processId }),
-    140,
-  );
-}
-
-function findCommandItem(
-  ctx: GatewayStoreContext,
-  hostId: number,
-  threadId: string,
-  itemId: string,
-  processId: string,
-) {
-  const histories = [
-    hostId === ctx.state.selectedHostId && threadId === ctx.state.selectedThreadId
-      ? ctx.state.history
-      : null,
-    ctx.state.threadSnapshots[pinnedKey(hostId, threadId)]?.history,
-    ctx.state.threadPreviews[pinnedKey(hostId, threadId)]?.history,
-  ];
-  for (const history of histories) {
-    const item = findCommandItemInHistory(history, itemId, processId);
-    if (item) {
-      return item;
-    }
-  }
-  return null;
-}
-
-function findCommandItemInHistory(history: unknown, itemId: string, processId: string) {
-  const turns = (history as any)?.thread?.turns ?? (history as any)?.turns ?? [];
-  for (const turn of Array.isArray(turns) ? turns : []) {
-    for (const item of Array.isArray(turn?.items) ? turn.items : []) {
-      if (
-        item?.type === "commandExecution" &&
-        ((itemId && String(item.id) === itemId) ||
-          (processId && String(item.processId) === processId))
-      ) {
-        return item;
-      }
-    }
-  }
-  return null;
-}
-
-function withDetails(notification: FormattedNotification, details: unknown) {
-  return details ? { ...notification, details: text(details) } : notification;
-}
-
-function hookNotification(ctx: GatewayStoreContext, params: Record<string, any>, key: string) {
-  const run = params.run || {};
-  return withDetails(
-    simple(ctx, key, run.status === "failed" ? "warning" : "info", {
-      event: text(run.eventName),
-      status: text(run.status),
-      message: text(run.statusMessage),
-    }),
-    run.entries?.length ? jsonPreview(run.entries) : null,
-  );
-}
-
-function guardianReview(
-  ctx: GatewayStoreContext,
-  params: Record<string, any>,
-  phase: "started" | "completed",
-) {
-  const review = params.review || {};
-  return withDetails(
-    simple(ctx, phase === "started" ? "guardianReviewStarted" : "guardianReviewCompleted", "info", {
-      action: text(params.action),
-      status: text(review.status),
-      risk: text(review.riskLevel),
-      rationale: text(review.rationale),
-    }),
-    jsonPreview({
-      reviewId: params.reviewId,
-      targetItemId: params.targetItemId,
-      decisionSource: params.decisionSource,
-      userAuthorization: review.userAuthorization,
-    }),
-  );
-}
-
-function rateLimitsUpdated(ctx: GatewayStoreContext, params: Record<string, any>) {
-  const limits = params.rateLimits || {};
-  return withDetails(
-    simple(ctx, "accountRateLimitsUpdated", limits.rateLimitReachedType ? "warning" : "info", {
-      plan: text(limits.planType),
-      limit: text(limits.limitName || limits.limitId),
-      reached: text(limits.rateLimitReachedType),
-    }),
-    jsonPreview(limits),
-  );
-}
-
-function externalAgentConfigImport(
-  ctx: GatewayStoreContext,
-  params: Record<string, any>,
-  key: string,
-) {
-  const results = Array.isArray(params.itemTypeResults) ? params.itemTypeResults : [];
-  const successes = results.reduce((total, result) => total + count(result.successes), 0);
-  const failures = results.reduce((total, result) => total + count(result.failures), 0);
-  return withDetails(
-    simple(ctx, key, failures ? "warning" : "info", { successes, failures }),
-    jsonPreview(results),
-  );
-}
-
-function moderationMetadata(
-  ctx: GatewayStoreContext,
-  params: Record<string, any>,
-): FormattedNotification {
-  const metadata = params.metadata;
-  const summary = moderationSummary(metadata);
-  return withDetails(
-    simple(ctx, "turnModerationMetadata", "info", { summary }),
-    jsonPreview(metadata),
-  );
-}
-
-function modelSafetyBuffering(ctx: GatewayStoreContext, params: Record<string, any>) {
-  return withDetails(
-    simple(
-      ctx,
-      params.showBufferingUi ? "modelSafetyBufferingEnabled" : "modelSafetyBufferingDisabled",
-      "info",
-      {
-        model: text(params.model),
-        fasterModel: text(params.fasterModel),
-        reasons: list(params.reasons, 3),
-        useCases: list(params.useCases, 3),
-      },
-    ),
-    jsonPreview({
-      useCases: params.useCases,
-      reasons: params.reasons,
-      fasterModel: params.fasterModel,
-    }),
-  );
-}
-
-function warningNotification(ctx: GatewayStoreContext, key: string, params: Record<string, any>) {
-  return simple(ctx, key, "warning", { message: text(params.message) });
-}
-
-function moderationSummary(metadata: unknown) {
-  if (!metadata || typeof metadata !== "object") {
-    return text(metadata) || "metadata";
-  }
-  const record = metadata as Record<string, any>;
-  const flagged = findFirst(record, ["flagged", "blocked", "unsafe", "moderated"]);
-  const model = findFirst(record, ["model", "moderationModel", "classifier"]);
-  const categoryKeys = extractCategoryKeys(record);
-  return [
-    flagged === undefined ? null : `flagged=${String(flagged)}`,
-    model ? `model=${String(model)}` : null,
-    categoryKeys.length ? `categories=${categoryKeys.slice(0, 4).join(", ")}` : null,
-    `keys=${Object.keys(record).slice(0, 6).join(", ")}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function extractCategoryKeys(record: Record<string, any>) {
-  const categories = findFirst(record, ["categories", "category_scores", "categoryScores"]);
-  if (categories && typeof categories === "object" && !Array.isArray(categories)) {
-    return Object.entries(categories)
-      .filter(([, value]) => Boolean(value))
-      .map(([key]) => key);
-  }
-  return [];
-}
-
-function findFirst(record: Record<string, any>, keys: string[]) {
-  for (const key of keys) {
-    if (record[key] !== undefined && record[key] !== null) {
-      return record[key];
-    }
-  }
-  return undefined;
-}
-
-function verificationSummary(value: unknown) {
-  if (!Array.isArray(value) || !value.length) {
-    return "";
-  }
-  return value
-    .slice(0, 3)
-    .map((item) => text(item?.status || item?.result || item?.model || item?.id || item))
-    .filter(Boolean)
-    .join(", ");
-}
-
-function itemSummary(item: unknown) {
-  if (!item || typeof item !== "object") {
-    return text(item);
-  }
-  const record = item as Record<string, any>;
-  return [record.type, record.id].filter(Boolean).join(" · ");
-}
-
-function goalSummary(goal: unknown) {
-  if (!goal || typeof goal !== "object") {
-    return text(goal);
-  }
-  const record = goal as Record<string, any>;
-  return text(record.summary || record.text || record.title || record.name || goal);
-}
-
-function configRange(range: unknown) {
-  if (!range || typeof range !== "object") {
-    return "";
-  }
-  const value = range as Record<string, any>;
-  return jsonPreview(value);
-}
-
-function list(value: unknown, limit: number) {
-  if (!Array.isArray(value)) {
-    return text(value);
-  }
-  const visible = value.slice(0, limit).map(text).filter(Boolean);
-  const extra = value.length - visible.length;
-  return extra > 0 ? `${visible.join(", ")} +${extra}` : visible.join(", ");
-}
-
-function count(value: unknown) {
-  return Array.isArray(value) ? value.length : 0;
-}
-
-function numeric(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function numberText(value: unknown) {
-  return typeof value === "number" || typeof value === "bigint" ? String(value) : text(value);
-}
-
-function truncate(value: string, limit: number) {
-  return value.length > limit ? `${value.slice(0, limit)}...` : value;
-}
-
-function text(value: unknown) {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  if (typeof value === "string") {
-    return value;
-  }
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
-    return String(value);
-  }
-  return jsonPreview(value);
 }
