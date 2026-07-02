@@ -1,6 +1,9 @@
 import type { HostRecord, ThreadSettingsState } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT, SERVER_TURN_CACHE_LIMIT } from "~~/shared/config";
-import { runtimeStatusFromThreadState } from "~~/shared/thread-runtime-status";
+import {
+  runtimeStatusFromThreadState,
+  runtimeStatusFromTopLevelThreadState,
+} from "~~/shared/thread-runtime-status";
 import { randomUUID } from "node:crypto";
 import type {
   ServerRequestResponseInput,
@@ -22,6 +25,7 @@ import { projectStore } from "../state/projects";
 import { threadMetadataStore } from "../state/thread-metadata";
 import { threadSnapshotStore } from "../state/thread-snapshots";
 import { runtimeLog } from "./runtime-log";
+import { threadRuntimeEvents } from "./thread-runtime-events";
 
 class ThreadBroker {
   private readonly registry = new ControllerRegistry();
@@ -34,6 +38,20 @@ class ThreadBroker {
   ) {
     const cachedSnapshot = threadSnapshotStore.get(host.id, threadId);
     if (cachedSnapshot) {
+      const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
+      const cachedStatus = runtimeStatusFromThreadState(
+        cachedSnapshot.thread,
+        cachedSnapshot.history,
+        recentEvents,
+      );
+      if (cachedStatus === "running") {
+        runtimeLog("thread running cache refresh", {
+          hostId: host.id,
+          threadId,
+          projectId,
+        });
+        return this.refreshThreadState(host, threadId, projectId, limit);
+      }
       return this.openSnapshotResult(host, threadId, projectId, cachedSnapshot);
     }
 
@@ -48,41 +66,7 @@ class ThreadBroker {
       threadId,
       limit,
     });
-    const resume = await controller.resumeWithInitialTurns(limit);
-    const thread = resume.thread ?? resume;
-    const initialTurnsPage = resume.initialTurnsPage;
-    if (!initialTurnsPage) {
-      throw new Error("thread/resume did not return initialTurnsPage");
-    }
-
-    const threadRecord = thread.thread ?? thread;
-    const resolvedProjectId = this.resolveProjectId(host.id, projectId, threadRecord?.cwd);
-    threadMetadataStore.record(host.id, resolvedProjectId, threadRecord);
-
-    const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
-    const history = this.pageToFullHistory(thread, initialTurnsPage);
-    const turnsPage = this.pageCursorState(initialTurnsPage);
-    const runtimeStatus = runtimeStatusFromThreadState(thread, history, recentEvents);
-    controller.setOpenSnapshot({
-      thread,
-      history,
-      projectId: resolvedProjectId,
-      turnsPage,
-      threadSettings: extractThreadSettings(resume),
-      tokenUsage: latestTokenUsageFromEvents(recentEvents),
-    });
-
-    return {
-      thread,
-      history,
-      runtimeStatus,
-      projectId: resolvedProjectId,
-      project: resolvedProjectId ? projectStore.get(resolvedProjectId) : null,
-      turnsPage,
-      threadSettings: extractThreadSettings(resume),
-      tokenUsage: latestTokenUsageFromEvents(recentEvents),
-      recentEvents,
-    };
+    return this.refreshThreadState(host, threadId, projectId, limit);
   }
 
   private openSnapshotResult(
@@ -167,14 +151,26 @@ class ThreadBroker {
     await controller.ensureSubscribed();
     await controller.ensureConnected();
     const clientUserMessageId = input.clientUserMessageId || `gateway-steer-${randomUUID()}`;
-    return controller.enqueue(() =>
-      controller.client.request<{ turnId?: string }>("turn/steer", {
-        threadId,
-        expectedTurnId: input.expectedTurnId,
-        clientUserMessageId,
-        input: buildUserInput(input),
-      }),
-    );
+    return controller
+      .enqueue(() =>
+        controller.client.request<{ turnId?: string }>("turn/steer", {
+          threadId,
+          expectedTurnId: input.expectedTurnId,
+          clientUserMessageId,
+          input: buildUserInput(input),
+        }),
+      )
+      .catch(async (error) => {
+        if (isNoActiveTurnToSteer(error)) {
+          runtimeLog("refreshing thread after stale steer state", {
+            hostId: host.id,
+            threadId,
+            expectedTurnId: input.expectedTurnId,
+          });
+          await this.refreshThreadState(host, threadId, null, INITIAL_TURN_PAGE_LIMIT);
+        }
+        throw error;
+      });
   }
 
   async interruptTurn(host: HostRecord, threadId: string, turnId: string) {
@@ -293,6 +289,71 @@ class ThreadBroker {
     return this.registry.status();
   }
 
+  async refreshThreadState(
+    host: HostRecord,
+    threadId: string,
+    projectId: number | null,
+    limit = INITIAL_TURN_PAGE_LIMIT,
+  ) {
+    const { snapshot, resolvedProjectId } = await this.loadRemoteOpenSnapshot(
+      host,
+      threadId,
+      projectId,
+      limit,
+    );
+    const status = runtimeStatusFromTopLevelThreadState(snapshot.thread);
+    threadRuntimeEvents.record(host.id, threadId, "thread/status/changed", {
+      method: "thread/status/changed",
+      params: {
+        threadId,
+        status,
+      },
+    });
+    const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
+    return {
+      thread: snapshot.thread,
+      history: snapshot.history,
+      runtimeStatus: runtimeStatusFromThreadState(snapshot.thread, snapshot.history, recentEvents),
+      projectId: resolvedProjectId,
+      project: resolvedProjectId ? projectStore.get(resolvedProjectId) : null,
+      turnsPage: snapshot.turnsPage,
+      threadSettings: snapshot.threadSettings,
+      tokenUsage: latestTokenUsageFromEvents(recentEvents) ?? snapshot.tokenUsage,
+      recentEvents,
+    };
+  }
+
+  private async loadRemoteOpenSnapshot(
+    host: HostRecord,
+    threadId: string,
+    projectId: number | null,
+    limit: number,
+  ) {
+    const controller = await this.registry.getController(host, threadId);
+    const resume = await controller.resumeWithInitialTurns(limit);
+    const thread = resume.thread ?? resume;
+    const initialTurnsPage = resume.initialTurnsPage;
+    if (!initialTurnsPage) {
+      throw new Error("thread/resume did not return initialTurnsPage");
+    }
+
+    const threadRecord = thread.thread ?? thread;
+    const resolvedProjectId = this.resolveProjectId(host.id, projectId, threadRecord?.cwd);
+    threadMetadataStore.record(host.id, resolvedProjectId, threadRecord);
+
+    const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
+    const baseSnapshot = {
+      thread,
+      history: this.pageToFullHistory(thread, initialTurnsPage),
+      projectId: resolvedProjectId,
+      turnsPage: this.pageCursorState(initialTurnsPage),
+      threadSettings: extractThreadSettings(resume),
+      tokenUsage: latestTokenUsageFromEvents(recentEvents),
+    };
+    controller.setOpenSnapshot(baseSnapshot);
+    return { snapshot: baseSnapshot, resolvedProjectId };
+  }
+
   private resolveProjectId(hostId: number, projectId: number | null, cwd: unknown) {
     if (projectId || typeof cwd !== "string" || !cwd.trim()) {
       return projectId;
@@ -319,3 +380,12 @@ class ThreadBroker {
 }
 
 export const threadBroker = new ThreadBroker();
+
+function isNoActiveTurnToSteer(error: unknown) {
+  return (
+    (error as any)?.rpcMethod === "turn/steer" &&
+    String((error as any)?.message ?? "")
+      .toLowerCase()
+      .includes("no active turn")
+  );
+}

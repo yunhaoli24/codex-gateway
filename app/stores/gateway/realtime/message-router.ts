@@ -1,7 +1,11 @@
 import type { RealtimeServerMessage } from "~~/shared/types";
 import { handleRealtimeThreadEvent } from "./event-recording";
 import { handleHostLifecycleRealtime } from "./host-lifecycle";
-import { rejectRealtimeRequest, resolveRealtimeRequest } from "./request-response";
+import {
+  realtimeRequestErrorFromServer,
+  rejectRealtimeRequest,
+  resolveRealtimeRequest,
+} from "./request-response";
 import type { GatewayStoreContext } from "../types";
 
 type RealtimeServerMessageHandler<T extends RealtimeServerMessage["type"]> = (
@@ -26,17 +30,31 @@ const realtimeServerMessageHandlers = {
   "thread.event": (ctx, message) => {
     handleRealtimeThreadEvent(ctx, message.event);
   },
+  "thread.snapshot": (_ctx, message) => {
+    resolveRealtimeRequest(message);
+  },
+  "turn.start.accepted": (_ctx, message) => {
+    resolveRealtimeRequest(message);
+  },
   "turn.steer.accepted": (_ctx, message) => {
     resolveRealtimeRequest(message);
   },
   "turn.interrupt.accepted": (_ctx, message) => {
     resolveRealtimeRequest(message);
   },
+  "serverRequest.respond.accepted": (_ctx, message) => {
+    resolveRealtimeRequest(message);
+  },
   error: (ctx, message) => {
+    const requestError = realtimeRequestErrorFromServer(
+      message.message,
+      message.request && "requestId" in message.request ? message.request : undefined,
+      message.details ?? {},
+    );
     if (message.requestId) {
-      rejectRealtimeRequest(message.requestId, new Error(message.message));
+      rejectRealtimeRequest(message.requestId, requestError);
     }
-    ctx.setError(message.message, {
+    ctx.setError(requestError.message, {
       hostId: message.request && "hostId" in message.request ? message.request.hostId : null,
       threadId: message.request && "threadId" in message.request ? message.request.threadId : null,
     });

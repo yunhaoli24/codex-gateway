@@ -166,6 +166,8 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         hostId?: number | null;
         projectId?: number | null;
         threadId?: string | null;
+        turnId?: string | null;
+        transient?: boolean;
       } = {},
     ) {
       ctx.state.error = {
@@ -174,6 +176,8 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         projectId:
           "projectId" in context ? (context.projectId ?? null) : ctx.state.selectedProjectId,
         threadId: "threadId" in context ? (context.threadId ?? null) : ctx.state.selectedThreadId,
+        turnId: "turnId" in context ? (context.turnId ?? null) : null,
+        transient: context.transient === true,
         updatedAt: Date.now(),
       };
       if (import.meta.client) {

@@ -5,6 +5,7 @@ import { gatewayMemoryState } from "./memory";
 import { normalizePinnedThreads } from "./memory";
 import { hostStore } from "./hosts";
 import { projectStore } from "./projects";
+import { subAgentThreadStore } from "./sub-agent-threads";
 import { threadMetadataStore } from "./thread-metadata";
 import { threadSnapshotStore } from "./thread-snapshots";
 
@@ -16,6 +17,7 @@ export const runtimeConfigStore = {
     projectStore.pruneToHosts(hostIds);
     threadMetadataStore.pruneToHosts(hostIds);
     threadSnapshotStore.pruneToHosts(hostIds);
+    subAgentThreadStore.pruneToHosts(hostIds);
     gatewayEventStore.pruneToHosts(hostIds);
     gatewayMemoryState.pinnedThreads = normalizePinnedThreads(config.pinnedThreads ?? []).filter(
       (thread) => hostIds.has(thread.hostId),

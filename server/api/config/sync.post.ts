@@ -12,16 +12,19 @@ export default defineGatewayEventHandler(async (event) => {
   const config = await readValidatedBody(event, (body) => gatewayConfigSchema.parse(body));
   runtimeConfigStore.replace(config);
   const nextHosts = hostStore.listWithSecret();
-  for (const host of changedHosts(previousHosts, nextHosts)) {
+  const hostsToClose = changedOrDeletedHosts(previousHosts, nextHosts);
+  for (const host of hostsToClose) {
     threadBroker.closeHost(host.id);
   }
-  sshConnections.syncHosts(nextHosts);
-  hostRuntimeSupervisor.syncCurrentUserConfig();
+  if (hostRuntimeChanged(previousHosts, nextHosts)) {
+    sshConnections.syncHosts(nextHosts);
+    hostRuntimeSupervisor.syncCurrentUserConfig();
+  }
   saveCurrentUserConfig(event);
   return runtimeConfigStore.export();
 });
 
-function changedHosts(
+function changedOrDeletedHosts(
   previousHosts: Array<Record<string, unknown>>,
   nextHosts: Array<Record<string, unknown>>,
 ) {
@@ -30,6 +33,24 @@ function changedHosts(
     const next = nextById.get(previous.id);
     return !next || hostConnectionFingerprint(previous) !== hostConnectionFingerprint(next);
   });
+}
+
+function hostRuntimeChanged(
+  previousHosts: Array<Record<string, unknown>>,
+  nextHosts: Array<Record<string, unknown>>,
+) {
+  const previousById = new Map(previousHosts.map((host) => [host.id, host]));
+  const nextById = new Map(nextHosts.map((host) => [host.id, host]));
+  if (previousById.size !== nextById.size) {
+    return true;
+  }
+  for (const previous of previousHosts) {
+    const next = nextById.get(previous.id);
+    if (!next || hostConnectionFingerprint(previous) !== hostConnectionFingerprint(next)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function hostConnectionFingerprint(host: Record<string, unknown>) {

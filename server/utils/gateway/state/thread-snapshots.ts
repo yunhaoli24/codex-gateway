@@ -22,6 +22,15 @@ export const threadSnapshotStore = {
     );
   },
 
+  listForHost(hostId: number) {
+    return gatewayMemoryState.threadSnapshots
+      .filter((record) => record.hostId === hostId)
+      .map((record) => ({
+        ...record,
+        snapshot: record.snapshot as ThreadOpenSnapshot,
+      }));
+  },
+
   set(hostId: number, threadId: string, snapshot: ThreadOpenSnapshot) {
     const updatedAt = nowIso();
     const index = gatewayMemoryState.threadSnapshots.findIndex(

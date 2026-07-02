@@ -88,8 +88,17 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
     if (event && event.button !== 0) {
       return;
     }
-    expandedProjectIds.value = new Set(expandedProjectIds.value).add(projectId);
-    void store.selectProject(projectId);
+    const isProjectListVisible = projectId === selectedProjectId.value && !selectedThreadId.value;
+    const next = new Set(expandedProjectIds.value);
+    if (next.has(projectId) && isProjectListVisible) {
+      next.delete(projectId);
+    } else {
+      next.add(projectId);
+    }
+    expandedProjectIds.value = next;
+    if (!isProjectListVisible) {
+      void store.selectProject(projectId);
+    }
   }
 
   function startThreadInProject(project: any) {

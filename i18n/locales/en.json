@@ -188,6 +188,7 @@
     "openSubAgent": "Open sub-agent",
     "closeSubAgentPanel": "Close sub-agent panel",
     "closeSubAgentTab": "Close sub-agent {title}",
+    "interruptSubAgent": "Stop sub-agent",
     "loadingSubAgent": "Loading sub-agent",
     "noSubAgentTurns": "This sub-agent has no visible turns yet",
     "collabAgentToolCall": "Collab agent call",
@@ -248,6 +249,7 @@
     "appServerAutoRetrying": "Model is at capacity, retrying automatically ({attempt}/{max})",
     "appServerAutoRetryExhausted": "Still failed after {max} automatic retries",
     "appServerNotification": "app-server notification",
+    "threadErrorContext": "Thread: {title}",
     "showNotificationDetails": "Show details",
     "hideNotificationDetails": "Hide details",
     "notifications": {

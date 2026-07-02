@@ -3,6 +3,7 @@ import { connect as connectTcp } from "node:net";
 import { Client, type ClientChannel } from "ssh2";
 import type { CommandResult, HostWithSecret, ReverseTcpForwardOptions } from "./ssh-types";
 import { createProxySocket, expandHome, resolveSshConfig, sshConnectionKey } from "./ssh-config";
+import { SSH_CONNECTION_CLOSED_BEFORE_READY, withSshConnectRetries } from "./ssh-connect-retry";
 
 export class SshConnectionPool {
   private clients = new Map<string, Promise<Client>>();
@@ -18,45 +19,12 @@ export class SshConnectionPool {
       return existing;
     }
 
-    const promise = (async () => {
-      const sock = resolved.proxy
-        ? await createProxySocket({
-            proxy: resolved.proxy,
-            targetHost: resolved.hostName,
-            targetPort: host.port ?? resolved.port,
-          })
-        : undefined;
-      const client = new Client();
-      return await new Promise<Client>((resolve, reject) => {
-        client
-          .on("ready", () => resolve(client))
-          .on("error", (error) => {
-            this.clients.delete(key);
-            reject(error);
-          })
-          .on("end", () => this.clients.delete(key))
-          .on("close", () => this.clients.delete(key))
-          .connect({
-            host: sock ? undefined : resolved.hostName,
-            sock,
-            username: host.username ?? resolved.username,
-            port: sock ? undefined : (host.port ?? resolved.port),
-            agent: host.authMode === "agent" ? process.env.SSH_AUTH_SOCK : undefined,
-            password: host.authMode === "password" ? (host.password ?? undefined) : undefined,
-            privateKey: host.privateKey
-              ? Buffer.from(host.privateKey)
-              : resolved.privateKeyPath
-                ? readFileSync(expandHome(resolved.privateKeyPath))
-                : undefined,
-            readyTimeout: 15_000,
-            keepaliveInterval: 15_000,
-            keepaliveCountMax: 3,
-          });
-      });
-    })().catch((error) => {
-      this.clients.delete(key);
-      throw error;
-    });
+    const promise = withSshConnectRetries(host, () => this.connectOnce(host, resolved, key)).catch(
+      (error) => {
+        this.clients.delete(key);
+        throw error;
+      },
+    );
 
     this.clients.set(key, promise);
     return promise;
@@ -207,6 +175,61 @@ export class SshConnectionPool {
     const client = this.clients.get(key);
     this.clients.delete(key);
     void client?.then((connection) => connection.end()).catch(() => {});
+  }
+
+  private async connectOnce(
+    host: HostWithSecret,
+    resolved: ReturnType<typeof resolveSshConfig>,
+    key: string,
+  ) {
+    const sock = resolved.proxy
+      ? await createProxySocket({
+          proxy: resolved.proxy,
+          targetHost: resolved.hostName,
+          targetPort: host.port ?? resolved.port,
+        })
+      : undefined;
+    const client = new Client();
+    return await new Promise<Client>((resolve, reject) => {
+      let settled = false;
+      const fail = (error: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        this.clients.delete(key);
+        sock?.destroy();
+        client.end();
+        reject(error);
+      };
+      client
+        .on("ready", () => {
+          settled = true;
+          resolve(client);
+        })
+        .on("error", fail)
+        .on("end", () => this.clients.delete(key))
+        .on("close", () => {
+          this.clients.delete(key);
+          fail(new Error(SSH_CONNECTION_CLOSED_BEFORE_READY));
+        })
+        .connect({
+          host: sock ? undefined : resolved.hostName,
+          sock,
+          username: host.username ?? resolved.username,
+          port: sock ? undefined : (host.port ?? resolved.port),
+          agent: host.authMode === "agent" ? process.env.SSH_AUTH_SOCK : undefined,
+          password: host.authMode === "password" ? (host.password ?? undefined) : undefined,
+          privateKey: host.privateKey
+            ? Buffer.from(host.privateKey)
+            : resolved.privateKeyPath
+              ? readFileSync(expandHome(resolved.privateKeyPath))
+              : undefined,
+          readyTimeout: 15_000,
+          keepaliveInterval: 15_000,
+          keepaliveCountMax: 3,
+        });
+    });
   }
 
   private async forwardIn(client: Client, remoteHost: string, remotePort: number) {

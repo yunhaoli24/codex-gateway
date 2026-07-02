@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ChevronDownIcon, ChevronRightIcon, ListTreeIcon } from "@lucide/vue";
 import { computed, ref, watch } from "vue";
+import { isThreadActiveStatus } from "~~/shared/thread-runtime-status";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ThreadItemView from "@/components/thread/ThreadItemView.vue";
@@ -35,12 +36,20 @@ const finalItems = computed(() => {
   }
   return items.value.slice(finalAgentIndex.value);
 });
+const turnIsActive = computed(
+  () =>
+    isThreadActiveStatus(props.turn.status) ||
+    items.value.some((item) => isThreadActiveStatus(item?.status)),
+);
 const intermediateOpen = ref(false);
 
 watch(
-  () => statusValue(props.turn.status),
-  (status) => {
-    intermediateOpen.value = isActiveTurnStatus(status);
+  () => [
+    statusValue(props.turn.status),
+    ...items.value.map((item: any) => statusValue(item?.status)),
+  ],
+  () => {
+    intermediateOpen.value = turnIsActive.value;
   },
   { immediate: true },
 );
@@ -99,10 +108,6 @@ function firstNonUserIndex(beforeIndex: number) {
 
 function statusValue(status: any) {
   return typeof status === "string" ? status : status?.type;
-}
-
-function isActiveTurnStatus(status: unknown) {
-  return status === "active" || status === "inProgress" || status === "running";
 }
 </script>
 

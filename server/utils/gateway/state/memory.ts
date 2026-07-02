@@ -30,6 +30,13 @@ export interface ThreadSnapshotRecord {
   updatedAt: string;
 }
 
+export interface SubAgentThreadRecord {
+  hostId: number;
+  threadId: string;
+  parentThreadId: string | null;
+  updatedAt: string;
+}
+
 export interface GatewayMemoryState {
   hosts: StoredHostRecord[];
   projects: ProjectRecord[];
@@ -38,6 +45,7 @@ export interface GatewayMemoryState {
   lastOpenThread: GatewayConfig["lastOpenThread"];
   threadMetadata: ThreadMetadataRecord[];
   threadSnapshots: ThreadSnapshotRecord[];
+  subAgentThreads: SubAgentThreadRecord[];
   events: GatewayEvent[];
   nextEventId: number;
   deliveredNotificationKeys: string[];
@@ -53,6 +61,7 @@ function createGatewayMemoryState(): GatewayMemoryState {
     lastOpenThread: null,
     threadMetadata: [],
     threadSnapshots: [],
+    subAgentThreads: [],
     events: [],
     nextEventId: 1,
     deliveredNotificationKeys: [],
@@ -139,6 +148,7 @@ export const initialGatewayMemoryState: GatewayMemoryState = {
   lastOpenThread: null,
   threadMetadata: [],
   threadSnapshots: [],
+  subAgentThreads: [],
   events: [],
   nextEventId: 1,
   deliveredNotificationKeys: [],

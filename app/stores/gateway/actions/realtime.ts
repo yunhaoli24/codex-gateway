@@ -10,6 +10,7 @@ import {
   connectHostLifecycleEvents,
   connectThreadEvents,
   closeThreadEvents,
+  rememberThreadSubscription,
   resubscribeRealtime,
 } from "../realtime/subscriptions";
 import {
@@ -71,6 +72,10 @@ export function createRealtimeActions(ctx: GatewayStoreContext) {
 
     closeThreadEvents(hostId: number, threadId: string) {
       closeThreadEvents(ctx, hostId, threadId);
+    },
+
+    rememberThreadSubscription(hostId: number, threadId: string, afterId: number) {
+      rememberThreadSubscription(ctx, hostId, threadId, afterId);
     },
 
     recordThreadEvent(event: GatewayEvent) {

@@ -30,12 +30,26 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   const threadId = await startRemoteThreadFromProjectMenu(page, project.id);
 
   const firstMarker = `E2E 第一轮 ${Date.now()}`;
-  await sendTextTurn(page, firstMarker);
+  await page
+    .getByPlaceholder("输入后续修改要求")
+    .fill(
+      [
+        `请执行一个较长命令，然后最终用一句话回复：${firstMarker}`,
+        "运行 python - <<'PY'",
+        "import time",
+        `print('${firstMarker}')`,
+        "time.sleep(12)",
+        "print('first turn sleep finished')",
+        "PY",
+      ].join("\n"),
+    );
+  await page.getByTestId("send-turn-button").click();
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "停止生成");
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("运行中")).toBeVisible();
   await expect(
     page.getByTestId(`thread-button-${threadId}`).locator(".animate-spin"),
   ).toBeVisible();
+  await expect.poll(async () => activeRemoteTurnId(page), { timeout: 30_000 }).not.toBe("");
   const steerMarker = `E2E steer ${Date.now()}`;
   const steerMessageOffset = await realtimeClientMessageCount(page);
   await sendSteerText(page, steerMarker);
@@ -96,12 +110,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   await openApp(secondPage, { resetConfig: false });
   try {
     await expect.poll(() => secondRealtimeSockets.size, { timeout: 10_000 }).toBe(1);
-    await expect(secondPage.getByTestId(`project-button-${project.id}`)).toBeVisible();
-    await secondPage.getByTestId(`project-button-${project.id}`).click();
-    await expect(secondPage.getByTestId(`project-thread-row-${threadId}`)).toBeVisible({
-      timeout: 30_000,
-    });
-    await secondPage.getByTestId(`project-thread-row-${threadId}`).click();
+    await openThreadFromProjectOrRestoredState(secondPage, project.id, threadId);
     await expect(secondPage.getByPlaceholder("输入后续修改要求")).toBeEnabled();
     await expect
       .poll(async () => secondPage.getByTestId("chat-scroll-area").getByText(firstMarker).count(), {
@@ -149,10 +158,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   }
 
   const interruptMarker = `E2E interrupt ${Date.now()}`;
-  const turnStartResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/turns/start") && response.request().method() === "POST",
-  );
+  const turnStartMessageOffset = await realtimeClientMessageCount(page);
   await page
     .getByPlaceholder("输入后续修改要求")
     .fill(
@@ -166,11 +172,14 @@ test("fans out a real remote app-server thread to multiple browser clients acros
       ].join("\n"),
     );
   await page.getByTestId("send-turn-button").click();
-  const turnStartResponse = await turnStartResponsePromise;
-  expect(turnStartResponse.ok(), await turnStartResponse.text()).toBe(true);
-  const startedTurn = await turnStartResponse.json();
-  const activeTurnId = String(startedTurn?.turn?.id || "");
-  expect(activeTurnId).toBeTruthy();
+  const turnStartMessage = await waitForRealtimeClientMessage(
+    page,
+    "turn.start",
+    turnStartMessageOffset,
+  );
+  expect(turnStartMessage.threadId).toBe(threadId);
+  await expect.poll(async () => activeRemoteTurnId(page), { timeout: 30_000 }).not.toBe("");
+  const activeTurnId = await activeRemoteTurnId(page);
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "停止生成");
   const interruptMessageOffset = await realtimeClientMessageCount(page);
   await page.getByTestId("send-turn-button").click();
@@ -204,6 +213,29 @@ function isTokenlessRealtimeUrl(rawUrl: string) {
 
 function firstIntermediateStepsToggle(page: Page) {
   return page.getByRole("button", { name: /中间过程/ }).first();
+}
+
+async function openThreadFromProjectOrRestoredState(
+  page: Page,
+  projectId: number,
+  threadId: string,
+) {
+  if ((await currentRouteThreadId(page)) === threadId) {
+    return;
+  }
+
+  await expect(page.getByTestId(`project-button-${projectId}`)).toBeVisible();
+  const row = page.getByTestId(`project-thread-row-${threadId}`);
+  if (!(await row.isVisible().catch(() => false))) {
+    await page.getByTestId(`project-button-${projectId}`).click();
+  }
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await row.click();
+  await expect.poll(async () => currentRouteThreadId(page), { timeout: 10_000 }).toBe(threadId);
+}
+
+async function currentRouteThreadId(page: Page) {
+  return page.evaluate(() => new URLSearchParams(window.location.search).get("threadId"));
 }
 
 async function closeRealtimeSockets(page: Page) {
@@ -256,14 +288,29 @@ async function realtimeClientMessageCount(page: Page) {
 }
 
 async function waitForRealtimeClientMessage(page: Page, type: string, offset: number) {
-  await page.waitForFunction(
-    ({ expectedType, startIndex }) =>
-      ((window as any).__gatewayRealtimeClientMessages ?? [])
-        .slice(startIndex)
-        .some((message: any) => message.type === expectedType),
-    { expectedType: type, startIndex: offset },
-    { timeout: 30_000 },
-  );
+  try {
+    await page.waitForFunction(
+      ({ expectedType, startIndex }) =>
+        ((window as any).__gatewayRealtimeClientMessages ?? [])
+          .slice(startIndex)
+          .some((message: any) => message.type === expectedType),
+      { expectedType: type, startIndex: offset },
+      { timeout: 30_000 },
+    );
+  } catch (error) {
+    const messages = await page.evaluate(
+      (startIndex) => ((window as any).__gatewayRealtimeClientMessages ?? []).slice(startIndex),
+      offset,
+    );
+    throw new Error(
+      [
+        `Timed out waiting for realtime client message ${type}`,
+        `Observed messages after offset ${offset}:`,
+        JSON.stringify(messages, null, 2),
+      ].join("\n"),
+      { cause: error },
+    );
+  }
   return page.evaluate(
     ({ expectedType, startIndex }) =>
       ((window as any).__gatewayRealtimeClientMessages ?? [])
@@ -271,4 +318,24 @@ async function waitForRealtimeClientMessage(page: Page, type: string, offset: nu
         .find((message: any) => message.type === expectedType),
     { expectedType: type, startIndex: offset },
   );
+}
+
+async function activeRemoteTurnId(page: Page) {
+  return page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    const turns = store?.history?.thread?.turns ?? [];
+    const latest = [...turns].reverse().find((turn: any) => {
+      const status = typeof turn?.status === "string" ? turn.status : turn?.status?.type;
+      return status === "inProgress" || status === "running" || status === "active";
+    });
+    if (latest?.id) {
+      return String(latest.id);
+    }
+    const key =
+      store?.selectedHostId && store?.selectedThreadId
+        ? `${store.selectedHostId}:${store.selectedThreadId}`
+        : "";
+    return String(store?.activeTerminalProcessByThreadKey?.[key]?.turnId || "");
+  });
 }

@@ -31,6 +31,10 @@ export default defineNuxtConfig({
   nitro: {
     experimental: {
       websocket: true,
+      tasks: true,
+    },
+    scheduledTasks: {
+      "* * * * *": ["gateway:sync-running-threads"],
     },
   },
   i18n: {

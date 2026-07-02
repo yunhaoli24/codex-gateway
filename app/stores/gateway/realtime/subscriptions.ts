@@ -52,6 +52,19 @@ export function connectThreadEvents(
   ctx.sendRealtime({ type: "thread.subscribe", ...subscription });
 }
 
+export function rememberThreadSubscription(
+  ctx: GatewayStoreContext,
+  hostId: number,
+  threadId: string,
+  afterId: number,
+) {
+  const key = pinnedKey(hostId, threadId);
+  ctx.state.realtimeThreadSubscriptions = {
+    ...ctx.state.realtimeThreadSubscriptions,
+    [key]: { hostId, threadId, afterId },
+  };
+}
+
 export function closeThreadEvents(ctx: GatewayStoreContext, hostId: number, threadId: string) {
   const key = pinnedKey(hostId, threadId);
   const { [key]: _closed, ...subscriptions } = ctx.state.realtimeThreadSubscriptions;

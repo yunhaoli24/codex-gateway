@@ -1,6 +1,7 @@
 import type { GatewayEvent } from "~~/shared/types";
 import { gatewayEventStore } from "../state/gateway-events";
 import { currentGatewayUserId } from "../state/memory";
+import { subAgentThreadStore } from "../state/sub-agent-threads";
 import { threadSnapshotStore } from "../state/thread-snapshots";
 import { notifyThreadTurnCompleted } from "../notifications/thread-terminal-notifier";
 import { applyEventToOpenSnapshot } from "./open-snapshot-events";
@@ -12,8 +13,9 @@ class ThreadRuntimeEventBus {
 
   record(hostId: number, threadId: string, method: string, payload: unknown) {
     const event = gatewayEventStore.add(hostId, threadId, method, payload);
+    subAgentThreadStore.recordRuntimeEvent(hostId, threadId, method, payload);
     threadSnapshotStore.update(hostId, threadId, (snapshot) =>
-      applyEventToOpenSnapshot(snapshot, method, payload),
+      applyEventToOpenSnapshot(snapshot, method, payload, event.createdAt),
     );
     this.publish(event);
     notifyThreadTurnCompleted(event);

@@ -37,6 +37,23 @@ export const gatewayEventStore = {
       .slice(0, limit);
   },
 
+  latestId(hostId: number, threadId: string): number {
+    return gatewayMemoryState.events.reduce((latest, event) => {
+      if (event.hostId !== hostId || event.threadId !== threadId) {
+        return latest;
+      }
+      return Math.max(latest, event.id);
+    }, 0);
+  },
+
+  latest(hostId: number, threadId: string): GatewayEvent | null {
+    return (
+      gatewayMemoryState.events
+        .filter((event) => event.hostId === hostId && event.threadId === threadId)
+        .sort((left, right) => right.id - left.id)[0] ?? null
+    );
+  },
+
   prune(hostId: number, threadId: string, keep: number) {
     const retained = gatewayMemoryState.events
       .filter((event) => event.hostId === hostId && event.threadId === threadId)

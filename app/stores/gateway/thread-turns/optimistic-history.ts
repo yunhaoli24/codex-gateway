@@ -1,5 +1,8 @@
-import { insertSteerItemIntoActiveTurn, mergeItemIntoLatestTurn } from "../thread-history/items";
-import { mergeThreadTurns } from "../thread-history/turns";
+import {
+  insertSteerItemIntoActiveTurn,
+  mergeItemIntoLatestTurn,
+} from "~~/shared/thread-history/items";
+import { mergeThreadTurns } from "~~/shared/thread-history/turns";
 import type { GatewayStoreContext } from "../types";
 
 export function insertOptimisticSteerMessage(

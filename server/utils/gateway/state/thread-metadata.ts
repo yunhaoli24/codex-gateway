@@ -1,4 +1,5 @@
 import { gatewayMemoryState, toTimestamp } from "./memory";
+import { subAgentThreadStore } from "./sub-agent-threads";
 
 export const threadMetadataStore = {
   pruneToHosts(hostIds: Set<number>) {
@@ -15,6 +16,7 @@ export const threadMetadataStore = {
 
   record(hostId: number, projectId: number | null, thread: any) {
     const threadId = String(thread.id);
+    subAgentThreadStore.recordThreadMetadata(hostId, thread);
     const timestamp = Math.floor(Date.now() / 1000);
     const metadata = {
       hostId,

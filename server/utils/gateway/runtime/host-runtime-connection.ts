@@ -3,6 +3,7 @@ import { runWithGatewayUser } from "../state/memory";
 import { threadBroker } from "./broker";
 import type { HostRuntimeSlot } from "./host-runtime-slot";
 import { warmPinnedThreads } from "./pinned-thread-warmer";
+import { refreshRunningThreadsForHost } from "./running-thread-sync";
 import { runtimeLog } from "./runtime-log";
 
 export async function connectHostRuntime(slot: HostRuntimeSlot) {
@@ -19,6 +20,10 @@ export async function connectHostRuntime(slot: HostRuntimeSlot) {
       pinnedThreads: slot.pinnedThreads.filter((thread) => thread.hostId === slot.hostId).length,
     });
     await threadBroker.getHostClient(slot.host);
+    await refreshRunningThreadsForHost({
+      host: slot.host,
+      reason: "host-connected",
+    });
     await warmPinnedThreads({
       host: slot.host,
       pinnedThreads: slot.pinnedThreads,

@@ -8,7 +8,8 @@ export function codexRemotePayload(command: string) {
 
 function codexPathBootstrap(options: { requireCodex: boolean }) {
   return [
-    'for dir in "${CODEX_INSTALL_DIR:-$HOME/.local/bin}" "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.bun/bin" "$HOME/.nvm/current/bin" "$HOME/.nvm/versions/node"/*/bin /usr/local/bin /usr/bin /opt/homebrew/bin /opt/node/bin; do if [ -d "$dir" ]; then PATH="$dir:$PATH"; fi; done; export PATH;',
+    'codex_gateway_path_add() { if [ -d "$1" ]; then case ":$PATH:" in *":$1:"*) ;; *) PATH="$PATH:$1" ;; esac; fi; };',
+    'for dir in "${CODEX_INSTALL_DIR:-$HOME/.local/bin}" "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.bun/bin" "$HOME/.nvm/current/bin" "$HOME/.nvm/versions/node"/*/bin /opt/homebrew/bin /opt/node/bin /usr/local/bin /usr/bin; do codex_gateway_path_add "$dir"; done; export PATH;',
     'CODEX_BIN="$(command -v codex 2>/dev/null || true)";',
     'if [ -z "$CODEX_BIN" ] && [ -x "${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex" ]; then CODEX_BIN="${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex"; fi;',
     'if [ -z "$CODEX_BIN" ] && command -v npm >/dev/null 2>&1; then NPM_PREFIX="$(npm prefix -g 2>/dev/null || true)"; if [ -n "$NPM_PREFIX" ] && [ -x "$NPM_PREFIX/bin/codex" ]; then CODEX_BIN="$NPM_PREFIX/bin/codex"; fi; fi;',
@@ -79,17 +80,30 @@ export function codexRemoteUpgradeAndRestartPayload(version: string, proxyUrl?: 
     `
 set -eu
 ${npmProxyEnvSnippet(proxyUrl)}
-npm install -g --include=optional @openai/codex@${shellQuote(version)}
-codex_home="\${CODEX_HOME:-$HOME/.codex}"
-managed_codex="$codex_home/packages/standalone/current/codex"
-mkdir -p "$(dirname "$managed_codex")"
-for dir in "\${CODEX_INSTALL_DIR:-$HOME/.local/bin}" "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.bun/bin" "$HOME/.nvm/current/bin" "$HOME/.nvm/versions/node"/*/bin /usr/local/bin /usr/bin /opt/homebrew/bin /opt/node/bin; do
-  if [ -d "$dir" ]; then
-    PATH="$dir:$PATH"
-  fi
-done
+codex_gateway_npm_prefix_writable() {
+  prefix="$1"
+  root="$2"
+  [ -n "$prefix" ] && [ -n "$root" ] || return 1
+  mkdir -p "$prefix/bin" "$root" 2>/dev/null || return 1
+  [ -w "$prefix/bin" ] && [ -w "$root" ]
+}
+npm_global_prefix="$(npm prefix -g 2>/dev/null || true)"
+npm_global_root="$(npm root -g 2>/dev/null || true)"
+if ! codex_gateway_npm_prefix_writable "$npm_global_prefix" "$npm_global_root"; then
+  npm_global_prefix="$HOME/.npm-global"
+  mkdir -p "$npm_global_prefix"
+  export npm_config_prefix="$npm_global_prefix"
+fi
+codex_gateway_path_add "$npm_global_prefix/bin"
 export PATH
-CODEX_BIN="$(command -v codex 2>/dev/null || true)"
+npm install -g --include=optional @openai/codex@${shellQuote(version)}
+CODEX_BIN=""
+if [ -n "$npm_global_prefix" ] && [ -x "$npm_global_prefix/bin/codex" ]; then
+  CODEX_BIN="$npm_global_prefix/bin/codex"
+fi
+if [ -z "$CODEX_BIN" ]; then
+  CODEX_BIN="$(command -v codex 2>/dev/null || true)"
+fi
 if [ -z "$CODEX_BIN" ] && [ -x "\${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex" ]; then
   CODEX_BIN="\${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex"
 fi
@@ -109,7 +123,6 @@ if [ -z "$CODEX_BIN" ]; then
   echo "codex executable not found after npm install" >&2
   exit 127
 fi
-ln -sf "$CODEX_BIN" "$managed_codex"
 "$CODEX_BIN" --version
 `,
   ].join(" ");
@@ -183,6 +196,8 @@ export function remoteLoginShellCommand(payload: string) {
     "fi;",
     'CODEX_REMOTE_PAYLOAD="$1"; export CODEX_REMOTE_PAYLOAD;',
     'case "${SHELL##*/}" in',
+    // bash -l -c does not read ~/.bashrc, where nvm is commonly initialized.
+    'bash|zsh) exec "$SHELL" -l -i -c \'exec 1>&4 2>&3; exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' 3>&2 4>&1 >/dev/null 2>/dev/null ;;',
     'csh|tcsh) exec "$SHELL" -i -c \'set loginsh=1; if ( -r /etc/csh.login ) source /etc/csh.login; if ( -r ~/.login ) source ~/.login; exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' ;;',
     "nu) exec \"$SHELL\" -l -i -c 'exec /bin/sh -c $env.CODEX_REMOTE_PAYLOAD' ;;",
     '*) exec "$SHELL" -l -c \'exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' ;;',

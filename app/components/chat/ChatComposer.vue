@@ -16,6 +16,8 @@ import { useComposerTurnSubmit } from "@/composables/useComposerTurnSubmit";
 import { useSlashCommands, type SlashCommand } from "@/composables/useSlashCommands";
 import { useThreadSettingsControls } from "@/composables/useThreadSettingsControls";
 import { useGatewayStore } from "@/stores/gateway";
+import { activeTurnIdFromRuntimeState } from "@/stores/gateway/thread-turns/active-turn";
+import { pinnedKey } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const { t } = useI18n();
@@ -25,6 +27,7 @@ const {
   selectedThreadId,
   selectedThreadStatus,
   selectedThreadTokenUsage,
+  history,
   models,
   loadingModels,
 } = storeToRefs(store);
@@ -52,7 +55,22 @@ const {
   removeAttachment,
 } = useAttachmentUpload(selectedHostId, attachedFiles);
 
-const isThreadRunning = computed(() => selectedThreadStatus.value === "running");
+const selectedThreadKey = computed(() =>
+  selectedHostId.value && selectedThreadId.value
+    ? pinnedKey(selectedHostId.value, selectedThreadId.value)
+    : null,
+);
+const selectedActiveTurnId = computed(() =>
+  activeTurnIdFromRuntimeState(
+    history.value,
+    selectedThreadKey.value
+      ? store.activeTerminalProcessByThreadKey[selectedThreadKey.value]?.turnId
+      : null,
+  ),
+);
+const isThreadRunning = computed(
+  () => selectedThreadStatus.value === "running" && Boolean(selectedActiveTurnId.value),
+);
 const composerInputEnabled = computed(() =>
   Boolean(selectedThreadId.value || selectedProjectId.value),
 );
@@ -248,7 +266,7 @@ function handlePrimaryAction() {
                 class="size-5 animate-spin"
               />
               <SendIcon v-else-if="hasComposerInput" class="size-5" />
-              <SquareIcon v-else-if="isThreadRunning" class="size-5 fill-current" />
+              <SquareIcon v-else-if="canInterruptTurn" class="size-5 fill-current" />
               <CheckIcon v-else-if="selectedThreadStatus === 'completed'" class="size-5" />
               <SendIcon v-else class="size-5 opacity-60" />
             </Button>

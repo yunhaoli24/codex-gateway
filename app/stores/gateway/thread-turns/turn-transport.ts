@@ -1,5 +1,4 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
-import { gatewayApi } from "@/utils/gateway-api";
 import { sendRealtimeRequest } from "../realtime/request-response";
 import type { GatewayStoreContext } from "../types";
 
@@ -27,23 +26,22 @@ export interface TurnInterruptRequestInput {
   turnId: string;
 }
 
-export function requestTurnStart(input: TurnStartRequestInput) {
-  return gatewayApi<any>("/api/turns/start", {
-    method: "POST",
-    body: {
-      hostId: input.hostId,
-      threadId: input.threadId,
-      text: input.text,
-      clientUserMessageId: input.clientUserMessageId,
-      cwd: input.cwd ?? undefined,
-      model: input.options.model || undefined,
-      effort: input.options.effort || undefined,
-      approvalPolicy: input.options.approvalPolicy || undefined,
-      collaborationMode: input.options.collaborationMode || undefined,
-      images: input.options.images ?? [],
-      files: input.options.files ?? [],
-    },
-  });
+export function requestTurnStart(ctx: GatewayStoreContext, input: TurnStartRequestInput) {
+  return sendRealtimeRequest<{ type: "turn.start.accepted"; turn?: any }>(ctx, (requestId) => ({
+    type: "turn.start",
+    requestId,
+    hostId: input.hostId,
+    threadId: input.threadId,
+    text: input.text,
+    clientUserMessageId: input.clientUserMessageId,
+    cwd: input.cwd ?? undefined,
+    model: input.options.model || undefined,
+    effort: input.options.effort || undefined,
+    approvalPolicy: input.options.approvalPolicy || undefined,
+    collaborationMode: input.options.collaborationMode || undefined,
+    images: input.options.images ?? [],
+    files: input.options.files ?? [],
+  }));
 }
 
 export function requestTurnSteer(ctx: GatewayStoreContext, input: TurnSteerRequestInput) {
@@ -78,7 +76,7 @@ export function startNewTurn(
   clientUserMessageId: string,
   options: ComposerTurnOptions,
 ) {
-  return requestTurnStart({
+  return requestTurnStart(ctx, {
     hostId: ctx.state.selectedHostId!,
     threadId: ctx.state.selectedThreadId!,
     text,

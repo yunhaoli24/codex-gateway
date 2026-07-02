@@ -14,6 +14,7 @@ export function applyAppServerEvent(ctx: GatewayStoreContext, event: GatewayEven
   }
 
   const threadId = String(targetThreadId);
+  clearRecoveredTransientError(ctx, event, params, threadId);
   const handler = appServerEventHandlers[event.method];
   if (handler) {
     handler(ctx, event, params, threadId);
@@ -22,4 +23,31 @@ export function applyAppServerEvent(ctx: GatewayStoreContext, event: GatewayEven
   if (payload?.id !== undefined && isThreadServerRequestMethod(event.method)) {
     upsertUnhandledServerRequest(ctx, event, params, threadId);
   }
+}
+
+function clearRecoveredTransientError(
+  ctx: GatewayStoreContext,
+  event: GatewayEvent,
+  params: Record<string, any>,
+  threadId: string,
+) {
+  const current = ctx.state.error;
+  if (!current?.transient || event.method === "error") {
+    return;
+  }
+  const eventTurnId = turnIdFromParams(params);
+  if (!eventTurnId || current.turnId !== eventTurnId) {
+    return;
+  }
+  if (current.hostId !== event.hostId || current.threadId !== threadId) {
+    return;
+  }
+  // app-server willRetry errors are temporary stream retry notices. Any later
+  // event for the same turn proves the retry recovered, so the banner is stale.
+  ctx.clearError();
+}
+
+function turnIdFromParams(params: Record<string, any>) {
+  const value = params.turnId ?? params.turn?.id;
+  return typeof value === "string" ? value : value == null ? null : String(value);
 }

@@ -109,13 +109,6 @@ async function prepareRemoteCodexHome(env: RemoteEnv) {
   try {
     await execSsh(connection, "rm -rf /home/codex/.codex && mkdir -p /home/codex/.codex");
     await uploadDirectory(connection, codexHome, "/home/codex/.codex");
-    await execSsh(
-      connection,
-      [
-        "mkdir -p /home/codex/.codex/packages/standalone/current",
-        `ln -sf ${remoteCodexBin} /home/codex/.codex/packages/standalone/current/codex`,
-      ].join(" && "),
-    );
   } finally {
     connection.end();
   }

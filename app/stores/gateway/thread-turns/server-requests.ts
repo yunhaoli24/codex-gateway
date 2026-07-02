@@ -1,5 +1,5 @@
 import type { GatewayStoreContext } from "../types";
-import { gatewayApi } from "@/utils/gateway-api";
+import { sendRealtimeRequest } from "../realtime/request-response";
 
 export async function respondToServerRequest(
   ctx: GatewayStoreContext,
@@ -8,13 +8,12 @@ export async function respondToServerRequest(
   requestId: string | number,
   result: unknown,
 ) {
-  await gatewayApi("/api/server-requests/respond", {
-    method: "POST",
-    body: {
-      hostId,
-      threadId,
-      requestId,
-      result,
-    },
-  });
+  await sendRealtimeRequest(ctx, (realtimeRequestId) => ({
+    type: "serverRequest.respond",
+    requestId: realtimeRequestId,
+    hostId,
+    threadId,
+    serverRequestId: requestId,
+    result,
+  }));
 }

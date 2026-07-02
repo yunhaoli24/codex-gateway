@@ -178,7 +178,22 @@ export class CodexRpcClient extends EventEmitter {
       pending.reject(new Error("Codex RPC client closed"));
     }
     this.pending.clear();
-    this.ws?.close();
+    this.closeWebSocket();
+  }
+
+  private closeWebSocket() {
+    const ws = this.ws;
+    this.ws = null;
+    if (!ws) {
+      return;
+    }
+    if (ws.readyState === WebSocket.CONNECTING) {
+      ws.terminate();
+      return;
+    }
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
   }
 
   private async connectRemoteProxyWebSocket() {

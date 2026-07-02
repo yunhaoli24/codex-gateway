@@ -2,7 +2,6 @@ import { expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { Client } from "ssh2";
 import { envFile } from "../docker-environment";
-import { authenticatedFetch } from "./app";
 
 export interface RemoteCodexEnv {
   host: string;
@@ -191,35 +190,6 @@ export async function sendSteerText(page: Page, marker: string) {
   await page.getByTestId("send-turn-button").click();
 }
 
-export async function sendTextTurnThroughGateway(
-  page: Page,
-  text: string,
-  context?: { hostId: number; threadId: string; cwd?: string },
-) {
-  const remote = await readRemoteEnv();
-  const selection = await currentRouteSelection(page);
-  const hostId = context?.hostId ?? selection.hostId;
-  const threadId = context?.threadId ?? selection.threadId;
-  expect(hostId).toBeGreaterThan(0);
-  expect(threadId).toBeTruthy();
-  const responsePromise = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/turns/start") && response.request().method() === "POST",
-  );
-  await authenticatedFetch(page, {
-    url: "/api/turns/start",
-    method: "POST",
-    body: {
-      hostId: hostId!,
-      threadId: threadId!,
-      cwd: context?.cwd ?? remote.projectPath,
-      text,
-      model: remote.testModel || undefined,
-    },
-  });
-  await responsePromise;
-}
-
 export async function sendImageTurnThroughGateway(
   page: Page,
   params: {
@@ -231,23 +201,27 @@ export async function sendImageTurnThroughGateway(
   },
 ) {
   const remote = await readRemoteEnv();
-  const responsePromise = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/turns/start") && response.request().method() === "POST",
-  );
-  await authenticatedFetch(page, {
-    url: "/api/turns/start",
-    method: "POST",
-    body: {
-      hostId: params.hostId,
-      threadId: params.threadId,
-      cwd: params.cwd,
-      text: `回复：${params.marker}`,
-      model: remote.testModel || undefined,
-      images: [{ path: params.imagePath, detail: "original" }],
+  await expect
+    .poll(async () => (await currentRouteSelection(page)).threadId, { timeout: 10_000 })
+    .toBe(params.threadId);
+  await page.evaluate(
+    async ({ marker, imagePath, model }) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+      if (!store) {
+        throw new Error("Unable to locate gateway Pinia store");
+      }
+      await store.sendTurn(`回复：${marker}`, {
+        model: model || undefined,
+        images: [{ path: imagePath, detail: "original" }],
+      });
     },
-  });
-  await responsePromise;
+    {
+      marker: params.marker,
+      imagePath: params.imagePath,
+      model: remote.testModel || null,
+    },
+  );
 }
 
 async function openSettings(page: Page) {

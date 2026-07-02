@@ -185,6 +185,7 @@
     "openSubAgent": "打开子代理",
     "closeSubAgentPanel": "关闭子代理面板",
     "closeSubAgentTab": "关闭子代理 {title}",
+    "interruptSubAgent": "停止子代理",
     "loadingSubAgent": "正在加载子代理",
     "noSubAgentTurns": "这个子代理还没有可显示的回合",
     "collabAgentToolCall": "协作代理调用",
@@ -245,6 +246,7 @@
     "appServerAutoRetrying": "模型当前繁忙，正在自动重试（{attempt}/{max}）",
     "appServerAutoRetryExhausted": "自动重试 {max} 次后仍然失败",
     "appServerNotification": "app-server 通知",
+    "threadErrorContext": "对话：{title}",
     "showNotificationDetails": "查看详情",
     "hideNotificationDetails": "收起详情",
     "notifications": {

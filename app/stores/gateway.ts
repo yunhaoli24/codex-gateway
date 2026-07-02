@@ -57,7 +57,19 @@ export const useGatewayStore = defineStore("gateway", () => {
       return null;
     }
     return (
-      state.subAgentPanels.find((panel) => pinnedKey(panel.hostId, panel.threadId) === key) ?? null
+      visibleSubAgentPanels.value.find(
+        (panel) => pinnedKey(panel.hostId, panel.threadId) === key,
+      ) ?? null
+    );
+  });
+  const visibleSubAgentPanels = computed(() => {
+    if (!state.selectedHostId || !state.selectedThreadId) {
+      return [];
+    }
+    return state.subAgentPanels.filter(
+      (panel) =>
+        panel.parentHostId === state.selectedHostId &&
+        panel.parentThreadId === state.selectedThreadId,
     );
   });
 
@@ -66,37 +78,42 @@ export const useGatewayStore = defineStore("gateway", () => {
     state,
     events,
     t,
-    get errorLabels() {
-      return errorMessageLabels(t);
-    },
-    get selectedHost() {
-      return selectedHost.value;
-    },
-    get selectedProject() {
-      return selectedProject.value;
-    },
-    get pinnedThreads() {
-      return pinnedThreads.value;
-    },
-    get runningThreadKeySet() {
-      return runningThreadKeySet.value;
-    },
-    get selectedThreadStatus() {
-      return selectedThreadStatus.value;
-    },
-    get defaultModel() {
-      return defaultModel.value;
-    },
-    get selectedThreadSettings() {
-      return selectedThreadSettings.value;
-    },
-    get selectedThreadTokenUsage() {
-      return selectedThreadTokenUsage.value;
-    },
-    get selectedComposerDraft() {
-      return selectedComposerDraft.value;
-    },
   });
+  Object.defineProperties(
+    ctx,
+    Object.getOwnPropertyDescriptors({
+      get errorLabels() {
+        return errorMessageLabels(t);
+      },
+      get selectedHost() {
+        return selectedHost.value;
+      },
+      get selectedProject() {
+        return selectedProject.value;
+      },
+      get pinnedThreads() {
+        return pinnedThreads.value;
+      },
+      get runningThreadKeySet() {
+        return runningThreadKeySet.value;
+      },
+      get selectedThreadStatus() {
+        return selectedThreadStatus.value;
+      },
+      get defaultModel() {
+        return defaultModel.value;
+      },
+      get selectedThreadSettings() {
+        return selectedThreadSettings.value;
+      },
+      get selectedThreadTokenUsage() {
+        return selectedThreadTokenUsage.value;
+      },
+      get selectedComposerDraft() {
+        return selectedComposerDraft.value;
+      },
+    }),
+  );
 
   const actions = {
     ...createCoreActions(ctx),
@@ -121,6 +138,7 @@ export const useGatewayStore = defineStore("gateway", () => {
     selectedThreadTokenUsage,
     selectedComposerDraft,
     activeSubAgentPanel,
+    visibleSubAgentPanels,
     ...actions,
   };
 });

@@ -2,7 +2,16 @@ import type { GatewayEvent, ThreadRuntimeStatus } from "./types";
 
 export function isThreadActiveStatus(status: any) {
   const value = statusValue(status);
-  return value === "active" || value === "inProgress" || value === "running";
+  return (
+    value === "active" ||
+    value === "inProgress" ||
+    value === "in_progress" ||
+    value === "running" ||
+    value === "pending" ||
+    value === "starting" ||
+    value === "waitingForClient" ||
+    value === "waitingForApproval"
+  );
 }
 
 export function runtimeStatusFromAppThreadStatus(status: any): ThreadRuntimeStatus {
@@ -11,6 +20,10 @@ export function runtimeStatusFromAppThreadStatus(status: any): ThreadRuntimeStat
   if (value === "systemError" || value === "failed") return "failed";
   if (value === "interrupted") return "interrupted";
   return "completed";
+}
+
+export function runtimeStatusFromTopLevelThreadState(thread: unknown): ThreadRuntimeStatus {
+  return runtimeStatusFromAppThreadStatus(topLevelThreadStatus(thread) ?? { type: "idle" });
 }
 
 export function terminalTurnStatus(status: any): ThreadRuntimeStatus {
@@ -44,21 +57,17 @@ export function runtimeStatusFromThreadState(
     ...(Array.isArray((thread as any)?.turns) ? (thread as any).turns : []),
   ];
   candidates.push(...turns);
-  for (const turn of turns) {
-    if (Array.isArray(turn?.items)) {
-      candidates.push(...turn.items);
-    }
-  }
 
-  const threadStatus = runtimeStatusFromTopLevelThreadStatus(
-    (thread as any)?.status ?? (history as any)?.thread?.status ?? (history as any)?.status,
-  );
-  if (threadStatus) {
-    return threadStatus;
-  }
   if (turns.length) {
     const latestTurn = turns.at(-1);
     const latestTurnStatus = statusValue(latestTurn?.status);
+    if (
+      latestTurnStatus !== "failed" &&
+      latestTurnStatus !== "interrupted" &&
+      hasActiveItems(latestTurn)
+    ) {
+      return "running";
+    }
     if (
       latestTurnStatus === "completed" ||
       latestTurnStatus === "failed" ||
@@ -69,6 +78,12 @@ export function runtimeStatusFromThreadState(
     if (isThreadActiveStatus(latestTurnStatus)) {
       return "running";
     }
+  }
+  const threadStatus = runtimeStatusFromTopLevelThreadStatus(
+    (thread as any)?.status ?? (history as any)?.thread?.status ?? (history as any)?.status,
+  );
+  if (threadStatus) {
+    return threadStatus;
   }
   if (candidates.some((candidate) => statusValue(candidate?.status) === "failed")) {
     return "failed";
@@ -126,4 +141,18 @@ function runtimeStatusFromTopLevelThreadStatus(status: any): ThreadRuntimeStatus
 
 function statusValue(status: any) {
   return typeof status === "string" ? status : status?.type;
+}
+
+function topLevelThreadStatus(thread: unknown) {
+  if (!thread || typeof thread !== "object") {
+    return null;
+  }
+  const value = (thread as any).thread ?? thread;
+  return value && typeof value === "object" ? (value as any).status : null;
+}
+
+function hasActiveItems(turn: any) {
+  return (
+    Array.isArray(turn?.items) && turn.items.some((item: any) => isThreadActiveStatus(item?.status))
+  );
 }

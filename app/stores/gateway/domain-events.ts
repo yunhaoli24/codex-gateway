@@ -10,6 +10,21 @@ export type GatewayDomainEvent =
       turnId?: string | null;
     }
   | {
+      type: "terminal-process-detected";
+      hostId: number;
+      threadId: string;
+      turnId: string;
+      itemId: string;
+      processId: string;
+    }
+  | {
+      type: "terminal-process-completed";
+      hostId: number;
+      threadId: string;
+      turnId: string;
+      itemId: string;
+    }
+  | {
       type: "thread-settings-detected";
       hostId: number;
       threadId: string;

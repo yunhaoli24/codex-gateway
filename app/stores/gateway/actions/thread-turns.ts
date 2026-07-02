@@ -1,7 +1,7 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError, pinnedKey } from "../thread-utils/identity";
-import { activeRemoteTurnId } from "../thread-turns/active-turn";
+import { activeRemoteTurnId, activeTurnIdFromRuntimeState } from "../thread-turns/active-turn";
 import {
   mergeStartedTurn,
   mergeTurnItems,
@@ -21,6 +21,7 @@ import { respondToServerRequest } from "../thread-turns/server-requests";
 import { createClientUserMessageId, optimisticUserContent } from "../thread-turns/turn-content";
 import {
   interruptActiveTurn as sendTurnInterrupt,
+  requestTurnInterrupt,
   startNewTurn,
   steerActiveTurn,
 } from "../thread-turns/turn-transport";
@@ -31,27 +32,20 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
       if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
         return;
       }
-      const expectedSteerTurnId = activeRemoteTurnId(ctx.state.history);
-      const shouldSteerActiveTurn =
-        ctx.selectedThreadStatus === "running" || Boolean(expectedSteerTurnId);
-      const clientUserMessageId = createClientUserMessageId(
-        shouldSteerActiveTurn ? "steer" : "turn",
+      const key = pinnedKey(ctx.state.selectedHostId, ctx.state.selectedThreadId);
+      const expectedSteerTurnId = activeTurnIdFromRuntimeState(
+        ctx.state.history,
+        ctx.state.activeTerminalProcessByThreadKey[key]?.turnId,
       );
-      if (!shouldSteerActiveTurn) {
+      const threadIsRunning = ctx.selectedThreadStatus === "running";
+      const shouldSteerActiveTurn = threadIsRunning && Boolean(expectedSteerTurnId);
+      const shouldQueueSteer = threadIsRunning && !expectedSteerTurnId;
+      const clientUserMessageId = createClientUserMessageId(threadIsRunning ? "steer" : "turn");
+      if (!threadIsRunning) {
         ctx.setThreadRunning(ctx.state.selectedHostId, ctx.state.selectedThreadId, true);
       }
       const optimisticContent = optimisticUserContent(text, options);
       if (shouldSteerActiveTurn) {
-        if (!expectedSteerTurnId) {
-          ctx.queuePendingSteer(ctx.state.selectedHostId, ctx.state.selectedThreadId, {
-            text,
-            clientUserMessageId,
-            content: optimisticContent,
-            images: options.images ?? [],
-          });
-          void ctx.flushPendingSteers(ctx.state.selectedHostId, ctx.state.selectedThreadId);
-          return;
-        }
         insertOptimisticSteerMessage(
           ctx,
           ctx.state.selectedThreadId,
@@ -59,6 +53,15 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
           clientUserMessageId,
           optimisticContent,
         );
+      } else if (shouldQueueSteer) {
+        queuePendingSteer(ctx, ctx.state.selectedHostId, ctx.state.selectedThreadId, {
+          text,
+          clientUserMessageId,
+          content: optimisticContent,
+          images: options.images,
+        });
+        void ctx.flushPendingSteers(ctx.state.selectedHostId, ctx.state.selectedThreadId);
+        return;
       } else {
         insertOptimisticNewTurnMessage(
           ctx,
@@ -101,6 +104,10 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
           options,
         });
         if (!shouldSteerActiveTurn && result?.turn) {
+          const startedTurnId = result.turn?.id ? String(result.turn.id) : "";
+          if (startedTurnId && !startedTurnId.startsWith("client-")) {
+            ctx.setThreadStatus(hostId, threadId, "running", { turnId: startedTurnId });
+          }
           mergeStartedTurn(ctx, ctx.state.selectedThreadId, result.turn);
           void ctx.flushPendingSteers(ctx.state.selectedHostId, ctx.state.selectedThreadId);
         }
@@ -132,8 +139,8 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
           projectId,
           threadId,
         });
-        if (!shouldSteerActiveTurn) {
-          ctx.setThreadStatus(ctx.state.selectedHostId, ctx.state.selectedThreadId, "completed");
+        if (!threadIsRunning) {
+          ctx.setThreadStatus(hostId, threadId, "completed");
         }
       } finally {
         ctx.state.loading = false;
@@ -150,30 +157,25 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
       }
       const hostId = ctx.state.selectedHostId;
       const threadId = ctx.state.selectedThreadId;
-      const key = pinnedKey(hostId, threadId);
-      const turnId =
-        activeRemoteTurnId(ctx.state.history) ?? ctx.state.activeTurnIdsByThreadKey[key];
-      if (!turnId) {
-        ctx.setError(ctx.t("app.noActiveTurnToInterrupt"), {
-          hostId,
-          projectId: ctx.state.selectedProjectId,
-          threadId,
-        });
-        return;
-      }
-      ctx.state.loading = true;
-      ctx.clearError();
-      try {
-        await sendTurnInterrupt(ctx, turnId);
-      } catch (error: any) {
-        ctx.setError(messageFromError(error, ctx.t("app.interruptTurnFailed"), ctx.errorLabels), {
-          hostId,
-          projectId: ctx.state.selectedProjectId,
-          threadId,
-        });
-      } finally {
-        ctx.state.loading = false;
-      }
+      await interruptThreadTurn(ctx, {
+        hostId,
+        projectId: ctx.state.selectedProjectId,
+        threadId,
+        selectedTransport: true,
+      });
+    },
+
+    async interruptThreadTurn(input: {
+      hostId: number;
+      threadId: string;
+      projectId?: number | null;
+    }) {
+      await interruptThreadTurn(ctx, {
+        hostId: input.hostId,
+        projectId: input.projectId ?? null,
+        threadId: input.threadId,
+        selectedTransport: false,
+      });
     },
 
     queuePendingSteer(
@@ -214,4 +216,87 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
       clearSubmittedTurnRequest(ctx, hostId, threadId);
     },
   };
+}
+
+async function interruptThreadTurn(
+  ctx: GatewayStoreContext,
+  input: {
+    hostId: number;
+    projectId: number | null;
+    threadId: string;
+    selectedTransport: boolean;
+  },
+) {
+  const turnId = activeTurnIdForThread(ctx, input.hostId, input.threadId);
+  if (!turnId) {
+    ctx.setThreadStatus(input.hostId, input.threadId, "completed");
+    ctx.setError(noActiveTurnToInterruptMessage(ctx, input.hostId, input.threadId), {
+      hostId: input.hostId,
+      projectId: input.projectId,
+      threadId: input.threadId,
+    });
+    return;
+  }
+
+  ctx.state.loading = true;
+  ctx.clearError();
+  try {
+    if (input.selectedTransport) {
+      await sendTurnInterrupt(ctx, turnId);
+      return;
+    }
+    await requestTurnInterrupt(ctx, {
+      hostId: input.hostId,
+      threadId: input.threadId,
+      turnId,
+    });
+  } catch (error: any) {
+    ctx.setError(messageFromError(error, ctx.t("app.interruptTurnFailed"), ctx.errorLabels), {
+      hostId: input.hostId,
+      projectId: input.projectId,
+      threadId: input.threadId,
+    });
+  } finally {
+    ctx.state.loading = false;
+  }
+}
+
+function activeTurnIdForThread(ctx: GatewayStoreContext, hostId: number, threadId: string) {
+  const key = pinnedKey(hostId, threadId);
+  return (
+    activeRemoteTurnId(historyForThread(ctx, hostId, threadId)) ??
+    ctx.state.activeTerminalProcessByThreadKey[key]?.turnId ??
+    ctx.state.activeTurnIdsByThreadKey[key] ??
+    null
+  );
+}
+
+function historyForThread(ctx: GatewayStoreContext, hostId: number, threadId: string) {
+  if (ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId) {
+    return ctx.state.history;
+  }
+  const key = pinnedKey(hostId, threadId);
+  return ctx.state.threadPreviews[key]?.history ?? ctx.state.threadSnapshots[key]?.history ?? null;
+}
+
+function noActiveTurnToInterruptMessage(
+  ctx: GatewayStoreContext,
+  hostId: number,
+  threadId: string,
+) {
+  const history = historyForThread(ctx, hostId, threadId);
+  const turns = (history as any)?.thread?.turns ?? (history as any)?.turns ?? [];
+  const lastTurn = turns[turns.length - 1];
+  const key = pinnedKey(hostId, threadId);
+  return [
+    ctx.t("app.noActiveTurnToInterrupt"),
+    [
+      `hostId=${hostId}`,
+      `threadId=${threadId}`,
+      `runtimeStatus=${ctx.state.threadStatuses[key] ?? "unknown"}`,
+      `storedActiveTurnId=${ctx.state.activeTurnIdsByThreadKey[key] ?? "none"}`,
+      `lastTurnId=${lastTurn?.id ?? "none"}`,
+      `lastTurnStatus=${lastTurn?.status?.type ?? lastTurn?.status ?? "none"}`,
+    ].join(" · "),
+  ].join("\n");
 }

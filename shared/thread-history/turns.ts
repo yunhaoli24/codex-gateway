@@ -1,6 +1,6 @@
 import { mergeTurnItems } from "./item-merge";
 import { ensureHistoryThread } from "./shape";
-import { terminalTurnStatus } from "../thread-utils/status";
+import { terminalTurnStatus } from "../thread-runtime-status";
 
 export function mergeThreadTurns(
   history: unknown,

@@ -1,7 +1,7 @@
 import type { ThreadTurnsPageResult } from "~~/shared/types";
 import { OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
 import { gatewayApi } from "@/utils/gateway-api";
-import { mergeThreadTurns } from "../thread-history/turns";
+import { mergeThreadTurns } from "~~/shared/thread-history/turns";
 import { messageFromError } from "../thread-utils/identity";
 import type { GatewayStoreContext } from "../types";
 

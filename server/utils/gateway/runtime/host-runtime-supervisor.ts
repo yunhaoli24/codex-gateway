@@ -190,6 +190,17 @@ class HostRuntimeSupervisor {
     }
   }
 
+  refreshableSlots() {
+    if (!this.started) {
+      return [];
+    }
+    return Array.from(this.slots.values()).filter((slot) => this.isRefreshable(slot));
+  }
+
+  private isRefreshable(slot: HostRuntimeSlot) {
+    return this.started && !slot.connecting && !slot.timer;
+  }
+
   private slotKey(userId: number, hostId: number) {
     return `${userId}:${hostId}`;
   }

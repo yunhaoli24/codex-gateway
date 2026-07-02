@@ -53,6 +53,8 @@ export interface SubAgentPanelState {
   hostId: number;
   threadId: string;
   title: string;
+  parentHostId: number;
+  parentThreadId: string;
 }
 
 export interface ComposerDraft {
@@ -89,6 +91,8 @@ export interface GatewayErrorState {
   hostId: number | null;
   projectId: number | null;
   threadId: string | null;
+  turnId: string | null;
+  transient: boolean;
   updatedAt: number;
 }
 
@@ -107,6 +111,10 @@ export interface GatewayStoreState {
   runningThreadKeys: string[];
   threadStatuses: Record<string, ThreadRuntimeStatus>;
   activeTurnIdsByThreadKey: Record<string, string>;
+  activeTerminalProcessByThreadKey: Record<
+    string,
+    { turnId: string; itemId: string; processId: string }
+  >;
   threadSettingsByKey: Record<string, ThreadSettingsState>;
   threadTokenUsageByKey: Record<string, ThreadTokenUsageState>;
   composerDraftsByKey: Record<string, ComposerDraft>;

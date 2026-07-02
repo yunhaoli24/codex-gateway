@@ -125,14 +125,8 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   );
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成");
   const afterReloadMarker = `E2E 刷新后新轮 ${Date.now()}`;
-  const turnStartAfterReload = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/turns/start") && response.request().method() === "POST",
-  );
   await page.getByPlaceholder("输入后续修改要求").fill(`用一句话回复：${afterReloadMarker}`);
   await page.getByTestId("send-turn-button").click();
-  const turnStartResponse = await turnStartAfterReload;
-  expect(turnStartResponse.ok(), await turnStartResponse.text()).toBe(true);
   await expect(page.getByTestId("chat-scroll-area").getByText(afterReloadMarker)).toBeVisible({
     timeout: 120_000,
   });

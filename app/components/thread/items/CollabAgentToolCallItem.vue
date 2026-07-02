@@ -51,6 +51,8 @@ function openReceiverThread(threadId: string) {
     hostId: props.hostId,
     threadId,
     title: `agent-${threadId.slice(0, 8)}`,
+    parentHostId: store.selectedHostId,
+    parentThreadId: store.selectedThreadId,
   });
 }
 </script>

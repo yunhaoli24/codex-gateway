@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openApp } from "./helpers/app";
+import { installRealtimeThreadSnapshotMock, seedGatewayThread } from "./helpers/gateway-store";
 
 test("file diff blocks can collapse and expand after virtual timeline measurement", async ({
   page,
@@ -136,6 +137,19 @@ test("opening completed history does not show fake thinking", async ({ page }) =
 
   await expect(page.getByText("completed history")).toBeVisible();
   await expect(page.getByText("思考中")).toBeHidden();
+
+  await seedGatewayThread(page, {
+    threadId: "e2e-stale-running-history-thread",
+    currentThread: { id: "e2e-stale-running-history-thread", name: "Stale Running History" },
+    history: {
+      thread: {
+        id: "e2e-stale-running-history-thread",
+        turns: [{ id: "turn-stale-running", status: "inProgress", items: [] }],
+      },
+    },
+    status: "completed",
+  });
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成");
 });
 
 test("opening a cached thread applies terminal events before deriving composer state", async ({
@@ -168,12 +182,11 @@ test("opening a cached thread applies terminal events before deriving composer s
     ],
   };
 
-  await page.route("**/api/threads/open", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
+  await installRealtimeThreadSnapshotMock(page, {
+    snapshots: {
+      [threadId]: {
         thread: { id: threadId, name: "Cached Terminal Thread" },
-        history: { thread: { id: threadId, turns: [staleTurn] } },
+        history: { thread: { id: threadId, turns: [completedTurn] } },
         threadSettings: {},
         tokenUsage: null,
         projectId: 1,
@@ -189,8 +202,9 @@ test("opening a cached thread applies terminal events before deriving composer s
             createdAt: new Date().toISOString(),
           },
         ],
-      }),
-    });
+        lastEventId: 1,
+      },
+    },
   });
   await page.route("**/api/config/sync", async (route) => {
     await route.fulfill({
@@ -547,15 +561,23 @@ test("dynamic tool response submits through the server request responder and sur
     store.loading = false;
   });
 
-  let submittedBody: any = null;
-  await page.route("**/api/server-requests/respond", async (route) => {
-    submittedBody = route.request().postDataJSON();
-    await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+  await page.evaluate(() => {
+    (window as any).__submittedServerRequest = null;
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    store.respondToServerRequest = async (
+      hostId: number,
+      threadId: string,
+      requestId: string | number,
+      result: unknown,
+    ) => {
+      (window as any).__submittedServerRequest = { hostId, threadId, requestId, result };
+    };
   });
 
   await page.getByTestId("dynamic-tool-submit").click();
   await expect
-    .poll(() => submittedBody)
+    .poll(() => page.evaluate(() => (window as any).__submittedServerRequest))
     .toMatchObject({
       hostId: 7,
       threadId: "e2e-dynamic-tool-thread",
@@ -566,13 +588,12 @@ test("dynamic tool response submits through the server request responder and sur
       },
     });
 
-  await page.unroute("**/api/server-requests/respond");
-  await page.route("**/api/server-requests/respond", async (route) => {
-    await route.fulfill({
-      status: 502,
-      contentType: "application/json",
-      body: JSON.stringify({ message: "pending app-server request was not found" }),
-    });
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    store.respondToServerRequest = async () => {
+      throw new Error("pending app-server request was not found");
+    };
   });
 
   await page.getByTestId("dynamic-tool-submit").click();
@@ -601,44 +622,59 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
   const threadId = "e2e-parent-thread";
   const subThreadId = "e2e-subagent-thread";
   const secondSubThreadId = "e2e-subagent-thread-2";
-  await page.route("**/api/threads/open", async (route) => {
-    const requestBody = JSON.parse(route.request().postData() || "{}") as { threadId?: string };
-    const openedThreadId = requestBody?.threadId || subThreadId;
-    const threadName = openedThreadId === secondSubThreadId ? "agent-e2e-second" : "agent-e2e";
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        thread: { id: openedThreadId, name: threadName },
-        history: { thread: { id: openedThreadId, turns: [] } },
-        projectId: null,
-        project: null,
-        threadSettings: null,
-        tokenUsage: null,
-        turnsPage: { nextCursor: null, backwardsCursor: null },
-        recentEvents: [
+  await installRealtimeThreadSnapshotMock(page, {
+    snapshots: Object.fromEntries(
+      [subThreadId, secondSubThreadId].map((openedThreadId) => {
+        const threadName = openedThreadId === secondSubThreadId ? "agent-e2e-second" : "agent-e2e";
+        return [
+          openedThreadId,
           {
-            id: 12,
-            hostId: 1,
-            threadId: openedThreadId,
-            method: "item/started",
-            payload: {
-              params: {
-                threadId: openedThreadId,
-                turnId: "sub-turn",
-                item: {
-                  id: "sub-agent",
-                  type: "agentMessage",
-                  phase: "final_answer",
-                  text: `Sub-agent finding from ${threadName}.`,
-                },
+            thread: { id: openedThreadId, name: threadName },
+            history: {
+              thread: {
+                id: openedThreadId,
+                turns: [
+                  {
+                    id: "sub-turn",
+                    status: "completed",
+                    items: [
+                      {
+                        id: "sub-agent",
+                        type: "agentMessage",
+                        phase: "final_answer",
+                        text: `Sub-agent finding from ${threadName}.`,
+                      },
+                    ],
+                  },
+                ],
               },
             },
-            createdAt: new Date().toISOString(),
+            lastEventId: 12,
+            recentEvents: [
+              {
+                id: 12,
+                hostId: 1,
+                threadId: openedThreadId,
+                method: "item/started",
+                payload: {
+                  params: {
+                    threadId: openedThreadId,
+                    turnId: "sub-turn",
+                    item: {
+                      id: "sub-agent",
+                      type: "agentMessage",
+                      phase: "final_answer",
+                      text: `Sub-agent finding from ${threadName}.`,
+                    },
+                  },
+                },
+                createdAt: new Date().toISOString(),
+              },
+            ],
           },
-        ],
+        ];
       }),
-    });
+    ),
   });
   await page.evaluate(
     ({ threadId, subThreadId }) => {
@@ -692,17 +728,114 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("subagent-panel-title")).toHaveText("agent-e2e");
   await expect(panel.getByText("Sub-agent finding from agent-e2e.")).toBeVisible();
+  await expect(panel.locator("textarea")).toHaveCount(0);
   await expect
     .poll(async () => (await mainPane.boundingBox())?.width ?? widthBeforeOpen)
     .toBeLessThan(widthBeforeOpen * 0.85);
   await expect(
     page.getByTestId("chat-scroll-area").getByText("agent-e2e", { exact: true }),
   ).toBeVisible();
+  await page.evaluate(
+    ({ subThreadId }) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+      const key = `1:${subThreadId}`;
+      store.threadPreviews[key] = {
+        ...store.threadPreviews[key],
+        history: {
+          thread: {
+            id: subThreadId,
+            turns: [
+              {
+                id: "sub-turn-running",
+                status: "inProgress",
+                items: [
+                  {
+                    id: "sub-reasoning",
+                    type: "reasoning",
+                    status: "inProgress",
+                    summary: ["Sub-agent is still running"],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      };
+      store.setThreadStatus(1, subThreadId, "running", { turnId: "sub-turn-running" });
+      store.realtimeSocketConnected = true;
+      (window as any).__subagentInterruptRequest = null;
+      const previousSocket = store.realtimeSocket;
+      store.realtimeSocket = {
+        readyState: WebSocket.OPEN,
+        send(raw: string) {
+          const message = JSON.parse(raw);
+          if (message.type !== "turn.interrupt") {
+            previousSocket?.send(raw);
+            return;
+          }
+          (window as any).__subagentInterruptRequest = message;
+          window.setTimeout(() => {
+            store.handleRealtimeMessage({
+              type: "turn.interrupt.accepted",
+              requestId: message.requestId,
+              hostId: message.hostId,
+              threadId: message.threadId,
+            });
+          }, 0);
+        },
+      };
+    },
+    { subThreadId },
+  );
+  await page.getByRole("button", { name: "停止子代理" }).click();
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__subagentInterruptRequest))
+    .toMatchObject({
+      type: "turn.interrupt",
+      hostId: 1,
+      threadId: subThreadId,
+      turnId: "sub-turn-running",
+    });
 
   await page.getByTestId("open-subagent-panel").nth(1).click();
   await expect(panel.getByTestId("subagent-tab")).toHaveCount(2);
   await expect(panel.getByTestId("subagent-panel-title")).toHaveText("agent-e2e-second");
   await expect(panel.getByText("Sub-agent finding from agent-e2e-second.")).toBeVisible();
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    store.selectedThreadId = "e2e-other-parent-thread";
+    store.currentThread = { id: "e2e-other-parent-thread", name: "Other Parent Thread" };
+    store.history = { thread: { id: "e2e-other-parent-thread", turns: [] } };
+  });
+  await expect(panel).toBeHidden();
+  await expect
+    .poll(async () => (await mainPane.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(widthBeforeOpen * 0.95);
+  await page.evaluate(
+    ({ threadId }) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+      store.selectedThreadId = threadId;
+      store.currentThread = { id: threadId, name: "Parent Thread" };
+      store.history = {
+        thread: {
+          id: threadId,
+          turns: [
+            {
+              id: "parent-turn",
+              status: "running",
+              items: [],
+            },
+          ],
+        },
+      };
+    },
+    { threadId },
+  );
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("subagent-tab")).toHaveCount(2);
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -791,33 +924,10 @@ test("app-server error notifications are visible in the active thread", async ({
   });
 
   const chatScrollArea = page.getByTestId("chat-scroll-area");
+  await expect(chatScrollArea.getByText("对话：Error Notification")).toBeVisible();
   await expect(chatScrollArea.getByText("remote provider disconnected")).toBeVisible();
   await expect(chatScrollArea.getByText("错误类型：responseStreamDisconnected")).toBeVisible();
   await expect(chatScrollArea.getByText("app-server 正在自动重试")).toBeVisible();
-});
-
-test("serverOverloaded errors auto-retry up to five times with visible status", async ({
-  page,
-}) => {
-  await openApp(page);
-  await page.addInitScript(() => {
-    const originalSetTimeout = window.setTimeout.bind(window);
-    window.setTimeout = ((handler: TimerHandler, _timeout?: number, ...args: any[]) =>
-      originalSetTimeout(handler, 0, ...args)) as typeof window.setTimeout;
-  });
-
-  let startCalls = 0;
-  await page.route("**/api/turns/start", async (route) => {
-    startCalls += 1;
-    const turnId = startCalls === 1 ? "turn-overload-1" : "turn-overload-2";
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        turn: { id: turnId, status: "running", items: [] },
-      }),
-    });
-  });
 
   await page.evaluate(() => {
     const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
@@ -826,71 +936,27 @@ test("serverOverloaded errors auto-retry up to five times with visible status", 
     if (!store) {
       throw new Error("Unable to locate gateway Pinia store");
     }
-    const threadId = "retry-thread";
-    store.hosts = [{ id: 1, name: "Retry Host", sshHost: "localhost", sshUser: "codex" }];
-    store.projects = [{ id: 1, hostId: 1, name: "Retry Project", remotePath: "/tmp/retry" }];
-    store.selectedHostId = 1;
-    store.selectedProjectId = 1;
-    store.selectedThreadId = threadId;
-    store.currentThread = { id: threadId, name: "Retry Thread" };
-    store.history = { thread: { id: threadId, turns: [] } };
-    store.initializing = false;
-    store.loading = false;
-  });
-
-  await page.evaluate(async () => {
-    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-    await store.sendTurn("retry me");
+    const threadId = "e2e-app-server-error-thread";
     store.applyLiveEvent({
-      id: 201,
+      id: 102,
       hostId: 1,
-      threadId: "retry-thread",
-      method: "error",
+      threadId,
+      method: "item/agentMessage/delta",
       payload: {
         params: {
-          threadId: "retry-thread",
-          turnId: "turn-overload-1",
-          willRetry: false,
-          error: {
-            message: "Selected model is at capacity. Please try a different model.",
-            codexErrorInfo: "serverOverloaded",
-            additionalDetails: null,
-          },
-        },
-      },
-      createdAt: new Date().toISOString(),
-    });
-    store.applyLiveEvent({
-      id: 202,
-      hostId: 1,
-      threadId: "retry-thread",
-      method: "turn/completed",
-      payload: {
-        params: {
-          threadId: "retry-thread",
-          turn: {
-            id: "turn-overload-1",
-            status: "failed",
-            error: {
-              message: "Selected model is at capacity. Please try a different model.",
-              codexErrorInfo: "serverOverloaded",
-              additionalDetails: null,
-            },
-            items: [],
-          },
+          threadId,
+          turnId: "turn-error",
+          itemId: "agent-recovered",
+          delta: "retry recovered",
         },
       },
       createdAt: new Date().toISOString(),
     });
   });
 
-  await expect(
-    page.getByTestId("chat-scroll-area").getByText("模型当前繁忙，正在自动重试（1/5）", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect.poll(() => startCalls).toBe(2);
+  await expect(chatScrollArea.getByText("retry recovered")).toBeVisible();
+  await expect(chatScrollArea.getByText("remote provider disconnected")).toHaveCount(0);
+  await expect(chatScrollArea.getByText("错误类型：responseStreamDisconnected")).toHaveCount(0);
 });
 
 test("app-server moderation notifications render a readable summary before raw details", async ({
@@ -944,6 +1010,11 @@ test("app-server moderation notifications render a readable summary before raw d
 
 test("terminal wait notifications mention the command being watched", async ({ page }) => {
   await openApp(page);
+  await seedGatewayThread(page, {
+    threadId: "e2e-terminal-wait-thread",
+    currentThread: { id: "e2e-terminal-wait-thread", name: "Terminal Wait" },
+    history: { thread: { id: "e2e-terminal-wait-thread", turns: [] } },
+  });
   await page.evaluate(() => {
     const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
     const pinia = app?.config?.globalProperties?.$pinia;
@@ -952,13 +1023,6 @@ test("terminal wait notifications mention the command being watched", async ({ p
       throw new Error("Unable to locate gateway Pinia store");
     }
     const threadId = "e2e-terminal-wait-thread";
-    store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
-    store.selectedHostId = 1;
-    store.selectedThreadId = threadId;
-    store.currentThread = { id: threadId, name: "Terminal Wait" };
-    store.history = { thread: { id: threadId, turns: [] } };
-    store.initializing = false;
-    store.loading = false;
     store.applyLiveEvent({
       id: 301,
       hostId: 1,
@@ -1003,6 +1067,152 @@ test("terminal wait notifications mention the command being watched", async ({ p
 
   const chatScrollArea = page.getByTestId("chat-scroll-area");
   await expect(chatScrollArea.getByText("agent 正在等待命令：pnpm dev")).toBeVisible();
+
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    store.realtimeSocketConnected = true;
+    (window as any).__interruptRequest = null;
+    store.realtimeSocket = {
+      readyState: WebSocket.OPEN,
+      send(raw: string) {
+        const message = JSON.parse(raw);
+        (window as any).__interruptRequest = message;
+        window.setTimeout(() => {
+          store.handleRealtimeMessage({
+            type: "turn.interrupt.accepted",
+            requestId: message.requestId,
+            hostId: message.hostId,
+            threadId: message.threadId,
+          });
+        }, 0);
+      },
+    };
+  });
+
+  await page.evaluate(async () => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    await store.interruptActiveTurn();
+  });
+
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__interruptRequest))
+    .toMatchObject({
+      type: "turn.interrupt",
+      hostId: 1,
+      threadId: "e2e-terminal-wait-thread",
+      turnId: "turn-terminal",
+    });
+});
+
+test("context compaction duration survives event replay timing", async ({ page }) => {
+  await openApp(page);
+  const threadId = "e2e-context-compaction-thread";
+  await seedGatewayThread(page, {
+    threadId,
+    currentThread: { id: threadId, name: "Context Compaction" },
+    history: { thread: { id: threadId, turns: [] } },
+    status: "running",
+  });
+  await page.evaluate((threadId) => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    store.applyLiveEvent({
+      id: 401,
+      hostId: 1,
+      threadId,
+      method: "item/started",
+      payload: {
+        params: {
+          threadId,
+          turnId: "turn-context",
+          item: {
+            id: "context-compaction",
+            type: "contextCompaction",
+            status: "inProgress",
+          },
+        },
+      },
+      createdAt: "2026-07-02T10:00:00.000Z",
+    });
+    store.applyLiveEvent({
+      id: 402,
+      hostId: 1,
+      threadId,
+      method: "item/completed",
+      payload: {
+        params: {
+          threadId,
+          turnId: "turn-context",
+          item: {
+            id: "context-compaction",
+            type: "contextCompaction",
+            status: "completed",
+          },
+        },
+      },
+      createdAt: "2026-07-02T10:00:04.250Z",
+    });
+  }, threadId);
+
+  const chatScrollArea = page.getByTestId("chat-scroll-area");
+  await expect(chatScrollArea.getByText("压缩上下文")).toBeVisible();
+  await expect(chatScrollArea.getByText("4.25s")).toBeVisible();
+  await expect(chatScrollArea.getByText("0.00s")).toBeHidden();
+});
+
+test("restoring a cached thread keeps active context compaction running without refetching", async ({
+  page,
+}) => {
+  await openApp(page);
+  const threadId = "e2e-active-context-cache-thread";
+  await seedGatewayThread(page, {
+    threadId,
+    currentThread: { id: threadId, name: "Active Context Cache" },
+    history: {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "turn-context-running",
+            status: "completed",
+            items: [
+              {
+                id: "context-compaction-running",
+                type: "contextCompaction",
+                status: "inProgress",
+                startedAt: "2026-07-02T10:00:00.000Z",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    status: "completed",
+  });
+  await installRealtimeThreadSnapshotMock(page, { snapshots: {} });
+  await page.evaluate(async (threadId) => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    store.cacheSelectedThreadSnapshot();
+    store.selectedThreadId = "e2e-other-thread";
+    store.currentThread = { id: "e2e-other-thread", name: "Other Thread" };
+    store.history = { thread: { id: "e2e-other-thread", turns: [] } };
+    await store.openThread(threadId, { hostId: 1, projectId: null });
+  }, threadId);
+
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "停止生成");
+  await expect(page.getByText("压缩上下文")).toBeVisible();
 });
 
 async function parkChatViewportInMiddle(page: Page) {

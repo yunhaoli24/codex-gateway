@@ -14,6 +14,7 @@ export function createGatewayState(): GatewayStoreState {
     runningThreadKeys: [],
     threadStatuses: {},
     activeTurnIdsByThreadKey: {},
+    activeTerminalProcessByThreadKey: {},
     threadSettingsByKey: {},
     threadTokenUsageByKey: {},
     composerDraftsByKey: {},

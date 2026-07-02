@@ -17,7 +17,15 @@ const completedAt = computed(() => itemCompletedAtMs(props.item));
 const elapsedMs = computed(
   () => (inProgress.value ? now.value : (completedAt.value ?? now.value)) - startedAt.value,
 );
-const timeLabel = computed(() => formatDurationMs(elapsedMs.value));
+const hasReliableCompletedTiming = computed(() =>
+  Boolean(itemStartedAtMs(props.item) && itemCompletedAtMs(props.item)),
+);
+const timeLabel = computed(() => {
+  if (!inProgress.value && !hasReliableCompletedTiming.value) {
+    return t("app.completed");
+  }
+  return formatDurationMs(elapsedMs.value);
+});
 
 onMounted(() => {
   timer = setInterval(() => {

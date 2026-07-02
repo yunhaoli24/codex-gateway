@@ -224,7 +224,7 @@ async function retryStoredTurnRequest(ctx: GatewayStoreContext, key: string) {
   clearThreadScopedError(ctx, request.hostId, request.threadId);
   try {
     if (request.kind === "start") {
-      await requestTurnStart({
+      await requestTurnStart(ctx, {
         hostId: request.hostId,
         threadId: request.threadId,
         text: request.text,

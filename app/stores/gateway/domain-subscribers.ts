@@ -5,18 +5,28 @@ import {
   appendPlanDelta,
   appendReasoningSummaryDelta,
   appendReasoningTextDelta,
-} from "./thread-history/deltas";
-import { updateTurnDiff } from "./thread-history/diff";
-import { mergeItemIntoLatestTurn } from "./thread-history/items";
-import { resolveServerRequestInHistory } from "./thread-history/requests";
-import { mergeThreadTurns, syncCompletedTurn } from "./thread-history/turns";
+} from "~~/shared/thread-history/deltas";
+import { updateTurnDiff } from "~~/shared/thread-history/diff";
+import { mergeItemIntoLatestTurn } from "~~/shared/thread-history/items";
+import { resolveServerRequestInHistory } from "~~/shared/thread-history/requests";
+import { mergeThreadTurns, syncCompletedTurn } from "~~/shared/thread-history/turns";
 import { pinnedKey } from "./thread-utils/identity";
+import {
+  rememberActiveTerminalProcess,
+  clearActiveTerminalProcess,
+} from "./thread-turns/terminal-processes";
 
 export function registerGatewayDomainSubscribers(ctx: GatewayStoreContext) {
   ctx.events.on("thread-status-detected", (event) => {
     ctx.setThreadStatus(event.hostId, event.threadId, event.status, {
       turnId: event.turnId,
     });
+  });
+  ctx.events.on("terminal-process-detected", (event) => {
+    rememberActiveTerminalProcess(ctx, event);
+  });
+  ctx.events.on("terminal-process-completed", (event) => {
+    clearActiveTerminalProcess(ctx, event);
   });
   ctx.events.on("thread-settings-detected", (event) => {
     ctx.setThreadSettings(event.hostId, event.threadId, event.settings);

@@ -29,7 +29,7 @@ const {
   olderTurnsCursor,
   error,
   scrollToLatestToken,
-  subAgentPanels,
+  visibleSubAgentPanels,
 } = storeToRefs(store);
 
 const threadTitle = computed(() => {
@@ -113,7 +113,9 @@ function fileChangeDiffSignature(item: any) {
         data-testid="chat-main-pane"
         class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[flex-basis,max-width] duration-300 ease-out md:flex-none"
         :class="
-          subAgentPanels.length ? 'md:basis-[72%] md:max-w-[72%]' : 'md:basis-full md:max-w-full'
+          visibleSubAgentPanels.length
+            ? 'md:basis-[72%] md:max-w-[72%]'
+            : 'md:basis-full md:max-w-full'
         "
       >
         <ChatPanelScrollArea

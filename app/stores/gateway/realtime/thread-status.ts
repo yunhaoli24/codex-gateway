@@ -33,6 +33,18 @@ export function setThreadStatus(
   if (status === "running") {
     runningKeys.add(key);
   } else {
+    const activeTerminalProcess = ctx.state.activeTerminalProcessByThreadKey[key];
+    if (activeTerminalProcess && activeTerminalProcess.turnId === options.turnId) {
+      // A turn/completed snapshot can arrive while Codex is still polling a
+      // background terminal process. Keep the turn interruptable until the
+      // matching command item completes.
+      runningKeys.add(key);
+      ctx.state.threadStatuses = {
+        ...ctx.state.threadStatuses,
+        [key]: "running",
+      };
+      return;
+    }
     runningKeys.delete(key);
     const { [key]: _completedTurnId, ...activeTurnIds } = ctx.state.activeTurnIdsByThreadKey;
     ctx.state.activeTurnIdsByThreadKey = activeTurnIds;

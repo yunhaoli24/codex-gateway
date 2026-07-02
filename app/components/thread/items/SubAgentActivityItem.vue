@@ -24,6 +24,8 @@ function openSubAgent() {
     hostId: props.hostId,
     threadId: String(props.item.agentThreadId),
     title: title.value,
+    parentHostId: store.selectedHostId,
+    parentThreadId: store.selectedThreadId,
   });
 }
 </script>

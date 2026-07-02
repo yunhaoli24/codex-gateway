@@ -82,6 +82,14 @@ export type RealtimeClientMessage =
       type: "host.lifecycle.unsubscribe";
     }
   | {
+      type: "thread.activate";
+      requestId: string;
+      hostId: number;
+      projectId?: number | null;
+      threadId: string;
+      limit?: number;
+    }
+  | {
       type: "thread.subscribe";
       hostId: number;
       threadId: string;
@@ -91,6 +99,21 @@ export type RealtimeClientMessage =
       type: "thread.unsubscribe";
       hostId: number;
       threadId: string;
+    }
+  | {
+      type: "turn.start";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      text: string;
+      clientUserMessageId?: string | null;
+      cwd?: string | null;
+      model?: string | null;
+      effort?: ReasoningEffort | null;
+      approvalPolicy?: ApprovalPolicy | null;
+      collaborationMode?: ComposerTurnOptions["collaborationMode"];
+      images?: ComposerTurnOptions["images"];
+      files?: ComposerTurnOptions["files"];
     }
   | {
       type: "turn.steer";
@@ -112,6 +135,19 @@ export type RealtimeClientMessage =
       hostId: number;
       threadId: string;
       turnId: string;
+    }
+  | {
+      type: "serverRequest.respond";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      serverRequestId: string | number;
+      result?: unknown;
+      error?: {
+        code: number;
+        message: string;
+        data?: unknown;
+      };
     }
   | {
       type: "ping";
@@ -142,6 +178,20 @@ export type RealtimeServerMessage =
       type: "thread.event";
       event: GatewayEvent;
     }
+  | ({
+      type: "thread.snapshot";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      lastEventId: number;
+    } & ThreadOpenResult)
+  | {
+      type: "turn.start.accepted";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      turn?: any;
+    }
   | {
       type: "turn.steer.accepted";
       requestId: string;
@@ -156,10 +206,19 @@ export type RealtimeServerMessage =
       threadId: string;
     }
   | {
+      type: "serverRequest.respond.accepted";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      serverRequestId: string | number;
+    }
+  | {
       type: "error";
       message: string;
       requestId?: string;
       request?: RealtimeClientMessage;
+      code?: string;
+      details?: Record<string, unknown>;
     }
   | {
       type: "pong";

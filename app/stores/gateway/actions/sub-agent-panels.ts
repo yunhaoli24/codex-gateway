@@ -5,6 +5,8 @@ type SubAgentPanelInput = {
   hostId: number;
   threadId: string;
   title?: string | null;
+  parentHostId?: number | null;
+  parentThreadId?: string | null;
 };
 
 export function createSubAgentPanelActions(ctx: GatewayStoreContext) {
@@ -65,10 +67,14 @@ export function createSubAgentPanelActions(ctx: GatewayStoreContext) {
 }
 
 function normalizePanel(input: SubAgentPanelInput): SubAgentPanelState {
+  const parentHostId = input.parentHostId ?? input.hostId;
+  const parentThreadId = input.parentThreadId ?? "";
   return {
     hostId: input.hostId,
     threadId: input.threadId,
     title: input.title || input.threadId,
+    parentHostId,
+    parentThreadId,
   };
 }
 

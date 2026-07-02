@@ -9,11 +9,18 @@ import { useGatewayStore } from "@/stores/gateway";
 import { pinnedKey, titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
-const { activeSubAgentPanel, activeSubAgentPanelKey, subAgentPanels, threadPreviews } =
-  storeToRefs(store);
+const {
+  activeSubAgentPanel,
+  activeSubAgentPanelKey,
+  visibleSubAgentPanels,
+  threadPreviews,
+  threadStatuses,
+} = storeToRefs(store);
 const { t } = useI18n();
 
-const currentPanel = computed(() => activeSubAgentPanel.value ?? subAgentPanels.value[0] ?? null);
+const currentPanel = computed(
+  () => activeSubAgentPanel.value ?? visibleSubAgentPanels.value[0] ?? null,
+);
 const previewKey = computed(() => {
   const panel = currentPanel.value;
   return panel ? pinnedKey(panel.hostId, panel.threadId) : null;
@@ -23,6 +30,13 @@ const preview = computed(() => {
   return key ? (threadPreviews.value[key] ?? null) : null;
 });
 const currentThread = computed(() => preview.value?.currentThread as Record<string, any> | null);
+const currentStatus = computed(() => {
+  const key = previewKey.value;
+  if (!key) {
+    return "idle";
+  }
+  return threadStatuses.value[key] ?? "idle";
+});
 const title = computed(
   () =>
     (currentThread.value ? titleForThread(currentThread.value) : null) ||
@@ -45,7 +59,7 @@ function keyForPanel(panel: { hostId: number; threadId: string }) {
 }
 
 function activateTab(value: string | number) {
-  const panel = subAgentPanels.value.find((item) => keyForPanel(item) === String(value));
+  const panel = visibleSubAgentPanels.value.find((item) => keyForPanel(item) === String(value));
   if (panel) {
     store.activateSubAgentPanel({ hostId: panel.hostId, threadId: panel.threadId });
   }
@@ -57,12 +71,25 @@ function closePanel(panel: SubAgentPanelState | null = currentPanel.value) {
   }
   store.closeSubAgentPanel({ hostId: panel.hostId, threadId: panel.threadId });
 }
+
+async function interruptCurrentPanel() {
+  const panel = currentPanel.value;
+  const projectId = preview.value?.projectId ?? null;
+  if (!panel) {
+    return;
+  }
+  await store.interruptThreadTurn({
+    hostId: panel.hostId,
+    threadId: panel.threadId,
+    projectId,
+  });
+}
 </script>
 
 <template>
   <Transition name="subagent-panel">
     <aside
-      v-if="subAgentPanels.length && currentPanel"
+      v-if="visibleSubAgentPanels.length && currentPanel"
       data-testid="subagent-panel"
       class="absolute inset-y-0 right-0 z-30 flex min-h-0 w-full flex-col overflow-hidden border-l border-hairline bg-surface/98 shadow-2xl backdrop-blur md:relative md:inset-auto md:z-auto md:basis-[28%] md:shrink-0 md:shadow-none"
     >
@@ -72,13 +99,15 @@ function closePanel(panel: SubAgentPanelState | null = currentPanel.value) {
         @update:model-value="activateTab"
       >
         <SubAgentPanelHeader
-          :panels="subAgentPanels"
+          :panels="visibleSubAgentPanels"
           :current-panel="currentPanel"
           :title="title"
           :loading="preview?.loading"
+          :status="currentStatus"
           @activate="activateTab"
           @close="closePanel"
           @close-current="closePanel()"
+          @interrupt="interruptCurrentPanel"
         />
         <SubAgentPanelBody
           :key="previewKey"

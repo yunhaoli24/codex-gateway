@@ -99,7 +99,14 @@ function measureContent() {
       element.scrollHeight,
       element.getBoundingClientRect().height,
     );
-    virtualizer.value.measureElement(contentRef.value);
+    if (element.dataset.index !== undefined) {
+      virtualizer.value.measureElement(contentRef.value);
+    } else {
+      // TanStack Virtual's default measureElement reads data-index from the
+      // measured row. The non-virtual fallback content has no row index yet, so
+      // ask the virtualizer to remeasure globally instead of emitting a warning.
+      virtualizer.value.measure();
+    }
   } else {
     measuredContentHeight.value = 0;
     virtualizer.value.measure();

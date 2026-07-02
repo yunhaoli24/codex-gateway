@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { BotIcon, Loader2Icon, PanelRightCloseIcon, XIcon } from "@lucide/vue";
-import type { SubAgentPanelState } from "@/stores/gateway/types";
+import { BotIcon, Loader2Icon, PanelRightCloseIcon, SquareIcon, XIcon } from "@lucide/vue";
+import type { SubAgentPanelState, ThreadRuntimeStatus } from "@/stores/gateway/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,7 @@ defineProps<{
   panels: SubAgentPanelState[];
   currentPanel: SubAgentPanelState;
   title: string;
+  status: ThreadRuntimeStatus;
   loading?: boolean;
 }>();
 
@@ -17,6 +18,7 @@ const emit = defineEmits<{
   activate: [value: string | number];
   close: [panel: SubAgentPanelState];
   closeCurrent: [];
+  interrupt: [];
 }>();
 
 const { t } = useI18n();
@@ -46,6 +48,18 @@ function titleForPanel(panel: Pick<SubAgentPanelState, "title" | "threadId">) {
         <Loader2Icon class="size-3 animate-spin" />
         {{ t("app.loadingSubAgent") }}
       </Badge>
+      <Button
+        v-if="status === 'running'"
+        type="button"
+        variant="outline"
+        size="sm"
+        class="h-8 gap-1.5 rounded-full border-destructive/30 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+        :aria-label="t('app.interruptSubAgent')"
+        @click="emit('interrupt')"
+      >
+        <SquareIcon class="size-3 fill-current" />
+        <span class="hidden sm:inline">{{ t("app.interruptSubAgent") }}</span>
+      </Button>
       <Button
         type="button"
         variant="ghost"

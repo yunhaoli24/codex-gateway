@@ -10,6 +10,7 @@ export const itemEventHandlers: GatewayEventHandlerRegistry = {
   },
   "item/completed": (ctx, event, params, threadId) => {
     upsertStartedOrCompletedItem(ctx, event, params, threadId, "completed");
+    emitTerminalProcessCompleted(ctx, event, params, threadId);
   },
   "item/commandExecution/requestApproval": (ctx, event, params, threadId) => {
     ctx.events.emit({
@@ -81,6 +82,25 @@ function emitRunning(
   });
 }
 
+function emitTerminalProcessCompleted(
+  ctx: GatewayStoreContext,
+  event: GatewayEvent,
+  params: AppServerEventParams,
+  threadId: string,
+) {
+  const item = params.item;
+  if (item?.type !== "commandExecution" || !params.turnId || !item.id) {
+    return;
+  }
+  ctx.events.emit({
+    type: "terminal-process-completed",
+    hostId: event.hostId,
+    threadId,
+    turnId: String(params.turnId),
+    itemId: String(item.id),
+  });
+}
+
 function upsertStartedOrCompletedItem(
   ctx: GatewayStoreContext,
   event: GatewayEvent,
@@ -91,7 +111,7 @@ function upsertStartedOrCompletedItem(
   if (!params.item) {
     return;
   }
-  const nowIso = new Date().toISOString();
+  const eventIso = event.createdAt || new Date().toISOString();
   ctx.events.emit({
     type: "history-item-upsert",
     hostId: event.hostId,
@@ -100,8 +120,8 @@ function upsertStartedOrCompletedItem(
       ...params.item,
       turnId: params.turnId,
       status: params.item.status ?? (phase === "started" ? "inProgress" : "completed"),
-      ...(phase === "started" && !params.item.startedAt ? { startedAt: nowIso } : {}),
-      ...(phase === "completed" && !params.item.completedAt ? { completedAt: nowIso } : {}),
+      ...(phase === "started" && !params.item.startedAt ? { startedAt: eventIso } : {}),
+      ...(phase === "completed" && !params.item.completedAt ? { completedAt: eventIso } : {}),
     },
   });
 }

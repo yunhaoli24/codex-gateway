@@ -2,10 +2,14 @@ import type { GatewayEvent, ThreadRuntimeStatus } from "~~/shared/types";
 import { terminalTurnStatus } from "~~/shared/thread-runtime-status";
 import { gatewayMemoryState } from "../state/memory";
 import { hostStore } from "../state/hosts";
+import { subAgentThreadStore } from "../state/sub-agent-threads";
 import { serverNotificationService } from "./notification-service";
 
 export function notifyThreadTurnCompleted(event: GatewayEvent) {
   if (event.method !== "turn/completed") {
+    return;
+  }
+  if (subAgentThreadStore.isSubAgentThread(event.hostId, event.threadId)) {
     return;
   }
   const params = (event.payload as any)?.params ?? {};

@@ -64,13 +64,26 @@ export async function rememberOpenThread(ctx: GatewayStoreContext, threadId: str
   if (!ctx.state.selectedHostId) {
     return;
   }
-  ctx.state.gatewayConfig.lastOpenThread = {
+  const nextLastOpenThread = {
     hostId: ctx.state.selectedHostId,
     projectId: ctx.state.selectedProjectId,
     threadId,
   };
+  const current = ctx.state.gatewayConfig.lastOpenThread;
+  if (
+    current?.hostId === nextLastOpenThread.hostId &&
+    current?.projectId === nextLastOpenThread.projectId &&
+    current?.threadId === nextLastOpenThread.threadId
+  ) {
+    return;
+  }
+  ctx.state.gatewayConfig.lastOpenThread = {
+    ...nextLastOpenThread,
+  };
   ctx.persistConfig();
-  await ctx.syncConfigToServer();
+  void ctx.syncConfigToServer().catch((error) => {
+    console.warn("[gateway] failed to persist last open thread", error);
+  });
 }
 
 export function requestScrollToLatest(ctx: GatewayStoreContext) {

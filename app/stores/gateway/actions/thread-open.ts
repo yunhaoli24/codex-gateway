@@ -3,8 +3,8 @@ import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError, pinnedKey } from "../thread-utils/identity";
 import { runtimeStatusFromThreadState } from "../thread-utils/status";
-import { applyOpenedThreadResult, applyStartedThreadResult } from "../thread-open/hydration";
-import { requestOpenThread, requestStartThread } from "../thread-open/transport";
+import { applyStartedThreadResult, applyThreadSnapshotResult } from "../thread-open/hydration";
+import { requestActivateThreadSnapshot, requestStartThread } from "../thread-open/transport";
 import {
   activateThreadView,
   activatePendingThreadView,
@@ -75,16 +75,6 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.connectEvents();
         ctx.requestScrollToLatest();
-        if (ctx.selectedThreadStatus === "running") {
-          await syncOpenThreadFromServer(ctx, {
-            hostId: targetHostId,
-            projectId: targetProjectId,
-            threadId,
-            viewEpoch: ctx.state.viewEpoch,
-            replaceRoute: context?.replaceRoute,
-            showLoading: false,
-          });
-        }
         return;
       }
       const viewEpoch = ctx.beginViewTransition();
@@ -95,16 +85,6 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.connectEvents();
         ctx.requestScrollToLatest();
-        if (ctx.selectedThreadStatus === "running") {
-          await syncOpenThreadFromServer(ctx, {
-            hostId: targetHostId,
-            projectId: targetProjectId,
-            threadId,
-            viewEpoch,
-            replaceRoute: context?.replaceRoute,
-            showLoading: false,
-          });
-        }
         return;
       }
 
@@ -150,7 +130,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       };
 
       try {
-        const result = await requestOpenThread({
+        const result = await requestActivateThreadSnapshot(ctx, {
           hostId,
           projectId: context.projectId ?? null,
           threadId,
@@ -162,10 +142,10 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
           threadId,
           currentThread: result.thread,
           history: result.history,
-          events: [],
+          events: [...result.recentEvents],
           olderTurnsCursor: result.turnsPage.nextCursor,
           newerTurnsCursor: result.turnsPage.backwardsCursor,
-          lastEventId: 0,
+          lastEventId: result.lastEventId,
           loading: false,
           error: null,
         };
@@ -177,35 +157,15 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
           ...ctx.state.threadPreviews,
           [key]: preview,
         };
-        for (const event of result.recentEvents) {
-          ctx.applyLiveEvent(event);
-        }
-        const hydratedPreview = ctx.state.threadPreviews[key] ?? preview;
-        const hydratedSnapshot = ctx.state.threadSnapshots[key] ?? preview;
-        const lastEventId = result.recentEvents.at(-1)?.id ?? 0;
         ctx.state.threadSnapshots = {
           ...ctx.state.threadSnapshots,
-          [key]: {
-            ...hydratedSnapshot,
-            events: [...result.recentEvents],
-            olderTurnsCursor: result.turnsPage.nextCursor,
-            newerTurnsCursor: result.turnsPage.backwardsCursor,
-            lastEventId,
-          },
+          [key]: preview,
         };
         ctx.state.threadPreviews = {
           ...ctx.state.threadPreviews,
-          [key]: {
-            ...hydratedPreview,
-            events: [...result.recentEvents],
-            olderTurnsCursor: result.turnsPage.nextCursor,
-            newerTurnsCursor: result.turnsPage.backwardsCursor,
-            lastEventId,
-            loading: false,
-            error: null,
-          },
+          [key]: preview,
         };
-        ctx.connectEvents(hostId, threadId);
+        ctx.rememberThreadSubscription(hostId, threadId, result.lastEventId);
         return ctx.state.threadPreviews[key];
       } catch (error: any) {
         const message = messageFromError(error, ctx.t("app.openThreadFailed"), ctx.errorLabels);
@@ -302,7 +262,7 @@ async function syncOpenThreadFromServer(
   }
   ctx.clearError();
   try {
-    const result = await requestOpenThread({
+    const result = await requestActivateThreadSnapshot(ctx, {
       hostId: input.hostId,
       projectId: input.projectId,
       threadId: input.threadId,
@@ -310,9 +270,8 @@ async function syncOpenThreadFromServer(
     if (!ctx.isCurrentViewTransition(input.viewEpoch)) {
       return;
     }
-    applyOpenedThreadResult(ctx, input.threadId, result);
+    applyThreadSnapshotResult(ctx, input.threadId, result);
     ctx.cacheSelectedThreadSnapshot();
-    ctx.connectEvents();
     await ctx.rememberOpenThread(input.threadId);
     ctx.syncSelectedRoute({ replace: input.replaceRoute });
     ctx.requestScrollToLatest();
