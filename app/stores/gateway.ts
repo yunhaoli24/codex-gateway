@@ -42,6 +42,18 @@ export const useGatewayStore = defineStore("gateway", () => {
     const key = selectedThreadKey(state.selectedHostId, state.selectedThreadId);
     return key ? (state.threadSettingsByKey[key] ?? {}) : {};
   });
+  const selectedThreadCollaborationMode = computed(() => {
+    const key = selectedThreadKey(state.selectedHostId, state.selectedThreadId);
+    return key ? (state.threadCollaborationModesByKey[key] ?? "default") : "default";
+  });
+  const selectedThreadGoal = computed(() => {
+    const key = selectedThreadKey(state.selectedHostId, state.selectedThreadId);
+    return key ? (state.threadGoalsByKey[key] ?? null) : null;
+  });
+  const selectedThreadGoalObservedAt = computed(() => {
+    const key = selectedThreadKey(state.selectedHostId, state.selectedThreadId);
+    return key ? (state.threadGoalObservedAtByKey[key] ?? null) : null;
+  });
   const selectedThreadTokenUsage = computed(() => {
     const key = selectedThreadKey(state.selectedHostId, state.selectedThreadId);
     return key ? (state.threadTokenUsageByKey[key] ?? null) : null;
@@ -113,6 +125,15 @@ export const useGatewayStore = defineStore("gateway", () => {
       get selectedThreadSettings() {
         return selectedThreadSettings.value;
       },
+      get selectedThreadCollaborationMode() {
+        return selectedThreadCollaborationMode.value;
+      },
+      get selectedThreadGoal() {
+        return selectedThreadGoal.value;
+      },
+      get selectedThreadGoalObservedAt() {
+        return selectedThreadGoalObservedAt.value;
+      },
       get selectedThreadTokenUsage() {
         return selectedThreadTokenUsage.value;
       },
@@ -149,6 +170,9 @@ export const useGatewayStore = defineStore("gateway", () => {
     selectedThreadStatus,
     defaultModel,
     selectedThreadSettings,
+    selectedThreadCollaborationMode,
+    selectedThreadGoal,
+    selectedThreadGoalObservedAt,
     selectedThreadTokenUsage,
     selectedComposerDraft,
     activeSubAgentPanel,

@@ -1,4 +1,4 @@
-import type { HostRecord, ThreadSettingsState } from "~~/shared/types";
+import type { HostRecord, ThreadGoalStatus, ThreadSettingsState } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT, SERVER_TURN_CACHE_LIMIT } from "~~/shared/config";
 import {
   runtimeStatusFromSnapshotState,
@@ -212,6 +212,36 @@ class ThreadBroker {
     if ("effort" in input) params.effort = input.effort;
     if ("approvalPolicy" in input) params.approvalPolicy = input.approvalPolicy;
     return controller.enqueue(() => controller.client.request("thread/settings/update", params));
+  }
+
+  async setThreadGoal(
+    host: HostRecord,
+    threadId: string,
+    input: {
+      objective?: string | null;
+      status?: ThreadGoalStatus | null;
+      tokenBudget?: number | null;
+    },
+  ) {
+    const controller = await this.registry.getController(host, threadId);
+    await controller.ensureSubscribed();
+    const params: Record<string, unknown> = { threadId };
+    if ("objective" in input) params.objective = input.objective;
+    if ("status" in input) params.status = input.status;
+    if ("tokenBudget" in input) params.tokenBudget = input.tokenBudget;
+    return controller.enqueue(() => controller.client.request("thread/goal/set", params));
+  }
+
+  async getThreadGoal(host: HostRecord, threadId: string) {
+    const controller = await this.registry.getController(host, threadId);
+    await controller.ensureSubscribed();
+    return controller.enqueue(() => controller.client.request("thread/goal/get", { threadId }));
+  }
+
+  async clearThreadGoal(host: HostRecord, threadId: string) {
+    const controller = await this.registry.getController(host, threadId);
+    await controller.ensureSubscribed();
+    return controller.enqueue(() => controller.client.request("thread/goal/clear", { threadId }));
   }
 
   async listThreads(host: HostRecord, params: Record<string, unknown>) {

@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from "vue";
+import { computed, type Ref } from "vue";
 import type { ComposerTurnOptions } from "~~/shared/types";
 import { useGatewayStore } from "@/stores/gateway";
 
@@ -21,19 +21,18 @@ export function useComposerTurnSubmit(input: {
   fileReferencesLabel: Ref<string>;
 }) {
   const store = useGatewayStore();
-  const planModeActive = ref(false);
   const interruptingTurn = ref(false);
+  const planModeActive = computed(() => store.selectedThreadCollaborationMode === "plan");
   const hasComposerInput = computed(() =>
     Boolean(input.turnText.value.trim() || input.attachedFiles.value.length),
   );
 
   function activatePlanMode() {
-    planModeActive.value = true;
+    store.setSelectedThreadCollaborationMode("plan");
     input.turnText.value = "";
   }
 
   async function startNewThread() {
-    planModeActive.value = false;
     input.clearDraft();
     await store.startThread(input.selectedTurnOptions());
   }
@@ -41,12 +40,14 @@ export function useComposerTurnSubmit(input: {
   async function submitTurn() {
     const text = input.turnText.value.trim();
     if (!text && !input.attachedFiles.value.length) return;
+    if (planModeActive.value) {
+      store.dismissLatestSelectedPlanPrompt();
+    }
     const files = [...input.attachedFiles.value];
     const remoteFiles = files.filter((file) => !file.isImage);
     const attachedImages = files.filter((file) => file.isImage);
     const collaborationMode = planCollaborationMode();
     input.clearDraft();
-    planModeActive.value = false;
     await store.sendTurn(
       messageWithFileReferences(text, remoteFiles, input.fileReferencesLabel.value),
       {
@@ -73,18 +74,19 @@ export function useComposerTurnSubmit(input: {
   }
 
   function planCollaborationMode() {
-    if (!planModeActive.value || !input.activeModel.value) {
+    if (!input.activeModel.value) {
       return undefined;
     }
+    const mode = planModeActive.value ? "plan" : "default";
     return {
-      mode: "plan" as const,
+      mode,
       settings: {
         model: input.activeModel.value,
         reasoningEffort:
           input.selectedEffort.value === "default" ? null : input.selectedEffort.value,
         developerInstructions: null,
       },
-    };
+    } as const;
   }
 
   return {

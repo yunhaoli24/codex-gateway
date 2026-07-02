@@ -9,6 +9,7 @@ import type {
   ComposerTurnOptions,
   TerminalOpenTarget,
   TerminalSessionSnapshot,
+  ThreadGoal,
   ThreadRuntimeStatus,
   ThreadSettingsState,
   ThreadTokenUsageState,
@@ -114,6 +115,10 @@ export interface GatewayStoreState {
     { turnId: string; itemId: string; processId: string }
   >;
   threadSettingsByKey: Record<string, ThreadSettingsState>;
+  threadCollaborationModesByKey: Record<string, "default" | "plan">;
+  dismissedPlanPromptIdsByKey: Record<string, Record<string, true>>;
+  threadGoalsByKey: Record<string, ThreadGoal>;
+  threadGoalObservedAtByKey: Record<string, number>;
   threadTokenUsageByKey: Record<string, ThreadTokenUsageState>;
   composerDraftsByKey: Record<string, ComposerDraft>;
   submittedTurnRequestsByKey: Record<string, SubmittedTurnRequestState>;
@@ -164,6 +169,9 @@ export interface GatewayStoreContext {
   selectedThreadStatus: ThreadRuntimeStatus;
   defaultModel: ModelRecord | null;
   selectedThreadSettings: ThreadSettingsState;
+  selectedThreadCollaborationMode: "default" | "plan";
+  selectedThreadGoal: ThreadGoal | null;
+  selectedThreadGoalObservedAt: number | null;
   selectedThreadTokenUsage: ThreadTokenUsageState | null;
   selectedComposerDraft: ComposerDraft;
   activeWorkspaceTab: WorkspaceTabState;

@@ -139,6 +139,10 @@ function fileChangeDiffSignature(item: any) {
       :can-open-terminal="canOpenTerminal"
       @load-older="loadOlderTurns"
       @open-terminal="openCurrentTerminal"
-    />
+    >
+      <template #mobile-header-start>
+        <slot name="mobile-header-start" />
+      </template>
+    </WorkspaceTabs>
   </section>
 </template>

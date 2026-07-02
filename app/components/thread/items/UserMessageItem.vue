@@ -44,11 +44,11 @@ function imageSource(image: { type: string; url: string; path: string }) {
 </script>
 
 <template>
-  <div class="flex justify-end">
+  <div class="flex min-w-0 justify-end">
     <div
       v-if="variant === 'steer'"
       data-testid="steered-conversation-item"
-      class="max-w-3xl space-y-3 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 text-[0.9375rem] leading-7 text-ink"
+      class="thread-user-message min-w-0 max-w-full space-y-3 overflow-hidden rounded-xl border border-primary/20 bg-primary/5 px-4 py-4 text-[0.9375rem] leading-7 text-ink md:max-w-3xl md:px-5"
     >
       <div class="flex items-center gap-2 text-sm font-medium text-primary">
         <Badge variant="outline" class="border-primary/30 bg-surface/60 text-primary">{{
@@ -69,7 +69,7 @@ function imageSource(image: { type: string; url: string; path: string }) {
     </div>
     <div
       v-else
-      class="max-w-3xl space-y-3 rounded-2xl bg-canvas-soft px-5 py-4 text-[0.9375rem] leading-7 text-ink"
+      class="thread-user-message min-w-0 max-w-full space-y-3 overflow-hidden rounded-2xl bg-canvas-soft px-4 py-4 text-[0.9375rem] leading-7 text-ink md:max-w-3xl md:px-5"
     >
       <div v-if="imageParts.length" class="grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
         <template v-for="image in imageParts" :key="image.id">
@@ -85,3 +85,13 @@ function imageSource(image: { type: string; url: string; path: string }) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.thread-user-message :deep(.markdown-content),
+.thread-user-message :deep(.markdown-content p),
+.thread-user-message :deep(.markdown-content li),
+.thread-user-message :deep(.markdown-content code),
+.thread-user-message :deep(.markdown-content a) {
+  overflow-wrap: anywhere;
+}
+</style>

@@ -74,6 +74,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         await ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.connectEvents();
+        void refreshGoalAfterOpen(ctx, targetHostId, threadId);
         ctx.requestScrollToLatest();
         return;
       }
@@ -84,6 +85,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         await ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         ctx.connectEvents();
+        void refreshGoalAfterOpen(ctx, targetHostId, threadId);
         ctx.requestScrollToLatest();
         return;
       }
@@ -274,6 +276,7 @@ async function syncOpenThreadFromServer(
     ctx.cacheSelectedThreadSnapshot();
     await ctx.rememberOpenThread(input.threadId);
     ctx.syncSelectedRoute({ replace: input.replaceRoute });
+    void refreshGoalAfterOpen(ctx, input.hostId, input.threadId);
     ctx.requestScrollToLatest();
   } catch (error: any) {
     ctx.setError(messageFromError(error, ctx.t("app.openThreadFailed"), ctx.errorLabels), {
@@ -285,5 +288,19 @@ async function syncOpenThreadFromServer(
     if (input.showLoading) {
       ctx.state.loading = false;
     }
+  }
+}
+
+async function refreshGoalAfterOpen(ctx: GatewayStoreContext, hostId: number, threadId: string) {
+  try {
+    if (ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId) {
+      await ctx.refreshSelectedThreadGoal();
+    }
+  } catch (error: any) {
+    ctx.setError(messageFromError(error, ctx.t("app.refreshThreadGoalFailed"), ctx.errorLabels), {
+      hostId,
+      threadId,
+      projectId: ctx.state.selectedProjectId,
+    });
   }
 }

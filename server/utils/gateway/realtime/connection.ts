@@ -2,6 +2,7 @@ import type { RealtimeClientMessage } from "~~/shared/types";
 import { authenticatePeer } from "./handlers/auth";
 import { subscribeHostLifecycle, unsubscribeHostLifecycle } from "./handlers/host-lifecycle";
 import { activateThread, subscribeThread, unsubscribeThread } from "./handlers/thread-events";
+import { clearThreadGoal, getThreadGoal, setThreadGoal } from "./handlers/thread-goals";
 import {
   closeTerminal,
   listTerminals,
@@ -38,6 +39,9 @@ const authenticatedHandlers: RealtimeMessageHandlerRegistry = {
   "thread.activate": activateThread,
   "thread.subscribe": subscribeThread,
   "thread.unsubscribe": unsubscribeThread,
+  "thread.goal.set": setThreadGoal,
+  "thread.goal.get": getThreadGoal,
+  "thread.goal.clear": clearThreadGoal,
   "turn.start": startTurn,
   "turn.steer": steerTurn,
   "turn.interrupt": interruptTurn,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ScrollArea } from "@/components/ui/scroll-area";
 import ThreadRow from "./ThreadRow.vue";
 import { formatRelative, pinnedThreadId, pinnedThreadKey } from "./sidebar-utils";
 
@@ -36,29 +37,31 @@ function isSelectedPinnedThread(thread: any) {
 </script>
 
 <template>
-  <section v-if="threads.length">
+  <section v-if="threads.length" class="flex min-h-0 flex-col">
     <div class="px-2 pb-2 text-sm text-ink-muted">{{ $t("app.pinned") }}</div>
-    <div class="space-y-1">
-      <ThreadRow
-        v-for="thread in threads"
-        :key="pinnedThreadKey(thread)"
-        :thread="thread"
-        :test-id="`pinned-thread-button-${pinnedThreadId(thread)}`"
-        :selected="isSelectedPinnedThread(thread)"
-        :status="runtimeStatus(thread)"
-        :subtitle="subtitleForPinnedThread(thread) || formatRelative(thread.updatedAt)"
-        :rename-active="renamingThreadId === pinnedThreadId(thread)"
-        :rename-value="renameValue"
-        :pin-label="$t('app.unpinThread')"
-        :long-press-handlers="longPressHandlers"
-        show-pinned-icon
-        @open="emit('open', thread)"
-        @toggle-pin="emit('unpin', thread)"
-        @rename="emit('rename', thread)"
-        @submit-rename="emit('submitRename')"
-        @rename-keydown="emit('renameKeydown', $event)"
-        @update:rename-value="emit('update:renameValue', $event)"
-      />
-    </div>
+    <ScrollArea class="min-h-0 flex-1">
+      <div class="space-y-1 pr-1">
+        <ThreadRow
+          v-for="thread in threads"
+          :key="pinnedThreadKey(thread)"
+          :thread="thread"
+          :test-id="`pinned-thread-button-${pinnedThreadId(thread)}`"
+          :selected="isSelectedPinnedThread(thread)"
+          :status="runtimeStatus(thread)"
+          :subtitle="subtitleForPinnedThread(thread) || formatRelative(thread.updatedAt)"
+          :rename-active="renamingThreadId === pinnedThreadId(thread)"
+          :rename-value="renameValue"
+          :pin-label="$t('app.unpinThread')"
+          :long-press-handlers="longPressHandlers"
+          show-pinned-icon
+          @open="emit('open', thread)"
+          @toggle-pin="emit('unpin', thread)"
+          @rename="emit('rename', thread)"
+          @submit-rename="emit('submitRename')"
+          @rename-keydown="emit('renameKeydown', $event)"
+          @update:rename-value="emit('update:renameValue', $event)"
+        />
+      </div>
+    </ScrollArea>
   </section>
 </template>

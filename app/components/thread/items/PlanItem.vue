@@ -3,8 +3,13 @@ import { ListChecksIcon } from "@lucide/vue";
 import { computed } from "vue";
 import MarkdownContent from "@/components/common/MarkdownContent.vue";
 import { threadItemText } from "@/utils/thread-items";
+import PlanImplementationActions from "./PlanImplementationActions.vue";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+  threadId: string | null;
+}>();
 const text = computed(() => threadItemText(props.item));
 </script>
 
@@ -15,5 +20,6 @@ const text = computed(() => threadItemText(props.item));
       <span>Plan</span>
     </div>
     <MarkdownContent :content="text" />
+    <PlanImplementationActions :item="item" :host-id="hostId" :thread-id="threadId" />
   </div>
 </template>

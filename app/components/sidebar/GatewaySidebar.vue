@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import SettingsPanel from "@/components/settings/SettingsPanel.vue";
 import { useLongPressContextMenu } from "@/composables/useLongPressContextMenu";
 import { useGatewayStore } from "@/stores/gateway";
@@ -49,55 +48,59 @@ function openEditProject(project: any) {
     v-bind="$attrs"
     class="relative flex min-h-0 flex-col border-r border-hairline bg-canvas-soft"
   >
-    <ScrollArea class="min-h-0 flex-1 px-3">
-      <div class="space-y-5 py-4">
-        <PinnedThreadList
-          :threads="sidebarTree.pinnedThreads.value"
-          :hosts="sidebarTree.hosts.value"
-          :selected-host-id="sidebarTree.selectedHostId.value"
-          :selected-thread-id="sidebarTree.selectedThreadId.value"
-          :renaming-thread-id="threadRename.renamingThreadId.value"
-          :rename-value="threadRename.renameValue.value"
-          :long-press-handlers="longPressContextMenuHandlers"
-          :runtime-status="sidebarTree.pinnedRuntimeStatus"
-          @open="sidebarTree.openPinnedThread"
-          @unpin="store.setPinnedThread($event, false)"
-          @rename="threadRename.startInlineRename"
-          @submit-rename="threadRename.submitRename"
-          @rename-keydown="threadRename.handleRenameKeydown"
-          @update:rename-value="threadRename.renameValue.value = $event"
-        />
+    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-3 py-4">
+      <PinnedThreadList
+        :threads="sidebarTree.pinnedThreads.value"
+        :hosts="sidebarTree.hosts.value"
+        :selected-host-id="sidebarTree.selectedHostId.value"
+        :selected-thread-id="sidebarTree.selectedThreadId.value"
+        :renaming-thread-id="threadRename.renamingThreadId.value"
+        :rename-value="threadRename.renameValue.value"
+        :long-press-handlers="longPressContextMenuHandlers"
+        :runtime-status="sidebarTree.pinnedRuntimeStatus"
+        class="min-h-0 max-h-[50%] shrink overflow-hidden"
+        @open="sidebarTree.openPinnedThread"
+        @unpin="store.setPinnedThread($event, false)"
+        @rename="threadRename.startInlineRename"
+        @submit-rename="threadRename.submitRename"
+        @rename-keydown="threadRename.handleRenameKeydown"
+        @update:rename-value="threadRename.renameValue.value = $event"
+      />
 
-        <HostTree
-          :hosts="sidebarTree.hosts.value"
-          :projects-by-host="sidebarTree.projectsByHost.value"
-          :project-threads="sidebarTree.projectThreads.value"
-          :expanded-host-ids="sidebarTree.expandedHostIds.value"
-          :expanded-project-ids="sidebarTree.expandedProjectIds.value"
-          :selected-host-id="sidebarTree.selectedHostId.value"
-          :selected-project-id="sidebarTree.selectedProjectId.value"
-          :selected-thread-id="sidebarTree.selectedThreadId.value"
-          :host-connection-statuses="sidebarTree.hostConnectionStatuses.value"
-          :renaming-thread-id="threadRename.renamingThreadId.value"
-          :rename-value="threadRename.renameValue.value"
-          :long-press-handlers="longPressContextMenuHandlers"
-          :thread-runtime-status="sidebarTree.threadRuntimeStatus"
-          @select-host="sidebarTree.selectHost"
-          @add-project="openAddProject"
-          @delete-host="store.deleteHost"
-          @select-project="sidebarTree.selectProject"
-          @edit-project="openEditProject"
-          @delete-project="store.deleteProject"
-          @start-thread-in-project="sidebarTree.startThreadInProject"
-          @open-thread="sidebarTree.openThread"
-          @toggle-thread-pin="store.setThreadPinned"
-          @rename="threadRename.startInlineRename"
-          @submit-rename="threadRename.submitRename"
-          @rename-keydown="threadRename.handleRenameKeydown"
-          @update:rename-value="threadRename.renameValue.value = $event"
-        />
-      </div>
-    </ScrollArea>
+      <HostTree
+        :hosts="sidebarTree.hosts.value"
+        :projects-by-host="sidebarTree.projectsByHost.value"
+        :project-threads="sidebarTree.projectThreads.value"
+        :expanded-host-ids="sidebarTree.expandedHostIds.value"
+        :expanded-project-ids="sidebarTree.expandedProjectIds.value"
+        :selected-host-id="sidebarTree.selectedHostId.value"
+        :selected-project-id="sidebarTree.selectedProjectId.value"
+        :selected-thread-id="sidebarTree.selectedThreadId.value"
+        :host-connection-statuses="sidebarTree.hostConnectionStatuses.value"
+        :renaming-thread-id="threadRename.renamingThreadId.value"
+        :rename-value="threadRename.renameValue.value"
+        :long-press-handlers="longPressContextMenuHandlers"
+        :thread-runtime-status="sidebarTree.threadRuntimeStatus"
+        :class="
+          sidebarTree.pinnedThreads.value.length
+            ? 'min-h-0 max-h-[50%] flex-1 overflow-hidden'
+            : 'min-h-0 flex-1 overflow-hidden'
+        "
+        @select-host="sidebarTree.selectHost"
+        @add-project="openAddProject"
+        @delete-host="store.deleteHost"
+        @select-project="sidebarTree.selectProject"
+        @edit-project="openEditProject"
+        @delete-project="store.deleteProject"
+        @start-thread-in-project="sidebarTree.startThreadInProject"
+        @open-thread="sidebarTree.openThread"
+        @toggle-thread-pin="store.setThreadPinned"
+        @rename="threadRename.startInlineRename"
+        @submit-rename="threadRename.submitRename"
+        @rename-keydown="threadRename.handleRenameKeydown"
+        @update:rename-value="threadRename.renameValue.value = $event"
+      />
+    </div>
 
     <div class="shrink-0 border-t border-hairline p-3">
       <Button

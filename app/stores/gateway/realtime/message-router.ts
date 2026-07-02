@@ -34,6 +34,22 @@ const realtimeServerMessageHandlers = {
   "thread.snapshot": (_ctx, message) => {
     resolveRealtimeRequest(message);
   },
+  "thread.goal.updated": (ctx, message) => {
+    ctx.upsertThreadGoal(message.hostId, message.threadId, message.goal);
+    resolveRealtimeRequest(message);
+  },
+  "thread.goal.cleared": (ctx, message) => {
+    ctx.clearThreadGoalState(message.hostId, message.threadId);
+    resolveRealtimeRequest(message);
+  },
+  "thread.goal.snapshot": (ctx, message) => {
+    if (message.goal) {
+      ctx.upsertThreadGoal(message.hostId, message.threadId, message.goal);
+    } else {
+      ctx.clearThreadGoalState(message.hostId, message.threadId);
+    }
+    resolveRealtimeRequest(message);
+  },
   "turn.start.accepted": (_ctx, message) => {
     resolveRealtimeRequest(message);
   },

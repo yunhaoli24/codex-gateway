@@ -2,16 +2,17 @@
 import { CheckIcon, Loader2Icon, PlusIcon, SendIcon, SquareIcon } from "@lucide/vue";
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import ApprovalPolicyPicker from "@/components/chat/composer/ApprovalPolicyPicker.vue";
 import AttachmentChips from "@/components/chat/composer/AttachmentChips.vue";
+import ComposerModeStrip from "@/components/chat/composer/ComposerModeStrip.vue";
 import ContextUsageMeter from "@/components/chat/composer/ContextUsageMeter.vue";
 import ModelEffortPicker from "@/components/chat/composer/ModelEffortPicker.vue";
 import SlashCommandMenu from "@/components/chat/composer/SlashCommandMenu.vue";
 import { useAttachmentUpload } from "@/composables/useAttachmentUpload";
 import { useComposerDraft } from "@/composables/useComposerDraft";
+import { useComposerSlashActions } from "@/composables/useComposerSlashActions";
 import { useComposerTurnSubmit } from "@/composables/useComposerTurnSubmit";
 import { useSlashCommands, type SlashCommand } from "@/composables/useSlashCommands";
 import { useThreadSettingsControls } from "@/composables/useThreadSettingsControls";
@@ -26,6 +27,8 @@ const {
   selectedProjectId,
   selectedThreadId,
   selectedThreadStatus,
+  selectedThreadGoal,
+  selectedThreadGoalObservedAt,
   selectedThreadTokenUsage,
   history,
   models,
@@ -132,18 +135,22 @@ const slashCommands = computed<SlashCommand[]>(() => [
           title: t("app.slashCommandPlanTitle"),
           description: t("app.slashCommandPlanDescription"),
         },
+        {
+          id: "goal" as const,
+          command: t("app.slashCommandGoal"),
+          title: t("app.slashCommandGoalTitle"),
+          description: t("app.slashCommandGoalDescription"),
+        },
       ]
     : []),
 ]);
 
-async function runSlashCommand(command: { id: "new" | "plan" }) {
-  slashCommandsState.dismiss();
-  if (command.id === "new") {
-    await startNewThread();
-    return;
-  }
-  activatePlanMode();
-}
+const { runSlashCommand, executeInlineSlashCommand } = useComposerSlashActions({
+  text: turnText,
+  selectedThreadId,
+  startNewThread,
+  activatePlanMode,
+});
 
 const slashCommandsState = useSlashCommands({
   text: turnText,
@@ -172,7 +179,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
   if (!selectedThreadId.value) {
     return;
   }
-  void submitTurn();
+  void submitComposer();
 }
 
 function handlePrimaryAction() {
@@ -180,7 +187,15 @@ function handlePrimaryAction() {
     void interruptTurn();
     return;
   }
-  void submitTurn();
+  void submitComposer();
+}
+
+async function submitComposer() {
+  if (await executeInlineSlashCommand()) {
+    slashCommandsState.dismiss();
+    return;
+  }
+  await submitTurn();
 }
 </script>
 
@@ -206,6 +221,11 @@ function handlePrimaryAction() {
           multiple
           @change="handleAttachmentChange"
         />
+        <ComposerModeStrip
+          :plan-mode-active="planModeActive"
+          :goal="selectedThreadGoal"
+          :goal-observed-at="selectedThreadGoalObservedAt"
+        />
         <AttachmentChips :files="attachedFiles" @remove="removeAttachment" />
         <Textarea
           v-model="turnText"
@@ -219,9 +239,6 @@ function handlePrimaryAction() {
           class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 pt-1.5 sm:flex sm:flex-row sm:flex-wrap sm:justify-between sm:gap-2"
         >
           <div class="flex min-w-0 items-center gap-1 text-base text-ink-muted">
-            <Badge v-if="planModeActive" variant="outline" class="border-primary/30 text-primary">
-              {{ t("app.planModeActive") }}
-            </Badge>
             <Button
               type="button"
               variant="ghost"

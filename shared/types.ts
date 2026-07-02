@@ -69,6 +69,24 @@ export interface GatewayEvent {
 }
 
 export type ThreadRuntimeStatus = "idle" | "running" | "completed" | "failed" | "interrupted";
+export type ThreadGoalStatus =
+  | "active"
+  | "paused"
+  | "blocked"
+  | "usageLimited"
+  | "budgetLimited"
+  | "complete";
+
+export interface ThreadGoal {
+  threadId: string;
+  objective: string;
+  status: ThreadGoalStatus;
+  tokenBudget: number | null;
+  tokensUsed: number;
+  timeUsedSeconds: number;
+  createdAt: number;
+  updatedAt: number;
+}
 
 export type TerminalScope = "host" | "project" | "thread";
 
@@ -166,6 +184,27 @@ export type RealtimeClientMessage =
       turnId: string;
     }
   | {
+      type: "thread.goal.set";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      objective?: string | null;
+      status?: ThreadGoalStatus | null;
+      tokenBudget?: number | null;
+    }
+  | {
+      type: "thread.goal.clear";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+    }
+  | {
+      type: "thread.goal.get";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+    }
+  | {
       type: "serverRequest.respond";
       requestId: string;
       hostId: number;
@@ -257,6 +296,27 @@ export type RealtimeServerMessage =
       requestId: string;
       hostId: number;
       threadId: string;
+    }
+  | {
+      type: "thread.goal.updated";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      goal: ThreadGoal;
+    }
+  | {
+      type: "thread.goal.cleared";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      cleared: boolean;
+    }
+  | {
+      type: "thread.goal.snapshot";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      goal: ThreadGoal | null;
     }
   | {
       type: "serverRequest.respond.accepted";

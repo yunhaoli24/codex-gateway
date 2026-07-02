@@ -36,34 +36,33 @@ watch([selectedHostId, selectedProjectId, selectedThreadId], () => {
     data-testid="mobile-layout"
     class="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-canvas-soft text-ink"
   >
-    <header
-      class="flex min-h-14 shrink-0 items-center gap-2 border-b border-hairline bg-surface/95 px-3 pt-[env(safe-area-inset-top)] backdrop-blur"
-    >
-      <Sheet v-model:open="sidebarOpen">
-        <Button
-          data-testid="mobile-sidebar-toggle"
-          type="button"
-          variant="ghost"
-          size="icon-lg"
-          class="shrink-0 rounded-xl"
-          :aria-label="$t('app.openSidebar')"
-          @click="sidebarOpen = true"
-        >
-          <MenuIcon class="size-5" />
-        </Button>
-        <SheetContent side="left" class="w-[min(88vw,24rem)] p-0" :show-close-button="false">
-          <SheetHeader class="sr-only">
-            <SheetTitle>{{ $t("app.sidebar") }}</SheetTitle>
-            <SheetDescription>{{ $t("app.sidebarDescription") }}</SheetDescription>
-          </SheetHeader>
-          <GatewaySidebar class="h-full" />
-        </SheetContent>
-      </Sheet>
-      <div class="min-w-0 flex-1">
-        <p class="truncate text-[0.9375rem] font-semibold">{{ mobileTitle }}</p>
-        <p class="truncate text-xs text-ink-muted">Codex Gateway</p>
-      </div>
-    </header>
-    <ChatWorkspace />
+    <ChatWorkspace>
+      <template #mobile-header-start>
+        <Sheet v-model:open="sidebarOpen">
+          <Button
+            data-testid="mobile-sidebar-toggle"
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            class="shrink-0 rounded-xl"
+            :aria-label="$t('app.openSidebar')"
+            @click="sidebarOpen = true"
+          >
+            <MenuIcon class="size-5" />
+          </Button>
+          <SheetContent side="left" class="w-[min(88vw,24rem)] p-0" :show-close-button="false">
+            <SheetHeader class="sr-only">
+              <SheetTitle>{{ $t("app.sidebar") }}</SheetTitle>
+              <SheetDescription>{{ $t("app.sidebarDescription") }}</SheetDescription>
+            </SheetHeader>
+            <GatewaySidebar class="h-full" />
+          </SheetContent>
+        </Sheet>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-[0.9375rem] font-semibold">{{ mobileTitle }}</p>
+          <p class="truncate text-xs text-ink-muted">Codex Gateway</p>
+        </div>
+      </template>
+    </ChatWorkspace>
   </main>
 </template>
