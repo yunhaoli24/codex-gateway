@@ -74,7 +74,8 @@ function findFinalAgentIndex(turnItems: any[], status: unknown) {
 
 function findLastIndex<T>(list: T[], predicate: (item: T) => boolean) {
   for (let index = list.length - 1; index >= 0; index -= 1) {
-    if (predicate(list[index])) {
+    const item = list[index];
+    if (item !== undefined && predicate(item)) {
       return index;
     }
   }

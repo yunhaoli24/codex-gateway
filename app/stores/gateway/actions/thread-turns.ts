@@ -9,7 +9,6 @@ import {
   insertOptimisticSteerMessage,
 } from "../thread-turns/optimistic-history";
 import { loadOlderTurns } from "../thread-turns/older-turns";
-import { flushPendingSteers, queuePendingSteer } from "../thread-turns/pending-steers";
 import {
   clearSubmittedTurnRequest,
   maybeQueueServerOverloadedRetry,
@@ -26,59 +25,58 @@ import {
   steerActiveTurn,
 } from "../thread-turns/turn-transport";
 
+type TurnRequestResult =
+  | { type: "turn.start.accepted"; turn?: any }
+  | { type: "turn.steer.accepted"; turnId?: string };
+
 export function createThreadTurnActions(ctx: GatewayStoreContext) {
   return {
     async sendTurn(text: string, options: ComposerTurnOptions = {}) {
-      if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
+      const hostId = ctx.state.selectedHostId;
+      const threadId = ctx.state.selectedThreadId;
+      if (!hostId || !threadId) {
         return;
       }
-      const key = pinnedKey(ctx.state.selectedHostId, ctx.state.selectedThreadId);
+      const key = pinnedKey(hostId, threadId);
       const expectedSteerTurnId = activeTurnIdFromRuntimeState(
         ctx.state.history,
         ctx.state.activeTerminalProcessByThreadKey[key]?.turnId,
       );
-      const threadIsRunning = ctx.selectedThreadStatus === "running";
-      const shouldSteerActiveTurn = threadIsRunning && Boolean(expectedSteerTurnId);
-      const shouldQueueSteer = threadIsRunning && !expectedSteerTurnId;
-      const clientUserMessageId = createClientUserMessageId(threadIsRunning ? "steer" : "turn");
-      if (!threadIsRunning) {
-        ctx.setThreadRunning(ctx.state.selectedHostId, ctx.state.selectedThreadId, true);
+      const steerTurnId =
+        ctx.selectedThreadStatus === "running" && expectedSteerTurnId ? expectedSteerTurnId : null;
+      const shouldSteerActiveTurn = Boolean(steerTurnId);
+      const clientUserMessageId = createClientUserMessageId(
+        shouldSteerActiveTurn ? "steer" : "turn",
+      );
+      if (!shouldSteerActiveTurn) {
+        ctx.setThreadRunning(hostId, threadId, true);
       }
       const optimisticContent = optimisticUserContent(text, options);
-      if (shouldSteerActiveTurn) {
+      if (steerTurnId) {
         insertOptimisticSteerMessage(
           ctx,
-          ctx.state.selectedThreadId,
-          expectedSteerTurnId,
+          threadId,
+          steerTurnId,
           clientUserMessageId,
           optimisticContent,
         );
-      } else if (shouldQueueSteer) {
-        queuePendingSteer(ctx, ctx.state.selectedHostId, ctx.state.selectedThreadId, {
-          text,
-          clientUserMessageId,
-          content: optimisticContent,
-          images: options.images,
-        });
-        void ctx.flushPendingSteers(ctx.state.selectedHostId, ctx.state.selectedThreadId);
-        return;
       } else {
-        insertOptimisticNewTurnMessage(
-          ctx,
-          ctx.state.selectedThreadId,
-          clientUserMessageId,
-          optimisticContent,
-        );
+        insertOptimisticNewTurnMessage(ctx, threadId, clientUserMessageId, optimisticContent);
       }
-      const hostId = ctx.state.selectedHostId;
-      const threadId = ctx.state.selectedThreadId;
       const projectId = ctx.state.selectedProjectId;
       const cwd = ctx.selectedProject?.remotePath ?? null;
       const requestKind = shouldSteerActiveTurn ? "steer" : "start";
+      const executeTurnRequest = steerTurnId
+        ? (() => {
+            const activeSteerTurnId = steerTurnId;
+            return () =>
+              steerActiveTurn(ctx, text, clientUserMessageId, activeSteerTurnId, options);
+          })()
+        : () => startNewTurn(ctx, text, clientUserMessageId, options);
       ctx.state.loading = true;
       ctx.clearError();
       try {
-        const result = await runTurnRequestWithAutoRetry(
+        const result = await runTurnRequestWithAutoRetry<TurnRequestResult>(
           ctx,
           {
             kind: requestKind,
@@ -89,10 +87,7 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
             text,
             options,
           },
-          () =>
-            shouldSteerActiveTurn
-              ? steerActiveTurn(ctx, text, clientUserMessageId, expectedSteerTurnId!, options)
-              : startNewTurn(ctx, text, clientUserMessageId, options),
+          executeTurnRequest,
         );
         rememberSubmittedTurnRequest(ctx, {
           kind: requestKind,
@@ -103,21 +98,20 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
           text,
           options,
         });
-        if (!shouldSteerActiveTurn && result?.turn) {
+        if (result?.type === "turn.start.accepted" && result.turn) {
           const startedTurnId = result.turn?.id ? String(result.turn.id) : "";
           if (startedTurnId && !startedTurnId.startsWith("client-")) {
             ctx.setThreadStatus(hostId, threadId, "running", { turnId: startedTurnId });
           }
-          mergeStartedTurn(ctx, ctx.state.selectedThreadId, result.turn);
-          void ctx.flushPendingSteers(ctx.state.selectedHostId, ctx.state.selectedThreadId);
+          mergeStartedTurn(ctx, threadId, result.turn);
         }
-        if (result?.turn?.items?.length) {
-          mergeTurnItems(ctx, ctx.state.selectedThreadId, result.turn);
+        if (result?.type === "turn.start.accepted" && result.turn?.items?.length) {
+          mergeTurnItems(ctx, threadId, result.turn);
         }
-        if (shouldSteerActiveTurn && result?.turnId) {
+        if (result?.type === "turn.steer.accepted" && result.turnId) {
           insertOptimisticSteerMessage(
             ctx,
-            ctx.state.selectedThreadId,
+            threadId,
             result.turnId,
             clientUserMessageId,
             optimisticContent,
@@ -139,7 +133,7 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
           projectId,
           threadId,
         });
-        if (!threadIsRunning) {
+        if (!shouldSteerActiveTurn) {
           ctx.setThreadStatus(hostId, threadId, "completed");
         }
       } finally {
@@ -176,23 +170,6 @@ export function createThreadTurnActions(ctx: GatewayStoreContext) {
         threadId: input.threadId,
         selectedTransport: false,
       });
-    },
-
-    queuePendingSteer(
-      hostId: number,
-      threadId: string,
-      steer: {
-        text: string;
-        clientUserMessageId: string;
-        content: any[];
-        images: ComposerTurnOptions["images"];
-      },
-    ) {
-      queuePendingSteer(ctx, hostId, threadId, steer);
-    },
-
-    async flushPendingSteers(hostId: number, threadId: string) {
-      await flushPendingSteers(ctx, hostId, threadId);
     },
 
     async respondToServerRequest(

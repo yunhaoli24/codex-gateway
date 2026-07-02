@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from "vue";
-import { useVirtualizer } from "@tanstack/vue-virtual";
+import type { ComponentPublicInstance, HTMLAttributes } from "vue";
+import { useVirtualizer, type VirtualItem, type Virtualizer } from "@tanstack/vue-virtual";
 import { computed, onMounted, ref, watch } from "vue";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useVirtualStickToBottom } from "@/composables/useVirtualStickToBottom";
@@ -46,8 +46,11 @@ const virtualizer = useVirtualizer(
     overscan: 0,
     scrollEndThreshold: props.threshold,
     initialOffset: 0,
-    shouldAdjustScrollPositionOnItemSizeChange: (item, _delta, instance) =>
-      shouldAdjustVirtualScrollForResize(sticky.followLatest.value, item, instance),
+    shouldAdjustScrollPositionOnItemSizeChange: (
+      item: VirtualItem,
+      _delta: number,
+      instance: Virtualizer<Element, Element>,
+    ) => shouldAdjustVirtualScrollForResize(sticky.followLatest.value, item, instance),
   })),
 );
 
@@ -78,7 +81,8 @@ function handleScroll(event: Event) {
   sticky.handleScroll(event);
 }
 
-function setContentRef(element: Element | null) {
+function setContentRef(refValue: Element | ComponentPublicInstance | null) {
+  const element = refValue instanceof Element ? refValue : null;
   contentRef.value = element;
   if (!element) {
     sticky.observeElement(null);

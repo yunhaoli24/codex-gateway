@@ -40,6 +40,10 @@ export class AppServerTurnDisplayError extends GatewayDisplayError {
 
 export class UnknownGatewayDisplayError extends GatewayDisplayError {
   readonly kind = "unknown";
+
+  constructor(message: string, context: GatewayErrorContext = {}) {
+    super(message, context);
+  }
 }
 
 export const APP_SERVER_SERVER_OVERLOADED_CODE = "serverOverloaded";

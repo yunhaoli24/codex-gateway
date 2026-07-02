@@ -1,36 +1,23 @@
-import type {
-  GatewayEvent,
-  HostRecord,
-  RealtimeClientMessage,
-  RealtimeServerMessage,
-} from "~~/shared/types";
-import { randomUUID } from "node:crypto";
-import { userStore } from "../auth/users";
-import { requireRecord, threadOpenSchema } from "../http/validation";
-import { threadBroker } from "../runtime/broker";
-import { gatewayEventStore } from "../state/gateway-events";
-import { hostLifecycleBus } from "../state/host-events";
-import { hostStore } from "../state/hosts";
-import { bindGatewayUser, runWithGatewayUser } from "../state/memory";
-import { threadRuntimeEvents } from "../runtime/thread-runtime-events";
-import { respondToServerRequestFromRealtime } from "./server-request-response";
-import { interruptTurnFromRealtime } from "./turn-interrupt";
-import { startTurnFromRealtime } from "./turn-start";
-import { steerTurnFromRealtime } from "./turn-steer";
-
-export interface RealtimePeer {
-  send(message: string): void;
-  close(code?: number, reason?: string): void;
-  context: Record<string, any>;
-}
-
-interface RealtimePeerState {
-  authenticated: boolean;
-  userId: number | null;
-  authTimer?: ReturnType<typeof setTimeout>;
-  hostLifecycleUnsubscribe?: () => void;
-  threadUnsubscribers: Map<string, () => void>;
-}
+import type { RealtimeClientMessage } from "~~/shared/types";
+import { authenticatePeer } from "./handlers/auth";
+import { subscribeHostLifecycle, unsubscribeHostLifecycle } from "./handlers/host-lifecycle";
+import { activateThread, subscribeThread, unsubscribeThread } from "./handlers/thread-events";
+import {
+  closeTerminal,
+  listTerminals,
+  openTerminal,
+  resizeTerminal,
+  subscribeTerminalEvents,
+  writeTerminalInput,
+} from "./handlers/terminal";
+import {
+  interruptTurn,
+  ping,
+  respondToServerRequest,
+  startTurn,
+  steerTurn,
+} from "./handlers/turns";
+import { runPeerScoped, sendRealtimePeerMessage, stateFor, type RealtimePeer } from "./peer-state";
 
 type RealtimeMessageHandler<T extends RealtimeClientMessage["type"]> = (
   peer: RealtimePeer,
@@ -41,11 +28,11 @@ type RealtimeMessageHandlerRegistry = {
   [K in RealtimeClientMessage["type"]]?: RealtimeMessageHandler<K>;
 };
 
-const publicHandlers = {
+const publicHandlers: RealtimeMessageHandlerRegistry = {
   "auth.authenticate": authenticatePeer,
-} satisfies RealtimeMessageHandlerRegistry;
+};
 
-const authenticatedHandlers = {
+const authenticatedHandlers: RealtimeMessageHandlerRegistry = {
   "host.lifecycle.subscribe": subscribeHostLifecycle,
   "host.lifecycle.unsubscribe": unsubscribeHostLifecycle,
   "thread.activate": activateThread,
@@ -55,14 +42,22 @@ const authenticatedHandlers = {
   "turn.steer": steerTurn,
   "turn.interrupt": interruptTurn,
   "serverRequest.respond": respondToServerRequest,
-  ping: ping,
-} satisfies RealtimeMessageHandlerRegistry;
+  "terminal.open": openTerminal,
+  "terminal.list": listTerminals,
+  "terminal.input": writeTerminalInput,
+  "terminal.resize": resizeTerminal,
+  "terminal.close": closeTerminal,
+  ping,
+};
 
 export function openRealtimePeer(peer: RealtimePeer) {
   const state = stateFor(peer);
   state.authTimer = setTimeout(() => {
     if (!state.authenticated) {
-      send(peer, { type: "error", message: "Realtime authentication timed out" });
+      sendRealtimePeerMessage(peer, {
+        type: "error",
+        message: "Realtime authentication timed out",
+      });
       peer.close(1008, "Authentication required");
     }
   }, 10_000);
@@ -72,10 +67,14 @@ export async function handleRealtimePeerMessage(peer: RealtimePeer, rawMessage: 
   let request: RealtimeClientMessage | undefined;
   try {
     request = parseClientMessage(rawMessage);
+    const wasAuthenticated = stateFor(peer).authenticated;
     const handler = handlerFor(peer, request);
     await handler(peer, request as never);
+    if (!wasAuthenticated && request.type === "auth.authenticate") {
+      subscribeTerminalEvents(peer);
+    }
   } catch (error: any) {
-    send(peer, {
+    sendRealtimePeerMessage(peer, {
       type: "error",
       message: error?.message || "Realtime message failed",
       requestId: request && "requestId" in request ? request.requestId : undefined,
@@ -94,6 +93,8 @@ export function cleanupRealtimePeer(peer: RealtimePeer) {
   }
   state.hostLifecycleUnsubscribe?.();
   state.hostLifecycleUnsubscribe = undefined;
+  state.terminalUnsubscribe?.();
+  state.terminalUnsubscribe = undefined;
   for (const unsubscribe of state.threadUnsubscribers.values()) {
     unsubscribe();
   }
@@ -122,20 +123,12 @@ function scopedHandler(peer: RealtimePeer, handler: RealtimeMessageHandler<any>)
 }
 
 function unauthenticatedHandler(peer: RealtimePeer, request: RealtimeClientMessage) {
-  send(peer, {
+  sendRealtimePeerMessage(peer, {
     type: "error",
     message: "Realtime connection is not authenticated",
     request,
   });
   peer.close(1008, "Authentication required");
-}
-
-function threadTopicKey(hostId: number, threadId: string) {
-  return `${hostId}:${threadId}`;
-}
-
-function send(peer: RealtimePeer, message: RealtimeServerMessage) {
-  peer.send(JSON.stringify(message));
 }
 
 function parseClientMessage(raw: string): RealtimeClientMessage {
@@ -146,239 +139,13 @@ function parseClientMessage(raw: string): RealtimeClientMessage {
   return parsed;
 }
 
-function stateFor(peer: RealtimePeer) {
-  let state = peer.context.realtime as RealtimePeerState | undefined;
-  if (!state) {
-    state = { authenticated: false, userId: null, threadUnsubscribers: new Map() };
-    peer.context.realtime = state;
-  }
-  return state;
-}
-
-function runPeerScoped<T>(peer: RealtimePeer, callback: () => T): T {
-  const userId = stateFor(peer).userId;
-  if (!userId) {
-    throw new Error("Realtime connection is not authenticated");
-  }
-  return runWithGatewayUser(userId, callback);
-}
-
-function authenticatePeer(
-  peer: RealtimePeer,
-  request: Extract<RealtimeClientMessage, { type: "auth.authenticate" }>,
-) {
-  const current = stateFor(peer);
-  if (current.authenticated) {
-    throw new Error("Realtime connection is already authenticated");
-  }
-  const user = userStore.authenticateToken(String(request.token || ""));
-  if (!user) {
-    throw new Error("Missing or invalid bearer token");
-  }
-  if (current.authTimer) {
-    clearTimeout(current.authTimer);
-  }
-  peer.context.realtime = {
-    authenticated: true,
-    userId: user.id,
-    threadUnsubscribers: new Map(),
-  } satisfies RealtimePeerState;
-  send(peer, { type: "ready", connectionId: randomUUID() });
-}
-
-async function subscribeThread(
-  peer: RealtimePeer,
-  message: Extract<RealtimeClientMessage, { type: "thread.subscribe" }>,
-) {
-  const hostId = Number(message.hostId);
-  const threadId = String(message.threadId || "");
-  if (!Number.isInteger(hostId) || hostId <= 0 || !threadId) {
-    throw new Error("Invalid thread subscription");
-  }
-
-  const state = stateFor(peer);
-  const key = threadTopicKey(hostId, threadId);
-  state.threadUnsubscribers.get(key)?.();
-
-  const host = requireRecord(hostStore.getWithSecret(hostId), "Host not found");
-  const afterId = Number(message.afterId || 0);
-  subscribeThreadEvents(peer, host, threadId, afterId);
-}
-
-async function activateThread(
-  peer: RealtimePeer,
-  message: Extract<RealtimeClientMessage, { type: "thread.activate" }>,
-) {
-  const input = threadOpenSchema.parse(message);
-
-  const host = requireRecord(hostStore.getWithSecret(input.hostId), "Host not found");
-  const result = await threadBroker.openThread(
-    host,
-    input.threadId,
-    input.projectId ?? null,
-    input.limit,
-  );
-  const lastEventId = gatewayEventStore.latestId(input.hostId, input.threadId);
-  send(peer, {
-    type: "thread.snapshot",
-    requestId: message.requestId,
-    hostId: input.hostId,
-    threadId: input.threadId,
-    lastEventId,
-    ...result,
-  });
-  subscribeThreadEvents(peer, host, input.threadId, lastEventId);
-}
-
-function subscribeThreadEvents(
-  peer: RealtimePeer,
-  host: HostRecord,
-  threadId: string,
-  afterId: number,
-) {
-  const hostId = host.id;
-  const state = stateFor(peer);
-  const key = threadTopicKey(hostId, threadId);
-  state.threadUnsubscribers.get(key)?.();
-  const sentEventIds = new Set<number>();
-  const sendOnce = (event: GatewayEvent) => {
-    if (event.id <= afterId || sentEventIds.has(event.id)) {
-      return;
-    }
-    sentEventIds.add(event.id);
-    send(peer, { type: "thread.event", event });
-  };
-
-  let replaying = true;
-  const liveQueue: GatewayEvent[] = [];
-  const unsubscribe = threadRuntimeEvents.subscribe(
-    hostId,
-    threadId,
-    bindGatewayUser((event) => {
-      if (replaying) {
-        liveQueue.push(event);
-        return;
-      }
-      sendOnce(event);
-    }),
-  );
-  state.threadUnsubscribers.set(key, unsubscribe);
-
-  void runPeerScoped(peer, () =>
-    threadBroker.ensureUpstreamSubscribed(host, threadId).catch((error: any) => {
-      threadRuntimeEvents.record(hostId, threadId, "gateway/error", {
-        method: "gateway/error",
-        params: {
-          message: error?.message || "Failed to subscribe thread upstream",
-        },
-      });
-    }),
-  );
-
-  for (const event of gatewayEventStore.list(hostId, threadId, afterId, 200)) {
-    sendOnce(event);
-  }
-  replaying = false;
-  for (const event of liveQueue) {
-    sendOnce(event);
-  }
-  liveQueue.length = 0;
-}
-
-function unsubscribeThread(
-  peer: RealtimePeer,
-  message: Extract<RealtimeClientMessage, { type: "thread.unsubscribe" }>,
-) {
-  const hostId = Number(message.hostId);
-  const threadId = String(message.threadId || "");
-  if (!Number.isInteger(hostId) || hostId <= 0 || !threadId) {
-    return;
-  }
-  const state = stateFor(peer);
-  const key = threadTopicKey(hostId, threadId);
-  state.threadUnsubscribers.get(key)?.();
-  state.threadUnsubscribers.delete(key);
-}
-
-function subscribeHostLifecycle(peer: RealtimePeer) {
-  const state = stateFor(peer);
-  state.hostLifecycleUnsubscribe?.();
-  state.hostLifecycleUnsubscribe = hostLifecycleBus.subscribe((event) => {
-    send(peer, { type: "host.lifecycle", event });
-  });
-}
-
-function unsubscribeHostLifecycle(peer: RealtimePeer) {
-  const state = stateFor(peer);
-  state.hostLifecycleUnsubscribe?.();
-  state.hostLifecycleUnsubscribe = undefined;
-}
-
-async function startTurn(
-  peer: RealtimePeer,
-  request: Extract<RealtimeClientMessage, { type: "turn.start" }>,
-) {
-  const result = await startTurnFromRealtime(request);
-  send(peer, {
-    type: "turn.start.accepted",
-    requestId: request.requestId,
-    hostId: request.hostId,
-    threadId: request.threadId,
-    turn: result?.turn,
-  });
-}
-
-async function steerTurn(
-  peer: RealtimePeer,
-  request: Extract<RealtimeClientMessage, { type: "turn.steer" }>,
-) {
-  const result = await steerTurnFromRealtime(request);
-  send(peer, {
-    type: "turn.steer.accepted",
-    requestId: request.requestId,
-    hostId: request.hostId,
-    threadId: request.threadId,
-    turnId: result?.turnId,
-  });
-}
-
-async function interruptTurn(
-  peer: RealtimePeer,
-  request: Extract<RealtimeClientMessage, { type: "turn.interrupt" }>,
-) {
-  await interruptTurnFromRealtime(request);
-  send(peer, {
-    type: "turn.interrupt.accepted",
-    requestId: request.requestId,
-    hostId: request.hostId,
-    threadId: request.threadId,
-  });
-}
-
-async function respondToServerRequest(
-  peer: RealtimePeer,
-  request: Extract<RealtimeClientMessage, { type: "serverRequest.respond" }>,
-) {
-  await respondToServerRequestFromRealtime(request);
-  send(peer, {
-    type: "serverRequest.respond.accepted",
-    requestId: request.requestId,
-    hostId: request.hostId,
-    threadId: request.threadId,
-    serverRequestId: request.serverRequestId,
-  });
-}
-
-function ping(peer: RealtimePeer, request: Extract<RealtimeClientMessage, { type: "ping" }>) {
-  send(peer, { type: "pong", nonce: request.nonce });
-}
-
 function realtimeErrorDetails(request: RealtimeClientMessage | undefined, error: any) {
   return {
     requestType: request?.type ?? null,
     requestId: request && "requestId" in request ? request.requestId : null,
     hostId: request && "hostId" in request ? request.hostId : null,
     threadId: request && "threadId" in request ? request.threadId : null,
+    sessionId: request && "sessionId" in request ? request.sessionId : null,
     serverRequestId: request && "serverRequestId" in request ? request.serverRequestId : null,
     errorName: error?.name ?? null,
     statusCode: error?.statusCode ?? error?.cause?.statusCode ?? null,

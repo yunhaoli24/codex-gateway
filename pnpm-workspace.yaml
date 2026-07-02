@@ -3,6 +3,7 @@ allowBuilds:
   better-sqlite3: true
   cpu-features: true
   esbuild: true
+  maplibre-gl: false
   ssh2: true
   vue-demi: true
 

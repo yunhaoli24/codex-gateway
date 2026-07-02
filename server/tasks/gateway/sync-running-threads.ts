@@ -6,6 +6,6 @@ export default defineTask({
     description: "Refresh stale running Codex threads from app-server state.",
   },
   async run() {
-    return runningThreadStateSyncTask.run();
+    return { result: await runningThreadStateSyncTask.run() };
   },
 });

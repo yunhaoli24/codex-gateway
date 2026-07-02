@@ -8,5 +8,5 @@ export function shouldAdjustVirtualScrollForResize(
   if (followLatest) {
     return true;
   }
-  return item.end <= instance.getScrollOffset();
+  return item.end <= (instance.scrollOffset ?? 0);
 }

@@ -1,20 +1,23 @@
 import { readValidatedBody } from "h3";
 import { sshConnections } from "../../utils/gateway/infra/host-services";
 import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
-import { gatewayConfigSchema } from "../../utils/gateway/http/validation";
+import { parseGatewayConfig } from "../../utils/gateway/http/validation";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
 import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-supervisor";
 import { hostStore } from "../../utils/gateway/state/hosts";
+import type { StoredHostRecord } from "../../utils/gateway/state/memory";
 import { runtimeConfigStore } from "../../utils/gateway/state/runtime-config";
+import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
 
 export default defineGatewayEventHandler(async (event) => {
   const previousHosts = hostStore.listWithSecret();
-  const config = await readValidatedBody(event, (body) => gatewayConfigSchema.parse(body));
+  const config = await readValidatedBody(event, parseGatewayConfig);
   runtimeConfigStore.replace(config);
   const nextHosts = hostStore.listWithSecret();
   const hostsToClose = changedOrDeletedHosts(previousHosts, nextHosts);
   for (const host of hostsToClose) {
     threadBroker.closeHost(host.id);
+    terminalManager.closeHost(Number(host.id));
   }
   if (hostRuntimeChanged(previousHosts, nextHosts)) {
     sshConnections.syncHosts(nextHosts);
@@ -24,10 +27,7 @@ export default defineGatewayEventHandler(async (event) => {
   return runtimeConfigStore.export();
 });
 
-function changedOrDeletedHosts(
-  previousHosts: Array<Record<string, unknown>>,
-  nextHosts: Array<Record<string, unknown>>,
-) {
+function changedOrDeletedHosts(previousHosts: StoredHostRecord[], nextHosts: StoredHostRecord[]) {
   const nextById = new Map(nextHosts.map((host) => [host.id, host]));
   return previousHosts.filter((previous) => {
     const next = nextById.get(previous.id);
@@ -35,10 +35,7 @@ function changedOrDeletedHosts(
   });
 }
 
-function hostRuntimeChanged(
-  previousHosts: Array<Record<string, unknown>>,
-  nextHosts: Array<Record<string, unknown>>,
-) {
+function hostRuntimeChanged(previousHosts: StoredHostRecord[], nextHosts: StoredHostRecord[]) {
   const previousById = new Map(previousHosts.map((host) => [host.id, host]));
   const nextById = new Map(nextHosts.map((host) => [host.id, host]));
   if (previousById.size !== nextById.size) {
@@ -53,7 +50,7 @@ function hostRuntimeChanged(
   return false;
 }
 
-function hostConnectionFingerprint(host: Record<string, unknown>) {
+function hostConnectionFingerprint(host: StoredHostRecord) {
   return JSON.stringify({
     sshHost: host.sshHost,
     username: host.username,

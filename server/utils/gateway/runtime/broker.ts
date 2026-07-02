@@ -1,8 +1,8 @@
 import type { HostRecord, ThreadSettingsState } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT, SERVER_TURN_CACHE_LIMIT } from "~~/shared/config";
 import {
+  runtimeStatusFromSnapshotState,
   runtimeStatusFromThreadState,
-  runtimeStatusFromTopLevelThreadState,
 } from "~~/shared/thread-runtime-status";
 import { randomUUID } from "node:crypto";
 import type {
@@ -301,7 +301,7 @@ class ThreadBroker {
       projectId,
       limit,
     );
-    const status = runtimeStatusFromTopLevelThreadState(snapshot.thread);
+    const status = runtimeStatusFromSnapshotState(snapshot.thread, snapshot.history) ?? "completed";
     threadRuntimeEvents.record(host.id, threadId, "thread/status/changed", {
       method: "thread/status/changed",
       params: {

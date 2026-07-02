@@ -198,7 +198,7 @@ async function scheduleRetry(ctx: GatewayStoreContext, request: SubmittedTurnReq
   }
   const delay = delayForRetry(attempt);
   const key = pinnedKey(request.hostId, request.threadId);
-  const timer = globalThis.setTimeout(() => {
+  const timer = window.setTimeout(() => {
     void retryStoredTurnRequest(ctx, key);
   }, delay);
   ctx.state.submittedTurnRequestsByKey = {

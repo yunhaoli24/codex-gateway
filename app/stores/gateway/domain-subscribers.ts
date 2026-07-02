@@ -38,37 +38,31 @@ export function registerGatewayDomainSubscribers(ctx: GatewayStoreContext) {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
       mergeItemIntoLatestTurn(history, currentThread, event.threadId, event.item),
     );
-    void ctx.flushPendingSteers(event.hostId, event.threadId);
   });
   ctx.events.on("history-agent-delta", (event) => {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
       appendAgentDelta(history, currentThread, event.threadId, event.params),
     );
-    flushPendingSteers(ctx, event.hostId, event.threadId);
   });
   ctx.events.on("history-plan-delta", (event) => {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
       appendPlanDelta(history, currentThread, event.threadId, event.params),
     );
-    flushPendingSteers(ctx, event.hostId, event.threadId);
   });
   ctx.events.on("history-reasoning-summary-delta", (event) => {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
       appendReasoningSummaryDelta(history, currentThread, event.threadId, event.params),
     );
-    flushPendingSteers(ctx, event.hostId, event.threadId);
   });
   ctx.events.on("history-reasoning-text-delta", (event) => {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
       appendReasoningTextDelta(history, currentThread, event.threadId, event.params),
     );
-    flushPendingSteers(ctx, event.hostId, event.threadId);
   });
   ctx.events.on("history-item-output-delta", (event) => {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
       appendItemOutputDelta(history, currentThread, event.threadId, event.params, event.itemType),
     );
-    flushPendingSteers(ctx, event.hostId, event.threadId);
   });
   ctx.events.on("history-server-request-resolved", (event) => {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
@@ -79,23 +73,17 @@ export function registerGatewayDomainSubscribers(ctx: GatewayStoreContext) {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
       updateTurnDiff(history, currentThread, event.threadId, event.params),
     );
-    flushPendingSteers(ctx, event.hostId, event.threadId);
   });
   ctx.events.on("history-turn-appended", (event) => {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
       mergeThreadTurns(history, currentThread, event.threadId, [event.turn], "append"),
     );
-    void ctx.flushPendingSteers(event.hostId, event.threadId);
   });
   ctx.events.on("history-turn-synced", (event) => {
     updateThreadHistory(ctx, event.hostId, event.threadId, (history, currentThread) =>
       syncCompletedTurn(history, currentThread, event.threadId, event.turn),
     );
   });
-}
-
-function flushPendingSteers(ctx: GatewayStoreContext, hostId: number, threadId: string) {
-  void ctx.flushPendingSteers(hostId, threadId);
 }
 
 function updateThreadHistory(

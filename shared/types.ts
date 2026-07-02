@@ -70,6 +70,35 @@ export interface GatewayEvent {
 
 export type ThreadRuntimeStatus = "idle" | "running" | "completed" | "failed" | "interrupted";
 
+export type TerminalScope = "host" | "project" | "thread";
+
+export interface TerminalOpenTarget {
+  hostId: number;
+  projectId?: number | null;
+  threadId?: string | null;
+  cwd?: string | null;
+  title?: string | null;
+  scope: TerminalScope;
+  cols: number;
+  rows: number;
+}
+
+export interface TerminalSessionSnapshot {
+  sessionId: string;
+  hostId: number;
+  projectId: number | null;
+  threadId: string | null;
+  cwd: string | null;
+  title: string;
+  scope: TerminalScope;
+  cols: number;
+  rows: number;
+  createdAt: string;
+  lastActiveAt: string;
+  status: "open" | "closed";
+  output: string;
+}
+
 export type RealtimeClientMessage =
   | {
       type: "auth.authenticate";
@@ -149,6 +178,30 @@ export type RealtimeClientMessage =
         data?: unknown;
       };
     }
+  | ({
+      type: "terminal.open";
+      requestId: string;
+    } & TerminalOpenTarget)
+  | {
+      type: "terminal.list";
+      requestId: string;
+    }
+  | {
+      type: "terminal.input";
+      sessionId: string;
+      data: string;
+    }
+  | {
+      type: "terminal.resize";
+      sessionId: string;
+      cols: number;
+      rows: number;
+    }
+  | {
+      type: "terminal.close";
+      requestId: string;
+      sessionId: string;
+    }
   | {
       type: "ping";
       nonce?: string;
@@ -213,6 +266,45 @@ export type RealtimeServerMessage =
       serverRequestId: string | number;
     }
   | {
+      type: "terminal.opened";
+      requestId: string;
+      session: TerminalSessionSnapshot;
+    }
+  | {
+      type: "terminal.snapshot";
+      requestId: string;
+      sessions: TerminalSessionSnapshot[];
+    }
+  | {
+      type: "terminal.closed";
+      requestId: string;
+      sessionId: string;
+    }
+  | {
+      type: "terminal.closed.event";
+      sessionId: string;
+    }
+  | {
+      type: "terminal.output";
+      sessionId: string;
+      data: string;
+      seq: number;
+      createdAt: string;
+    }
+  | {
+      type: "terminal.exited";
+      sessionId: string;
+      code: number | null;
+      signal: string | null;
+      createdAt: string;
+    }
+  | {
+      type: "terminal.error";
+      sessionId?: string;
+      message: string;
+      requestId?: string;
+    }
+  | {
       type: "error";
       message: string;
       requestId?: string;
@@ -226,8 +318,10 @@ export type RealtimeServerMessage =
     };
 
 export interface ThreadOpenResult {
+  hostId: number;
   thread: unknown;
   history: unknown;
+  lastEventId: number;
   runtimeStatus?: ThreadRuntimeStatus | null;
   threadSettings?: ThreadSettingsState | null;
   tokenUsage?: ThreadTokenUsageState | null;

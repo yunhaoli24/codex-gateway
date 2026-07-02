@@ -81,7 +81,7 @@ export async function rememberOpenThread(ctx: GatewayStoreContext, threadId: str
     ...nextLastOpenThread,
   };
   ctx.persistConfig();
-  void ctx.syncConfigToServer().catch((error) => {
+  void ctx.syncConfigToServer().catch((error: unknown) => {
     console.warn("[gateway] failed to persist last open thread", error);
   });
 }

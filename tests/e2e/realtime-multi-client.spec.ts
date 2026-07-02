@@ -247,15 +247,15 @@ async function closeRealtimeSockets(page: Page) {
 async function installRealtimeSocketProbe(page: Page) {
   await page.addInitScript(() => {
     const OriginalWebSocket = window.WebSocket;
-    const sockets = new Set<WebSocket>();
+    const sockets = new Set<any>();
     const messages: any[] = [];
     class TrackedWebSocket extends OriginalWebSocket {
       constructor(url: string | URL, protocols?: string | string[]) {
         super(url, protocols);
         const rawUrl = String(url);
         if (rawUrl.endsWith("/api/realtime")) {
-          sockets.add(this);
-          this.addEventListener("close", () => sockets.delete(this));
+          sockets.add(this as any);
+          (this as any).addEventListener("close", () => sockets.delete(this as any));
         }
       }
 
@@ -270,10 +270,10 @@ async function installRealtimeSocketProbe(page: Page) {
             // Non-JSON WebSocket frames are not gateway protocol messages.
           }
         }
-        return super.send(data);
+        return super.send(data as any);
       }
     }
-    window.WebSocket = TrackedWebSocket;
+    window.WebSocket = TrackedWebSocket as typeof WebSocket;
     (window as any).__closeGatewayRealtimeSockets = () => {
       for (const socket of sockets) {
         socket.close();

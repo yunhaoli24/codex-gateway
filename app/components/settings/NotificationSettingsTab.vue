@@ -16,6 +16,12 @@ const errorLabels = computed(() => errorMessageLabels(t));
 const saving = ref(false);
 const error = ref("");
 const form = ref<GatewayNotificationSettings>(normalizeNotificationSettings());
+const barkGroup = computed({
+  get: () => form.value.bark.group ?? "",
+  set: (value: string | number) => {
+    form.value.bark.group = String(value).trim() || null;
+  },
+});
 
 watch(
   () => store.gatewayConfig.notifications,
@@ -89,7 +95,7 @@ async function saveSettings() {
         <Label for="bark-group">{{ t("app.barkGroup") }}</Label>
         <Input
           id="bark-group"
-          v-model="form.bark.group"
+          v-model="barkGroup"
           autocomplete="off"
           :placeholder="t('app.barkGroupPlaceholder')"
         />

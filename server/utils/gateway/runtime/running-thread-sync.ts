@@ -1,6 +1,6 @@
 import type { HostRecord } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
-import { runtimeStatusFromThreadState } from "~~/shared/thread-runtime-status";
+import { runtimeStatusFromSnapshotState } from "~~/shared/thread-runtime-status";
 import { gatewayEventStore } from "../state/gateway-events";
 import { threadSnapshotStore } from "../state/thread-snapshots";
 import { threadBroker } from "./broker";
@@ -71,14 +71,12 @@ function runningThreadCandidates(hostId: number, options: { staleOnly: boolean; 
   return threadSnapshotStore
     .listForHost(hostId)
     .map((record) => {
-      const recentEvents = gatewayEventStore.list(hostId, record.threadId, 0, 500);
       return {
         threadId: record.threadId,
         projectId: record.snapshot.projectId ?? null,
-        runtimeStatus: runtimeStatusFromThreadState(
+        runtimeStatus: runtimeStatusFromSnapshotState(
           record.snapshot.thread,
           record.snapshot.history,
-          recentEvents,
         ),
         latestActivityAt: latestActivityAt(hostId, record.threadId, record.updatedAt),
       };

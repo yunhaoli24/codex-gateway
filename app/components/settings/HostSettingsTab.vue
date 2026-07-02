@@ -21,7 +21,7 @@ const defaultHostForm = () => ({
   name: "",
   sshHost: "",
   username: "",
-  port: null as number | null,
+  port: "",
   authMode: "agent",
   privateKeyPath: "",
   privateKey: "",

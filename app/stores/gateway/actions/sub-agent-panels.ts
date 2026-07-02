@@ -53,6 +53,9 @@ export function createSubAgentPanelActions(ctx: GatewayStoreContext) {
       }
 
       const closing = ctx.state.subAgentPanels[closingIndex];
+      if (!closing) {
+        return;
+      }
       const nextPanels = ctx.state.subAgentPanels.filter((item) => panelKey(item) !== key);
       ctx.state.subAgentPanels = nextPanels;
       closeThreadPreview(ctx, closing.hostId, closing.threadId);

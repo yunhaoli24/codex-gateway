@@ -1,5 +1,5 @@
 import { defineEventHandler, getRequestURL, setResponseStatus, type H3Event } from "h3";
-import type { HostRecord } from "~~/shared/types";
+import type { GatewayConfig, HostRecord } from "~~/shared/types";
 import { normalizeNotificationSettings } from "~~/shared/config";
 import { userStore } from "../auth/users";
 import { hostRuntimeSupervisor } from "../runtime/host-runtime-supervisor";
@@ -88,7 +88,7 @@ export function saveCurrentUserConfig(event: H3Event) {
   userStore.saveConfig(user.id, runtimeConfigFromMemory());
 }
 
-export function runtimeConfigFromMemory() {
+export function runtimeConfigFromMemory(): GatewayConfig {
   const state = currentGatewayMemoryState();
   return {
     version: 1,

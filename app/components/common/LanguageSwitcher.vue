@@ -9,7 +9,7 @@ import {
 
 const { locale, setLocale } = useI18n();
 
-async function switchLanguage(value: string | null) {
+async function switchLanguage(value: unknown) {
   if (value === "zh" || value === "en") {
     await setLocale(value);
   }

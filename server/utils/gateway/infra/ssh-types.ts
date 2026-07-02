@@ -8,6 +8,12 @@ export interface CommandResult {
   stderr: string;
 }
 
+export interface ShellOptions {
+  term: string;
+  cols: number;
+  rows: number;
+}
+
 export interface ReverseTcpForwardOptions {
   remoteHost: string;
   remotePort: number;

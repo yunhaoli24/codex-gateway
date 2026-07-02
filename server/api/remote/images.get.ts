@@ -1,5 +1,5 @@
 import { extname } from "node:path";
-import { createError, getValidatedQuery, setHeader } from "h3";
+import { createError, getValidatedQuery, setResponseHeader } from "h3";
 import { remoteFiles } from "../../utils/gateway/infra/host-services";
 import { defineGatewayEventHandler } from "../../utils/gateway/http/errors";
 import { remoteImageSchema, requireRecord } from "../../utils/gateway/http/validation";
@@ -29,10 +29,10 @@ export default defineGatewayEventHandler(async (event) => {
     const file = await remoteFiles.readRemoteFile(host, query.path, {
       maxSize: MAX_REMOTE_IMAGE_BYTES,
     });
-    setHeader(event, "content-type", mimeType);
-    setHeader(event, "content-length", String(file.size));
-    setHeader(event, "cache-control", "private, max-age=60");
-    setHeader(event, "x-content-type-options", "nosniff");
+    setResponseHeader(event, "content-type", mimeType);
+    setResponseHeader(event, "content-length", file.size);
+    setResponseHeader(event, "cache-control", "private, max-age=60");
+    setResponseHeader(event, "x-content-type-options", "nosniff");
     return file.data;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -43,6 +43,9 @@ export function createHostActions(ctx: GatewayStoreContext) {
       for (const key of Object.keys(ctx.state.realtimeThreadSubscriptions)) {
         if (key.startsWith(`${hostId}:`)) {
           const subscription = ctx.state.realtimeThreadSubscriptions[key];
+          if (!subscription) {
+            continue;
+          }
           ctx.sendRealtime({
             type: "thread.unsubscribe",
             hostId: subscription.hostId,

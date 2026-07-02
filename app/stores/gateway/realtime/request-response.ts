@@ -7,7 +7,7 @@ type RealtimeResponseMessage = Extract<RealtimeServerMessage, { requestId: strin
 interface PendingRealtimeRequest<T = unknown> {
   resolve: (value: T) => void;
   reject: (error: Error) => void;
-  timer: ReturnType<typeof window.setTimeout>;
+  timer: number;
   request: RealtimeRequestMessage;
 }
 

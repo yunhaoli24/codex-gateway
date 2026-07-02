@@ -26,6 +26,13 @@ export function runtimeStatusFromTopLevelThreadState(thread: unknown): ThreadRun
   return runtimeStatusFromAppThreadStatus(topLevelThreadStatus(thread) ?? { type: "idle" });
 }
 
+export function runtimeStatusFromSnapshotState(
+  thread: unknown,
+  history: unknown,
+): ThreadRuntimeStatus | null {
+  return runtimeStatusFromThreadSnapshot(thread, history);
+}
+
 export function terminalTurnStatus(status: any): ThreadRuntimeStatus {
   const value = statusValue(status);
   if (value === "failed") return "failed";
@@ -38,11 +45,22 @@ export function runtimeStatusFromThreadState(
   history: unknown,
   events: GatewayEvent[] = [],
 ): ThreadRuntimeStatus | null {
+  const latestTurnTerminalStatus = terminalStatusFromLatestTurn(thread, history);
+  if (latestTurnTerminalStatus) {
+    return latestTurnTerminalStatus;
+  }
   const eventStatus = runtimeStatusFromEvents(events);
   if (eventStatus) {
     return eventStatus;
   }
 
+  return runtimeStatusFromThreadSnapshot(thread, history);
+}
+
+function runtimeStatusFromThreadSnapshot(
+  thread: unknown,
+  history: unknown,
+): ThreadRuntimeStatus | null {
   const candidates: any[] = [];
   if (thread && typeof thread === "object") {
     candidates.push(thread);
@@ -62,18 +80,17 @@ export function runtimeStatusFromThreadState(
     const latestTurn = turns.at(-1);
     const latestTurnStatus = statusValue(latestTurn?.status);
     if (
-      latestTurnStatus !== "failed" &&
-      latestTurnStatus !== "interrupted" &&
-      hasActiveItems(latestTurn)
-    ) {
-      return "running";
-    }
-    if (
       latestTurnStatus === "completed" ||
       latestTurnStatus === "failed" ||
       latestTurnStatus === "interrupted"
     ) {
+      if (latestTurnStatus === "completed" && hasPostTurnActiveItems(latestTurn)) {
+        return "running";
+      }
       return terminalTurnStatus(latestTurnStatus);
+    }
+    if (hasActiveItems(latestTurn)) {
+      return "running";
     }
     if (isThreadActiveStatus(latestTurnStatus)) {
       return "running";
@@ -100,6 +117,30 @@ export function runtimeStatusFromThreadState(
   return null;
 }
 
+function terminalStatusFromLatestTurn(
+  thread: unknown,
+  history: unknown,
+): ThreadRuntimeStatus | null {
+  const turns = [
+    ...(Array.isArray((history as any)?.thread?.turns) ? (history as any).thread.turns : []),
+    ...(Array.isArray((history as any)?.turns) ? (history as any).turns : []),
+    ...(Array.isArray((thread as any)?.turns) ? (thread as any).turns : []),
+  ];
+  const latestTurnStatus = statusValue(turns.at(-1)?.status);
+  if (
+    latestTurnStatus === "completed" ||
+    latestTurnStatus === "failed" ||
+    latestTurnStatus === "interrupted"
+  ) {
+    const latestTurn = turns.at(-1);
+    if (latestTurnStatus === "completed" && hasPostTurnActiveItems(latestTurn)) {
+      return null;
+    }
+    return terminalTurnStatus(latestTurnStatus);
+  }
+  return null;
+}
+
 export function isTerminalOrIdleThreadStatus(status: any) {
   const runtimeStatus = runtimeStatusFromTopLevelThreadStatus(status);
   return Boolean(runtimeStatus && runtimeStatus !== "running");
@@ -108,6 +149,9 @@ export function isTerminalOrIdleThreadStatus(status: any) {
 function runtimeStatusFromEvents(events: GatewayEvent[]): ThreadRuntimeStatus | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
+    if (!event) {
+      continue;
+    }
     const params = (event.payload as any)?.params ?? event.payload;
     if (event.method === "turn/started") {
       return "running";
@@ -154,5 +198,17 @@ function topLevelThreadStatus(thread: unknown) {
 function hasActiveItems(turn: any) {
   return (
     Array.isArray(turn?.items) && turn.items.some((item: any) => isThreadActiveStatus(item?.status))
+  );
+}
+
+function hasPostTurnActiveItems(turn: any) {
+  return (
+    Array.isArray(turn?.items) &&
+    turn.items.some((item: any) => {
+      const type = String(item?.type ?? "");
+      return (
+        (type === "contextCompaction" || type === "sleep") && isThreadActiveStatus(item?.status)
+      );
+    })
   );
 }

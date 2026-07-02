@@ -139,6 +139,9 @@ function parseDirectoryListing(output: string) {
       continue;
     }
     const [type, name, ...pathParts] = fields;
+    if (!name) {
+      continue;
+    }
     if (type !== "directory" && type !== "file" && type !== "other") {
       continue;
     }

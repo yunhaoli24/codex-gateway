@@ -10,6 +10,7 @@ import { createProjectActions } from "./gateway/actions/projects";
 import { createThreadActions } from "./gateway/actions/threads";
 import { createRealtimeActions } from "./gateway/actions/realtime";
 import { createComposerActions } from "./gateway/actions/composer";
+import { createTerminalActions } from "./gateway/actions/terminals";
 import { createGatewayDomainEvents } from "./gateway/domain-events";
 import { registerGatewayDomainSubscribers } from "./gateway/domain-subscribers";
 
@@ -72,6 +73,12 @@ export const useGatewayStore = defineStore("gateway", () => {
         panel.parentThreadId === state.selectedThreadId,
     );
   });
+  const activeWorkspaceTab = computed(
+    () =>
+      state.workspaceTabs.find((tab) => tab.id === state.activeWorkspaceTabId) ??
+      state.workspaceTabs[0],
+  );
+  const terminalSessionSnapshots = computed(() => Object.values(state.terminalSessions));
 
   const ctx = {} as GatewayStoreContext;
   Object.assign(ctx, {
@@ -112,6 +119,12 @@ export const useGatewayStore = defineStore("gateway", () => {
       get selectedComposerDraft() {
         return selectedComposerDraft.value;
       },
+      get activeWorkspaceTab() {
+        return activeWorkspaceTab.value;
+      },
+      get terminalSessionSnapshots() {
+        return terminalSessionSnapshots.value;
+      },
     }),
   );
 
@@ -122,6 +135,7 @@ export const useGatewayStore = defineStore("gateway", () => {
     ...createThreadActions(ctx),
     ...createRealtimeActions(ctx),
     ...createComposerActions(ctx),
+    ...createTerminalActions(ctx),
   };
   Object.assign(ctx, actions);
   registerGatewayDomainSubscribers(ctx);
@@ -139,6 +153,8 @@ export const useGatewayStore = defineStore("gateway", () => {
     selectedComposerDraft,
     activeSubAgentPanel,
     visibleSubAgentPanels,
+    activeWorkspaceTab,
+    terminalSessionSnapshots,
     ...actions,
   };
 });

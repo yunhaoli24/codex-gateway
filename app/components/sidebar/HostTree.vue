@@ -29,7 +29,7 @@ const props = defineProps<{
   selectedHostId: number | null;
   selectedProjectId: number | null;
   selectedThreadId: string | null;
-  hostConnectionStatuses: Record<number, { status: string; message: string | null }>;
+  hostConnectionStatuses: Record<number, { status: string; message?: string | null }>;
   renamingThreadId: string | null;
   renameValue: string;
   longPressHandlers?: Record<string, unknown>;

@@ -24,6 +24,7 @@ export interface UiHost {
 export interface UiProject {
   id: number;
   hostId: number;
+  name: string;
   remotePath: string;
 }
 

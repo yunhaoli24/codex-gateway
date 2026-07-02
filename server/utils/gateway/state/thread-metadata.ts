@@ -14,6 +14,14 @@ export const threadMetadataStore = {
     );
   },
 
+  get(hostId: number, threadId: string) {
+    return (
+      gatewayMemoryState.threadMetadata.find(
+        (thread) => thread.hostId === hostId && thread.threadId === threadId,
+      ) ?? null
+    );
+  },
+
   record(hostId: number, projectId: number | null, thread: any) {
     const threadId = String(thread.id);
     subAgentThreadStore.recordThreadMetadata(hostId, thread);
@@ -34,15 +42,19 @@ export const threadMetadataStore = {
       (item) => item.hostId === hostId && item.threadId === threadId,
     );
     if (index >= 0) {
+      const existing = gatewayMemoryState.threadMetadata[index];
+      if (!existing) {
+        return;
+      }
       gatewayMemoryState.threadMetadata[index] = {
-        ...gatewayMemoryState.threadMetadata[index],
+        ...existing,
         ...metadata,
-        projectId: projectId ?? gatewayMemoryState.threadMetadata[index].projectId,
-        cwd: metadata.cwd ?? gatewayMemoryState.threadMetadata[index].cwd,
-        preview: metadata.preview ?? gatewayMemoryState.threadMetadata[index].preview,
-        title: metadata.title ?? gatewayMemoryState.threadMetadata[index].title,
-        name: metadata.name ?? gatewayMemoryState.threadMetadata[index].name,
-        status: metadata.status ?? gatewayMemoryState.threadMetadata[index].status,
+        projectId: projectId ?? existing.projectId,
+        cwd: metadata.cwd ?? existing.cwd,
+        preview: metadata.preview ?? existing.preview,
+        title: metadata.title ?? existing.title,
+        name: metadata.name ?? existing.name,
+        status: metadata.status ?? existing.status,
       };
     } else {
       gatewayMemoryState.threadMetadata.push(metadata);

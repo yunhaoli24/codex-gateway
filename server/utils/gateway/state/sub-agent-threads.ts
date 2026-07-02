@@ -23,9 +23,13 @@ export const subAgentThreadStore = {
       (thread) => thread.hostId === hostId && thread.threadId === normalizedThreadId,
     );
     if (index >= 0) {
+      const existing = gatewayMemoryState.subAgentThreads[index];
+      if (!existing) {
+        return;
+      }
       gatewayMemoryState.subAgentThreads[index] = {
-        ...gatewayMemoryState.subAgentThreads[index],
-        parentThreadId: parentThreadId ?? gatewayMemoryState.subAgentThreads[index].parentThreadId,
+        ...existing,
+        parentThreadId: parentThreadId ?? existing.parentThreadId,
         updatedAt,
       };
       return;

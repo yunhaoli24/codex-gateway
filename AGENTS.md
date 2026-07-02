@@ -17,15 +17,14 @@
 
 - 安装依赖：`pnpm install`
 - 本地开发：`pnpm dev`
-- 类型检查：`pnpm typecheck`
+- 类型检查：`pnpm lint`
 - 构建：`pnpm build`
 - E2E：`pnpm test:e2e`
-- 真实 turn E2E：`pnpm test:e2e:turn`
 
 ## 测试命令
 
-- 常规改动至少运行 `pnpm typecheck`。
-- 涉及 SSH、RPC、thread、实时同步、上传、配置导入导出、路由恢复、i18n 的改动，必须运行 `pnpm test:e2e`。
+- 常规改动至少运行 `pnpm lint`。
+- 涉及 SSH、RPC、thread、实时同步、上传、配置导入导出、路由恢复、i18n 的改动，必须运行 `pnpm test:e2e`,不要使用`pnpm exec playwright ..`启动宿主机测试。
 - `pnpm test:e2e` 会启动 Nuxt dev server，并通过 Docker 启动真实 SSH 测试环境；不要把 E2E 改成 mock app-server 或 fake 数据。
 - 如果 E2E 失败，先看 Playwright trace、webServer 日志和 Docker SSH 环境日志，再判断是测试环境还是代码问题。
 

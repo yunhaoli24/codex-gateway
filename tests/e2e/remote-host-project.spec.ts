@@ -53,6 +53,27 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await expect(
     page.getByTestId("project-thread-list").getByRole("heading", { name: project.name }),
   ).toBeVisible();
+  await page.getByTestId("open-terminal-button").click();
+  await expect(page.getByTestId("terminal-panel")).toBeVisible({ timeout: 30_000 });
+  await runTerminalCommand(page, "pwd");
+  await expectTerminalContains(page, remote.projectPath);
+  const terminalMarker = `codex-gateway-terminal-${Date.now()}`;
+  await runTerminalCommand(page, `echo ${terminalMarker}`);
+  await expectTerminalContains(page, terminalMarker);
+  await page.getByRole("tab", { name: /Agent/ }).click();
+  await expect(page.getByTestId("project-thread-list")).toBeVisible();
+  await page.getByRole("tab", { name: project.name }).click();
+  await expectTerminalContains(page, terminalMarker);
+  await reloadApp(page);
+  await expect(page.getByRole("tab", { name: project.name })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("tab", { name: project.name }).click();
+  await expectTerminalContains(page, terminalMarker);
+  await page
+    .getByRole("tab", { name: project.name })
+    .getByLabel(/关闭终端|Close terminal/)
+    .click();
+  await expect(page.getByRole("tab", { name: project.name })).toBeHidden();
+
   await page.getByPlaceholder("输入后续修改要求").fill("/");
   await expect(page.getByTestId("slash-command-menu")).toBeVisible();
   await expect(page.getByTestId("slash-command-new")).toBeVisible();
@@ -277,6 +298,22 @@ touch -d ${shellQuote(rfc3339)} "$rollout_path"
 `;
   await execRemoteSsh(remote, script);
   return { modelProvider, projectPath: cwd, threadId };
+}
+
+async function runTerminalCommand(page: Page, command: string) {
+  await page.getByTestId("terminal-root").click();
+  await page.keyboard.type(command);
+  await page.keyboard.press("Enter");
+}
+
+async function expectTerminalContains(page: Page, text: string) {
+  await expect
+    .poll(
+      async () =>
+        page.getByTestId("terminal-panel").evaluate((element) => element.textContent || ""),
+      { timeout: 30_000 },
+    )
+    .toContain(text);
 }
 
 function timestampForRolloutFile(date: Date) {

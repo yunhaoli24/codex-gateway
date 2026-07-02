@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Loader2Icon } from "@lucide/vue";
-import { useVirtualizer, type VirtualItem } from "@tanstack/vue-virtual";
+import { useVirtualizer, type VirtualItem, type Virtualizer } from "@tanstack/vue-virtual";
+import type { ComponentPublicInstance } from "vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -75,8 +76,11 @@ const virtualizer = useVirtualizer(
     overscan: 6,
     scrollEndThreshold: threshold,
     initialOffset: 0,
-    shouldAdjustScrollPositionOnItemSizeChange: (item, _delta, instance) =>
-      shouldAdjustVirtualScrollForResize(sticky.followLatest.value, item, instance),
+    shouldAdjustScrollPositionOnItemSizeChange: (
+      item: VirtualItem,
+      _delta: number,
+      instance: Virtualizer<Element, Element>,
+    ) => shouldAdjustVirtualScrollForResize(sticky.followLatest.value, item, instance),
   })),
 );
 
@@ -115,7 +119,8 @@ function handleScroll(event: Event) {
   }
 }
 
-function setRowRef(element: Element | null) {
+function setRowRef(refValue: Element | ComponentPublicInstance | null) {
+  const element = refValue instanceof Element ? refValue : null;
   if (!element) {
     return;
   }
@@ -145,7 +150,7 @@ function rowStyle(virtualRow: VirtualItem) {
     left: "0",
     width: "100%",
     transform: `translateY(${virtualRow.start}px)`,
-  };
+  } as const;
 }
 
 watch(
@@ -188,7 +193,7 @@ function observeRows() {
       <div class="relative" :style="{ height: `${totalSize}px` }">
         <div
           v-for="virtualRow in virtualRows"
-          :key="virtualRow.key"
+          :key="String(virtualRow.key)"
           :ref="setRowRef"
           :data-index="virtualRow.index"
           class="pb-5 md:pb-8"

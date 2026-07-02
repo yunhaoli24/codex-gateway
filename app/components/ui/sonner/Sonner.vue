@@ -9,10 +9,12 @@ import {
 } from "@lucide/vue";
 
 import type { ToasterProps } from "vue-sonner";
+import { reactiveOmit } from "@vueuse/core";
 import { Toaster as Sonner } from "vue-sonner";
 import { cn } from "@/lib/utils";
 
 const props = defineProps<ToasterProps>();
+const delegatedProps = reactiveOmit(props, "class", "toastOptions");
 </script>
 
 <template>
@@ -34,7 +36,7 @@ const props = defineProps<ToasterProps>();
         toast: 'rounded-md',
       },
     }"
-    v-bind="props"
+    v-bind="delegatedProps"
   >
     <template #success-icon>
       <CircleCheckIcon class="size-4" />

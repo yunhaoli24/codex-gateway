@@ -13,16 +13,20 @@ export function parseCodexVersion(output: string): ParsedCodexVersion | null {
   if (!match) {
     return null;
   }
+  const version = match[1];
+  if (!version) {
+    return null;
+  }
   return {
     raw,
-    version: match[1],
+    version,
   };
 }
 
 export function compareSemver(left: string, right: string) {
   const leftParts = semverParts(left);
   const rightParts = semverParts(right);
-  for (let index = 0; index < 3; index += 1) {
+  for (const index of [0, 1, 2] as const) {
     const difference = leftParts[index] - rightParts[index];
     if (difference !== 0) {
       return difference;
@@ -35,10 +39,14 @@ export function isCodexVersionAtLeast(version: string, minimum: string) {
   return compareSemver(version, minimum) >= 0;
 }
 
-function semverParts(version: string) {
+function semverParts(version: string): [number, number, number] {
   const parsed = version.match(/^(\d+)\.(\d+)\.(\d+)/);
   if (!parsed) {
     throw new Error(`Invalid semantic version: ${version}`);
   }
-  return [Number(parsed[1]), Number(parsed[2]), Number(parsed[3])];
+  const [, major, minor, patch] = parsed;
+  if (major == null || minor == null || patch == null) {
+    throw new Error(`Invalid semantic version: ${version}`);
+  }
+  return [Number(major), Number(minor), Number(patch)];
 }

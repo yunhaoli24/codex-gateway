@@ -86,7 +86,7 @@ function openThread(threadId: string) {
           <RefreshCwIcon class="size-4" />
           {{ t("app.refresh") }}
         </Button>
-        <Button size="sm" @click="store.startThread('')">
+        <Button size="sm" @click="store.startThread()">
           <PlusIcon class="size-4" />
           {{ t("app.newThread") }}
         </Button>

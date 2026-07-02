@@ -22,9 +22,11 @@ function normalizeTokenBreakdown(value: any): TokenUsageBreakdown | null {
     value?.reasoningOutputTokens ?? value?.reasoning_output_tokens,
   );
   if (
-    [totalTokens, inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens].some(
-      (item) => item == null,
-    )
+    totalTokens == null ||
+    inputTokens == null ||
+    cachedInputTokens == null ||
+    outputTokens == null ||
+    reasoningOutputTokens == null
   ) {
     return null;
   }

@@ -21,7 +21,7 @@ interface HostEditForm {
   name: string;
   sshHost: string;
   username: string;
-  port: number | null;
+  port: string;
   authMode: HostRecord["authMode"];
   privateKeyPath: string;
   privateKey: string;
@@ -37,6 +37,12 @@ const expandedHostId = ref<number | null>(hosts.value[0]?.id ?? null);
 const forms = ref<Record<number, HostEditForm>>({});
 const savingHostId = ref<number | null>(null);
 const saveErrors = ref<Record<number, string>>({});
+const editableHosts = computed(() =>
+  hosts.value.flatMap((host) => {
+    const form = forms.value[host.id];
+    return form ? [{ host, form }] : [];
+  }),
+);
 
 watch(
   hosts,
@@ -60,7 +66,7 @@ function formFromHost(host: HostRecord): HostEditForm {
     name: host.name,
     sshHost: host.sshHost,
     username: host.username ?? "",
-    port: host.port,
+    port: host.port == null ? "" : String(host.port),
     authMode: host.authMode,
     privateKeyPath: host.privateKeyPath ?? "",
     privateKey: host.privateKey ?? "",
@@ -109,59 +115,59 @@ async function saveHost(host: HostRecord) {
       {{ t("app.noHosts") }}
     </div>
     <Collapsible
-      v-for="host in hosts"
-      :key="host.id"
-      :open="expandedHostId === host.id"
+      v-for="entry in editableHosts"
+      :key="entry.host.id"
+      :open="expandedHostId === entry.host.id"
       class="rounded-md border border-hairline bg-surface"
     >
       <CollapsibleTrigger as-child>
         <Button
           variant="ghost"
           class="h-11 w-full justify-start gap-2 rounded-md px-3"
-          @click="toggleHost(host.id)"
+          @click="toggleHost(entry.host.id)"
         >
           <ChevronDownIcon
-            v-if="expandedHostId === host.id"
+            v-if="expandedHostId === entry.host.id"
             class="size-4 shrink-0 text-ink-muted"
           />
           <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-muted" />
           <ServerIcon class="size-4 shrink-0" />
           <span class="min-w-0 flex-1 text-left">
-            <span class="block truncate text-sm">{{ host.name }}</span>
-            <span class="block truncate text-xs text-ink-muted">{{ host.sshHost }}</span>
+            <span class="block truncate text-sm">{{ entry.host.name }}</span>
+            <span class="block truncate text-xs text-ink-muted">{{ entry.host.sshHost }}</span>
           </span>
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent class="space-y-3 border-t border-hairline p-3">
         <Input
-          v-model="forms[host.id].name"
+          v-model="entry.form.name"
           :aria-label="t('app.hostName')"
           :placeholder="t('app.hostName')"
         />
         <Input
-          v-model="forms[host.id].sshHost"
+          v-model="entry.form.sshHost"
           :aria-label="t('app.sshHost')"
           :placeholder="t('app.sshHost')"
         />
         <div class="grid grid-cols-[minmax(0,1fr)_minmax(6rem,8rem)] gap-2">
           <Input
-            v-model="forms[host.id].username"
+            v-model="entry.form.username"
             :aria-label="t('app.user')"
             :placeholder="t('app.user')"
           />
           <Input
-            v-model="forms[host.id].port"
+            v-model="entry.form.port"
             :aria-label="t('app.port')"
             type="number"
             :placeholder="t('app.port')"
           />
         </div>
         <Input
-          v-model="forms[host.id].proxyUrl"
+          v-model="entry.form.proxyUrl"
           :aria-label="t('app.sshProxy')"
           :placeholder="t('app.sshProxyPlaceholder')"
         />
-        <Select v-model="forms[host.id].authMode">
+        <Select v-model="entry.form.authMode">
           <SelectTrigger class="w-full bg-surface" :aria-label="t('app.auth')">
             <SelectValue />
           </SelectTrigger>
@@ -172,35 +178,35 @@ async function saveHost(host: HostRecord) {
           </SelectContent>
         </Select>
         <Input
-          v-if="forms[host.id].authMode === 'privateKey'"
-          v-model="forms[host.id].privateKeyPath"
+          v-if="entry.form.authMode === 'privateKey'"
+          v-model="entry.form.privateKeyPath"
           :aria-label="t('app.privateKeyPath')"
           :placeholder="t('app.privateKeyPath')"
         />
         <Textarea
-          v-if="forms[host.id].authMode === 'privateKey'"
-          v-model="forms[host.id].privateKey"
+          v-if="entry.form.authMode === 'privateKey'"
+          v-model="entry.form.privateKey"
           class="min-h-32 bg-surface font-mono text-sm"
           :aria-label="t('app.privateKey')"
           :placeholder="t('app.privateKey')"
         />
         <Input
-          v-if="forms[host.id].authMode === 'password'"
-          v-model="forms[host.id].password"
+          v-if="entry.form.authMode === 'password'"
+          v-model="entry.form.password"
           :aria-label="t('app.password')"
           type="password"
           :placeholder="t('app.sshPassword')"
         />
         <div
-          v-if="saveErrors[host.id]"
+          v-if="saveErrors[entry.host.id]"
           class="whitespace-pre-line rounded-md bg-destructive/10 p-2 text-xs text-destructive"
         >
-          {{ saveErrors[host.id] }}
+          {{ saveErrors[entry.host.id] }}
         </div>
         <Button
           class="w-full"
-          :disabled="savingHostId === host.id || !forms[host.id].name || !forms[host.id].sshHost"
-          @click="saveHost(host)"
+          :disabled="savingHostId === entry.host.id || !entry.form.name || !entry.form.sshHost"
+          @click="saveHost(entry.host)"
         >
           <CheckIcon class="size-4" />
           {{ t("app.saveHost") }}

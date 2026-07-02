@@ -7,6 +7,8 @@ import type {
   PinnedThreadRecord,
   ProjectRecord,
   ComposerTurnOptions,
+  TerminalOpenTarget,
+  TerminalSessionSnapshot,
   ThreadRuntimeStatus,
   ThreadSettingsState,
   ThreadTokenUsageState,
@@ -62,15 +64,11 @@ export interface ComposerDraft {
   attachedFiles: Array<UploadedFileRecord & { id: string; dataUrl?: string }>;
 }
 
-export interface PendingSteerInput {
-  text: string;
-  clientUserMessageId: string;
-  content: any[];
-  images: Array<{
-    path?: string;
-    url?: string;
-    detail?: "low" | "high" | "auto" | "original";
-  }>;
+export interface WorkspaceTabState {
+  id: string;
+  kind: "agent" | "terminal";
+  title: string;
+  sessionId?: string;
 }
 
 export interface SubmittedTurnRequestState {
@@ -83,7 +81,7 @@ export interface SubmittedTurnRequestState {
   options: ComposerTurnOptions;
   retryCount: number;
   pendingRetryTurnId: string | null;
-  retryTimer: ReturnType<typeof window.setTimeout> | null;
+  retryTimer: number | null;
 }
 
 export interface GatewayErrorState {
@@ -119,11 +117,13 @@ export interface GatewayStoreState {
   threadTokenUsageByKey: Record<string, ThreadTokenUsageState>;
   composerDraftsByKey: Record<string, ComposerDraft>;
   submittedTurnRequestsByKey: Record<string, SubmittedTurnRequestState>;
-  pendingSteersByKey: Record<string, PendingSteerInput[]>;
   threadSnapshots: Record<string, ThreadSnapshot>;
   threadPreviews: Record<string, ThreadPreviewState>;
   subAgentPanels: SubAgentPanelState[];
   activeSubAgentPanelKey: string | null;
+  workspaceTabs: WorkspaceTabState[];
+  activeWorkspaceTabId: string;
+  terminalSessions: Record<string, TerminalSessionSnapshot>;
   selectedHostId: number | null;
   selectedProjectId: number | null;
   selectedThreadId: string | null;
@@ -140,7 +140,7 @@ export interface GatewayStoreState {
   error: GatewayErrorState | null;
   realtimeSocket: WebSocket | null;
   realtimeSocketConnected: boolean;
-  realtimeSocketReconnectTimer: ReturnType<typeof window.setTimeout> | null;
+  realtimeSocketReconnectTimer: number | null;
   realtimeSocketReconnectAttempt: number;
   realtimeSocketGeneration: number;
   realtimeHostLifecycleSubscribed: boolean;
@@ -166,9 +166,16 @@ export interface GatewayStoreContext {
   selectedThreadSettings: ThreadSettingsState;
   selectedThreadTokenUsage: ThreadTokenUsageState | null;
   selectedComposerDraft: ComposerDraft;
+  activeWorkspaceTab: WorkspaceTabState;
+  terminalSessionSnapshots: TerminalSessionSnapshot[];
   [action: string]: any;
 }
 
 export interface ThreadStatusUpdateOptions {
   turnId?: string | null;
 }
+
+export type TerminalOpenInput = Omit<TerminalOpenTarget, "cols" | "rows"> & {
+  cols?: number;
+  rows?: number;
+};

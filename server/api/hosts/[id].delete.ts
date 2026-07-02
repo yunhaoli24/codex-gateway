@@ -9,6 +9,7 @@ import { projectStore } from "../../utils/gateway/state/projects";
 import { subAgentThreadStore } from "../../utils/gateway/state/sub-agent-threads";
 import { threadMetadataStore } from "../../utils/gateway/state/thread-metadata";
 import { threadSnapshotStore } from "../../utils/gateway/state/thread-snapshots";
+import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
 
 export default defineGatewayEventHandler((event) => {
   const id = Number(getRouterParam(event, "id"));
@@ -19,6 +20,7 @@ export default defineGatewayEventHandler((event) => {
   subAgentThreadStore.deleteForHost(id);
   gatewayEventStore.deleteForHost(id);
   threadBroker.closeHost(id);
+  terminalManager.closeHost(id);
   sshConnections.syncHosts(hostStore.listWithSecret());
   hostRuntimeSupervisor.syncCurrentUserConfig();
   saveCurrentUserConfig(event);

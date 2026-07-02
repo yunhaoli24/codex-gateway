@@ -94,7 +94,7 @@ async function interruptCurrentPanel() {
       class="absolute inset-y-0 right-0 z-30 flex min-h-0 w-full flex-col overflow-hidden border-l border-hairline bg-surface/98 shadow-2xl backdrop-blur md:relative md:inset-auto md:z-auto md:basis-[28%] md:shrink-0 md:shadow-none"
     >
       <Tabs
-        :model-value="activeSubAgentPanelKey || keyForPanel(currentPanel)"
+        :model-value="activeSubAgentPanelKey || keyForPanel(currentPanel) || undefined"
         class="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden"
         @update:model-value="activateTab"
       >
@@ -110,7 +110,7 @@ async function interruptCurrentPanel() {
           @interrupt="interruptCurrentPanel"
         />
         <SubAgentPanelBody
-          :key="previewKey"
+          :key="previewKey ?? 'empty-subagent-panel'"
           :panel="currentPanel"
           :preview="preview"
           :turns="turns"

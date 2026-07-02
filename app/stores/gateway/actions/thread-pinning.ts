@@ -82,18 +82,22 @@ export function createThreadPinningActions(ctx: GatewayStoreContext) {
       if (index < 0) {
         return;
       }
+      const pinnedThread = ctx.state.gatewayConfig.pinnedThreads[index];
+      if (!pinnedThread) {
+        return;
+      }
       const project = ctx.state.projects.find(
         (candidate) => candidate.id === ctx.state.selectedProjectId,
       );
       ctx.state.gatewayConfig.pinnedThreads[index] = {
-        ...ctx.state.gatewayConfig.pinnedThreads[index],
+        ...pinnedThread,
         title: titleForThread(thread),
-        projectName: project?.name ?? ctx.state.gatewayConfig.pinnedThreads[index].projectName,
-        subtitle: project?.remotePath ?? ctx.state.gatewayConfig.pinnedThreads[index].subtitle,
+        projectName: project?.name ?? pinnedThread.projectName,
+        subtitle: project?.remotePath ?? pinnedThread.subtitle,
         updatedAt: Number(
           thread.recencyAt ||
             thread.updatedAt ||
-            ctx.state.gatewayConfig.pinnedThreads[index].updatedAt ||
+            pinnedThread.updatedAt ||
             Math.floor(Date.now() / 1000),
         ),
       };

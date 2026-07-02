@@ -14,7 +14,7 @@ const props = defineProps<
   }
 >();
 
-const delegatedProps = reactiveOmit(props, "class", "viewportClass", "orientation");
+const delegatedProps = reactiveOmit(props, "class", "viewportClass", "orientation", "type");
 </script>
 
 <template>

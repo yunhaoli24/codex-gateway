@@ -1,7 +1,12 @@
 import { createReadStream, readFileSync } from "node:fs";
 import { connect as connectTcp } from "node:net";
 import { Client, type ClientChannel } from "ssh2";
-import type { CommandResult, HostWithSecret, ReverseTcpForwardOptions } from "./ssh-types";
+import type {
+  CommandResult,
+  HostWithSecret,
+  ReverseTcpForwardOptions,
+  ShellOptions,
+} from "./ssh-types";
 import { createProxySocket, expandHome, resolveSshConfig, sshConnectionKey } from "./ssh-config";
 import { SSH_CONNECTION_CLOSED_BEFORE_READY, withSshConnectRetries } from "./ssh-connect-retry";
 
@@ -72,6 +77,36 @@ export class SshConnectionPool {
     });
   }
 
+  async openShell(
+    host: HostWithSecret,
+    options: ShellOptions,
+    retried = false,
+  ): Promise<ClientChannel> {
+    const client = await this.connect(host);
+
+    return new Promise((resolve, reject) => {
+      client.shell(
+        {
+          term: options.term,
+          cols: options.cols,
+          rows: options.rows,
+        },
+        (error, channel) => {
+          if (error) {
+            this.disconnectHost(host);
+            if (!retried && isConnectionLevelSshError(error)) {
+              void this.openShell(host, options, true).then(resolve, reject);
+              return;
+            }
+            reject(error);
+            return;
+          }
+          resolve(channel);
+        },
+      );
+    });
+  }
+
   async uploadFile(host: HostWithSecret, localPath: string, remotePath: string) {
     const client = await this.connect(host);
     await new Promise<void>((resolve, reject) => {
@@ -86,11 +121,11 @@ export class SshConnectionPool {
         const cleanup = () => {
           sftp.end();
         };
-        reader.on("error", (streamError) => {
+        reader.on("error", (streamError: NodeJS.ErrnoException) => {
           cleanup();
           reject(streamError);
         });
-        writer.on("error", (streamError) => {
+        writer.on("error", (streamError: Error) => {
           cleanup();
           reject(streamError);
         });

@@ -23,6 +23,7 @@ const realtimeServerMessageHandlers = {
     ctx.state.realtimeSocketConnected = true;
     ctx.state.realtimeSocketReconnectAttempt = 0;
     ctx.resubscribeRealtime();
+    void ctx.restoreTerminalSessions();
   },
   "host.lifecycle": (ctx, message, lifecycleNotificationKeys) => {
     handleHostLifecycleRealtime(ctx, message.event, lifecycleNotificationKeys);
@@ -44,6 +45,36 @@ const realtimeServerMessageHandlers = {
   },
   "serverRequest.respond.accepted": (_ctx, message) => {
     resolveRealtimeRequest(message);
+  },
+  "terminal.opened": (ctx, message) => {
+    ctx.upsertTerminalSession(message.session);
+    resolveRealtimeRequest(message);
+  },
+  "terminal.snapshot": (ctx, message) => {
+    ctx.replaceTerminalSessions(message.sessions);
+    resolveRealtimeRequest(message);
+  },
+  "terminal.closed": (ctx, message) => {
+    ctx.removeTerminalSession(message.sessionId);
+    resolveRealtimeRequest(message);
+  },
+  "terminal.closed.event": (ctx, message) => {
+    ctx.removeTerminalSession(message.sessionId);
+  },
+  "terminal.output": (ctx, message) => {
+    ctx.appendTerminalOutput(message.sessionId, message.data);
+  },
+  "terminal.exited": (ctx, message) => {
+    ctx.markTerminalExited(message.sessionId, ctx.t("app.terminalExited"));
+  },
+  "terminal.error": (ctx, message) => {
+    if (message.sessionId) {
+      ctx.markTerminalExited(message.sessionId, message.message);
+    }
+    if (message.requestId) {
+      rejectRealtimeRequest(message.requestId, new Error(message.message));
+    }
+    ctx.setError(message.message);
   },
   error: (ctx, message) => {
     const requestError = realtimeRequestErrorFromServer(

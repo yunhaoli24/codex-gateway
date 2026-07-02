@@ -1,5 +1,6 @@
 import { createError } from "h3";
 import { z } from "zod";
+import type { GatewayConfig } from "~~/shared/types";
 import {
   DEFAULT_BARK_GROUP,
   DEFAULT_BARK_SERVER_URL,
@@ -141,6 +142,61 @@ export const gatewayConfigSchema = z
       }),
   })
   .strict();
+
+export function parseGatewayConfig(body: unknown): GatewayConfig {
+  const input = gatewayConfigSchema.parse(body);
+  const timestamp = new Date().toISOString();
+  return {
+    version: 1,
+    hosts: input.hosts.map((host) => ({
+      id: host.id,
+      name: host.name.trim(),
+      sshHost: host.sshHost.trim(),
+      username: host.username?.trim() || null,
+      port: host.port ?? null,
+      authMode: host.authMode,
+      privateKeyPath: host.privateKeyPath?.trim() || null,
+      privateKey: host.privateKey || null,
+      password: host.password || null,
+      proxyUrl: host.proxyUrl?.trim() || null,
+      hasPassword: Boolean(host.password || host.hasPassword),
+      createdAt: host.createdAt || timestamp,
+      updatedAt: host.updatedAt || timestamp,
+    })),
+    projects: input.projects.map((project) => ({
+      id: project.id,
+      hostId: project.hostId,
+      name: project.name.trim(),
+      remotePath: project.remotePath.trim(),
+      createdAt: project.createdAt || timestamp,
+      updatedAt: project.updatedAt || timestamp,
+    })),
+    pinnedThreads: input.pinnedThreads.map((thread) => ({
+      hostId: thread.hostId,
+      projectId: thread.projectId ?? null,
+      threadId: thread.threadId.trim(),
+      title: thread.title.trim(),
+      subtitle: thread.subtitle?.trim() || null,
+      projectName: thread.projectName?.trim() || null,
+      updatedAt: thread.updatedAt ?? null,
+    })),
+    notifications: {
+      bark: {
+        enabled: input.notifications.bark.enabled,
+        serverUrl: input.notifications.bark.serverUrl.trim() || DEFAULT_BARK_SERVER_URL,
+        deviceKey: input.notifications.bark.deviceKey.trim(),
+        group: input.notifications.bark.group?.trim() || DEFAULT_BARK_GROUP,
+      },
+    },
+    lastOpenThread: input.lastOpenThread
+      ? {
+          hostId: input.lastOpenThread.hostId,
+          projectId: input.lastOpenThread.projectId ?? null,
+          threadId: input.lastOpenThread.threadId.trim(),
+        }
+      : null,
+  };
+}
 
 export const remoteDirectoryListSchema = z.object({
   hostId: z.coerce.number().int().positive(),

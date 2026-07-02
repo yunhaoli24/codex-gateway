@@ -45,6 +45,10 @@ test("opens sidebar context actions with long press on mobile", async ({ page })
   await page.getByTestId("mobile-sidebar-toggle").click();
   await page.getByTestId(`project-button-${project.id}`).click();
   await expect(page.getByTestId("project-thread-list")).toBeVisible();
+  await page.getByTestId("open-terminal-mobile-button").click();
+  await expect(page.getByTestId("terminal-panel")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("tab", { name: /Agent/ }).click();
+  await expect(page.getByTestId("project-thread-list")).toBeVisible();
   const threadButton = page.getByTestId(`project-thread-row-${threadId}`);
   await expect(threadButton).toBeVisible({ timeout: 30_000 });
 
