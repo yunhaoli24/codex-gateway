@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ScrollArea } from "@/components/ui/scroll-area";
 import ThreadRow from "./ThreadRow.vue";
+import SidebarScrollArea from "./SidebarScrollArea.vue";
 import { formatRelative, pinnedThreadId, pinnedThreadKey } from "./sidebar-utils";
 
 const props = defineProps<{
@@ -39,7 +39,7 @@ function isSelectedPinnedThread(thread: any) {
 <template>
   <section v-if="threads.length" class="flex min-h-0 flex-col">
     <div class="px-2 pb-2 text-sm text-ink-muted">{{ $t("app.pinned") }}</div>
-    <ScrollArea class="min-h-0 flex-1">
+    <SidebarScrollArea>
       <div class="space-y-1 pr-1">
         <ThreadRow
           v-for="thread in threads"
@@ -62,6 +62,6 @@ function isSelectedPinnedThread(thread: any) {
           @update:rename-value="emit('update:renameValue', $event)"
         />
       </div>
-    </ScrollArea>
+    </SidebarScrollArea>
   </section>
 </template>

@@ -15,10 +15,10 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ThreadRuntimeStatus } from "@/stores/gateway";
 import { formatRelative, selectedRowClass } from "./sidebar-utils";
 import HostStatusIndicator from "./HostStatusIndicator.vue";
+import SidebarScrollArea from "./SidebarScrollArea.vue";
 import ThreadRow from "./ThreadRow.vue";
 
 const props = defineProps<{
@@ -61,7 +61,7 @@ function hostConnectionStatus(hostId: number) {
 <template>
   <section class="flex min-h-0 flex-col">
     <div class="px-2 pb-2 text-sm text-ink-muted">{{ $t("app.hosts") }}</div>
-    <ScrollArea class="min-h-0 flex-1">
+    <SidebarScrollArea>
       <div class="space-y-1 pr-1">
         <div v-for="host in hosts" :key="host.id" class="rounded-lg">
           <div class="flex items-center gap-1">
@@ -209,6 +209,6 @@ function hostConnectionStatus(hostId: number) {
           </div>
         </div>
       </div>
-    </ScrollArea>
+    </SidebarScrollArea>
   </section>
 </template>
