@@ -2,7 +2,8 @@ import { extname } from "node:path";
 import { createError, getValidatedQuery, setResponseHeader } from "h3";
 import { remoteFiles } from "../../utils/gateway/infra/host-services";
 import { defineGatewayEventHandler } from "../../utils/gateway/http/errors";
-import { remoteImageSchema, requireRecord } from "../../utils/gateway/http/validation";
+import { requireRecord } from "../../utils/gateway/http/validation/common";
+import { remoteImageSchema } from "../../utils/gateway/http/validation/remote";
 import { hostStore } from "../../utils/gateway/state/hosts";
 
 const MAX_REMOTE_IMAGE_BYTES = 12 * 1024 * 1024;

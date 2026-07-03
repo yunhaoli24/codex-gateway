@@ -5,7 +5,8 @@ import {
   hostLogContext,
   setGatewayRequestLogContext,
 } from "../../utils/gateway/http/errors";
-import { requireRecord, threadListSchema } from "../../utils/gateway/http/validation";
+import { requireRecord } from "../../utils/gateway/http/validation/common";
+import { threadListSchema } from "../../utils/gateway/http/validation/threads";
 import { hostStore } from "../../utils/gateway/state/hosts";
 import { projectStore } from "../../utils/gateway/state/projects";
 import { threadMetadataStore } from "../../utils/gateway/state/thread-metadata";

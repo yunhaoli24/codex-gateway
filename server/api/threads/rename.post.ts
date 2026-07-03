@@ -1,7 +1,8 @@
 import { readValidatedBody } from "h3";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
 import { defineGatewayEventHandler } from "../../utils/gateway/http/errors";
-import { requireRecord, threadRenameSchema } from "../../utils/gateway/http/validation";
+import { requireRecord } from "../../utils/gateway/http/validation/common";
+import { threadRenameSchema } from "../../utils/gateway/http/validation/threads";
 import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineGatewayEventHandler(async (event) => {

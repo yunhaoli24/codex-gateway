@@ -1,6 +1,6 @@
 import { readValidatedBody } from "h3";
 import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
-import { hostCreateSchema } from "../../utils/gateway/http/validation";
+import { hostCreateSchema } from "../../utils/gateway/http/validation/hosts-projects";
 import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-supervisor";
 import { hostStore } from "../../utils/gateway/state/hosts";
 

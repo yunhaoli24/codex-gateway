@@ -1,7 +1,7 @@
 import { readValidatedBody } from "h3";
 import { sshConnections } from "../../utils/gateway/infra/host-services";
 import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
-import { parseGatewayConfig } from "../../utils/gateway/http/validation";
+import { parseGatewayConfig } from "../../utils/gateway/http/validation/config";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
 import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-supervisor";
 import { hostStore } from "../../utils/gateway/state/hosts";

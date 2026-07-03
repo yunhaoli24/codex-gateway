@@ -1,5 +1,6 @@
 import type { GatewayEvent, HostRecord, RealtimeClientMessage } from "~~/shared/types";
-import { requireRecord, threadOpenSchema } from "../../http/validation";
+import { requireRecord } from "../../http/validation/common";
+import { threadOpenSchema, threadStartSchema } from "../../http/validation/threads";
 import { threadBroker } from "../../runtime/broker";
 import { threadRuntimeEvents } from "../../runtime/thread-runtime-events";
 import { gatewayEventStore } from "../../state/gateway-events";
@@ -55,6 +56,35 @@ export async function activateThread(
     ...result,
   });
   subscribeThreadEvents(peer, host, input.threadId, lastEventId);
+}
+
+export async function startThread(
+  peer: RealtimePeer,
+  message: Extract<RealtimeClientMessage, { type: "thread.start" }>,
+) {
+  const input = threadStartSchema.parse(message);
+  const host = requireRecord(hostStore.getWithSecret(input.hostId), "Host not found");
+  const result = await threadBroker.startThread(
+    host,
+    {
+      cwd: input.cwd || undefined,
+      model: input.model || undefined,
+      effort: input.effort || undefined,
+      approvalPolicy: input.approvalPolicy || undefined,
+    },
+    input.projectId ?? null,
+  );
+  const threadId = String(result.thread.id);
+  const lastEventId = gatewayEventStore.latestId(input.hostId, threadId);
+  sendRealtimePeerMessage(peer, {
+    ...result,
+    type: "thread.started",
+    requestId: message.requestId,
+    hostId: input.hostId,
+    threadId,
+    lastEventId,
+  });
+  subscribeThreadEvents(peer, host, threadId, lastEventId);
 }
 
 export function unsubscribeThread(

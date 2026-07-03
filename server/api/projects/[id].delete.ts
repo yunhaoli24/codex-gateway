@@ -1,6 +1,6 @@
 import { getRouterParam } from "h3";
 import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
-import { requireRecord } from "../../utils/gateway/http/validation";
+import { requireRecord } from "../../utils/gateway/http/validation/common";
 import { projectStore } from "../../utils/gateway/state/projects";
 
 export default defineGatewayEventHandler((event) => {

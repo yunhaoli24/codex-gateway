@@ -34,6 +34,9 @@ const realtimeServerMessageHandlers = {
   "thread.snapshot": (_ctx, message) => {
     resolveRealtimeRequest(message);
   },
+  "thread.started": (_ctx, message) => {
+    resolveRealtimeRequest(message);
+  },
   "thread.goal.updated": (ctx, message) => {
     ctx.upsertThreadGoal(message.hostId, message.threadId, message.goal);
     resolveRealtimeRequest(message);

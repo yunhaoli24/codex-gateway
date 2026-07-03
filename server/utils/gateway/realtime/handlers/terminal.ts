@@ -1,5 +1,5 @@
 import type { RealtimeClientMessage } from "~~/shared/types";
-import { requireRecord } from "../../http/validation";
+import { requireRecord } from "../../http/validation/common";
 import { hostStore } from "../../state/hosts";
 import { projectStore } from "../../state/projects";
 import { threadMetadataStore } from "../../state/thread-metadata";

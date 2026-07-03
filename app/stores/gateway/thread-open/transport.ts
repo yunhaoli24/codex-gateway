@@ -1,12 +1,16 @@
-import type { ComposerTurnOptions, ThreadOpenResult } from "~~/shared/types";
+import type { ComposerTurnOptions } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
-import { gatewayApi } from "@/utils/gateway-api";
 import type { GatewayStoreContext } from "../types";
 import { sendRealtimeRequest } from "../realtime/request-response";
 
 export type ThreadSnapshotMessage = Extract<
   import("~~/shared/types").RealtimeServerMessage,
   { type: "thread.snapshot" }
+>;
+
+export type ThreadStartedMessage = Extract<
+  import("~~/shared/types").RealtimeServerMessage,
+  { type: "thread.started" }
 >;
 
 export function requestActivateThreadSnapshot(
@@ -33,15 +37,22 @@ export function requestActivateThreadSnapshot(
 }
 
 export function requestStartThread(ctx: GatewayStoreContext, options: ComposerTurnOptions) {
-  return gatewayApi<ThreadOpenResult>("/api/threads/start", {
-    method: "POST",
-    body: {
-      hostId: ctx.state.selectedHostId,
+  const hostId = ctx.state.selectedHostId;
+  if (!hostId) {
+    throw new Error("Host is required to start a thread");
+  }
+  return sendRealtimeRequest<ThreadStartedMessage>(
+    ctx,
+    (requestId) => ({
+      type: "thread.start",
+      requestId,
+      hostId,
       projectId: ctx.state.selectedProjectId,
       cwd: ctx.selectedProject?.remotePath,
       model: options.model || undefined,
       effort: options.effort || undefined,
       approvalPolicy: options.approvalPolicy || undefined,
-    },
-  });
+    }),
+    30_000,
+  );
 }

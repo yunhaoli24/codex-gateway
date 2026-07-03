@@ -1,20 +1,48 @@
 import type { GatewayEvent, ThreadRuntimeStatus } from "./types";
 
-export function isThreadActiveStatus(status: any) {
-  const value = statusValue(status);
-  return (
-    value === "active" ||
-    value === "inProgress" ||
-    value === "in_progress" ||
-    value === "running" ||
-    value === "pending" ||
-    value === "starting" ||
-    value === "waitingForClient" ||
-    value === "waitingForApproval"
-  );
+type ThreadStatusLike = string | { type?: unknown } | null | undefined;
+
+interface ThreadItemLike {
+  type?: unknown;
+  status?: ThreadStatusLike;
 }
 
-export function runtimeStatusFromAppThreadStatus(status: any): ThreadRuntimeStatus {
+interface TurnLike {
+  status?: ThreadStatusLike;
+  items?: ThreadItemLike[];
+}
+
+interface ThreadContainerLike {
+  status?: ThreadStatusLike;
+  turns?: TurnLike[];
+  thread?: ThreadContainerLike;
+}
+
+interface RuntimeStatusCandidate {
+  status?: ThreadStatusLike;
+}
+
+const ACTIVE_STATUS_VALUES = new Set([
+  "active",
+  "inProgress",
+  "in_progress",
+  "running",
+  "pending",
+  "starting",
+  "waitingForClient",
+  "waitingForApproval",
+]);
+
+const TERMINAL_STATUS_VALUES = new Set(["completed", "failed", "interrupted"]);
+const COMPLETED_THREAD_VALUES = new Set(["completed", "idle", "notLoaded", "inactive"]);
+const POST_TURN_ACTIVE_ITEM_TYPES = new Set(["contextCompaction", "sleep"]);
+
+export function isThreadActiveStatus(status: unknown) {
+  const value = statusValue(status);
+  return Boolean(value && ACTIVE_STATUS_VALUES.has(value));
+}
+
+export function runtimeStatusFromAppThreadStatus(status: unknown): ThreadRuntimeStatus {
   const value = statusValue(status);
   if (value === "active" || value === "inProgress" || value === "running") return "running";
   if (value === "systemError" || value === "failed") return "failed";
@@ -33,7 +61,7 @@ export function runtimeStatusFromSnapshotState(
   return runtimeStatusFromThreadSnapshot(thread, history);
 }
 
-export function terminalTurnStatus(status: any): ThreadRuntimeStatus {
+export function terminalTurnStatus(status: unknown): ThreadRuntimeStatus {
   const value = statusValue(status);
   if (value === "failed") return "failed";
   if (value === "interrupted") return "interrupted";
@@ -57,61 +85,46 @@ export function runtimeStatusFromThreadState(
   return runtimeStatusFromThreadSnapshot(thread, history);
 }
 
+export function isTerminalOrIdleThreadStatus(status: unknown) {
+  const runtimeStatus = runtimeStatusFromTopLevelThreadStatus(status);
+  return Boolean(runtimeStatus && runtimeStatus !== "running");
+}
+
 function runtimeStatusFromThreadSnapshot(
   thread: unknown,
   history: unknown,
 ): ThreadRuntimeStatus | null {
-  const candidates: any[] = [];
-  if (thread && typeof thread === "object") {
-    candidates.push(thread);
-  }
-  if (history && typeof history === "object") {
-    candidates.push((history as any).thread, history);
-  }
+  const candidates = candidateThreadStates(thread, history);
+  const turns = turnsFromThreadState(thread, history);
 
-  const turns = [
-    ...(Array.isArray((history as any)?.thread?.turns) ? (history as any).thread.turns : []),
-    ...(Array.isArray((history as any)?.turns) ? (history as any).turns : []),
-    ...(Array.isArray((thread as any)?.turns) ? (thread as any).turns : []),
-  ];
-  candidates.push(...turns);
-
-  if (turns.length) {
-    const latestTurn = turns.at(-1);
-    const latestTurnStatus = statusValue(latestTurn?.status);
-    if (
-      latestTurnStatus === "completed" ||
-      latestTurnStatus === "failed" ||
-      latestTurnStatus === "interrupted"
-    ) {
-      if (latestTurnStatus === "completed" && hasPostTurnActiveItems(latestTurn)) {
-        return "running";
-      }
-      return terminalTurnStatus(latestTurnStatus);
-    }
-    if (hasActiveItems(latestTurn)) {
+  const latestTurn = turns.at(-1);
+  const latestTurnStatus = statusValue(latestTurn?.status);
+  if (latestTurnStatus && TERMINAL_STATUS_VALUES.has(latestTurnStatus)) {
+    if (latestTurnStatus === "completed" && hasPostTurnActiveItems(latestTurn)) {
       return "running";
     }
-    if (isThreadActiveStatus(latestTurnStatus)) {
-      return "running";
-    }
+    return terminalTurnStatus(latestTurnStatus);
   }
+  if (latestTurn && (hasActiveItems(latestTurn) || isThreadActiveStatus(latestTurn.status))) {
+    return "running";
+  }
+
   const threadStatus = runtimeStatusFromTopLevelThreadStatus(
-    (thread as any)?.status ?? (history as any)?.thread?.status ?? (history as any)?.status,
+    nestedThreadState(thread)?.status ?? nestedThreadState(history)?.status,
   );
   if (threadStatus) {
     return threadStatus;
   }
-  if (candidates.some((candidate) => statusValue(candidate?.status) === "failed")) {
+  if (candidates.some((candidate) => statusValue(candidate.status) === "failed")) {
     return "failed";
   }
-  if (candidates.some((candidate) => statusValue(candidate?.status) === "interrupted")) {
+  if (candidates.some((candidate) => statusValue(candidate.status) === "interrupted")) {
     return "interrupted";
   }
-  if (candidates.some((candidate) => statusValue(candidate?.status) === "completed")) {
+  if (candidates.some((candidate) => statusValue(candidate.status) === "completed")) {
     return "completed";
   }
-  if (candidates.some((candidate) => isThreadActiveStatus(candidate?.status))) {
+  if (candidates.some((candidate) => isThreadActiveStatus(candidate.status))) {
     return "running";
   }
   return null;
@@ -121,52 +134,45 @@ function terminalStatusFromLatestTurn(
   thread: unknown,
   history: unknown,
 ): ThreadRuntimeStatus | null {
-  const turns = [
-    ...(Array.isArray((history as any)?.thread?.turns) ? (history as any).thread.turns : []),
-    ...(Array.isArray((history as any)?.turns) ? (history as any).turns : []),
-    ...(Array.isArray((thread as any)?.turns) ? (thread as any).turns : []),
-  ];
-  const latestTurnStatus = statusValue(turns.at(-1)?.status);
-  if (
-    latestTurnStatus === "completed" ||
-    latestTurnStatus === "failed" ||
-    latestTurnStatus === "interrupted"
-  ) {
-    const latestTurn = turns.at(-1);
-    if (latestTurnStatus === "completed" && hasPostTurnActiveItems(latestTurn)) {
-      return null;
-    }
-    return terminalTurnStatus(latestTurnStatus);
+  const latestTurn = turnsFromThreadState(thread, history).at(-1);
+  const latestTurnStatus = statusValue(latestTurn?.status);
+  if (!latestTurnStatus || !TERMINAL_STATUS_VALUES.has(latestTurnStatus)) {
+    return null;
   }
-  return null;
-}
-
-export function isTerminalOrIdleThreadStatus(status: any) {
-  const runtimeStatus = runtimeStatusFromTopLevelThreadStatus(status);
-  return Boolean(runtimeStatus && runtimeStatus !== "running");
+  if (latestTurnStatus === "completed" && hasPostTurnActiveItems(latestTurn)) {
+    return null;
+  }
+  return terminalTurnStatus(latestTurnStatus);
 }
 
 function runtimeStatusFromEvents(events: GatewayEvent[]): ThreadRuntimeStatus | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (!event) {
-      continue;
-    }
-    const params = (event.payload as any)?.params ?? event.payload;
-    if (event.method === "turn/started") {
-      return "running";
-    }
-    if (event.method === "turn/completed") {
-      return terminalTurnStatus(params?.turn?.status);
-    }
-    if (event.method === "thread/status/changed") {
-      return runtimeStatusFromAppThreadStatus(params?.status);
+    const status = runtimeStatusFromEvent(events[index]);
+    if (status) {
+      return status;
     }
   }
   return null;
 }
 
-function runtimeStatusFromTopLevelThreadStatus(status: any): ThreadRuntimeStatus | null {
+function runtimeStatusFromEvent(event: GatewayEvent | undefined): ThreadRuntimeStatus | null {
+  if (!event) {
+    return null;
+  }
+  const params = eventParams(event);
+  if (event.method === "turn/started") {
+    return "running";
+  }
+  if (event.method === "turn/completed") {
+    return terminalTurnStatus(asTurnLike(recordField(params, "turn"))?.status);
+  }
+  if (event.method === "thread/status/changed") {
+    return runtimeStatusFromAppThreadStatus(recordField(params, "status"));
+  }
+  return null;
+}
+
+function runtimeStatusFromTopLevelThreadStatus(status: unknown): ThreadRuntimeStatus | null {
   const value = statusValue(status);
   if (value === "active" || value === "inProgress" || value === "running") {
     return "running";
@@ -177,38 +183,86 @@ function runtimeStatusFromTopLevelThreadStatus(status: any): ThreadRuntimeStatus
   if (value === "interrupted") {
     return "interrupted";
   }
-  if (value === "completed" || value === "idle" || value === "notLoaded" || value === "inactive") {
+  if (value && COMPLETED_THREAD_VALUES.has(value)) {
     return "completed";
   }
   return null;
 }
 
-function statusValue(status: any) {
-  return typeof status === "string" ? status : status?.type;
+function candidateThreadStates(thread: unknown, history: unknown) {
+  return [asThreadContainer(thread), asThreadContainer(history), nestedThreadState(history)]
+    .filter((candidate): candidate is ThreadContainerLike => Boolean(candidate))
+    .concat(turnsFromThreadState(thread, history)) as RuntimeStatusCandidate[];
+}
+
+function turnsFromThreadState(thread: unknown, history: unknown): TurnLike[] {
+  return [
+    ...turnsFromContainer(nestedThreadState(history)),
+    ...turnsFromContainer(asThreadContainer(history)),
+    ...turnsFromContainer(asThreadContainer(thread)),
+  ];
+}
+
+function turnsFromContainer(container: ThreadContainerLike | null): TurnLike[] {
+  return Array.isArray(container?.turns) ? container.turns.filter(isTurnLike) : [];
+}
+
+function nestedThreadState(value: unknown): ThreadContainerLike | null {
+  const container = asThreadContainer(value);
+  return asThreadContainer(container?.thread) ?? container;
 }
 
 function topLevelThreadStatus(thread: unknown) {
-  if (!thread || typeof thread !== "object") {
+  return nestedThreadState(thread)?.status ?? null;
+}
+
+function statusValue(status: unknown) {
+  if (typeof status === "string") {
+    return status;
+  }
+  if (isRecord(status) && typeof status.type === "string") {
+    return status.type;
+  }
+  return null;
+}
+
+function hasActiveItems(turn: TurnLike | undefined) {
+  return Boolean(turn?.items?.some((item) => isThreadActiveStatus(item.status)));
+}
+
+function hasPostTurnActiveItems(turn: TurnLike | undefined) {
+  return Boolean(
+    turn?.items?.some((item) => {
+      const type = typeof item.type === "string" ? item.type : "";
+      return POST_TURN_ACTIVE_ITEM_TYPES.has(type) && isThreadActiveStatus(item.status);
+    }),
+  );
+}
+
+function eventParams(event: GatewayEvent) {
+  const payload = isRecord(event.payload) ? event.payload : null;
+  return isRecord(payload?.params) ? payload.params : payload;
+}
+
+function recordField(record: unknown, key: string) {
+  if (!isRecord(record)) {
     return null;
   }
-  const value = (thread as any).thread ?? thread;
-  return value && typeof value === "object" ? (value as any).status : null;
+  return record[key];
 }
 
-function hasActiveItems(turn: any) {
-  return (
-    Array.isArray(turn?.items) && turn.items.some((item: any) => isThreadActiveStatus(item?.status))
-  );
+function asThreadContainer(value: unknown): ThreadContainerLike | null {
+  return isRecord(value) ? (value as ThreadContainerLike) : null;
 }
 
-function hasPostTurnActiveItems(turn: any) {
-  return (
-    Array.isArray(turn?.items) &&
-    turn.items.some((item: any) => {
-      const type = String(item?.type ?? "");
-      return (
-        (type === "contextCompaction" || type === "sleep") && isThreadActiveStatus(item?.status)
-      );
-    })
-  );
+function asTurnLike(value: unknown): TurnLike | null {
+  return isRecord(value) ? (value as TurnLike) : null;
+}
+
+function isTurnLike(value: unknown): value is TurnLike {
+  return isRecord(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object");
 }

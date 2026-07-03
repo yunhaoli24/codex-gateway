@@ -1,5 +1,5 @@
 import type { RealtimeClientMessage } from "~~/shared/types";
-import { requireRecord } from "../../http/validation";
+import { requireRecord } from "../../http/validation/common";
 import { threadBroker } from "../../runtime/broker";
 import { hostStore } from "../../state/hosts";
 import { sendRealtimePeerMessage, type RealtimePeer } from "../peer-state";

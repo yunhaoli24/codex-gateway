@@ -1,5 +1,6 @@
 import type { RealtimeClientMessage } from "~~/shared/types";
-import { requireRecord, turnSteerSchema } from "../http/validation";
+import { requireRecord } from "../http/validation/common";
+import { turnSteerSchema } from "../http/validation/threads";
 import { threadBroker } from "../runtime/broker";
 import { hostStore } from "../state/hosts";
 

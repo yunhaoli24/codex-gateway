@@ -1,6 +1,7 @@
 import { readValidatedBody } from "h3";
 import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
-import { projectCreateSchema, requireRecord } from "../../utils/gateway/http/validation";
+import { requireRecord } from "../../utils/gateway/http/validation/common";
+import { projectCreateSchema } from "../../utils/gateway/http/validation/hosts-projects";
 import { hostStore } from "../../utils/gateway/state/hosts";
 import { projectStore } from "../../utils/gateway/state/projects";
 

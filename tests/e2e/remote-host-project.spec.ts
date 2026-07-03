@@ -8,6 +8,7 @@ import {
   readRemoteEnv,
   sendTextTurn,
   startRemoteThreadFromProjectMenu,
+  waitForSelectedThreadId,
 } from "./helpers/remote-codex";
 
 test("connects to a real SSH Codex host and lists a project thread created by app-server", async ({
@@ -78,13 +79,8 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await expect(page.getByTestId("slash-command-menu")).toBeVisible();
   await expect(page.getByTestId("slash-command-new")).toBeVisible();
   await expect(page.getByTestId("slash-command-plan")).toBeHidden();
-  const slashNewResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/threads/start") && response.request().method() === "POST",
-  );
   await page.getByTestId("slash-command-new").click();
-  const slashNewThread = await (await slashNewResponsePromise).json();
-  const slashNewThreadId = String(slashNewThread.thread.id);
+  const slashNewThreadId = await waitForSelectedThreadId(page);
   await expect(page.getByTestId(`thread-button-${slashNewThreadId}`)).toBeVisible({
     timeout: 30_000,
   });

@@ -145,19 +145,11 @@ export async function addRemoteProject(
 
 export async function startRemoteThreadFromProjectMenu(page: Page, projectId: number) {
   const remote = await readRemoteEnv();
-  const startThreadResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/threads/start") && response.request().method() === "POST",
-  );
   await page.getByTestId(`project-button-${projectId}`).click({ button: "right" });
   await page.getByRole("menuitem", { name: /新建/ }).click();
-  const startThread = await (await startThreadResponsePromise).json();
-  const threadId = String(startThread.thread.id);
+  const threadId = await waitForSelectedThreadId(page);
   await expect(page.getByPlaceholder("输入后续修改要求")).toBeEnabled();
   await expect(page.getByTestId(`thread-button-${threadId}`)).toBeVisible({ timeout: 30_000 });
-  await expect
-    .poll(async () => (await currentRouteSelection(page)).threadId, { timeout: 10_000 })
-    .toBe(threadId);
   if (remote.testModel) {
     await page.evaluate(async (model) => {
       const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
@@ -170,6 +162,16 @@ export async function startRemoteThreadFromProjectMenu(page: Page, projectId: nu
     }, remote.testModel);
   }
   return threadId;
+}
+
+export async function waitForSelectedThreadId(page: Page) {
+  const handle = await page.waitForFunction(
+    () => new URLSearchParams(window.location.search).get("threadId"),
+    undefined,
+    { timeout: 30_000 },
+  );
+  const threadId = await handle.jsonValue();
+  return String(threadId);
 }
 
 export async function sendTextTurn(

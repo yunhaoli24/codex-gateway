@@ -1,5 +1,6 @@
 import type { RealtimeClientMessage } from "~~/shared/types";
-import { requireRecord, serverRequestResponseSchema } from "../http/validation";
+import { requireRecord } from "../http/validation/common";
+import { serverRequestResponseSchema } from "../http/validation/threads";
 import { threadBroker } from "../runtime/broker";
 import { hostStore } from "../state/hosts";
 

@@ -5,7 +5,8 @@ import {
   hostLogContext,
   setGatewayRequestLogContext,
 } from "../../utils/gateway/http/errors";
-import { modelListSchema, requireRecord } from "../../utils/gateway/http/validation";
+import { requireRecord } from "../../utils/gateway/http/validation/common";
+import { modelListSchema } from "../../utils/gateway/http/validation/models";
 import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineGatewayEventHandler(async (event) => {

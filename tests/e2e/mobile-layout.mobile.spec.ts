@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
-import { readRemoteEnv } from "./helpers/remote-codex";
+import { readRemoteEnv, waitForSelectedThreadId } from "./helpers/remote-codex";
 
 test("uses the mobile layout with hidden sidebar and usable composer shell", async ({ page }) => {
   await openApp(page);
@@ -34,13 +34,8 @@ test("opens sidebar context actions with long press on mobile", async ({ page })
   }
   await expect(page.getByTestId(`project-button-${project.id}`)).toBeVisible();
   await longPress(page, page.getByTestId(`project-button-${project.id}`));
-  const startResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/threads/start") && response.request().method() === "POST",
-  );
   await page.getByRole("menuitem", { name: /新建/ }).click();
-  const startResult = await (await startResponsePromise).json();
-  const threadId = String(startResult.thread.id);
+  const threadId = await waitForSelectedThreadId(page);
 
   await page.getByTestId("mobile-sidebar-toggle").click();
   await page.getByTestId(`project-button-${project.id}`).click();

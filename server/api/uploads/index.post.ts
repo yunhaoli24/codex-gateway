@@ -6,7 +6,8 @@ import { getValidatedQuery, readMultipartFormData } from "h3";
 import type { UploadResult } from "~~/shared/types";
 import { remoteFiles } from "../../utils/gateway/infra/host-services";
 import { defineGatewayEventHandler } from "../../utils/gateway/http/errors";
-import { requireRecord, uploadQuerySchema } from "../../utils/gateway/http/validation";
+import { requireRecord } from "../../utils/gateway/http/validation/common";
+import { uploadQuerySchema } from "../../utils/gateway/http/validation/uploads";
 import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineGatewayEventHandler(async (event): Promise<UploadResult> => {
