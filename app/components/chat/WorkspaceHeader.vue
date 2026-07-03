@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { TerminalIcon } from "@lucide/vue";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
 import type { WorkspaceTabState } from "@/stores/gateway/types";
@@ -9,7 +8,6 @@ import WorkspaceTabBar from "./WorkspaceTabBar.vue";
 defineProps<{
   tabs: WorkspaceTabState[];
   threadTitle: string;
-  activeControllerCount: number;
   canOpenTerminal: boolean;
 }>();
 
@@ -43,7 +41,6 @@ const emit = defineEmits<{
     </div>
     <div class="flex items-center gap-2 text-ink-muted">
       <LanguageSwitcher />
-      <Badge variant="secondary">{{ activeControllerCount }} {{ $t("app.active") }}</Badge>
     </div>
   </header>
 

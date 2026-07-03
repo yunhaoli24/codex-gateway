@@ -67,12 +67,3 @@ export interface GatewayEvent {
   payload: RpcEnvelope;
   createdAt: string;
 }
-
-export interface GatewayStatus {
-  hosts: number;
-  projects: number;
-  activeControllers: Array<{
-    hostId: number;
-    threadId: string;
-  }>;
-}

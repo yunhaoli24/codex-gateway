@@ -1,6 +1,8 @@
-import { nextTick, onBeforeUnmount, ref, type Ref } from "vue";
-
-type ThresholdSource = number | Ref<number> | (() => number);
+import { nextTick, onBeforeUnmount } from "vue";
+import { createStickToBottomState, type ThresholdSource } from "./virtual-stick-to-bottom/state";
+import { createViewportInputIntent } from "./virtual-stick-to-bottom/viewport-input-intent";
+import { createVirtualMeasurementScheduler } from "./virtual-stick-to-bottom/measurement-scheduler";
+import { createViewportAnchor } from "./virtual-stick-to-bottom/viewport-anchor";
 
 type VirtualStickToBottomOptions = {
   threshold?: ThresholdSource;
@@ -10,225 +12,94 @@ type VirtualStickToBottomOptions = {
   scrollToBottom: (viewport: HTMLElement) => void;
 };
 
-function resolveThreshold(source: ThresholdSource | undefined) {
-  if (typeof source === "function") {
-    return source();
-  }
-  if (source && typeof source === "object" && "value" in source) {
-    return source.value;
-  }
-  return source ?? 120;
-}
-
 function nextFrame() {
   return new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
 export function useVirtualStickToBottom(options: VirtualStickToBottomOptions) {
-  // This is the shared "stick to bottom unless the user scrolls away" state.
-  // It is intentionally independent of any concrete virtualizer so the main
-  // timeline and single-content virtual scroll areas keep identical behavior.
-  const followLatest = ref(true);
-  const initialBottomAligned = ref(false);
-  let resizeObserver: ResizeObserver | null = null;
-  let scheduledFrame: number | null = null;
-  let scrollLockVersion = 0;
-  let lastTouchY: number | null = null;
-  let lastScrollTop: number | null = null;
-  let boundViewport: HTMLElement | null = null;
-
-  function bottomDistance(viewport = options.getViewport()) {
-    if (!viewport) {
-      return 0;
-    }
-    return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-  }
-
-  function isNearBottom(viewport = options.getViewport()) {
-    if (!viewport) {
-      return false;
-    }
-    return bottomDistance(viewport) <= resolveThreshold(options.threshold);
-  }
-
-  function markProgrammaticScroll(viewport: HTMLElement) {
-    lastScrollTop = viewport.scrollTop;
-  }
-
-  function setViewportAnchor(enabled: boolean) {
-    const viewport = options.getViewport();
-    if (!viewport) {
-      return;
-    }
-    if (enabled) {
-      viewport.style.removeProperty("overflow-anchor");
-    } else {
-      viewport.style.setProperty("overflow-anchor", "none");
-    }
-  }
+  const viewportAnchor = createViewportAnchor({
+    getViewport: options.getViewport,
+  });
+  const state = createStickToBottomState({
+    threshold: options.threshold,
+    getViewport: options.getViewport,
+    onDetached: () => {
+      scheduler.cancel();
+      viewportAnchor.capture();
+    },
+    onLocked: () => viewportAnchor.clear(),
+    onViewportScroll: options.onViewportScroll,
+  });
+  const inputIntent = createViewportInputIntent({
+    getViewport: options.getViewport,
+    onBound: state.setLastScrollTop,
+    onKeydown: state.handleKeydown,
+    onScroll: state.handleScroll,
+    onTouchMove: state.handleTouchMove,
+    onTouchStart: state.handleTouchStart,
+    onWheel: state.handleWheel,
+  });
+  const scheduler = createVirtualMeasurementScheduler({
+    measure: options.measure,
+    preserveAnchorIfNeeded: () => {
+      if (!state.followLatest.value) {
+        viewportAnchor.restore();
+      }
+    },
+    stickIfNeeded: () => {
+      if (state.followLatest.value) {
+        void scrollToBottom();
+      }
+    },
+  });
 
   async function scrollToBottom() {
-    const version = scrollLockVersion;
+    const version = state.currentVersion();
     await nextTick();
-    if (version !== scrollLockVersion || !followLatest.value) {
+    if (version !== state.currentVersion() || !state.followLatest.value) {
       return;
     }
     options.measure();
     await nextFrame();
-    if (version !== scrollLockVersion || !followLatest.value) {
+    if (version !== state.currentVersion() || !state.followLatest.value) {
       return;
     }
     options.measure();
     const viewport = options.getViewport();
     if (viewport) {
       options.scrollToBottom(viewport);
-      markProgrammaticScroll(viewport);
+      state.markProgrammaticScroll(viewport);
     }
-    followLatest.value = true;
-    setViewportAnchor(true);
-    initialBottomAligned.value = true;
-  }
-
-  function lockToBottom() {
-    followLatest.value = true;
-    setViewportAnchor(true);
+    state.lockToBottom();
+    state.initialBottomAligned.value = true;
   }
 
   function reset() {
-    lockToBottom();
-    initialBottomAligned.value = false;
+    state.reset();
     void scrollToBottom();
   }
 
-  function handleScroll(event: Event) {
-    const viewport = event.target as HTMLElement;
-    if (viewport !== options.getViewport()) {
-      return false;
-    }
-    const currentScrollTop = viewport.scrollTop;
-    if (isNearBottom(viewport)) {
-      lockToBottom();
-    } else if (lastScrollTop !== null && currentScrollTop < lastScrollTop) {
-      detachFromBottom();
-    }
-    lastScrollTop = currentScrollTop;
-    options.onViewportScroll?.(viewport);
-    return true;
-  }
-
-  function detachFromBottom() {
-    followLatest.value = false;
-    setViewportAnchor(false);
-    scrollLockVersion += 1;
-    if (scheduledFrame !== null) {
-      cancelAnimationFrame(scheduledFrame);
-      scheduledFrame = null;
-    }
-  }
-
-  function handleWheel(event: WheelEvent) {
-    if (event.deltaY < 0) {
-      detachFromBottom();
-    } else if (event.deltaY > 0 && isNearBottom()) {
-      lockToBottom();
-    }
-  }
-
-  function handleTouchStart(event: TouchEvent) {
-    lastTouchY = event.touches[0]?.clientY ?? null;
-  }
-
-  function handleTouchMove(event: TouchEvent) {
-    const nextY = event.touches[0]?.clientY ?? null;
-    if (lastTouchY !== null && nextY !== null && nextY > lastTouchY) {
-      detachFromBottom();
-    }
-    lastTouchY = nextY;
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (
-      event.key === "ArrowUp" ||
-      event.key === "PageUp" ||
-      event.key === "Home" ||
-      (event.key === " " && event.shiftKey)
-    ) {
-      detachFromBottom();
-    }
-  }
-
   function bindInputListeners() {
-    const viewport = options.getViewport();
-    if (!viewport || viewport === boundViewport) {
-      return;
-    }
-    unbindInputListeners();
-    boundViewport = viewport;
-    if (!viewport.hasAttribute("tabindex")) {
-      viewport.tabIndex = 0;
-    }
-    lastScrollTop = viewport.scrollTop;
-    viewport.addEventListener("scroll", handleScroll, { passive: true });
-    viewport.addEventListener("wheel", handleWheel, { passive: true });
-    viewport.addEventListener("touchstart", handleTouchStart, { passive: true });
-    viewport.addEventListener("touchmove", handleTouchMove, { passive: true });
-    viewport.addEventListener("keydown", handleKeydown);
-  }
-
-  function unbindInputListeners() {
-    if (!boundViewport) {
-      return;
-    }
-    boundViewport.removeEventListener("scroll", handleScroll);
-    boundViewport.removeEventListener("wheel", handleWheel);
-    boundViewport.removeEventListener("touchstart", handleTouchStart);
-    boundViewport.removeEventListener("touchmove", handleTouchMove);
-    boundViewport.removeEventListener("keydown", handleKeydown);
-    boundViewport = null;
-  }
-
-  function scheduleMeasureAndStick() {
-    // Content can resize after the event that triggered rendering: markdown
-    // highlighting, collapsible layout, images, and streamed deltas all land
-    // asynchronously. Coalesce those resizes into one frame before measuring.
-    if (scheduledFrame !== null) {
-      cancelAnimationFrame(scheduledFrame);
-    }
-    scheduledFrame = requestAnimationFrame(() => {
-      scheduledFrame = null;
-      options.measure();
-      if (followLatest.value) {
-        void scrollToBottom();
-      }
-    });
+    inputIntent.bind();
   }
 
   function observeElements(elements: Iterable<Element>) {
-    // ResizeObserver is the core of the sticky behavior. It lets the viewport
-    // stay pinned while content grows or shrinks, but only while followLatest
-    // remains true; user scrolls are handled separately in handleScroll.
-    resizeObserver?.disconnect();
-    resizeObserver = null;
-    if (typeof ResizeObserver !== "function") {
-      return;
-    }
-    resizeObserver = new ResizeObserver(scheduleMeasureAndStick);
-    for (const element of elements) {
-      if (element.isConnected) {
-        resizeObserver.observe(element);
-      }
-    }
+    viewportAnchor.setElements(elements);
+    scheduler.observeElements(elements);
   }
 
   function observeElement(element: Element | null) {
-    observeElements(element ? [element] : []);
+    viewportAnchor.setElement(element);
+    scheduler.observeElement(element);
   }
 
   function stickIfFollowing() {
     bindInputListeners();
     options.measure();
-    if (followLatest.value) {
+    if (state.followLatest.value) {
       void scrollToBottom();
+    } else {
+      viewportAnchor.restore();
     }
   }
 
@@ -240,36 +111,33 @@ export function useVirtualStickToBottom(options: VirtualStickToBottomOptions) {
       await nextFrame();
       bindInputListeners();
       options.measure();
-      if (followLatest.value) {
+      if (state.followLatest.value) {
         const viewport = options.getViewport();
         if (viewport) {
           options.scrollToBottom(viewport);
-          markProgrammaticScroll(viewport);
+          state.markProgrammaticScroll(viewport);
         }
+      } else {
+        viewportAnchor.restore();
       }
     }
-    if (followLatest.value) {
-      initialBottomAligned.value = true;
+    if (state.followLatest.value) {
+      state.initialBottomAligned.value = true;
     }
   }
 
   function cleanup() {
-    unbindInputListeners();
-    resizeObserver?.disconnect();
-    resizeObserver = null;
-    if (scheduledFrame !== null) {
-      cancelAnimationFrame(scheduledFrame);
-      scheduledFrame = null;
-    }
+    inputIntent.unbind();
+    scheduler.cleanup();
   }
 
   onBeforeUnmount(cleanup);
 
   return {
     bindInputListeners,
-    followLatest,
-    initialBottomAligned,
-    isNearBottom,
+    followLatest: state.followLatest,
+    initialBottomAligned: state.initialBottomAligned,
+    isNearBottom: state.isNearBottom,
     observeElement,
     observeElements,
     reset,

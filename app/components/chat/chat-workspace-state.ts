@@ -5,11 +5,18 @@ import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>) {
   const refs = storeToRefs(store);
+  const selectedThreadViewReady = computed(() =>
+    isSelectedThreadViewReady({
+      selectedThreadId: refs.selectedThreadId.value,
+      currentThread: refs.currentThread.value,
+      history: refs.history.value,
+    }),
+  );
   const threadTitle = computed(() => {
     if (!refs.selectedThreadId.value && refs.selectedProject.value) {
       return refs.selectedProject.value.name;
     }
-    const thread = refs.currentThread.value as any;
+    const thread = selectedThreadViewReady.value ? (refs.currentThread.value as any) : null;
     return titleForThread(thread || { id: refs.selectedThreadId.value }) || "codex-gateway";
   });
   const historyTurns = computed(() => turnsFromHistory(refs.history.value));
@@ -48,6 +55,7 @@ export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>)
     historyTurns,
     threadItems,
     openingThread,
+    selectedThreadViewReady,
     visibleError,
     followKey,
     canOpenTerminal: computed(() => Boolean(refs.selectedHostId.value)),
@@ -91,6 +99,30 @@ export function openWorkspaceTerminal(store: ReturnType<typeof useGatewayStore>)
 function turnsFromHistory(history: unknown) {
   const value = history as any;
   return value?.thread?.turns || value?.turns || [];
+}
+
+function isSelectedThreadViewReady(input: {
+  selectedThreadId: string | null;
+  currentThread: unknown;
+  history: unknown;
+}) {
+  if (!input.selectedThreadId) {
+    return true;
+  }
+  const selectedThreadId = String(input.selectedThreadId);
+  const currentThreadId = threadIdFromUnknown(input.currentThread);
+  if (currentThreadId === selectedThreadId) {
+    return true;
+  }
+  const historyValue = input.history as any;
+  const historyThreadId =
+    threadIdFromUnknown(historyValue?.thread) ?? threadIdFromUnknown(historyValue);
+  return historyThreadId === selectedThreadId;
+}
+
+function threadIdFromUnknown(value: unknown) {
+  const id = (value as any)?.id;
+  return id == null ? null : String(id);
 }
 
 function scopedVisibleError(input: {

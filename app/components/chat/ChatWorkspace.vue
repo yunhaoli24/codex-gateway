@@ -8,7 +8,6 @@ const {
   selectedHostId,
   selectedProjectId,
   selectedThreadId,
-  status,
   initializing,
   loading,
   loadingOlderTurns,
@@ -17,6 +16,7 @@ const {
   threadTitle,
   historyTurns,
   openingThread,
+  selectedThreadViewReady,
   visibleError,
   followKey,
   canOpenTerminal,
@@ -35,7 +35,6 @@ function openCurrentTerminal() {
   <section class="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface">
     <WorkspaceTabs
       :thread-title="threadTitle"
-      :active-controller-count="status?.activeControllers.length || 0"
       :initializing="initializing"
       :opening-thread="Boolean(openingThread)"
       :selected-thread-id="selectedThreadId"
@@ -49,6 +48,7 @@ function openCurrentTerminal() {
       :follow-key="followKey"
       :visible-sub-agent-panels="visibleSubAgentPanels"
       :can-open-terminal="canOpenTerminal"
+      :selected-thread-view-ready="selectedThreadViewReady"
       @load-older="loadOlderTurns"
       @open-terminal="openCurrentTerminal"
     >

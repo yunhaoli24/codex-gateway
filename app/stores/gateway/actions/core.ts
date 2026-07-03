@@ -1,6 +1,6 @@
 import { toast } from "vue-sonner";
 import { gatewayApi } from "@/utils/gateway-api";
-import type { GatewayConfig, GatewayNotificationSettings, GatewayStatus } from "~~/shared/types";
+import type { GatewayConfig, GatewayNotificationSettings } from "~~/shared/types";
 import { defaultGatewayConfig, normalizeNotificationSettings } from "../config";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError } from "../thread-utils/identity";
@@ -93,8 +93,6 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         ctx.state.threads = [];
         ctx.state.models = [];
         await ctx.loadConfigFromServer();
-        const status = await gatewayApi<GatewayStatus>("/api/status");
-        ctx.state.status = status;
 
         const routeHostExists = routeSelection.hostId
           ? ctx.state.hosts.some((host) => host.id === routeSelection.hostId)

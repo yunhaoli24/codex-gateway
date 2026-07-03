@@ -34,7 +34,6 @@
     "unpinThread": "取消置顶",
     "renameThread": "重命名会话",
     "singleUser": "单用户",
-    "active": "活动连接",
     "noThread": "打开或创建一个会话",
     "chooseProject": "选择一个项目查看会话",
     "loadingGateway": "正在加载远端会话",

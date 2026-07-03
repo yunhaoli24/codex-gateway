@@ -1,7 +1,6 @@
 import type {
   GatewayConfig,
   GatewayEvent,
-  GatewayStatus,
   HostRecord,
   ModelRecord,
   PinnedThreadRecord,
@@ -136,7 +135,6 @@ export interface GatewayStoreState {
   currentThread: unknown;
   history: unknown;
   events: GatewayEvent[];
-  status: GatewayStatus | null;
   initializing: boolean;
   loading: boolean;
   loadingOlderTurns: boolean;

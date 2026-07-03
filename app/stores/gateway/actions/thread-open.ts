@@ -190,6 +190,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         projectId: last.projectId,
         replaceRoute: true,
       });
+      ctx.syncSelectedRoute({ replace: true });
     },
 
     async startThread(

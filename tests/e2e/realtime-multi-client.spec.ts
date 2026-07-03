@@ -220,7 +220,7 @@ async function openThreadFromProjectOrRestoredState(
   projectId: number,
   threadId: string,
 ) {
-  if ((await currentRouteThreadId(page)) === threadId) {
+  if ((await currentSelectedThreadId(page)) === threadId) {
     return;
   }
 
@@ -229,13 +229,33 @@ async function openThreadFromProjectOrRestoredState(
   if (!(await row.isVisible().catch(() => false))) {
     await page.getByTestId(`project-button-${projectId}`).click();
   }
+  if (
+    (await currentSelectedThreadId(page)) === threadId ||
+    (await page.getByTestId(`thread-button-${threadId}`).isVisible().catch(() => false))
+  ) {
+    await page.getByTestId(`thread-button-${threadId}`).click();
+    await expect.poll(async () => currentSelectedThreadId(page), { timeout: 10_000 }).toBe(threadId);
+    return;
+  }
   await expect(row).toBeVisible({ timeout: 30_000 });
   await row.click();
-  await expect.poll(async () => currentRouteThreadId(page), { timeout: 10_000 }).toBe(threadId);
+  await expect.poll(async () => currentSelectedThreadId(page), { timeout: 10_000 }).toBe(threadId);
 }
 
 async function currentRouteThreadId(page: Page) {
   return page.evaluate(() => new URLSearchParams(window.location.search).get("threadId"));
+}
+
+async function currentSelectedThreadId(page: Page) {
+  const routeThreadId = await currentRouteThreadId(page);
+  if (routeThreadId) {
+    return routeThreadId;
+  }
+  return page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    return store?.selectedThreadId ? String(store.selectedThreadId) : null;
+  });
 }
 
 async function closeRealtimeSockets(page: Page) {

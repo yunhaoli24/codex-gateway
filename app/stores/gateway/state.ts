@@ -37,7 +37,6 @@ export function createGatewayState(): GatewayStoreState {
     currentThread: null,
     history: null,
     events: [],
-    status: null,
     initializing: true,
     loading: false,
     loadingOlderTurns: false,

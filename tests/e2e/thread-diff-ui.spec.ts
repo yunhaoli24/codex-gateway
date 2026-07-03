@@ -418,12 +418,19 @@ test("streaming output does not force scroll when the user is reading earlier co
   await expect.poll(() => chatViewportScrollTop(page)).toBeLessThanOrEqual(nearBottomScrollTop + 2);
 
   const mainScrollTop = await parkChatViewportInMiddle(page);
+  const visibleAnchor = await captureVisibleAgentLineAnchor(page);
 
   await appendAgentStreamLines(page, "agent-scroll-1", "new agent stream line", 40);
 
   await page.waitForTimeout(300);
   await expect.poll(() => chatViewportScrollTop(page)).toBeGreaterThanOrEqual(mainScrollTop - 2);
   await expect.poll(() => chatViewportScrollTop(page)).toBeLessThanOrEqual(mainScrollTop + 2);
+  await expect
+    .poll(() => visibleAgentLineTop(page, visibleAnchor.text))
+    .toBeGreaterThanOrEqual(visibleAnchor.top - 2);
+  await expect
+    .poll(() => visibleAgentLineTop(page, visibleAnchor.text))
+    .toBeLessThanOrEqual(visibleAnchor.top + 2);
 
   await scrollChatViewportToBottom(page);
   await expect(page.getByRole("button", { name: /node long-output\.js/ })).toBeVisible();
@@ -1256,6 +1263,45 @@ async function chatViewportScrollTop(page: Page) {
     if (!viewport) throw new Error("Missing chat viewport");
     return viewport.scrollTop;
   });
+}
+
+async function captureVisibleAgentLineAnchor(page: Page) {
+  return await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement) => {
+    const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+    if (!viewport) throw new Error("Missing chat viewport");
+    const viewportRect = viewport.getBoundingClientRect();
+    const paragraphs = Array.from(viewport.querySelectorAll("p"));
+    const element = paragraphs.find((candidate) => {
+      const text = candidate.textContent?.trim() ?? "";
+      const rect = candidate.getBoundingClientRect();
+      return (
+        text.startsWith("agent loop line ") &&
+        rect.top >= viewportRect.top + 8 &&
+        rect.bottom <= viewportRect.bottom - 8
+      );
+    });
+    if (!element) {
+      throw new Error("Missing visible agent line anchor");
+    }
+    return {
+      text: element.textContent?.trim() ?? "",
+      top: element.getBoundingClientRect().top,
+    };
+  });
+}
+
+async function visibleAgentLineTop(page: Page, text: string) {
+  return await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement, text) => {
+    const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+    if (!viewport) throw new Error("Missing chat viewport");
+    const element = Array.from(viewport.querySelectorAll("p")).find(
+      (candidate) => candidate.textContent?.trim() === text,
+    );
+    if (!element) {
+      throw new Error(`Missing visible agent line ${text}`);
+    }
+    return element.getBoundingClientRect().top;
+  }, text);
 }
 
 async function appendAgentStreamLines(page: Page, itemId: string, prefix: string, count: number) {

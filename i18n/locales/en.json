@@ -37,7 +37,6 @@
     "save": "Save",
     "cancel": "Cancel",
     "singleUser": "single user",
-    "active": "active",
     "noThread": "Open or create a thread",
     "chooseProject": "Choose a project to view threads",
     "loadingGateway": "Loading remote threads",

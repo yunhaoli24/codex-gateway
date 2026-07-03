@@ -8,7 +8,6 @@ export type {
   ProjectUpdateInput,
   RpcEnvelope,
   GatewayEvent,
-  GatewayStatus,
 } from "./types/records";
 export type {
   ApprovalPolicy,

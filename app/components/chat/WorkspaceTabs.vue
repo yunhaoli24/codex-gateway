@@ -10,7 +10,6 @@ import WorkspaceHeader from "./WorkspaceHeader.vue";
 
 const props = defineProps<{
   threadTitle: string;
-  activeControllerCount: number;
   initializing: boolean;
   openingThread: boolean;
   selectedThreadId: string | null;
@@ -24,6 +23,7 @@ const props = defineProps<{
   followKey: unknown[];
   visibleSubAgentPanels: any[];
   canOpenTerminal: boolean;
+  selectedThreadViewReady: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -85,7 +85,6 @@ function sessionMatchesSelection(session: TerminalSessionSnapshot | undefined) {
     <WorkspaceHeader
       :tabs="visibleTabs"
       :thread-title="threadTitle"
-      :active-controller-count="activeControllerCount"
       :can-open-terminal="canOpenTerminal"
       @open-terminal="emit('openTerminal')"
       @close-terminal="store.closeTerminal"
@@ -109,6 +108,7 @@ function sessionMatchesSelection(session: TerminalSessionSnapshot | undefined) {
         :visible-error="visibleError"
         :follow-key="followKey"
         :visible-sub-agent-panels="visibleSubAgentPanels"
+        :selected-thread-view-ready="selectedThreadViewReady"
         @load-older="emit('loadOlder')"
       />
     </TabsContent>

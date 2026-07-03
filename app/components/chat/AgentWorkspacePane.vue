@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { FolderIcon, Loader2Icon } from "@lucide/vue";
+import { computed } from "vue";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
 import ChatPanelScrollArea from "@/components/chat/ChatPanelScrollArea.vue";
 import ProjectThreadList from "@/components/chat/ProjectThreadList.vue";
 import SubAgentThreadPanel from "@/components/thread/SubAgentThreadPanel.vue";
 import ThreadVirtualTimeline from "@/components/thread/ThreadVirtualTimeline.vue";
 
-defineProps<{
+const props = defineProps<{
   initializing: boolean;
   openingThread: boolean;
   selectedThreadId: string | null;
@@ -19,6 +20,7 @@ defineProps<{
   visibleError: string | null;
   followKey: unknown[];
   visibleSubAgentPanels: any[];
+  selectedThreadViewReady: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -26,6 +28,12 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const showThreadLoading = computed(
+  () =>
+    props.initializing ||
+    props.openingThread ||
+    (Boolean(props.selectedThreadId) && !props.selectedThreadViewReady && !props.visibleError),
+);
 </script>
 
 <template>
@@ -40,7 +48,7 @@ const { t } = useI18n();
       "
     >
       <ChatPanelScrollArea
-        v-if="initializing || openingThread"
+        v-if="showThreadLoading"
         class="flex items-center justify-center text-[0.9375rem] text-ink-muted"
       >
         <div class="flex items-center gap-2">
