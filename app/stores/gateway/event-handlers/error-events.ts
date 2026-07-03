@@ -53,11 +53,10 @@ function threadErrorTitle(ctx: GatewayStoreContext, hostId: number, threadId: st
     ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId
       ? ctx.state.currentThread
       : null;
-  const snapshot = ctx.state.threadSnapshots[key]?.currentThread;
-  const preview = ctx.state.threadPreviews[key]?.currentThread;
+  const view = ctx.state.threadViews[key]?.currentThread;
   const listed = ctx.state.threads.find((thread: any) => String(thread?.id) === threadId);
   const pinned = ctx.state.gatewayConfig.pinnedThreads.find(
     (thread) => thread.hostId === hostId && thread.threadId === threadId,
   );
-  return titleForThread(selected || snapshot || preview || listed || pinned || { id: threadId });
+  return titleForThread(selected || view || listed || pinned || { id: threadId });
 }

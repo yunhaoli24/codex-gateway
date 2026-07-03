@@ -61,8 +61,7 @@ function findCommandItem(
     hostId === ctx.state.selectedHostId && threadId === ctx.state.selectedThreadId
       ? ctx.state.history
       : null,
-    ctx.state.threadSnapshots[pinnedKey(hostId, threadId)]?.history,
-    ctx.state.threadPreviews[pinnedKey(hostId, threadId)]?.history,
+    ctx.state.threadViews[pinnedKey(hostId, threadId)]?.history,
   ];
   for (const history of histories) {
     const item = findCommandItemInHistory(history, itemId, processId);

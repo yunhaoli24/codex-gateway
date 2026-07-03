@@ -88,7 +88,7 @@ test("opens and closes the subagent side panel on mobile", async ({ page }) => {
         ],
       },
     };
-    store.threadPreviews = {
+    store.threadViews = {
       "1:mobile-subagent-thread": {
         hostId: 1,
         projectId: null,

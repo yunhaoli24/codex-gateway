@@ -2,6 +2,7 @@ import type { GatewayEvent } from "~~/shared/types";
 import { applyAppServerEvent } from "../event-handlers";
 import { pinnedKey } from "../thread-utils/identity";
 import type { GatewayStoreContext } from "../types";
+import { appendEventToThreadView } from "../thread-open/thread-view-cache";
 
 export function handleRealtimeThreadEvent(ctx: GatewayStoreContext, event: GatewayEvent) {
   const eventKey = pinnedKey(event.hostId, event.threadId);
@@ -9,7 +10,7 @@ export function handleRealtimeThreadEvent(ctx: GatewayStoreContext, event: Gatew
     event.hostId === ctx.state.selectedHostId && event.threadId === ctx.state.selectedThreadId;
   const lastAppliedEventId = isSelected
     ? ctx.state.lastEventId
-    : (ctx.state.threadSnapshots[eventKey]?.lastEventId ?? 0);
+    : (ctx.state.threadViews[eventKey]?.lastEventId ?? 0);
   if (event.id <= lastAppliedEventId) {
     return;
   }
@@ -20,29 +21,7 @@ export function handleRealtimeThreadEvent(ctx: GatewayStoreContext, event: Gatew
 }
 
 export function recordThreadEvent(ctx: GatewayStoreContext, event: GatewayEvent) {
-  const key = pinnedKey(event.hostId, event.threadId);
-  const snapshot = ctx.state.threadSnapshots[key];
-  if (snapshot && event.id > snapshot.lastEventId) {
-    const events = [...snapshot.events, event].slice(-500);
-    ctx.state.threadSnapshots[key] = {
-      ...snapshot,
-      events,
-      lastEventId: event.id,
-    };
-  }
-
-  const preview = ctx.state.threadPreviews[key];
-  if (preview && event.id > preview.lastEventId) {
-    const events = [...preview.events, event].slice(-500);
-    ctx.state.threadPreviews = {
-      ...ctx.state.threadPreviews,
-      [key]: {
-        ...preview,
-        events,
-        lastEventId: event.id,
-      },
-    };
-  }
+  appendEventToThreadView(ctx, event);
 }
 
 export function applyLiveThreadEvent(ctx: GatewayStoreContext, event: GatewayEvent) {

@@ -1,5 +1,6 @@
 import type { GatewayStoreContext, SubAgentPanelState } from "../types";
 import { pinnedKey } from "../thread-utils/identity";
+import { removeThreadView } from "../thread-open/thread-view-cache";
 
 type SubAgentPanelInput = {
   hostId: number;
@@ -86,15 +87,9 @@ function panelKey(panel: Pick<SubAgentPanelState, "hostId" | "threadId">) {
 }
 
 function closeThreadPreview(ctx: GatewayStoreContext, hostId: number, threadId: string) {
-  const key = pinnedKey(hostId, threadId);
   const isSelected = ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId;
   if (!isSelected) {
     ctx.closeThreadEvents(hostId, threadId);
-  }
-  const { [key]: _preview, ...threadPreviews } = ctx.state.threadPreviews;
-  ctx.state.threadPreviews = threadPreviews;
-  if (!isSelected) {
-    const { [key]: _snapshot, ...threadSnapshots } = ctx.state.threadSnapshots;
-    ctx.state.threadSnapshots = threadSnapshots;
+    removeThreadView(ctx, hostId, threadId);
   }
 }

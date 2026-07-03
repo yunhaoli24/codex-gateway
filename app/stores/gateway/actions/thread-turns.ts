@@ -242,7 +242,7 @@ function historyForThread(ctx: GatewayStoreContext, hostId: number, threadId: st
     return ctx.state.history;
   }
   const key = pinnedKey(hostId, threadId);
-  return ctx.state.threadPreviews[key]?.history ?? ctx.state.threadSnapshots[key]?.history ?? null;
+  return ctx.state.threadViews[key]?.history ?? null;
 }
 
 function noActiveTurnToInterruptMessage(

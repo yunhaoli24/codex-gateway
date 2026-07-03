@@ -40,6 +40,7 @@ export function useVirtualStickToBottom(options: VirtualStickToBottomOptions) {
     onWheel: state.handleWheel,
   });
   const scheduler = createVirtualMeasurementScheduler({
+    isFollowing: () => state.followLatest.value,
     measure: options.measure,
     preserveAnchorIfNeeded: () => {
       if (!state.followLatest.value) {

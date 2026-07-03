@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { Loader2Icon } from "@lucide/vue";
-import type { SubAgentPanelState, ThreadPreviewState } from "@/stores/gateway/types";
-import ThreadTurnView from "@/components/thread/ThreadTurnView.vue";
-import TanStackStickToBottomScrollArea from "@/components/common/TanStackStickToBottomScrollArea.vue";
+import type { SubAgentPanelState, ThreadViewState } from "@/stores/gateway/types";
+import ThreadVirtualTimeline from "@/components/thread/ThreadVirtualTimeline.vue";
 
 defineProps<{
   panel: SubAgentPanelState;
-  preview: ThreadPreviewState | null;
+  preview: ThreadViewState | null;
   turns: any[];
   followKey: string;
 }>();
@@ -31,22 +30,17 @@ const { t } = useI18n();
       {{ t("app.loadingSubAgent") }}
     </div>
 
-    <TanStackStickToBottomScrollArea
+    <ThreadVirtualTimeline
       v-else-if="turns.length"
-      class="min-h-0 w-full flex-1 overflow-hidden"
-      viewport-class="h-full"
-      content-class="space-y-5 px-4 py-5"
+      :thread-id="panel.threadId"
       :follow-key="followKey"
-      :estimate-size="520"
-    >
-      <ThreadTurnView
-        v-for="turn in turns"
-        :key="turn.id || JSON.stringify(turn).length"
-        :turn="turn"
-        :host-id="panel.hostId"
-        :thread-id="panel.threadId"
-      />
-    </TanStackStickToBottomScrollArea>
+      :turns="turns"
+      :host-id="panel.hostId"
+      :loading="Boolean(preview?.loading)"
+      :loading-older="false"
+      :older-turns-cursor="null"
+      :visible-error="preview?.error ?? null"
+    />
 
     <div
       v-else

@@ -37,7 +37,7 @@ export function connectThreadEvents(
   const afterId =
     hostId === ctx.state.selectedHostId && threadId === ctx.state.selectedThreadId
       ? ctx.state.lastEventId
-      : (ctx.state.threadSnapshots[key]?.lastEventId ?? 0);
+      : (ctx.state.threadViews[key]?.lastEventId ?? 0);
   const subscription = { hostId, threadId, afterId };
   const current = ctx.state.realtimeThreadSubscriptions[key];
   if (current?.hostId === hostId && current.threadId === threadId && current.afterId === afterId) {

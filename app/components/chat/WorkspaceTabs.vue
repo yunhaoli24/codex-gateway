@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
-import type { TerminalSessionSnapshot } from "~~/shared/types";
 import { computed, watchEffect } from "vue";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import TerminalPanel from "@/components/terminal/TerminalPanel.vue";
 import { useGatewayStore } from "@/stores/gateway";
+import type { TerminalSessionState } from "@/stores/gateway/types";
 import AgentWorkspacePane from "./AgentWorkspacePane.vue";
 import WorkspaceHeader from "./WorkspaceHeader.vue";
 
@@ -56,7 +56,7 @@ const terminalPanels = computed(() =>
     if (!session) {
       return [];
     }
-    return [{ ...tab, session }] satisfies Array<typeof tab & { session: TerminalSessionSnapshot }>;
+    return [{ ...tab, session }] satisfies Array<typeof tab & { session: TerminalSessionState }>;
   }),
 );
 
@@ -66,7 +66,7 @@ watchEffect(() => {
   }
 });
 
-function sessionMatchesSelection(session: TerminalSessionSnapshot | undefined) {
+function sessionMatchesSelection(session: TerminalSessionState | undefined) {
   if (!session || session.hostId !== props.selectedHostId) {
     return false;
   }

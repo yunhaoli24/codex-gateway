@@ -39,7 +39,7 @@ export async function loadOlderTurns(ctx: GatewayStoreContext) {
     );
     ctx.state.olderTurnsCursor = result.turnsPage.nextCursor;
     ctx.state.newerTurnsCursor = result.turnsPage.backwardsCursor ?? ctx.state.newerTurnsCursor;
-    ctx.cacheSelectedThreadSnapshot();
+    ctx.cacheSelectedThreadView();
   } catch (error: any) {
     ctx.setError(messageFromError(error, ctx.t("app.loadOlderTurnsFailed"), ctx.errorLabels), {
       hostId,

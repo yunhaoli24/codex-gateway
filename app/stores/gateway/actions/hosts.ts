@@ -92,7 +92,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
     },
 
     async selectHost(hostId: number) {
-      ctx.cacheSelectedThreadSnapshot();
+      ctx.cacheSelectedThreadView();
       ctx.beginViewTransition();
       ctx.state.selectedHostId = hostId;
       const currentProject = ctx.state.projects.find(

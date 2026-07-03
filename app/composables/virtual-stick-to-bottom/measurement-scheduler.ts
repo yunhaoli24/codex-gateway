@@ -1,4 +1,5 @@
 type VirtualMeasurementSchedulerOptions = {
+  isFollowing: () => boolean;
   measure: () => void;
   preserveAnchorIfNeeded: () => void;
   stickIfNeeded: () => void;
@@ -7,6 +8,7 @@ type VirtualMeasurementSchedulerOptions = {
 export function createVirtualMeasurementScheduler(options: VirtualMeasurementSchedulerOptions) {
   let resizeObserver: ResizeObserver | null = null;
   let scheduledFrame: number | null = null;
+  let scheduledMicrotask = false;
 
   function cancel() {
     if (scheduledFrame !== null) {
@@ -19,10 +21,21 @@ export function createVirtualMeasurementScheduler(options: VirtualMeasurementSch
     // Markdown highlighting, images, collapsibles, and streamed deltas can all
     // resize after render. Coalesce those changes into one measured frame.
     cancel();
+    if (!options.isFollowing()) {
+      if (scheduledMicrotask) {
+        return;
+      }
+      scheduledMicrotask = true;
+      queueMicrotask(() => {
+        scheduledMicrotask = false;
+        options.measure();
+        options.preserveAnchorIfNeeded();
+      });
+      return;
+    }
     scheduledFrame = requestAnimationFrame(() => {
       scheduledFrame = null;
       options.measure();
-      options.preserveAnchorIfNeeded();
       options.stickIfNeeded();
     });
   }

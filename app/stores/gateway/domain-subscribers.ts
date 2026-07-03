@@ -11,6 +11,7 @@ import { mergeItemIntoLatestTurn } from "~~/shared/thread-history/items";
 import { resolveServerRequestInHistory } from "~~/shared/thread-history/requests";
 import { mergeThreadTurns, syncCompletedTurn } from "~~/shared/thread-history/turns";
 import { pinnedKey } from "./thread-utils/identity";
+import { patchThreadView } from "./thread-open/thread-view-cache";
 import {
   rememberActiveTerminalProcess,
   clearActiveTerminalProcess,
@@ -95,27 +96,15 @@ function updateThreadHistory(
   const isSelected = ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId;
   if (isSelected) {
     ctx.state.history = update(ctx.state.history, ctx.state.currentThread);
-    ctx.cacheSelectedThreadSnapshot();
+    ctx.cacheSelectedThreadView();
     return;
   }
 
   const key = pinnedKey(hostId, threadId);
-  const snapshot = ctx.state.threadSnapshots[key];
-  if (snapshot) {
-    ctx.state.threadSnapshots[key] = {
-      ...snapshot,
-      history: update(snapshot.history, snapshot.currentThread),
-    };
-  }
-
-  const preview = ctx.state.threadPreviews[key];
-  if (preview) {
-    ctx.state.threadPreviews = {
-      ...ctx.state.threadPreviews,
-      [key]: {
-        ...preview,
-        history: update(preview.history, preview.currentThread),
-      },
-    };
+  const view = ctx.state.threadViews[key];
+  if (view) {
+    patchThreadView(ctx, hostId, threadId, {
+      history: update(view.history, view.currentThread),
+    });
   }
 }

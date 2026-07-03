@@ -34,7 +34,7 @@ export interface ThreadListResponse {
   projects?: ProjectRecord[];
 }
 
-export interface ThreadSnapshot {
+export interface ThreadViewState {
   hostId: number;
   projectId: number | null;
   threadId: string;
@@ -44,9 +44,6 @@ export interface ThreadSnapshot {
   olderTurnsCursor: string | null;
   newerTurnsCursor: string | null;
   lastEventId: number;
-}
-
-export interface ThreadPreviewState extends ThreadSnapshot {
   loading: boolean;
   error: string | null;
 }
@@ -69,6 +66,10 @@ export interface WorkspaceTabState {
   kind: "agent" | "terminal";
   title: string;
   sessionId?: string;
+}
+
+export interface TerminalSessionState extends TerminalSessionSnapshot {
+  outputChunks: string[];
 }
 
 export interface SubmittedTurnRequestState {
@@ -121,13 +122,12 @@ export interface GatewayStoreState {
   threadTokenUsageByKey: Record<string, ThreadTokenUsageState>;
   composerDraftsByKey: Record<string, ComposerDraft>;
   submittedTurnRequestsByKey: Record<string, SubmittedTurnRequestState>;
-  threadSnapshots: Record<string, ThreadSnapshot>;
-  threadPreviews: Record<string, ThreadPreviewState>;
+  threadViews: Record<string, ThreadViewState>;
   subAgentPanels: SubAgentPanelState[];
   activeSubAgentPanelKey: string | null;
   workspaceTabs: WorkspaceTabState[];
   activeWorkspaceTabId: string;
-  terminalSessions: Record<string, TerminalSessionSnapshot>;
+  terminalSessions: Record<string, TerminalSessionState>;
   selectedHostId: number | null;
   selectedProjectId: number | null;
   selectedThreadId: string | null;
@@ -173,7 +173,7 @@ export interface GatewayStoreContext {
   selectedThreadTokenUsage: ThreadTokenUsageState | null;
   selectedComposerDraft: ComposerDraft;
   activeWorkspaceTab: WorkspaceTabState;
-  terminalSessionSnapshots: TerminalSessionSnapshot[];
+  terminalSessionSnapshots: TerminalSessionState[];
   [action: string]: any;
 }
 

@@ -25,7 +25,7 @@ export function insertOptimisticSteerMessage(
       content,
     },
   );
-  ctx.cacheSelectedThreadSnapshot();
+  ctx.cacheSelectedThreadView();
 }
 
 export function insertOptimisticNewTurnMessage(
@@ -45,7 +45,7 @@ export function insertOptimisticNewTurnMessage(
       content,
     },
   );
-  ctx.cacheSelectedThreadSnapshot();
+  ctx.cacheSelectedThreadView();
 }
 
 export function mergeStartedTurn(ctx: GatewayStoreContext, threadId: string, turn: any) {
@@ -56,7 +56,7 @@ export function mergeStartedTurn(ctx: GatewayStoreContext, threadId: string, tur
     [turn],
     "append",
   );
-  ctx.cacheSelectedThreadSnapshot();
+  ctx.cacheSelectedThreadView();
 }
 
 export function mergeTurnItems(ctx: GatewayStoreContext, threadId: string, turn: any) {

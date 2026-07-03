@@ -7,7 +7,7 @@ import { messageFromError } from "../thread-utils/identity";
 export function createProjectActions(ctx: GatewayStoreContext) {
   return {
     async selectProject(projectId: number) {
-      ctx.cacheSelectedThreadSnapshot();
+      ctx.cacheSelectedThreadView();
       ctx.beginViewTransition();
       ctx.state.selectedProjectId = projectId;
       ctx.state.selectedThreadId = null;
@@ -87,7 +87,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
         ctx.state.projects.push(project);
       }
       ctx.persistConfig();
-      ctx.cacheSelectedThreadSnapshot();
+      ctx.cacheSelectedThreadView();
       ctx.beginViewTransition();
       ctx.state.selectedHostId = project.hostId;
       ctx.state.selectedProjectId = project.id;
@@ -117,7 +117,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
         return project;
       }
 
-      ctx.cacheSelectedThreadSnapshot();
+      ctx.cacheSelectedThreadView();
       ctx.beginViewTransition();
       ctx.state.selectedHostId = project.hostId;
       ctx.state.selectedThreadId = null;
@@ -151,7 +151,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
         ctx.state.projects.find((item) => item.hostId === ctx.state.selectedHostId) ??
         null;
 
-      ctx.cacheSelectedThreadSnapshot();
+      ctx.cacheSelectedThreadView();
       ctx.beginViewTransition();
       ctx.state.selectedHostId = project?.hostId ?? ctx.state.selectedHostId;
       ctx.state.selectedProjectId = nextProject?.id ?? null;

@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import type { TerminalSessionSnapshot } from "~~/shared/types";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from "vue";
 import { Button } from "@/components/ui/button";
 import { useGatewayStore } from "@/stores/gateway";
+import type { TerminalSessionState } from "@/stores/gateway/types";
 import "@xterm/xterm/css/xterm.css";
 
 const props = defineProps<{
-  session: TerminalSessionSnapshot;
+  session: TerminalSessionState;
   active: boolean;
 }>();
 

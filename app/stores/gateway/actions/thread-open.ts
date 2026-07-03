@@ -9,14 +9,15 @@ import {
   activateThreadView,
   activatePendingThreadView,
   beginViewTransition,
-  cacheSelectedThreadSnapshot,
+  cacheSelectedThreadView,
   clearCurrentThreadView,
   isCurrentViewTransition,
   rememberOpenThread,
   requestScrollToLatest,
-  restoreThreadSnapshot,
+  restoreThreadView,
   syncSelectedRoute,
 } from "../thread-open/view-state";
+import { patchThreadView, upsertThreadView } from "../thread-open/thread-view-cache";
 
 export function createThreadOpenActions(ctx: GatewayStoreContext) {
   return {
@@ -28,12 +29,12 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       return isCurrentViewTransition(ctx, epoch);
     },
 
-    cacheSelectedThreadSnapshot() {
-      cacheSelectedThreadSnapshot(ctx);
+    cacheSelectedThreadView() {
+      cacheSelectedThreadView(ctx);
     },
 
-    restoreThreadSnapshot(hostId: number, threadId: string) {
-      return restoreThreadSnapshot(ctx, hostId, threadId);
+    restoreThreadView(hostId: number, threadId: string) {
+      return restoreThreadView(ctx, hostId, threadId);
     },
 
     clearCurrentThreadView() {
@@ -56,7 +57,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       threadId: string,
       context?: { hostId?: number; projectId?: number | null; replaceRoute?: boolean },
     ) {
-      ctx.cacheSelectedThreadSnapshot();
+      ctx.cacheSelectedThreadView();
       const targetHostId = context?.hostId ?? ctx.state.selectedHostId;
       const targetProjectId =
         context && "projectId" in context
@@ -80,7 +81,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       }
       const viewEpoch = ctx.beginViewTransition();
       activatePendingThreadView(ctx, targetHostId, targetProjectId, threadId);
-      if (ctx.restoreThreadSnapshot(targetHostId, threadId)) {
+      if (ctx.restoreThreadView(targetHostId, threadId)) {
         syncRestoredThreadStatus(ctx, targetHostId, threadId);
         await ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
@@ -106,30 +107,17 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       context: { projectId?: number | null; limit?: number } = {},
     ) {
       const key = pinnedKey(hostId, threadId);
-      const existing = ctx.state.threadPreviews[key];
+      const existing = ctx.state.threadViews[key];
       if (existing?.history && !existing.error) {
         ctx.connectEvents(hostId, threadId);
         return existing;
       }
 
-      ctx.state.threadPreviews = {
-        ...ctx.state.threadPreviews,
-        [key]: {
-          ...(existing ?? {
-            hostId,
-            projectId: context.projectId ?? null,
-            threadId,
-            currentThread: null,
-            history: null,
-            events: [],
-            olderTurnsCursor: null,
-            newerTurnsCursor: null,
-            lastEventId: 0,
-          }),
-          loading: true,
-          error: null,
-        },
-      };
+      patchThreadView(ctx, hostId, threadId, {
+        ...(existing ?? { projectId: context.projectId ?? null }),
+        loading: true,
+        error: null,
+      });
 
       try {
         const result = await requestActivateThreadSnapshot(ctx, {
@@ -138,7 +126,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
           threadId,
           limit: context.limit ?? INITIAL_TURN_PAGE_LIMIT,
         });
-        const preview = {
+        const view = {
           hostId,
           projectId: result.projectId ?? context.projectId ?? null,
           threadId,
@@ -151,29 +139,16 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
           loading: false,
           error: null,
         };
-        commitThreadPreview(ctx, key, preview);
+        upsertThreadView(ctx, view);
         ctx.rememberThreadSubscription(hostId, threadId, result.lastEventId);
-        return ctx.state.threadPreviews[key];
+        return ctx.state.threadViews[key];
       } catch (error: any) {
         const message = messageFromError(error, ctx.t("app.openThreadFailed"), ctx.errorLabels);
-        ctx.state.threadPreviews = {
-          ...ctx.state.threadPreviews,
-          [key]: {
-            ...(ctx.state.threadPreviews[key] ?? {
-              hostId,
-              projectId: context.projectId ?? null,
-              threadId,
-              currentThread: null,
-              history: null,
-              events: [],
-              olderTurnsCursor: null,
-              newerTurnsCursor: null,
-              lastEventId: 0,
-            }),
-            loading: false,
-            error: message,
-          },
-        };
+        patchThreadView(ctx, hostId, threadId, {
+          projectId: context.projectId ?? existing?.projectId ?? null,
+          loading: false,
+          error: message,
+        });
         throw error;
       }
     },
@@ -197,7 +172,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       options: ComposerTurnOptions = {},
       context?: { hostId?: number; projectId?: number | null },
     ) {
-      ctx.cacheSelectedThreadSnapshot();
+      ctx.cacheSelectedThreadView();
       const viewEpoch = ctx.beginViewTransition();
       if (context?.hostId) {
         activateThreadView(ctx, context.hostId, context.projectId ?? null);
@@ -213,28 +188,13 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         return;
       }
       const threadId = applyStartedThreadResult(ctx, result);
-      ctx.cacheSelectedThreadSnapshot();
+      ctx.cacheSelectedThreadView();
       ctx.connectEvents();
       await ctx.listThreads();
-      ctx.cacheSelectedThreadSnapshot();
+      ctx.cacheSelectedThreadView();
       await ctx.rememberOpenThread(threadId);
       ctx.syncSelectedRoute();
     },
-  };
-}
-
-function commitThreadPreview(
-  ctx: GatewayStoreContext,
-  key: string,
-  preview: GatewayStoreContext["state"]["threadPreviews"][string],
-) {
-  ctx.state.threadSnapshots = {
-    ...ctx.state.threadSnapshots,
-    [key]: preview,
-  };
-  ctx.state.threadPreviews = {
-    ...ctx.state.threadPreviews,
-    [key]: preview,
   };
 }
 
@@ -274,7 +234,7 @@ async function syncOpenThreadFromServer(
       return;
     }
     applyThreadSnapshotResult(ctx, input.threadId, result);
-    ctx.cacheSelectedThreadSnapshot();
+    ctx.cacheSelectedThreadView();
     await ctx.rememberOpenThread(input.threadId);
     ctx.syncSelectedRoute({ replace: input.replaceRoute });
     void refreshGoalAfterOpen(ctx, input.hostId, input.threadId);

@@ -13,7 +13,7 @@ const {
   activeSubAgentPanel,
   activeSubAgentPanelKey,
   visibleSubAgentPanels,
-  threadPreviews,
+  threadViews,
   threadStatuses,
 } = storeToRefs(store);
 const { t } = useI18n();
@@ -27,7 +27,7 @@ const previewKey = computed(() => {
 });
 const preview = computed(() => {
   const key = previewKey.value;
-  return key ? (threadPreviews.value[key] ?? null) : null;
+  return key ? (threadViews.value[key] ?? null) : null;
 });
 const currentThread = computed(() => preview.value?.currentThread as Record<string, any> | null);
 const currentStatus = computed(() => {

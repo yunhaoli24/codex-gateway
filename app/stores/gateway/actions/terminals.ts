@@ -1,9 +1,11 @@
 import type { TerminalSessionSnapshot } from "~~/shared/types";
 import { sendRealtimeRequest } from "../realtime/request-response";
-import type { GatewayStoreContext, TerminalOpenInput } from "../types";
+import type { GatewayStoreContext, TerminalOpenInput, TerminalSessionState } from "../types";
 import { messageFromError } from "../thread-utils/identity";
 
 const AGENT_TAB_ID = "agent";
+const MAX_TERMINAL_OUTPUT_CHUNKS = 200;
+const MAX_TERMINAL_OUTPUT_CHARS = 256 * 1024;
 
 export function createTerminalActions(ctx: GatewayStoreContext) {
   return {
@@ -76,9 +78,9 @@ export function createTerminalActions(ctx: GatewayStoreContext) {
     },
 
     replaceTerminalSessions(sessions: TerminalSessionSnapshot[]) {
-      const nextSessions: Record<string, TerminalSessionSnapshot> = {};
+      const nextSessions: Record<string, TerminalSessionState> = {};
       for (const session of sessions) {
-        nextSessions[session.sessionId] = session;
+        nextSessions[session.sessionId] = normalizeTerminalSession(session);
       }
       ctx.state.terminalSessions = nextSessions;
       ctx.state.workspaceTabs = [
@@ -93,7 +95,7 @@ export function createTerminalActions(ctx: GatewayStoreContext) {
     upsertTerminalSession(session: TerminalSessionSnapshot) {
       ctx.state.terminalSessions = {
         ...ctx.state.terminalSessions,
-        [session.sessionId]: session,
+        [session.sessionId]: normalizeTerminalSession(session),
       };
       ensureTerminalTab(ctx, session.sessionId);
     },
@@ -107,7 +109,7 @@ export function createTerminalActions(ctx: GatewayStoreContext) {
         ...ctx.state.terminalSessions,
         [sessionId]: {
           ...session,
-          output: session.output + data,
+          ...appendOutputChunk(session, data),
           lastActiveAt: new Date().toISOString(),
         },
       };
@@ -123,7 +125,7 @@ export function createTerminalActions(ctx: GatewayStoreContext) {
         [sessionId]: {
           ...session,
           status: "closed",
-          output: `${session.output}\r\n${message}\r\n`,
+          ...appendOutputChunk(session, `\r\n${message}\r\n`),
           lastActiveAt: new Date().toISOString(),
         },
       };
@@ -172,4 +174,33 @@ function tabFromSession(session: TerminalSessionSnapshot) {
 
 function terminalTabId(sessionId: string) {
   return `terminal:${sessionId}`;
+}
+
+function normalizeTerminalSession(session: TerminalSessionSnapshot): TerminalSessionState {
+  const chunks = session.output ? [session.output] : [];
+  return {
+    ...session,
+    ...boundedOutput(chunks),
+  };
+}
+
+function appendOutputChunk(session: TerminalSessionState, data: string) {
+  return boundedOutput([...session.outputChunks, data]);
+}
+
+function boundedOutput(chunks: string[]) {
+  let nextChunks = chunks.slice(-MAX_TERMINAL_OUTPUT_CHUNKS);
+  let output = nextChunks.join("");
+  while (output.length > MAX_TERMINAL_OUTPUT_CHARS && nextChunks.length > 1) {
+    nextChunks = nextChunks.slice(1);
+    output = nextChunks.join("");
+  }
+  if (output.length > MAX_TERMINAL_OUTPUT_CHARS) {
+    output = output.slice(-MAX_TERMINAL_OUTPUT_CHARS);
+    nextChunks = [output];
+  }
+  return {
+    output,
+    outputChunks: nextChunks,
+  };
 }
