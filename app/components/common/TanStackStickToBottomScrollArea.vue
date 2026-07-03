@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { ComponentPublicInstance, HTMLAttributes } from "vue";
-import { useVirtualizer, type VirtualItem, type Virtualizer } from "@tanstack/vue-virtual";
+import type { VirtualItem } from "@tanstack/virtual-core";
 import { computed, onMounted, ref, watch } from "vue";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import ChatVirtualScrollFrame from "@/components/common/ChatVirtualScrollFrame.vue";
+import { useDirectDomVirtualizer } from "@/composables/useDirectDomVirtualizer";
 import { useVirtualStickToBottom } from "@/composables/useVirtualStickToBottom";
-import { shouldAdjustVirtualScrollForResize } from "@/utils/virtual-scroll";
+import { createChatVirtualizerBehavior } from "@/utils/chat-virtualizer-options";
+import { shouldAdjustDetachedResize } from "@/utils/virtual-resize-adjustment";
 
 const props = withDefaults(
   defineProps<{
@@ -23,7 +25,7 @@ const props = withDefaults(
   },
 );
 
-const scrollAreaRef = ref<any>(null);
+const scrollFrameRef = ref<InstanceType<typeof ChatVirtualScrollFrame> | null>(null);
 const contentRef = ref<Element | null>(null);
 const measuredContentHeight = ref(0);
 
@@ -37,22 +39,27 @@ const sticky = useVirtualStickToBottom({
   },
 });
 
-const virtualizer = useVirtualizer(
+const directVirtualizer = useDirectDomVirtualizer(
   computed(() => ({
     count: 1,
     getScrollElement: scrollViewport,
     getItemKey: () => "content",
     estimateSize: () => props.estimateSize,
     overscan: 0,
-    scrollEndThreshold: props.threshold,
-    initialOffset: 0,
-    shouldAdjustScrollPositionOnItemSizeChange: (
-      item: VirtualItem,
-      _delta: number,
-      instance: Virtualizer<Element, Element>,
-    ) => shouldAdjustVirtualScrollForResize(sticky.followLatest.value, item, instance),
+    ...createChatVirtualizerBehavior({
+      followLatest: sticky.followLatest.value,
+      scrollEndThreshold: props.threshold,
+    }),
+    shouldAdjustScrollPositionOnItemSizeChange: (item: VirtualItem, _delta: number) =>
+      shouldAdjustDetachedResize(
+        sticky.followLatest.value,
+        item,
+        scrollViewport,
+        () => contentRef.value,
+      ),
   })),
 );
+const virtualizer = directVirtualizer.virtualizer;
 
 const virtualRow = computed(() => virtualizer.value.getVirtualItems()[0] ?? null);
 const totalSize = computed(() => virtualizer.value.getTotalSize());
@@ -66,8 +73,7 @@ const rootStyle = computed(() =>
 );
 
 function scrollViewport() {
-  const root = scrollAreaRef.value?.$el ?? scrollAreaRef.value;
-  return root?.querySelector?.('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+  return scrollFrameRef.value?.getViewport() ?? null;
 }
 
 function bottomOffset(viewport = scrollViewport()) {
@@ -82,11 +88,9 @@ function setContentRef(refValue: Element | ComponentPublicInstance | null) {
   contentRef.value = element;
   sticky.bindInputListeners();
   if (!element) {
-    sticky.observeElement(null);
     return;
   }
   measureContent();
-  sticky.observeElement(element);
   sticky.stickIfFollowing();
   void sticky.settleAndStick();
 }
@@ -101,7 +105,7 @@ function measureContent() {
       element.getBoundingClientRect().height,
     );
     if (element.dataset.index !== undefined) {
-      virtualizer.value.measureElement(contentRef.value);
+      directVirtualizer.measureElement(contentRef.value);
     } else {
       // TanStack Virtual's default measureElement reads data-index from the
       // measured row. The non-virtual fallback content has no row index yet, so
@@ -112,6 +116,7 @@ function measureContent() {
     measuredContentHeight.value = 0;
     virtualizer.value.measure();
   }
+  directVirtualizer.applyDirectStyles();
 }
 
 watch(
@@ -127,22 +132,28 @@ onMounted(() => {
   sticky.reset();
   void sticky.settleAndStick();
 });
+
+function handleViewportReady() {
+  directVirtualizer.refresh();
+  sticky.bindInputListeners();
+  sticky.stickIfFollowing();
+}
 </script>
 
 <template>
-  <ScrollArea
-    ref="scrollAreaRef"
+  <ChatVirtualScrollFrame
+    ref="scrollFrameRef"
     :class="props.class"
     :viewport-class="
       props.horizontal ? ['overflow-auto', props.viewportClass] : props.viewportClass
     "
-    :orientation="props.horizontal ? 'both' : 'vertical'"
     :style="rootStyle"
+    @viewport-ready="handleViewportReady"
   >
     <div
       class="relative"
       :class="props.horizontal ? 'min-w-full w-max' : 'w-full'"
-      :style="{ height: `${totalSize}px` }"
+      :ref="directVirtualizer.containerRef"
     >
       <div
         v-if="virtualRow"
@@ -153,7 +164,6 @@ onMounted(() => {
           props.horizontal ? 'min-w-full w-max' : 'w-full',
           props.contentClass,
         ]"
-        :style="{ transform: `translateY(${virtualRow.start}px)` }"
       >
         <slot />
       </div>
@@ -165,5 +175,5 @@ onMounted(() => {
         <slot />
       </div>
     </div>
-  </ScrollArea>
+  </ChatVirtualScrollFrame>
 </template>

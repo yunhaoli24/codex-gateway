@@ -23,9 +23,11 @@ function resolveThreshold(source: ThresholdSource | undefined) {
 export function createStickToBottomState(options: StickToBottomStateOptions) {
   const followLatest = ref(true);
   const initialBottomAligned = ref(false);
+  const userDetached = ref(false);
   let version = 0;
   let lastTouchY: number | null = null;
   let lastScrollTop: number | null = null;
+  let detachedByUser = false;
 
   function bottomDistance(viewport = options.getViewport()) {
     if (!viewport) {
@@ -41,16 +43,12 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
     return bottomDistance(viewport) <= resolveThreshold(options.threshold);
   }
 
-  function setViewportAnchor(enabled: boolean) {
+  function disableNativeScrollAnchor() {
     const viewport = options.getViewport();
     if (!viewport) {
       return;
     }
-    if (enabled) {
-      viewport.style.removeProperty("overflow-anchor");
-    } else {
-      viewport.style.setProperty("overflow-anchor", "none");
-    }
+    viewport.style.setProperty("overflow-anchor", "none");
   }
 
   function markProgrammaticScroll(viewport: HTMLElement) {
@@ -59,13 +57,17 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
 
   function lockToBottom() {
     followLatest.value = true;
-    setViewportAnchor(true);
+    detachedByUser = false;
+    userDetached.value = false;
+    disableNativeScrollAnchor();
     options.onLocked?.();
   }
 
   function detachFromBottom() {
     followLatest.value = false;
-    setViewportAnchor(false);
+    detachedByUser = true;
+    userDetached.value = true;
+    disableNativeScrollAnchor();
     version += 1;
     options.onDetached?.();
   }
@@ -85,10 +87,9 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
       return false;
     }
     const currentScrollTop = viewport.scrollTop;
-    if (isNearBottom(viewport)) {
+    const movedDown = lastScrollTop !== null && currentScrollTop > lastScrollTop;
+    if (isNearBottom(viewport) && (!detachedByUser || movedDown || bottomDistance(viewport) <= 2)) {
       lockToBottom();
-    } else if (lastScrollTop !== null && currentScrollTop < lastScrollTop) {
-      detachFromBottom();
     }
     lastScrollTop = currentScrollTop;
     options.onViewportScroll?.(viewport);
@@ -127,6 +128,7 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
   }
 
   function setLastScrollTop(viewport: HTMLElement) {
+    disableNativeScrollAnchor();
     lastScrollTop = viewport.scrollTop;
   }
 
@@ -144,5 +146,6 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
     markProgrammaticScroll,
     reset,
     setLastScrollTop,
+    userDetached,
   };
 }

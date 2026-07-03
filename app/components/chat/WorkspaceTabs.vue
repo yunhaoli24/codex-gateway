@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import { computed, watchEffect } from "vue";
+import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import TerminalPanel from "@/components/terminal/TerminalPanel.vue";
 import { useGatewayStore } from "@/stores/gateway";
@@ -13,6 +14,7 @@ const props = defineProps<{
   initializing: boolean;
   openingThread: boolean;
   selectedThreadId: string | null;
+  selectedThreadStatus: ThreadRuntimeStatus;
   selectedProjectId: number | null;
   selectedHostId: number | null;
   historyTurns: any[];
@@ -99,6 +101,7 @@ function sessionMatchesSelection(session: TerminalSessionState | undefined) {
         :initializing="initializing"
         :opening-thread="openingThread"
         :selected-thread-id="selectedThreadId"
+        :selected-thread-status="selectedThreadStatus"
         :selected-project-id="selectedProjectId"
         :selected-host-id="selectedHostId"
         :history-turns="historyTurns"

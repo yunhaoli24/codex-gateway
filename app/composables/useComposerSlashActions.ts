@@ -9,6 +9,7 @@ export function useComposerSlashActions(input: {
   selectedThreadId: Ref<string | null>;
   startNewThread: () => Promise<void>;
   activatePlanMode: () => void;
+  missingGoalObjectiveMessage: Ref<string>;
 }) {
   const store = useGatewayStore();
 
@@ -21,7 +22,7 @@ export function useComposerSlashActions(input: {
       await runCommand("plan", "");
       return;
     }
-    await runCommand("goal", "");
+    input.text.value = "/goal ";
   }
 
   async function executeInlineSlashCommand() {
@@ -47,15 +48,16 @@ export function useComposerSlashActions(input: {
   }
 
   async function runGoalCommand(args: string) {
-    input.text.value = "";
     if (!input.selectedThreadId.value) {
       return;
     }
     const control = args.trim().toLowerCase();
     if (!control) {
-      await store.refreshSelectedThreadGoal();
+      store.setError(input.missingGoalObjectiveMessage.value);
       return;
     }
+    input.text.value = "";
+    store.clearError();
     if (control === "clear") {
       await store.clearSelectedThreadGoal();
       return;

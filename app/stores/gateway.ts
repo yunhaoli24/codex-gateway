@@ -13,6 +13,7 @@ import { createComposerActions } from "./gateway/actions/composer";
 import { createTerminalActions } from "./gateway/actions/terminals";
 import { createGatewayDomainEvents } from "./gateway/domain-events";
 import { registerGatewayDomainSubscribers } from "./gateway/domain-subscribers";
+import { projectThreadRuntime } from "./gateway/thread-runtime/projector";
 
 export type { ThreadRuntimeStatus } from "./gateway/types";
 
@@ -33,7 +34,7 @@ export const useGatewayStore = defineStore("gateway", () => {
     if (!state.selectedHostId || !state.selectedThreadId) {
       return "idle";
     }
-    return state.threadStatuses[pinnedKey(state.selectedHostId, state.selectedThreadId)] ?? "idle";
+    return projectThreadRuntime(ctx, state.selectedHostId, state.selectedThreadId).status;
   });
   const defaultModel = computed(
     () => state.models.find((model) => model.isDefault) ?? state.models[0] ?? null,

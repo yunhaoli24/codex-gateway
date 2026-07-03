@@ -1,11 +1,15 @@
 export type ThreadTimelineRow =
   | { key: string; type: "older" }
-  | { key: string; type: "turn"; turn: Record<string, any> }
+  | { key: string; type: "turn"; turn: ThreadTimelineTurn }
   | { key: string; type: "error"; message: string };
+
+export type ThreadTimelineTurn = Record<string, any> & {
+  id: string;
+};
 
 export function buildThreadTimelineRows(input: {
   threadId: string | null;
-  turns: Record<string, any>[];
+  turns: ThreadTimelineTurn[];
   olderTurnsCursor: string | null;
   visibleError: string | null;
 }) {
@@ -15,7 +19,7 @@ export function buildThreadTimelineRows(input: {
   }
   for (const turn of input.turns) {
     rows.push({
-      key: `turn-${turn.id || JSON.stringify(turn).length}`,
+      key: `turn-${turn.id}`,
       type: "turn",
       turn,
     });

@@ -262,6 +262,211 @@ test("opening a cached thread applies terminal events before deriving composer s
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成");
 });
 
+test("goal slash input derives the goal tag and requires an objective before submitting", async ({
+  page,
+}) => {
+  await openApp(page);
+  await seedGatewayThread(page, {
+    threadId: "e2e-goal-slash-thread",
+    currentThread: { id: "e2e-goal-slash-thread", name: "Goal Slash" },
+    history: { thread: { id: "e2e-goal-slash-thread", turns: [] } },
+  });
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    store.setSelectedThreadGoal = async (objective: string) => {
+      (window as any).__submittedGoalObjective = objective;
+      store.upsertThreadGoal(1, "e2e-goal-slash-thread", {
+        threadId: "e2e-goal-slash-thread",
+        objective,
+        status: "active",
+        tokenBudget: null,
+        tokensUsed: 0,
+        timeUsedSeconds: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    };
+  });
+
+  const composer = page.getByPlaceholder("输入后续修改要求");
+  await composer.fill("/goal");
+  await expect(page.getByText("目标", { exact: true })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(composer).toHaveValue("/goal ");
+  await page.keyboard.press("Enter");
+  await expect(composer).toHaveValue("/goal ");
+  await expect(page.getByTestId("chat-scroll-area").getByText("请输入目标内容")).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__submittedGoalObjective ?? null))
+    .toBeNull();
+
+  await composer.fill("/goal 完成当前重构");
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__submittedGoalObjective))
+    .toBe("完成当前重构");
+  await expect(composer).toHaveValue("");
+  await expect(page.getByTestId("chat-main-pane").getByText("完成当前重构")).toBeVisible();
+});
+
+test("plan mode shows implementation actions for a second completed turn plan", async ({
+  page,
+}) => {
+  await openApp(page);
+  await seedGatewayThread(page, {
+    threadId: "e2e-repeat-plan-thread",
+    currentThread: { id: "e2e-repeat-plan-thread", name: "Repeat Plan" },
+    history: {
+      thread: {
+        id: "e2e-repeat-plan-thread",
+        turns: [
+          {
+            id: "turn-plan-1",
+            status: "completed",
+            items: [
+              {
+                id: "user-plan-1",
+                type: "userMessage",
+                content: [{ type: "text", text: "make a plan" }],
+              },
+              {
+                id: "plan-1",
+                type: "plan",
+                status: "completed",
+                text: "first plan",
+              },
+            ],
+          },
+          {
+            id: "turn-plan-2",
+            status: "completed",
+            items: [
+              {
+                id: "user-plan-2",
+                type: "userMessage",
+                clientId: "steer-repeat-plan",
+                content: [{ type: "text", text: "continue planning" }],
+              },
+              {
+                id: "reasoning-before-plan-2",
+                type: "reasoning",
+                status: "completed",
+                summary: ["checked constraints before second plan"],
+              },
+              {
+                id: "turn-plan-2-plan",
+                type: "turnPlan",
+                turnId: "turn-plan-2",
+                explanation: "second plan",
+                plan: [{ step: "apply the second plan", status: "pending" }],
+              },
+            ],
+          },
+        ],
+      },
+    },
+    status: "completed",
+  });
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    store.setThreadCollaborationMode(1, "e2e-repeat-plan-thread", "plan");
+    store.dismissPlanImplementationPrompt(1, "e2e-repeat-plan-thread", "plan-1");
+  });
+
+  await expect(page.getByText("first plan")).toBeVisible();
+  await expect(
+    page.getByTestId("chat-scroll-area").getByText("second plan", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("计划模式", { exact: true })).toBeVisible();
+  await expect(
+    page.locator('[data-slot="badge"]').getByText("second plan", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("checked constraints before second plan")).toBeHidden();
+  await expect(page.getByRole("button", { name: "执行计划" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "继续计划" })).toBeVisible();
+  await page.getByRole("button", { name: "退出计划模式" }).click();
+  await expect(page.getByText("计划模式")).toBeHidden();
+});
+
+test("switching to cached thread history renders without waiting for the next event", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const firstThreadId = "e2e-visible-first-thread";
+    const secondThreadId = "e2e-visible-second-thread";
+    store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+    store.projects = [{ id: 1, hostId: 1, name: "E2E Project", remotePath: "/tmp/e2e" }];
+    store.selectedHostId = 1;
+    store.selectedProjectId = 1;
+    store.selectedThreadId = firstThreadId;
+    store.currentThread = { id: firstThreadId, name: "First Visible Thread" };
+    store.history = {
+      thread: {
+        id: firstThreadId,
+        turns: [
+          {
+            id: "turn-visible-first",
+            status: "completed",
+            items: [
+              {
+                id: "agent-visible-first",
+                type: "agentMessage",
+                status: "completed",
+                text: "first cached thread content",
+              },
+            ],
+          },
+        ],
+      },
+    };
+    store.initializing = false;
+    store.loading = false;
+
+    store.selectedThreadId = secondThreadId;
+    store.currentThread = { id: secondThreadId, name: "Second Visible Thread" };
+    store.history = {
+      thread: {
+        id: secondThreadId,
+        turns: [
+          {
+            id: "turn-visible-second",
+            status: "completed",
+            items: [
+              {
+                id: "agent-visible-second",
+                type: "agentMessage",
+                status: "completed",
+                text: "second cached thread should be visible immediately",
+              },
+            ],
+          },
+        ],
+      },
+    };
+  });
+
+  await expect(
+    page
+      .getByTestId("chat-scroll-area")
+      .getByText("second cached thread should be visible immediately"),
+  ).toBeVisible();
+});
+
 test("live terminal event updates selected thread even when snapshot cursor is ahead", async ({
   page,
 }) => {
@@ -368,6 +573,17 @@ test("streaming output does not force scroll when the user is reading earlier co
       { length: 90 },
       (_, index) => `command output line ${String(index + 1).padStart(3, "0")}`,
     );
+    const diffLines = [
+      "diff --git a/src/stream.py b/src/stream.py",
+      "index 1111111..2222222 100644",
+      "--- a/src/stream.py",
+      "+++ b/src/stream.py",
+      "@@ -1,40 +1,40 @@",
+      ...Array.from(
+        { length: 80 },
+        (_, index) => ` line_${String(index + 1).padStart(3, "0")} = ${index}`,
+      ),
+    ];
 
     store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
     store.projects = [{ id: 1, hostId: 1, name: "E2E Project", remotePath: "/tmp/e2e" }];
@@ -401,6 +617,12 @@ test("streaming output does not force scroll when the user is reading earlier co
                 command: "node long-output.js",
                 aggregatedOutput: commandLines.join("\n"),
               },
+              {
+                id: "file-scroll-1",
+                type: "fileChange",
+                status: "running",
+                changes: [{ path: "src/stream.py", kind: "update", diff: diffLines.join("\n") }],
+              },
             ],
           },
         ],
@@ -412,6 +634,7 @@ test("streaming output does not force scroll when the user is reading earlier co
 
   await expect(page.getByText("agent loop line 140")).toBeVisible();
   const nearBottomScrollTop = await detachChatViewportNearBottom(page);
+  await expect(page.getByTestId("chat-scroll-area")).toHaveAttribute("data-follow-latest", "false");
   await appendAgentStreamLines(page, "agent-scroll-1", "near-bottom stream line", 30);
   await page.waitForTimeout(300);
   await expect
@@ -420,6 +643,7 @@ test("streaming output does not force scroll when the user is reading earlier co
   await expect.poll(() => chatViewportScrollTop(page)).toBeLessThanOrEqual(nearBottomScrollTop + 2);
 
   const mainScrollTop = await parkChatViewportInMiddle(page);
+  await expect(page.getByTestId("chat-scroll-area")).toHaveAttribute("data-follow-latest", "false");
   const visibleAnchor = await captureVisibleAgentLineAnchor(page);
 
   await appendAgentStreamLines(page, "agent-scroll-1", "new agent stream line", 40);
@@ -427,6 +651,23 @@ test("streaming output does not force scroll when the user is reading earlier co
   await page.waitForTimeout(300);
   await expect.poll(() => chatViewportScrollTop(page)).toBeGreaterThanOrEqual(mainScrollTop - 2);
   await expect.poll(() => chatViewportScrollTop(page)).toBeLessThanOrEqual(mainScrollTop + 2);
+  await expect
+    .poll(() => visibleAgentLineTop(page, visibleAnchor.text))
+    .toBeGreaterThanOrEqual(visibleAnchor.top - 2);
+  await expect
+    .poll(() => visibleAgentLineTop(page, visibleAnchor.text))
+    .toBeLessThanOrEqual(visibleAnchor.top + 2);
+
+  const beforeDiffGrowthScrollTop = await chatViewportScrollTop(page);
+  await appendFileDiffLines(page, "file-scroll-1", "src/stream.py", "new diff stream line", 60);
+
+  await page.waitForTimeout(300);
+  await expect
+    .poll(() => chatViewportScrollTop(page))
+    .toBeGreaterThanOrEqual(beforeDiffGrowthScrollTop - 2);
+  await expect
+    .poll(() => chatViewportScrollTop(page))
+    .toBeLessThanOrEqual(beforeDiffGrowthScrollTop + 2);
   await expect
     .poll(() => visibleAgentLineTop(page, visibleAnchor.text))
     .toBeGreaterThanOrEqual(visibleAnchor.top - 2);
@@ -461,6 +702,168 @@ test("streaming output does not force scroll when the user is reading earlier co
     .poll(() => commandOutputScrollTop(page))
     .toBeGreaterThanOrEqual(commandScrollTop - 2);
   await expect.poll(() => commandOutputScrollTop(page)).toBeLessThanOrEqual(commandScrollTop + 2);
+});
+
+test("completed turns do not collapse intermediate steps while the user is detached", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-detached-collapse-thread";
+    const agentLines = Array.from(
+      { length: 150 },
+      (_, index) => `collapse anchor line ${String(index + 1).padStart(3, "0")}`,
+    );
+
+    store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+    store.projects = [{ id: 1, hostId: 1, name: "E2E Project", remotePath: "/tmp/e2e" }];
+    store.selectedHostId = 1;
+    store.selectedProjectId = 1;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Detached Collapse" };
+    store.history = {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "turn-collapse-1",
+            status: "running",
+            items: [
+              {
+                id: "user-collapse-1",
+                type: "userMessage",
+                content: [{ type: "text", text: "produce a long intermediate stream" }],
+              },
+              {
+                id: "agent-collapse-1",
+                type: "agentMessage",
+                status: "inProgress",
+                text: agentLines.join("\n\n"),
+              },
+            ],
+          },
+        ],
+      },
+    };
+    store.initializing = false;
+    store.loading = false;
+  });
+
+  await expect(page.getByText("collapse anchor line 150")).toBeVisible();
+  await parkChatViewportInMiddle(page);
+  const visibleAnchor = await captureVisibleTextAnchor(page, "collapse anchor line ");
+
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const turn = store.history.thread.turns[0];
+    turn.status = "completed";
+    const agent = turn.items.find((item: any) => item.id === "agent-collapse-1");
+    agent.status = "completed";
+    turn.items.push({
+      id: "agent-collapse-final",
+      type: "agentMessage",
+      phase: "final_answer",
+      status: "completed",
+      text: "final answer after intermediate work",
+    });
+    store.history = { thread: { ...store.history.thread, turns: [...store.history.thread.turns] } };
+  });
+
+  await expect(page.getByTestId("intermediate-steps")).toBeVisible();
+  await expect(page.getByText(visibleAnchor.text)).toBeVisible();
+  await page.waitForTimeout(300);
+  await expect
+    .poll(() => visibleTextTop(page, visibleAnchor.text))
+    .toBeGreaterThanOrEqual(visibleAnchor.top - 2);
+  await expect
+    .poll(() => visibleTextTop(page, visibleAnchor.text))
+    .toBeLessThanOrEqual(visibleAnchor.top + 2);
+
+  await scrollChatViewportToBottom(page);
+  await expect(page.getByTestId("intermediate-steps")).toBeHidden();
+});
+
+test("manually expanded completed intermediate steps stay open after returning to bottom", async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const store = pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-manual-intermediate-open-thread";
+    const intermediateLines = Array.from(
+      { length: 140 },
+      (_, index) => `manual intermediate line ${String(index + 1).padStart(3, "0")}`,
+    );
+
+    store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
+    store.projects = [{ id: 1, hostId: 1, name: "E2E Project", remotePath: "/tmp/e2e" }];
+    store.selectedHostId = 1;
+    store.selectedProjectId = 1;
+    store.selectedThreadId = threadId;
+    store.currentThread = { id: threadId, name: "Manual Intermediate Open" };
+    store.history = {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "turn-manual-intermediate-open",
+            status: "completed",
+            items: [
+              {
+                id: "user-manual-intermediate-open",
+                type: "userMessage",
+                content: [{ type: "text", text: "produce intermediate content" }],
+              },
+              {
+                id: "agent-manual-intermediate-open",
+                type: "agentMessage",
+                status: "completed",
+                text: intermediateLines.join("\n\n"),
+              },
+              {
+                id: "agent-manual-intermediate-final",
+                type: "agentMessage",
+                phase: "final_answer",
+                status: "completed",
+                text: "final answer after manual intermediate expansion",
+              },
+            ],
+          },
+        ],
+      },
+    };
+    store.threadStatuses = { "1:e2e-manual-intermediate-open-thread": "completed" };
+    store.initializing = false;
+    store.loading = false;
+  });
+
+  const toggle = page.getByRole("button", { name: /中间过程/ }).first();
+  await expect(toggle).toHaveAttribute("data-state", "closed");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("data-state", "open");
+  await expect(page.getByTestId("intermediate-steps")).toBeVisible();
+
+  await parkChatViewportInMiddle(page);
+  await scrollChatViewportToBottom(page);
+
+  await expect(toggle).toHaveAttribute("data-state", "open");
+  await expect(page.getByTestId("intermediate-steps")).toBeVisible();
 });
 
 test("short command output uses natural height instead of a fixed minimum", async ({ page }) => {
@@ -963,6 +1366,7 @@ async function parkChatViewportInMiddle(page: Page) {
   return await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement) => {
     const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
     if (!viewport) throw new Error("Missing chat viewport");
+    viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -240 }));
     viewport.scrollTop = Math.floor((viewport.scrollHeight - viewport.clientHeight) / 2);
     viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
     return viewport.scrollTop;
@@ -1000,7 +1404,11 @@ async function chatViewportScrollTop(page: Page) {
 }
 
 async function captureVisibleAgentLineAnchor(page: Page) {
-  return await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement) => {
+  return await captureVisibleTextAnchor(page, "agent loop line ");
+}
+
+async function captureVisibleTextAnchor(page: Page, prefix: string) {
+  return await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement, prefix) => {
     const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
     if (!viewport) throw new Error("Missing chat viewport");
     const viewportRect = viewport.getBoundingClientRect();
@@ -1009,22 +1417,26 @@ async function captureVisibleAgentLineAnchor(page: Page) {
       const text = candidate.textContent?.trim() ?? "";
       const rect = candidate.getBoundingClientRect();
       return (
-        text.startsWith("agent loop line ") &&
+        text.startsWith(prefix) &&
         rect.top >= viewportRect.top + 8 &&
         rect.bottom <= viewportRect.bottom - 8
       );
     });
     if (!element) {
-      throw new Error("Missing visible agent line anchor");
+      throw new Error(`Missing visible text anchor ${prefix}`);
     }
     return {
       text: element.textContent?.trim() ?? "",
       top: element.getBoundingClientRect().top,
     };
-  });
+  }, prefix);
 }
 
 async function visibleAgentLineTop(page: Page, text: string) {
+  return await visibleTextTop(page, text);
+}
+
+async function visibleTextTop(page: Page, text: string) {
   return await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement, text) => {
     const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
     if (!viewport) throw new Error("Missing chat viewport");
@@ -1063,6 +1475,38 @@ async function appendAgentStreamLines(page: Page, itemId: string, prefix: string
   );
 }
 
+async function appendFileDiffLines(
+  page: Page,
+  itemId: string,
+  path: string,
+  prefix: string,
+  count: number,
+) {
+  await page.evaluate(
+    ({ count, itemId, path, prefix }) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const pinia = app?.config?.globalProperties?.$pinia;
+      const store = pinia?._s?.get("gateway");
+      if (!store) {
+        throw new Error("Unable to locate gateway Pinia store");
+      }
+      const turn = store.history.thread.turns[0];
+      const fileChange = turn.items.find((item: any) => item.id === itemId);
+      const change = fileChange.changes.find((candidate: any) => candidate.path === path);
+      change.diff +=
+        "\n" +
+        Array.from(
+          { length: count },
+          (_, index) => `+${prefix} ${String(index + 1).padStart(3, "0")}`,
+        ).join("\n");
+      store.history = {
+        thread: { ...store.history.thread, turns: [...store.history.thread.turns] },
+      };
+    },
+    { count, itemId, path, prefix },
+  );
+}
+
 async function scrollChatViewportToBottom(page: Page) {
   await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement) => {
     const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
@@ -1080,6 +1524,7 @@ async function parkCommandOutputInMiddle(page: Page) {
     .evaluate((element: HTMLElement) => {
       const viewport = element.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
       if (!viewport) throw new Error("Missing command output viewport");
+      viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -120 }));
       viewport.scrollTop = Math.floor((viewport.scrollHeight - viewport.clientHeight) / 2);
       viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
       return viewport.scrollTop;

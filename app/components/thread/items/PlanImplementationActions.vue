@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { useGatewayStore } from "@/stores/gateway";
+import { isThreadPlanItemCompleted } from "@/utils/thread-plan";
 
 const props = defineProps<{
   item: Record<string, any>;
@@ -27,7 +28,7 @@ const dismissed = computed(() => {
     store.dismissedPlanPromptIdsByKey[`${props.hostId}:${props.threadId}`]?.[planItemId.value],
   );
 });
-const itemCompleted = computed(() => props.item.status === "completed");
+const itemCompleted = computed(() => isThreadPlanItemCompleted(props.item));
 const visible = computed(() =>
   Boolean(
     props.hostId &&

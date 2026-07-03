@@ -1,6 +1,7 @@
 import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { activeRemoteTurnId } from "../thread-turns/active-turn";
 import { pinnedKey } from "../thread-utils/identity";
+import { runtimeStatusFromThreadState } from "../thread-utils/status";
 import type { GatewayStoreContext } from "../types";
 
 export interface ThreadRuntimeProjection {
@@ -28,7 +29,7 @@ export function projectThreadRuntime(
   threadId: string,
 ): ThreadRuntimeProjection {
   const key = pinnedKey(hostId, threadId);
-  const status = ctx.state.threadStatuses[key] ?? "idle";
+  const status = effectiveRuntimeStatus(ctx, hostId, threadId, ctx.state.threadStatuses[key]);
   const activeTurnId = activeTurnIdForStatus(ctx, hostId, threadId, status);
   return {
     key,
@@ -37,6 +38,26 @@ export function projectThreadRuntime(
     canSteer: status === "running" && Boolean(activeTurnId),
     canInterrupt: status === "running" && Boolean(activeTurnId),
   };
+}
+
+export function effectiveRuntimeStatus(
+  ctx: GatewayStoreContext,
+  hostId: number,
+  threadId: string,
+  storedStatus: ThreadRuntimeStatus | undefined,
+): ThreadRuntimeStatus {
+  const historyStatus = runtimeStatusFromThreadState(
+    currentThreadForThread(ctx, hostId, threadId),
+    historyForThread(ctx, hostId, threadId),
+    eventsForThread(ctx, hostId, threadId),
+  );
+  if (storedStatus === "running" && activeRemoteTurnId(historyForThread(ctx, hostId, threadId))) {
+    return "running";
+  }
+  if (storedStatus === "running" && historyStatus && historyStatus !== "running") {
+    return historyStatus;
+  }
+  return storedStatus ?? historyStatus ?? "idle";
 }
 
 export function applyThreadRuntimeStatus(
@@ -135,6 +156,22 @@ function historyForThread(ctx: GatewayStoreContext, hostId: number, threadId: st
   }
   const key = pinnedKey(hostId, threadId);
   return ctx.state.threadViews[key]?.history ?? null;
+}
+
+function currentThreadForThread(ctx: GatewayStoreContext, hostId: number, threadId: string) {
+  if (ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId) {
+    return ctx.state.currentThread;
+  }
+  const key = pinnedKey(hostId, threadId);
+  return ctx.state.threadViews[key]?.currentThread ?? null;
+}
+
+function eventsForThread(ctx: GatewayStoreContext, hostId: number, threadId: string) {
+  if (ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId) {
+    return ctx.state.events;
+  }
+  const key = pinnedKey(hostId, threadId);
+  return ctx.state.threadViews[key]?.events ?? [];
 }
 
 function removeActiveTurn(ctx: GatewayStoreContext, key: string) {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FolderIcon, Loader2Icon } from "@lucide/vue";
 import { computed } from "vue";
+import type { ThreadRuntimeStatus } from "~~/shared/types";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
 import ChatPanelScrollArea from "@/components/chat/ChatPanelScrollArea.vue";
 import ProjectThreadList from "@/components/chat/ProjectThreadList.vue";
@@ -11,6 +12,7 @@ const props = defineProps<{
   initializing: boolean;
   openingThread: boolean;
   selectedThreadId: string | null;
+  selectedThreadStatus: ThreadRuntimeStatus;
   selectedProjectId: number | null;
   selectedHostId: number | null;
   historyTurns: any[];
@@ -60,6 +62,7 @@ const showThreadLoading = computed(
       <ThreadVirtualTimeline
         v-else-if="selectedThreadId"
         :thread-id="selectedThreadId"
+        :thread-status="selectedThreadStatus"
         :turns="historyTurns"
         :host-id="selectedHostId"
         :loading="loading"

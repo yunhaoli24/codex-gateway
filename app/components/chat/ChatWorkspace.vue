@@ -8,6 +8,7 @@ const {
   selectedHostId,
   selectedProjectId,
   selectedThreadId,
+  selectedThreadStatus,
   initializing,
   loading,
   loadingOlderTurns,
@@ -38,6 +39,7 @@ function openCurrentTerminal() {
       :initializing="initializing"
       :opening-thread="Boolean(openingThread)"
       :selected-thread-id="selectedThreadId"
+      :selected-thread-status="selectedThreadStatus"
       :selected-project-id="selectedProjectId"
       :selected-host-id="selectedHostId"
       :history-turns="historyTurns"

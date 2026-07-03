@@ -25,15 +25,6 @@ export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>)
     () =>
       Boolean(refs.selectedThreadId.value) && refs.loading.value && historyTurns.value.length === 0,
   );
-  const outputSignature = computed(() =>
-    threadItems.value
-      .filter((item: any) => item?.type === "commandExecution" || item?.type === "fileChange")
-      .map(
-        (item: any) =>
-          `${item.id || ""}:${item.aggregatedOutput?.length || 0}:${fileChangeDiffSignature(item)}:${item.status || ""}`,
-      )
-      .join("|"),
-  );
   const visibleError = computed(() =>
     scopedVisibleError({
       error: refs.error.value,
@@ -44,9 +35,8 @@ export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>)
   );
   const followKey = computed(() => [
     refs.scrollToLatestToken.value,
-    threadItems.value.length,
-    refs.events.value.length,
-    outputSignature.value,
+    refs.selectedHostId.value,
+    refs.selectedThreadId.value,
   ]);
 
   return {
@@ -150,13 +140,4 @@ function scopedVisibleError(input: {
     return null;
   }
   return current.message;
-}
-
-function fileChangeDiffSignature(item: any) {
-  if (item?.type !== "fileChange" || !Array.isArray(item.changes)) {
-    return "";
-  }
-  return item.changes
-    .map((change: any) => `${change?.path || change?.filePath || ""}:${change?.diff?.length || 0}`)
-    .join(",");
 }

@@ -17,6 +17,7 @@ import { useComposerTurnSubmit } from "@/composables/useComposerTurnSubmit";
 import { useSlashCommands, type SlashCommand } from "@/composables/useSlashCommands";
 import { useThreadSettingsControls } from "@/composables/useThreadSettingsControls";
 import { useGatewayStore } from "@/stores/gateway";
+import { latestThreadPlanItem, planItemSummary } from "@/utils/thread-plan";
 
 const store = useGatewayStore();
 const { t } = useI18n();
@@ -28,6 +29,7 @@ const {
   selectedThreadGoal,
   selectedThreadGoalObservedAt,
   selectedThreadTokenUsage,
+  history,
   models,
   loadingModels,
 } = storeToRefs(store);
@@ -78,6 +80,7 @@ const {
   hasComposerInput,
   interruptingTurn,
   activatePlanMode,
+  deactivatePlanMode,
   startNewThread,
   submitTurn,
   interruptTurn,
@@ -90,6 +93,10 @@ const {
   selectedEffort,
   fileReferencesLabel: computed(() => t("app.attachedFileReferences")),
 });
+const goalInputActive = computed(() => /^\/goal(?:\s|$)/i.test(turnText.value.trimStart()));
+const activePlanSummary = computed(() =>
+  planModeActive.value ? planItemSummary(latestThreadPlanItem(history.value)) : "",
+);
 const canSendTurn = computed(() =>
   Boolean(selectedThreadId.value && hasComposerInput.value && !uploadingAttachments.value),
 );
@@ -137,6 +144,7 @@ const { runSlashCommand, executeInlineSlashCommand } = useComposerSlashActions({
   selectedThreadId,
   startNewThread,
   activatePlanMode,
+  missingGoalObjectiveMessage: computed(() => t("app.goalObjectiveRequired")),
 });
 
 const slashCommandsState = useSlashCommands({
@@ -210,8 +218,11 @@ async function submitComposer() {
         />
         <ComposerModeStrip
           :plan-mode-active="planModeActive"
+          :plan-summary="activePlanSummary"
+          :goal-input-active="goalInputActive"
           :goal="selectedThreadGoal"
           :goal-observed-at="selectedThreadGoalObservedAt"
+          @deactivate-plan="deactivatePlanMode"
         />
         <AttachmentChips :files="attachedFiles" @remove="removeAttachment" />
         <Textarea

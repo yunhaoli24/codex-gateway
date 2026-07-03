@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
 import ThreadTurnView from "@/components/thread/ThreadTurnView.vue";
 import VirtualTimelineViewport from "@/components/thread/VirtualTimelineViewport.vue";
 import {
   buildThreadTimelineRows,
   estimateThreadTimelineRow,
+  type ThreadTimelineTurn,
   type ThreadTimelineRow,
 } from "@/components/thread/timeline-rows";
 
 const props = defineProps<{
   threadId: string | null;
-  turns: Record<string, any>[];
+  threadStatus: ThreadRuntimeStatus;
+  turns: ThreadTimelineTurn[];
   hostId: number | null;
   loading: boolean;
   loadingOlder: boolean;
@@ -26,6 +29,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const viewportRef = ref<{ resetFollowLatest: () => void } | null>(null);
+const userDetachedFromLatest = ref(false);
 
 const rows = computed(() =>
   buildThreadTimelineRows({
@@ -40,6 +44,10 @@ function handleReachStart() {
   if (props.olderTurnsCursor && !props.loadingOlder) {
     emit("loadOlder");
   }
+}
+
+function handleUserDetachedChange(detached: boolean) {
+  userDetachedFromLatest.value = detached;
 }
 
 function estimateRowSize(row: unknown) {
@@ -69,6 +77,7 @@ function messageForRow(row: unknown) {
 watch(
   () => props.threadId,
   () => {
+    userDetachedFromLatest.value = false;
     viewportRef.value?.resetFollowLatest();
   },
   { flush: "post" },
@@ -82,6 +91,7 @@ watch(
     :follow-key="followKey"
     :estimate-size="estimateRowSize"
     @reach-start="handleReachStart"
+    @user-detached-change="handleUserDetachedChange"
   >
     <template #default="{ row }">
       <template v-if="isOlderRow(row)">
@@ -103,6 +113,8 @@ watch(
         :turn="turnForRow(row)"
         :host-id="hostId"
         :thread-id="threadId"
+        :thread-runtime-status="threadStatus"
+        :auto-collapse-intermediate="!userDetachedFromLatest"
       />
 
       <div

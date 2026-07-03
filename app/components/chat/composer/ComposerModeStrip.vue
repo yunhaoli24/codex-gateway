@@ -1,12 +1,20 @@
 <script setup lang="ts">
+import { XIcon } from "@lucide/vue";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { ThreadGoal } from "~~/shared/types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const props = defineProps<{
   planModeActive: boolean;
+  planSummary: string;
+  goalInputActive: boolean;
   goal: ThreadGoal | null;
   goalObservedAt: number | null;
+}>();
+
+const emit = defineEmits<{
+  deactivatePlan: [];
 }>();
 
 const now = ref(Date.now());
@@ -23,7 +31,7 @@ const activeGoalElapsedSeconds = computed(() => {
   return props.goal.timeUsedSeconds + observedDelta;
 });
 
-const showStrip = computed(() => props.planModeActive || props.goal);
+const showStrip = computed(() => props.planModeActive || props.goalInputActive || props.goal);
 
 onMounted(() => {
   timer = window.setInterval(() => {
@@ -48,8 +56,29 @@ function formatElapsed(seconds: number) {
 
 <template>
   <div v-if="showStrip" class="mb-2 flex min-w-0 flex-wrap items-center gap-2">
-    <Badge v-if="planModeActive" variant="outline" class="border-primary/30 text-primary">
-      {{ $t("app.planModeActive") }}
+    <Badge
+      v-if="planModeActive"
+      as="div"
+      variant="outline"
+      class="min-w-0 max-w-full border-primary/30 pr-1 text-primary"
+    >
+      <span class="shrink-0">{{ $t("app.planModeActive") }}</span>
+      <span v-if="planSummary" class="min-w-0 truncate text-ink-secondary">
+        {{ planSummary }}
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        class="-mr-0.5 size-4 text-primary hover:bg-primary/10"
+        :aria-label="$t('app.deactivatePlanMode')"
+        @click="emit('deactivatePlan')"
+      >
+        <XIcon class="size-2.5" />
+      </Button>
+    </Badge>
+    <Badge v-if="goalInputActive" variant="outline" class="border-primary/30 text-primary">
+      {{ $t("app.goalModeActive") }}
     </Badge>
     <Badge
       v-if="goal"

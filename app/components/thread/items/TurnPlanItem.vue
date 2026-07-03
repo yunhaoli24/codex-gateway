@@ -2,8 +2,13 @@
 import { CheckCircle2Icon, CircleIcon, ClockIcon, ListTodoIcon } from "@lucide/vue";
 import { computed } from "vue";
 import MarkdownContent from "@/components/common/MarkdownContent.vue";
+import PlanImplementationActions from "./PlanImplementationActions.vue";
 
-const props = defineProps<{ item: Record<string, any> }>();
+const props = defineProps<{
+  item: Record<string, any>;
+  hostId: number | null;
+  threadId: string | null;
+}>();
 const { t } = useI18n();
 
 const steps = computed(() => (Array.isArray(props.item.plan) ? props.item.plan : []));
@@ -38,5 +43,6 @@ function stepStatus(step: Record<string, any>) {
         <span class="min-w-0 flex-1">{{ step.step }}</span>
       </div>
     </div>
+    <PlanImplementationActions :item="item" :host-id="hostId" :thread-id="threadId" />
   </div>
 </template>

@@ -5,6 +5,7 @@ import { Tabs } from "@/components/ui/tabs";
 import type { SubAgentPanelState } from "@/stores/gateway/types";
 import SubAgentPanelBody from "@/components/thread/subagent/SubAgentPanelBody.vue";
 import SubAgentPanelHeader from "@/components/thread/subagent/SubAgentPanelHeader.vue";
+import type { ThreadTimelineTurn } from "@/components/thread/timeline-rows";
 import { useGatewayStore } from "@/stores/gateway";
 import { pinnedKey, titleForThread } from "@/stores/gateway/thread-utils/identity";
 
@@ -45,14 +46,9 @@ const title = computed(
 );
 const turns = computed(() => {
   const history = preview.value?.history as any;
-  return history?.thread?.turns || history?.turns || [];
+  return (history?.thread?.turns || history?.turns || []) as ThreadTimelineTurn[];
 });
-const followKey = computed(() =>
-  turns.value
-    .flatMap((turn: any) => turn.items || [])
-    .map((item: any) => `${item.id || item.type}:${item.aggregatedOutput?.length || 0}`)
-    .join("|"),
-);
+const followKey = computed(() => [previewKey.value]);
 
 function keyForPanel(panel: { hostId: number; threadId: string }) {
   return pinnedKey(panel.hostId, panel.threadId);

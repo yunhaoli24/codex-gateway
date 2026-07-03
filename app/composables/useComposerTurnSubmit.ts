@@ -32,6 +32,10 @@ export function useComposerTurnSubmit(input: {
     input.turnText.value = "";
   }
 
+  function deactivatePlanMode() {
+    store.setSelectedThreadCollaborationMode("default");
+  }
+
   async function startNewThread() {
     input.clearDraft();
     await store.startThread(input.selectedTurnOptions());
@@ -94,6 +98,7 @@ export function useComposerTurnSubmit(input: {
     hasComposerInput,
     interruptingTurn,
     activatePlanMode,
+    deactivatePlanMode,
     startNewThread,
     submitTurn,
     interruptTurn,

@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { Loader2Icon } from "@lucide/vue";
+import { computed } from "vue";
 import type { SubAgentPanelState, ThreadViewState } from "@/stores/gateway/types";
 import ThreadVirtualTimeline from "@/components/thread/ThreadVirtualTimeline.vue";
+import type { ThreadTimelineTurn } from "@/components/thread/timeline-rows";
+import { useGatewayStore } from "@/stores/gateway";
 
-defineProps<{
+const props = defineProps<{
   panel: SubAgentPanelState;
   preview: ThreadViewState | null;
-  turns: any[];
-  followKey: string;
+  turns: ThreadTimelineTurn[];
+  followKey: unknown;
 }>();
 
 const { t } = useI18n();
+const store = useGatewayStore();
+const threadStatus = computed(
+  () => store.threadRuntimeProjection(props.panel.hostId, props.panel.threadId).status,
+);
 </script>
 
 <template>
@@ -33,6 +40,7 @@ const { t } = useI18n();
     <ThreadVirtualTimeline
       v-else-if="turns.length"
       :thread-id="panel.threadId"
+      :thread-status="threadStatus"
       :follow-key="followKey"
       :turns="turns"
       :host-id="panel.hostId"
