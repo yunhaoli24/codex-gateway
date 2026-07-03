@@ -409,25 +409,17 @@ test("streaming output does not force scroll when the user is reading earlier co
   });
 
   await expect(page.getByText("agent loop line 140")).toBeVisible();
+  const nearBottomScrollTop = await detachChatViewportNearBottom(page);
+  await appendAgentStreamLines(page, "agent-scroll-1", "near-bottom stream line", 30);
+  await page.waitForTimeout(300);
+  await expect
+    .poll(() => chatViewportScrollTop(page))
+    .toBeGreaterThanOrEqual(nearBottomScrollTop - 2);
+  await expect.poll(() => chatViewportScrollTop(page)).toBeLessThanOrEqual(nearBottomScrollTop + 2);
+
   const mainScrollTop = await parkChatViewportInMiddle(page);
 
-  await page.evaluate(() => {
-    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-    const pinia = app?.config?.globalProperties?.$pinia;
-    const store = pinia?._s?.get("gateway");
-    if (!store) {
-      throw new Error("Unable to locate gateway Pinia store");
-    }
-    const turn = store.history.thread.turns[0];
-    const agent = turn.items.find((item: any) => item.id === "agent-scroll-1");
-    agent.text +=
-      "\n\n" +
-      Array.from(
-        { length: 40 },
-        (_, index) => `new agent stream line ${String(index + 1).padStart(3, "0")}`,
-      ).join("\n\n");
-    store.history = { thread: { ...store.history.thread, turns: [...store.history.thread.turns] } };
-  });
+  await appendAgentStreamLines(page, "agent-scroll-1", "new agent stream line", 40);
 
   await page.waitForTimeout(300);
   await expect.poll(() => chatViewportScrollTop(page)).toBeGreaterThanOrEqual(mainScrollTop - 2);
@@ -1236,12 +1228,59 @@ async function parkChatViewportInMiddle(page: Page) {
   });
 }
 
+async function detachChatViewportNearBottom(page: Page) {
+  await expect
+    .poll(() =>
+      page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement) => {
+        const viewport = root.querySelector(
+          '[data-slot="scroll-area-viewport"]',
+        ) as HTMLElement | null;
+        if (!viewport) return 0;
+        return viewport.scrollHeight - viewport.clientHeight;
+      }),
+    )
+    .toBeGreaterThan(400);
+  return await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement) => {
+    const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+    if (!viewport) throw new Error("Missing chat viewport");
+    viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight - 48);
+    viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
+    viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -24 }));
+    return viewport.scrollTop;
+  });
+}
+
 async function chatViewportScrollTop(page: Page) {
   return await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement) => {
     const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
     if (!viewport) throw new Error("Missing chat viewport");
     return viewport.scrollTop;
   });
+}
+
+async function appendAgentStreamLines(page: Page, itemId: string, prefix: string, count: number) {
+  await page.evaluate(
+    ({ count, itemId, prefix }) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const pinia = app?.config?.globalProperties?.$pinia;
+      const store = pinia?._s?.get("gateway");
+      if (!store) {
+        throw new Error("Unable to locate gateway Pinia store");
+      }
+      const turn = store.history.thread.turns[0];
+      const agent = turn.items.find((item: any) => item.id === itemId);
+      agent.text +=
+        "\n\n" +
+        Array.from(
+          { length: count },
+          (_, index) => `${prefix} ${String(index + 1).padStart(3, "0")}`,
+        ).join("\n\n");
+      store.history = {
+        thread: { ...store.history.thread, turns: [...store.history.thread.turns] },
+      };
+    },
+    { count, itemId, prefix },
+  );
 }
 
 async function scrollChatViewportToBottom(page: Page) {

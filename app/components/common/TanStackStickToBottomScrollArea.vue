@@ -77,13 +77,10 @@ function bottomOffset(viewport = scrollViewport()) {
   return Math.max(0, viewport.scrollHeight - viewport.clientHeight);
 }
 
-function handleScroll(event: Event) {
-  sticky.handleScroll(event);
-}
-
 function setContentRef(refValue: Element | ComponentPublicInstance | null) {
   const element = refValue instanceof Element ? refValue : null;
   contentRef.value = element;
+  sticky.bindInputListeners();
   if (!element) {
     sticky.observeElement(null);
     return;
@@ -126,6 +123,7 @@ watch(
 );
 
 onMounted(() => {
+  sticky.bindInputListeners();
   sticky.reset();
   void sticky.settleAndStick();
 });
@@ -140,7 +138,6 @@ onMounted(() => {
     "
     :orientation="props.horizontal ? 'both' : 'vertical'"
     :style="rootStyle"
-    @scroll.capture="handleScroll"
   >
     <div
       class="relative"

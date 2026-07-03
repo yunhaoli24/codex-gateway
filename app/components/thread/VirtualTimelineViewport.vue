@@ -28,6 +28,11 @@ const sticky = useVirtualStickToBottom({
   threshold,
   getViewport: scrollViewport,
   measure: measureVisibleRows,
+  onViewportScroll: (viewport) => {
+    if (viewport.scrollTop <= 80) {
+      emit("reachStart");
+    }
+  },
   scrollToBottom: () => {
     if (props.rows.length) {
       virtualizer.value.scrollToEnd({ behavior: "auto" });
@@ -60,16 +65,6 @@ function scrollViewport() {
   return root?.querySelector?.('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
 }
 
-function handleScroll(event: Event) {
-  const viewport = event.target as HTMLElement;
-  if (!sticky.handleScroll(event)) {
-    return;
-  }
-  if (viewport.scrollTop <= 80) {
-    emit("reachStart");
-  }
-}
-
 function setRowRef(refValue: Element | ComponentPublicInstance | null) {
   const element = refValue instanceof Element ? refValue : null;
   if (!element) {
@@ -80,6 +75,7 @@ function setRowRef(refValue: Element | ComponentPublicInstance | null) {
     rowElements.set(index, element);
   }
   virtualizer.value.measureElement(element);
+  sticky.bindInputListeners();
   observeRows();
 }
 
@@ -125,6 +121,7 @@ watch(
 );
 
 onMounted(() => {
+  sticky.bindInputListeners();
   observeRows();
   resetFollowLatest();
 });
@@ -141,7 +138,6 @@ defineExpose({ resetFollowLatest });
     ref="scrollAreaRef"
     data-testid="chat-scroll-area"
     class="h-full min-h-0 flex-1 overflow-hidden"
-    @scroll.capture="handleScroll"
   >
     <div
       class="mx-auto min-h-[calc(100dvh-14rem)] w-full max-w-4xl px-[clamp(0.875rem,4vw,2rem)] py-4 md:min-h-[calc(100vh-16rem)] md:py-[clamp(2rem,6vh,3rem)]"
