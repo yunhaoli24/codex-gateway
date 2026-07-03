@@ -199,6 +199,14 @@ async function submitComposer() {
     class="shrink-0 bg-gradient-to-t from-surface via-surface to-surface/75 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:px-[clamp(1rem,3vw,2rem)] md:pb-[clamp(0.5rem,1.4vh,1rem)]"
   >
     <div class="mx-auto w-full max-w-3xl">
+      <ComposerModeStrip
+        :plan-mode-active="planModeActive"
+        :plan-summary="activePlanSummary"
+        :goal-input-active="goalInputActive"
+        :goal="selectedThreadGoal"
+        :goal-observed-at="selectedThreadGoalObservedAt"
+        @deactivate-plan="deactivatePlanMode"
+      />
       <div
         class="relative rounded-[1.35rem] border border-hairline bg-surface p-2 shadow-lg shadow-ink/10 md:rounded-3xl md:p-[clamp(0.45rem,1vw,0.7rem)]"
       >
@@ -215,14 +223,6 @@ async function submitComposer() {
           type="file"
           multiple
           @change="handleAttachmentChange"
-        />
-        <ComposerModeStrip
-          :plan-mode-active="planModeActive"
-          :plan-summary="activePlanSummary"
-          :goal-input-active="goalInputActive"
-          :goal="selectedThreadGoal"
-          :goal-observed-at="selectedThreadGoalObservedAt"
-          @deactivate-plan="deactivatePlanMode"
         />
         <AttachmentChips :files="attachedFiles" @remove="removeAttachment" />
         <Textarea

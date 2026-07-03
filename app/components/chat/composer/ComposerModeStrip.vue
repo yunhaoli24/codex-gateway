@@ -2,7 +2,6 @@
 import { XIcon } from "@lucide/vue";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { ThreadGoal } from "~~/shared/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 const props = defineProps<{
@@ -20,18 +19,44 @@ const emit = defineEmits<{
 const now = ref(Date.now());
 let timer: number | null = null;
 
+const visibleGoal = computed(() => (props.goal?.status === "active" ? props.goal : null));
 const activeGoalElapsedSeconds = computed(() => {
-  if (!props.goal) {
+  if (!visibleGoal.value) {
     return 0;
   }
-  const observedDelta =
-    props.goal.status === "active" && props.goalObservedAt
-      ? Math.max(0, (now.value - props.goalObservedAt) / 1000)
-      : 0;
-  return props.goal.timeUsedSeconds + observedDelta;
+  const observedDelta = props.goalObservedAt
+    ? Math.max(0, (now.value - props.goalObservedAt) / 1000)
+    : 0;
+  return visibleGoal.value.timeUsedSeconds + observedDelta;
 });
 
-const showStrip = computed(() => props.planModeActive || props.goalInputActive || props.goal);
+const modeItems = computed(() =>
+  [
+    props.planModeActive
+      ? {
+          kind: "plan",
+          label: "app.planModeActive",
+          text: props.planSummary,
+        }
+      : null,
+    props.goalInputActive
+      ? {
+          kind: "goal-input",
+          label: "app.goalModeActive",
+          text: "app.goalInputHint",
+        }
+      : null,
+    visibleGoal.value
+      ? {
+          kind: "goal",
+          label: "app.goalModeActive",
+          text: visibleGoal.value.objective,
+          metric: formatGoalMetric(visibleGoal.value.tokensUsed, activeGoalElapsedSeconds.value),
+        }
+      : null,
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item)),
+);
+const showStrip = computed(() => modeItems.value.length > 0);
 
 onMounted(() => {
   timer = window.setInterval(() => {
@@ -52,42 +77,69 @@ function formatElapsed(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   return `${minutes}m ${Math.floor(seconds % 60)}s`;
 }
+
+function formatGoalMetric(tokensUsed: number, elapsedSeconds: number) {
+  return `${formatElapsed(elapsedSeconds)} · ${tokensUsed.toLocaleString()} tokens`;
+}
 </script>
 
 <template>
-  <div v-if="showStrip" class="mb-2 flex min-w-0 flex-wrap items-center gap-2">
-    <Badge
+  <div
+    v-if="showStrip"
+    data-testid="composer-mode-ticker"
+    class="relative mb-2 overflow-hidden rounded-2xl border border-hairline bg-surface/90 shadow-sm shadow-ink/5"
+  >
+    <div class="composer-mode-ticker-track flex w-max items-center gap-3 py-2 pr-12">
+      <template v-for="copy in 2" :key="copy">
+        <div
+          v-for="item in modeItems"
+          :key="`${copy}-${item.kind}`"
+          class="inline-flex min-w-max items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm text-ink md:text-base"
+        >
+          <span class="font-medium text-primary">{{ $t(item.label) }}</span>
+          <span v-if="item.text" class="text-ink-secondary">
+            {{ item.text.startsWith("app.") ? $t(item.text) : item.text }}
+          </span>
+          <span v-if="'metric' in item && item.metric" class="font-mono text-ink-muted">
+            {{ item.metric }}
+          </span>
+        </div>
+      </template>
+    </div>
+    <div
       v-if="planModeActive"
-      as="div"
-      variant="outline"
-      class="min-w-0 max-w-full border-primary/30 pr-1 text-primary"
+      class="absolute inset-y-0 right-0 flex items-center bg-gradient-to-l from-surface via-surface to-transparent pl-6 pr-2"
     >
-      <span class="shrink-0">{{ $t("app.planModeActive") }}</span>
-      <span v-if="planSummary" class="min-w-0 truncate text-ink-secondary">
-        {{ planSummary }}
-      </span>
       <Button
         type="button"
         variant="ghost"
         size="icon-xs"
-        class="-mr-0.5 size-4 text-primary hover:bg-primary/10"
+        class="size-6 rounded-full text-primary hover:bg-primary/10"
         :aria-label="$t('app.deactivatePlanMode')"
         @click="emit('deactivatePlan')"
       >
-        <XIcon class="size-2.5" />
+        <XIcon class="size-3.5" />
       </Button>
-    </Badge>
-    <Badge v-if="goalInputActive" variant="outline" class="border-primary/30 text-primary">
-      {{ $t("app.goalModeActive") }}
-    </Badge>
-    <Badge
-      v-if="goal"
-      variant="secondary"
-      class="min-w-0 max-w-full gap-1.5 rounded-full border border-hairline bg-canvas-soft"
-    >
-      <span class="shrink-0">{{ $t("app.goalModeActive") }}</span>
-      <span class="min-w-0 truncate text-ink-secondary">{{ goal.objective }}</span>
-      <span class="shrink-0 text-ink-muted">{{ formatElapsed(activeGoalElapsedSeconds) }}</span>
-    </Badge>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.composer-mode-ticker-track {
+  animation: composer-mode-ticker 24s linear infinite;
+}
+
+.composer-mode-ticker-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes composer-mode-ticker {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+</style>

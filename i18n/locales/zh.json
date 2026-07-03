@@ -67,6 +67,7 @@
     "slashCommandGoalDescription": "输入 /goal 目标内容 设置当前会话目标",
     "planModeActive": "计划模式",
     "goalModeActive": "目标",
+    "goalInputHint": "输入目标后回车",
     "deactivatePlanMode": "退出计划模式",
     "goalObjectiveRequired": "请输入目标内容，例如 /goal 完成当前重构",
     "planImplementationPrompt": "是否执行这个计划？",

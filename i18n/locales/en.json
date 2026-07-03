@@ -70,6 +70,7 @@
     "slashCommandGoalDescription": "Use /goal OBJECTIVE to set the current thread goal",
     "planModeActive": "Plan mode",
     "goalModeActive": "Goal",
+    "goalInputHint": "Enter an objective and press Enter",
     "deactivatePlanMode": "Exit plan mode",
     "goalObjectiveRequired": "Enter an objective, for example /goal finish this refactor",
     "planImplementationPrompt": "Implement this plan?",

@@ -88,7 +88,9 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await expect(page.getByTestId("slash-command-menu")).toBeVisible();
   await expect(page.getByTestId("slash-command-plan")).toBeVisible();
   await page.getByTestId("slash-command-plan").click();
-  await expect(page.getByText("计划模式")).toBeVisible();
+  await expect(
+    page.getByTestId("composer-mode-ticker").getByText("计划模式").first(),
+  ).toBeVisible();
   await page.getByPlaceholder("输入后续修改要求").fill("");
 
   const threadId = await startRemoteThreadFromProjectMenu(page, project.id);

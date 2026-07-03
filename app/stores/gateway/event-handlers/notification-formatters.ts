@@ -2,7 +2,6 @@ import type { GatewayStoreContext } from "../types";
 import {
   configRange,
   count,
-  goalSummary,
   itemSummary,
   list,
   numberText,
@@ -31,7 +30,6 @@ export const visibleNotificationMethods = [
   "thread/unarchived",
   "thread/closed",
   "thread/name/updated",
-  "thread/goal/updated",
   "thread/goal/cleared",
   "skills/changed",
   "hook/started",
@@ -86,8 +84,6 @@ const formatters: Record<VisibleNotificationMethod, NotificationFormatter> = {
   "thread/closed": (ctx) => simpleNotification(ctx, "threadClosed"),
   "thread/name/updated": (ctx, params) =>
     simpleNotification(ctx, "threadNameUpdated", "info", { name: text(params.threadName) }),
-  "thread/goal/updated": (ctx, params) =>
-    simpleNotification(ctx, "threadGoalUpdated", "info", { goal: goalSummary(params.goal) }),
   "thread/goal/cleared": (ctx) => simpleNotification(ctx, "threadGoalCleared"),
   "skills/changed": (ctx) => simpleNotification(ctx, "skillsChanged"),
   "hook/started": (ctx, params) => hookNotification(ctx, params, "hookStarted"),

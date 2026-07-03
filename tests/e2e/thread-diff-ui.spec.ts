@@ -294,7 +294,9 @@ test("goal slash input derives the goal tag and requires an objective before sub
 
   const composer = page.getByPlaceholder("输入后续修改要求");
   await composer.fill("/goal");
-  await expect(page.getByText("目标", { exact: true })).toBeVisible();
+  await expect(
+    page.getByTestId("composer-mode-ticker").getByText("目标", { exact: true }).first(),
+  ).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(composer).toHaveValue("/goal ");
   await page.keyboard.press("Enter");
@@ -310,7 +312,133 @@ test("goal slash input derives the goal tag and requires an objective before sub
     .poll(() => page.evaluate(() => (window as any).__submittedGoalObjective))
     .toBe("完成当前重构");
   await expect(composer).toHaveValue("");
-  await expect(page.getByTestId("chat-main-pane").getByText("完成当前重构")).toBeVisible();
+  await expect(
+    page.getByTestId("composer-mode-ticker").getByText("完成当前重构").first(),
+  ).toBeVisible();
+});
+
+test("goal progress updates the composer ticker without flooding the agent loop", async ({
+  page,
+}) => {
+  await openApp(page);
+  await seedGatewayThread(page, {
+    threadId: "e2e-goal-progress-thread",
+    currentThread: { id: "e2e-goal-progress-thread", name: "Goal Progress" },
+    history: {
+      thread: {
+        id: "e2e-goal-progress-thread",
+        turns: [
+          {
+            id: "turn-goal-progress",
+            status: "running",
+            items: [
+              {
+                id: "user-goal-progress",
+                type: "userMessage",
+                content: [{ type: "text", text: "work on the goal" }],
+              },
+            ],
+          },
+        ],
+      },
+    },
+    status: "running",
+  });
+
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-goal-progress-thread";
+    store.applyLiveEvent({
+      id: 301,
+      hostId: 1,
+      threadId,
+      method: "thread/goal/updated",
+      payload: {
+        params: {
+          threadId,
+          turnId: "turn-goal-progress",
+          goal: {
+            threadId,
+            objective: "持续重构输入框状态",
+            status: "active",
+            tokenBudget: null,
+            tokensUsed: 128,
+            timeUsedSeconds: 3,
+            createdAt: Date.now() - 3000,
+            updatedAt: Date.now(),
+          },
+        },
+      },
+      createdAt: new Date().toISOString(),
+    });
+    store.applyLiveEvent({
+      id: 302,
+      hostId: 1,
+      threadId,
+      method: "thread/goal/updated",
+      payload: {
+        params: {
+          threadId,
+          turnId: "turn-goal-progress",
+          goal: {
+            threadId,
+            objective: "持续重构输入框状态",
+            status: "active",
+            tokenBudget: null,
+            tokensUsed: 256,
+            timeUsedSeconds: 4,
+            createdAt: Date.now() - 4000,
+            updatedAt: Date.now(),
+          },
+        },
+      },
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  const ticker = page.getByTestId("composer-mode-ticker");
+  await expect(ticker.getByText("持续重构输入框状态").first()).toBeVisible();
+  await expect(ticker.getByText(/256 tokens/).first()).toBeVisible();
+  await expect(page.getByTestId("chat-scroll-area").getByText("目标已更新")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    const threadId = "e2e-goal-progress-thread";
+    store.applyLiveEvent({
+      id: 303,
+      hostId: 1,
+      threadId,
+      method: "thread/goal/updated",
+      payload: {
+        params: {
+          threadId,
+          turnId: "turn-goal-progress",
+          goal: {
+            threadId,
+            objective: "持续重构输入框状态",
+            status: "complete",
+            tokenBudget: null,
+            tokensUsed: 512,
+            timeUsedSeconds: 8,
+            createdAt: Date.now() - 8000,
+            updatedAt: Date.now(),
+          },
+        },
+      },
+      createdAt: new Date().toISOString(),
+    });
+  });
+
+  await expect(page.getByTestId("composer-mode-ticker")).toHaveCount(0);
+  await expect(page.getByTestId("chat-scroll-area").getByText("目标已更新")).toHaveCount(0);
 });
 
 test("plan mode shows implementation actions for a second completed turn plan", async ({
@@ -385,9 +513,11 @@ test("plan mode shows implementation actions for a second completed turn plan", 
   await expect(
     page.getByTestId("chat-scroll-area").getByText("second plan", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("计划模式", { exact: true })).toBeVisible();
   await expect(
-    page.locator('[data-slot="badge"]').getByText("second plan", { exact: true }),
+    page.getByTestId("composer-mode-ticker").getByText("计划模式", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("composer-mode-ticker").getByText("second plan", { exact: true }).first(),
   ).toBeVisible();
   await expect(page.getByText("checked constraints before second plan")).toBeHidden();
   await expect(page.getByRole("button", { name: "执行计划" })).toBeVisible();
