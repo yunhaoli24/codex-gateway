@@ -5,6 +5,7 @@ import { useResizeObserver } from "@vueuse/core";
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";
 import { useGatewayTerminalTransport } from "@/composables/useGatewayTerminalTransport";
+import { useTerminalTheme } from "@/composables/useTerminalTheme";
 import type { TerminalSessionState } from "@/stores/gateway/types";
 import "@xterm/xterm/css/xterm.css";
 
@@ -15,12 +16,7 @@ const props = defineProps<{
 
 const terminalTransport = useGatewayTerminalTransport();
 const { t } = useI18n();
-const terminalTheme = {
-  background: "#111111",
-  foreground: "#f4f1ea",
-  cursor: "#f4f1ea",
-  selectionBackground: "#5f5a4d",
-} as const;
+const { terminalTheme } = useTerminalTheme();
 const terminalRoot = ref<HTMLElement | null>(null);
 let terminal: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
@@ -37,7 +33,7 @@ onMounted(() => {
     convertEol: true,
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
     fontSize: 13,
-    theme: terminalTheme,
+    theme: terminalTheme.value,
   });
   fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
@@ -60,6 +56,16 @@ onBeforeUnmount(() => {
 watch(
   () => props.session.output,
   (output) => writeOutput(output),
+);
+
+watch(
+  terminalTheme,
+  (theme) => {
+    if (terminal) {
+      terminal.options.theme = theme;
+    }
+  },
+  { deep: true },
 );
 
 watch(
@@ -103,19 +109,19 @@ function fitAndReport() {
 </script>
 
 <template>
-  <div data-testid="terminal-panel" class="flex min-h-0 flex-1 flex-col bg-ink">
+  <div data-testid="terminal-panel" class="flex min-h-0 flex-1 flex-col bg-canvas text-ink">
     <div
-      class="flex min-h-10 items-center justify-between border-b border-white/10 px-3 text-xs text-white/80"
+      class="flex min-h-10 items-center justify-between border-b border-hairline px-3 text-xs text-ink-muted"
     >
       <div class="min-w-0 truncate">
-        <span class="font-medium">{{ session.title }}</span>
-        <span v-if="session.cwd" class="ml-2 text-white/55">{{ session.cwd }}</span>
+        <span class="font-medium text-ink">{{ session.title }}</span>
+        <span v-if="session.cwd" class="ml-2 text-ink-faint">{{ session.cwd }}</span>
       </div>
       <Button
         v-if="session.status === 'closed'"
         variant="ghost"
         size="sm"
-        class="h-7 text-white/80 hover:bg-white/10 hover:text-white"
+        class="h-7 text-ink-muted hover:bg-canvas-soft hover:text-ink"
         @click="terminalTransport.closeTerminal(session.sessionId)"
       >
         {{ t("app.close") }}
