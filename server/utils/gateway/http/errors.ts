@@ -104,7 +104,6 @@ export function runtimeConfigFromMemory(): GatewayConfig {
     projects: state.projects,
     pinnedThreads: state.pinnedThreads,
     notifications: normalizeNotificationSettings(state.notifications),
-    lastOpenThread: state.lastOpenThread ?? null,
   };
 }
 

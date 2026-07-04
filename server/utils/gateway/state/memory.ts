@@ -42,7 +42,6 @@ export interface GatewayMemoryState {
   projects: ProjectRecord[];
   pinnedThreads: PinnedThreadRecord[];
   notifications: GatewayConfig["notifications"];
-  lastOpenThread: GatewayConfig["lastOpenThread"];
   threadMetadata: ThreadMetadataRecord[];
   threadSnapshots: ThreadSnapshotRecord[];
   subAgentThreads: SubAgentThreadRecord[];
@@ -58,7 +57,6 @@ function createGatewayMemoryState(): GatewayMemoryState {
     projects: [],
     pinnedThreads: [],
     notifications: normalizeNotificationSettings(),
-    lastOpenThread: null,
     threadMetadata: [],
     threadSnapshots: [],
     subAgentThreads: [],
@@ -136,7 +134,6 @@ export function buildGatewayMemoryState(config: GatewayConfig): GatewayMemorySta
     })),
     pinnedThreads: normalizePinnedThreads(config.pinnedThreads ?? []),
     notifications: normalizeNotificationSettings(config.notifications),
-    lastOpenThread: config.lastOpenThread ?? null,
   };
 }
 
@@ -145,7 +142,6 @@ export const initialGatewayMemoryState: GatewayMemoryState = {
   projects: [],
   pinnedThreads: [],
   notifications: normalizeNotificationSettings(),
-  lastOpenThread: null,
   threadMetadata: [],
   threadSnapshots: [],
   subAgentThreads: [],

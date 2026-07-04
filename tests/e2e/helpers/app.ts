@@ -53,6 +53,7 @@ async function waitForHydratedApp(page: Page, options: { resetConfig?: boolean }
     resetPages.add(page);
     await resetGatewayConfig(page);
     await page.evaluate(() => {
+      localStorage.removeItem("codex-gateway-last-open-thread");
       window.history.replaceState(window.history.state, "", window.location.pathname);
     });
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -74,7 +75,6 @@ export async function resetGatewayConfig(page: Page) {
       hosts: [],
       projects: [],
       pinnedThreads: [],
-      lastOpenThread: null,
     },
   });
 }

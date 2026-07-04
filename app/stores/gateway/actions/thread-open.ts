@@ -3,6 +3,7 @@ import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError, pinnedKey } from "../thread-utils/identity";
+import { readGatewayLastOpenThreadSelection } from "../route-state";
 import { applyStartedThreadResult, applyThreadSnapshotResult } from "../thread-open/hydration";
 import { requestActivateThreadSnapshot, requestStartThread } from "../thread-open/transport";
 import {
@@ -41,8 +42,8 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       clearCurrentThreadView(ctx);
     },
 
-    async rememberOpenThread(threadId: string) {
-      await rememberOpenThread(ctx, threadId);
+    rememberOpenThread(threadId: string) {
+      rememberOpenThread(ctx, threadId);
     },
 
     requestScrollToLatest() {
@@ -72,7 +73,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         ctx.state.currentThread &&
         ctx.state.history
       ) {
-        await ctx.rememberOpenThread(threadId);
+        ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         useGatewayRealtimeStore().connectThreadEvents();
         void refreshGoalAfterOpen(ctx, targetHostId, threadId);
@@ -82,7 +83,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       const viewEpoch = ctx.beginViewTransition();
       activatePendingThreadView(ctx, targetHostId, targetProjectId, threadId);
       if (ctx.restoreThreadView(targetHostId, threadId)) {
-        await ctx.rememberOpenThread(threadId);
+        ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         useGatewayRealtimeStore().connectThreadEvents();
         void refreshGoalAfterOpen(ctx, targetHostId, threadId);
@@ -209,9 +210,13 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
     },
 
     async restoreLastOpenThread() {
-      const last = ctx.state.gatewayConfig.lastOpenThread;
-      if (!last || !ctx.state.hosts.some((host) => host.id === last.hostId)) {
-        return;
+      const last = readGatewayLastOpenThreadSelection();
+      if (
+        !last.hostId ||
+        !last.threadId ||
+        !ctx.state.hosts.some((host) => host.id === last.hostId)
+      ) {
+        return false;
       }
       ctx.state.selectedHostId = last.hostId;
       ctx.state.selectedProjectId = last.projectId;
@@ -221,6 +226,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         replaceRoute: true,
       });
       ctx.syncSelectedRoute({ replace: true });
+      return true;
     },
 
     async startThread(
@@ -247,7 +253,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       useGatewayRealtimeStore().connectThreadEvents();
       await ctx.listThreads();
       ctx.cacheSelectedThreadView();
-      await ctx.rememberOpenThread(threadId);
+      ctx.rememberOpenThread(threadId);
       ctx.syncSelectedRoute();
     },
   };
@@ -280,7 +286,7 @@ async function syncOpenThreadFromServer(
     }
     applyThreadSnapshotResult(ctx, input.threadId, result);
     ctx.cacheSelectedThreadView();
-    await ctx.rememberOpenThread(input.threadId);
+    ctx.rememberOpenThread(input.threadId);
     ctx.syncSelectedRoute({ replace: input.replaceRoute });
     void refreshGoalAfterOpen(ctx, input.hostId, input.threadId);
     if (input.scrollToLatest ?? true) {

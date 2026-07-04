@@ -162,7 +162,7 @@ export interface GatewayStoreContext {
   cacheSelectedThreadView: () => void;
   restoreThreadView: (hostId: number, threadId: string) => boolean;
   clearCurrentThreadView: () => void;
-  rememberOpenThread: (threadId: string) => Promise<void>;
+  rememberOpenThread: (threadId: string) => void;
   requestScrollToLatest: () => void;
   syncSelectedRoute: (options?: { replace?: boolean }) => void;
   openThread: (
@@ -174,7 +174,7 @@ export interface GatewayStoreContext {
     threadId: string,
     context?: { projectId?: number | null; limit?: number },
   ) => Promise<ThreadViewState | undefined>;
-  restoreLastOpenThread: () => Promise<void>;
+  restoreLastOpenThread: () => Promise<boolean>;
   setThreadRunning: (hostId: number, threadId: string, running: boolean) => void;
   setThreadStatus: (
     hostId: number,

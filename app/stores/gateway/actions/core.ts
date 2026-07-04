@@ -26,7 +26,6 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         projects: ctx.state.projects,
         pinnedThreads: ctx.state.gatewayConfig.pinnedThreads,
         notifications: normalizeNotificationSettings(ctx.state.gatewayConfig.notifications),
-        lastOpenThread: ctx.state.gatewayConfig.lastOpenThread ?? null,
       };
     },
 
@@ -129,10 +128,10 @@ export function createCoreActions(ctx: GatewayStoreContext) {
           });
         } else if (
           !hasGatewayRouteSelection(routeSelection) &&
-          ctx.state.gatewayConfig.lastOpenThread?.hostId &&
-          viewUnchangedDuringRefresh()
+          viewUnchangedDuringRefresh() &&
+          (await ctx.restoreLastOpenThread())
         ) {
-          await ctx.restoreLastOpenThread();
+          // Restored the last browser-local UI selection.
         } else if (viewUnchangedDuringRefresh()) {
           writeGatewayRouteSelection(
             {

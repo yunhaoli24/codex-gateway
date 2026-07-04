@@ -23,7 +23,6 @@ export const runtimeConfigStore = {
       (thread) => hostIds.has(thread.hostId),
     );
     gatewayMemoryState.notifications = normalizeNotificationSettings(config.notifications);
-    gatewayMemoryState.lastOpenThread = config.lastOpenThread ?? null;
   },
 
   export(): GatewayConfig {
@@ -36,7 +35,6 @@ export const runtimeConfigStore = {
       projects: projectStore.list(),
       pinnedThreads: gatewayMemoryState.pinnedThreads,
       notifications: normalizeNotificationSettings(gatewayMemoryState.notifications),
-      lastOpenThread: gatewayMemoryState.lastOpenThread ?? null,
     };
   },
 

@@ -40,6 +40,5 @@ export function defaultGatewayConfig(): GatewayConfig {
     projects: [],
     pinnedThreads: [],
     notifications: defaultNotificationSettings(),
-    lastOpenThread: null,
   };
 }

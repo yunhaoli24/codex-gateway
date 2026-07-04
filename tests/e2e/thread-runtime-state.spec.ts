@@ -129,25 +129,36 @@ test("opening a cached thread applies terminal events before deriving composer s
       },
     },
   });
-  await page.route("**/api/config/sync", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        version: 1,
-        hosts: [],
-        projects: [],
-        pinnedThreads: [],
-        lastOpenThread: { hostId: 1, projectId: 1, threadId },
-      }),
-    });
-  });
-
   await seedGatewayThread(page, { projectId: 1 });
   await openThreadInStore(page, { threadId, hostId: 1, projectId: 1 });
 
   await expect(page.getByText("cached turn is done")).toBeVisible();
   await expect.poll(() => selectedThreadStatusInStore(page)).toBe("completed");
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成");
+});
+
+test("opening a thread stores browser-local last open selection", async ({ page }) => {
+  await openApp(page);
+  const threadId = "e2e-local-last-open-thread";
+  await installRealtimeThreadSnapshotMock(page, {
+    snapshots: {
+      [threadId]: {
+        thread: { id: threadId, name: "Local Last Open Thread" },
+        history: { thread: { id: threadId, turns: [] } },
+        projectId: 1,
+        project: { id: 1, hostId: 1, name: "E2E Project", remotePath: "/tmp/e2e" },
+      },
+    },
+  });
+  await seedGatewayThread(page, { projectId: 1, threadId: null });
+
+  await openThreadInStore(page, { threadId, hostId: 1, projectId: 1 });
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => JSON.parse(localStorage.getItem("codex-gateway-last-open-thread")!)),
+    )
+    .toEqual({ hostId: 1, projectId: 1, threadId });
 });
 
 test("switching to cached thread history renders without waiting for the next event", async ({

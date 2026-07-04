@@ -51,7 +51,6 @@ test("config JSON editor shows current config by default and scrolls", async ({ 
         updatedAt: "2026-01-01T00:00:00.000Z",
       })),
       pinnedThreads: [],
-      lastOpenThread: null,
     },
     null,
     2,

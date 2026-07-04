@@ -1,4 +1,4 @@
-import { writeGatewayRouteSelection } from "../route-state";
+import { writeGatewayLastOpenThreadSelection, writeGatewayRouteSelection } from "../route-state";
 import type { GatewayStoreContext } from "../types";
 import {
   activateThreadViewFromCache,
@@ -27,7 +27,7 @@ export function clearCurrentThreadView(ctx: GatewayStoreContext) {
   clearSelectedThreadView(ctx);
 }
 
-export async function rememberOpenThread(ctx: GatewayStoreContext, threadId: string) {
+export function rememberOpenThread(ctx: GatewayStoreContext, threadId: string) {
   if (!ctx.state.selectedHostId) {
     return;
   }
@@ -36,21 +36,7 @@ export async function rememberOpenThread(ctx: GatewayStoreContext, threadId: str
     projectId: ctx.state.selectedProjectId,
     threadId,
   };
-  const current = ctx.state.gatewayConfig.lastOpenThread;
-  if (
-    current?.hostId === nextLastOpenThread.hostId &&
-    current?.projectId === nextLastOpenThread.projectId &&
-    current?.threadId === nextLastOpenThread.threadId
-  ) {
-    return;
-  }
-  ctx.state.gatewayConfig.lastOpenThread = {
-    ...nextLastOpenThread,
-  };
-  ctx.persistConfig();
-  void ctx.syncConfigToServer().catch((error: unknown) => {
-    console.warn("[gateway] failed to persist last open thread", error);
-  });
+  writeGatewayLastOpenThreadSelection(nextLastOpenThread);
 }
 
 export function requestScrollToLatest(ctx: GatewayStoreContext) {

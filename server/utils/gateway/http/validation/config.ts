@@ -48,15 +48,6 @@ export const gatewayConfigSchema = z
           .strict(),
       )
       .default([]),
-    lastOpenThread: z
-      .object({
-        hostId: z.coerce.number().int().positive(),
-        projectId: optionalPositiveInt.nullable().optional(),
-        threadId: z.string().trim().min(1),
-      })
-      .strict()
-      .nullable()
-      .optional(),
     notifications: z
       .object({
         bark: z
@@ -131,12 +122,5 @@ export function parseGatewayConfig(body: unknown): GatewayConfig {
         group: input.notifications.bark.group?.trim() || DEFAULT_BARK_GROUP,
       },
     },
-    lastOpenThread: input.lastOpenThread
-      ? {
-          hostId: input.lastOpenThread.hostId,
-          projectId: input.lastOpenThread.projectId ?? null,
-          threadId: input.lastOpenThread.threadId.trim(),
-        }
-      : null,
   };
 }

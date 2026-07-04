@@ -27,9 +27,4 @@ export interface GatewayConfig {
   projects: ProjectRecord[];
   pinnedThreads: PinnedThreadRecord[];
   notifications: GatewayNotificationSettings;
-  lastOpenThread?: {
-    hostId: number;
-    projectId: number | null;
-    threadId: string;
-  } | null;
 }
