@@ -5,6 +5,16 @@ export async function sendRealtimeRequest<T extends RealtimeServerMessage = Real
   page: Page,
   message: Extract<RealtimeClientMessage, { requestId: string }>,
 ) {
+  const response = await sendRealtimeRawRequest(page, message);
+  if (response.type === "error") {
+    throw new Error(response.message || "Realtime request failed");
+  }
+  return response as T;
+}
+
+export async function sendRealtimeRawRequest<
+  T extends RealtimeServerMessage = RealtimeServerMessage,
+>(page: Page, message: Extract<RealtimeClientMessage, { requestId: string }>) {
   return (await page.evaluate(async (message) => {
     const token = localStorage.getItem("codex-gateway-auth-token");
     if (!token) {
@@ -38,11 +48,7 @@ export async function sendRealtimeRequest<T extends RealtimeServerMessage = Real
         }
         window.clearTimeout(timer);
         socket.close();
-        if (parsed.type === "error") {
-          reject(new Error(parsed.message || "Realtime request failed"));
-        } else {
-          resolve(parsed);
-        }
+        resolve(parsed);
       });
       socket.addEventListener("error", () => {
         window.clearTimeout(timer);

@@ -1,5 +1,11 @@
 import type { GatewayEvent } from "./records";
-import type { ComposerTurnOptions, ThreadGoal, ThreadGoalStatus, ThreadOpenResult } from "./thread";
+import type {
+  ComposerTurnOptions,
+  ThreadGoal,
+  ThreadGoalStatus,
+  ThreadOpenResult,
+  ThreadTurnsPageResult,
+} from "./thread";
 import type { ApprovalPolicy, ReasoningEffort } from "./thread";
 import type { TerminalOpenTarget, TerminalSessionSnapshot } from "./terminal";
 
@@ -32,6 +38,15 @@ export type RealtimeClientMessage =
       type: "thread.unsubscribe";
       hostId: number;
       threadId: string;
+    }
+  | {
+      type: "thread.turns.load";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      cursor?: string | null;
+      limit?: number;
+      sortDirection?: "asc" | "desc";
     }
   | {
       type: "thread.start";
@@ -176,6 +191,12 @@ export type RealtimeServerMessage =
       threadId: string;
       lastEventId: number;
     } & ThreadOpenResult)
+  | ({
+      type: "thread.turns.page";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+    } & ThreadTurnsPageResult)
   | {
       type: "turn.start.accepted";
       requestId: string;

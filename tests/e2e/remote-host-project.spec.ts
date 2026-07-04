@@ -1,7 +1,8 @@
 import { expect, test, type Page, type WebSocket } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { authenticatedFetch, authenticatedRawFetch, openApp, reloadApp } from "./helpers/app";
+import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
 import { STALE_THREAD_CURSOR_ERROR_CODE } from "../../shared/gateway-errors";
+import { sendRealtimeRawRequest } from "./helpers/realtime";
 import {
   addRemoteHost,
   addRemoteProject,
@@ -136,15 +137,20 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
     timeout: 120_000,
   });
 
-  const staleTurnsResponse = await authenticatedRawFetch(page, {
-    url:
-      `/api/threads/turns?hostId=${host.id}&threadId=${threadId}` +
-      `&cursor=${encodeURIComponent(
-        JSON.stringify({ turnId: randomUUID(), includeAnchor: false }),
-      )}&limit=5&sortDirection=desc`,
+  const staleTurnsResponse = await sendRealtimeRawRequest(page, {
+    type: "thread.turns.load",
+    requestId: `e2e-stale-turns-${randomUUID()}`,
+    hostId: host.id,
+    threadId,
+    cursor: JSON.stringify({ turnId: randomUUID(), includeAnchor: false }),
+    limit: 5,
+    sortDirection: "desc",
   });
-  expect(staleTurnsResponse.status, JSON.stringify(staleTurnsResponse.body)).toBe(409);
-  expect(staleTurnsResponse.body?.code).toBe(STALE_THREAD_CURSOR_ERROR_CODE);
+  expect(staleTurnsResponse.type, JSON.stringify(staleTurnsResponse)).toBe("error");
+  if (staleTurnsResponse.type !== "error") {
+    throw new Error(`Expected realtime error response: ${JSON.stringify(staleTurnsResponse)}`);
+  }
+  expect(staleTurnsResponse.code).toBe(STALE_THREAD_CURSOR_ERROR_CODE);
 
   await reloadApp(page);
   await expect(page.getByTestId(`thread-button-${threadId}`)).toHaveAttribute(

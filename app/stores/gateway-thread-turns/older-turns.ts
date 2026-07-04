@@ -1,10 +1,9 @@
 import { OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
-import type { ThreadTurnsPageResult } from "~~/shared/types";
 import { mergeThreadTurns } from "~~/shared/thread-history/turns";
-import { gatewayApi } from "@/utils/gateway-api";
 import { useGatewayStore } from "@/stores/gateway";
 import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
-import { isStaleThreadCursorFetchError } from "./stale-cursor";
+import { isStaleThreadCursorError } from "./stale-cursor";
+import { requestThreadTurnsPage } from "./transport";
 import type { Translate } from "./types";
 
 export async function loadOlderTurns(t: Translate, options: { limit?: number } = {}) {
@@ -23,14 +22,12 @@ export async function loadOlderTurns(t: Translate, options: { limit?: number } =
   const threadId = gateway.selectedThreadId;
   gateway.loadingOlderTurns = true;
   try {
-    const result = await gatewayApi<ThreadTurnsPageResult>("/api/threads/turns", {
-      query: {
-        hostId,
-        threadId,
-        cursor: gateway.olderTurnsCursor,
-        limit: options.limit ?? OLDER_TURN_PAGE_LIMIT,
-        sortDirection: "desc",
-      },
+    const result = await requestThreadTurnsPage({
+      hostId,
+      threadId,
+      cursor: gateway.olderTurnsCursor,
+      limit: options.limit ?? OLDER_TURN_PAGE_LIMIT,
+      sortDirection: "desc",
     });
     const turns = (result.history as any)?.thread?.turns ?? [];
     gateway.history = mergeThreadTurns(
@@ -44,7 +41,7 @@ export async function loadOlderTurns(t: Translate, options: { limit?: number } =
     gateway.newerTurnsCursor = result.turnsPage.backwardsCursor ?? gateway.newerTurnsCursor;
     gateway.cacheSelectedThreadView();
   } catch (error: any) {
-    if (isStaleThreadCursorFetchError(error)) {
+    if (isStaleThreadCursorError(error)) {
       if (gateway.selectedHostId !== hostId || gateway.selectedThreadId !== threadId) {
         return;
       }

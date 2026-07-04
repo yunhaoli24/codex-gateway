@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { openApp } from "./helpers/app";
 import {
   appendAgentStreamLines,
@@ -25,18 +25,14 @@ import {
 test("opened threads render two turns first and then top up to five turns", async ({ page }) => {
   await openApp(page);
   const threadId = "e2e-background-turn-top-up-thread";
-  let requestedLimit: string | null = null;
-  await page.route("**/api/threads/turns?**", async (route) => {
-    const url = new URL(route.request().url());
-    requestedLimit = url.searchParams.get("limit");
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        history: { thread: { id: threadId, turns: buildTextTurns(1, 3, "background turn") } },
-        turnsPage: { nextCursor: null, backwardsCursor: null },
-      }),
-    });
+  const httpTurnsRequests = trackThreadTurnsHttpRequests(page);
+  await installImmediateThreadTurnsLoadStub(page, {
+    type: "thread.turns.page",
+    requestId: "e2e-thread-turns-page",
+    hostId: 1,
+    threadId,
+    history: { thread: { id: threadId, turns: buildTextTurns(1, 3, "background turn") } },
+    turnsPage: { nextCursor: null, backwardsCursor: null },
   });
 
   await seedGatewayThread(page, {
@@ -55,7 +51,10 @@ test("opened threads render two turns first and then top up to five turns", asyn
   await expect(page.getByText("background turn 004")).toBeVisible();
   await expect(page.getByText("background turn 005")).toBeVisible();
   await expect.poll(() => threadTurnCount(page)).toBe(5);
-  expect(requestedLimit).toBe("3");
+  const requests = await threadTurnsLoadRequests(page);
+  expect(requests).toHaveLength(1);
+  expect(requests[0]).toMatchObject({ type: "thread.turns.load", limit: 3 });
+  expect(httpTurnsRequests()).toBe(0);
 });
 
 test("streaming output does not force scroll when the user is reading earlier content", async ({
@@ -328,25 +327,14 @@ test("loading older turns prepends history without moving the current viewport a
 }) => {
   await openApp(page);
   const threadId = "e2e-load-older-anchor-thread";
-  let markTurnsRequestStarted = () => {};
-  let releaseTurnsResponse = () => {};
-  const turnsRequestStarted = new Promise<void>((resolve) => {
-    markTurnsRequestStarted = resolve;
-  });
-  const turnsResponseCanFinish = new Promise<void>((resolve) => {
-    releaseTurnsResponse = resolve;
-  });
-  await page.route("**/api/threads/turns?**", async (route) => {
-    markTurnsRequestStarted();
-    await turnsResponseCanFinish;
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        history: { thread: { id: threadId, turns: buildTextTurns(1, 5, "anchored turn") } },
-        turnsPage: { nextCursor: null, backwardsCursor: null },
-      }),
-    });
+  const httpTurnsRequests = trackThreadTurnsHttpRequests(page);
+  await installDeferredThreadTurnsLoadStub(page, {
+    type: "thread.turns.page",
+    requestId: "e2e-thread-turns-page",
+    hostId: 1,
+    threadId,
+    history: { thread: { id: threadId, turns: buildTextTurns(1, 5, "anchored turn") } },
+    turnsPage: { nextCursor: null, backwardsCursor: null },
   });
   await seedGatewayThread(page, {
     projectId: 1,
@@ -362,14 +350,17 @@ test("loading older turns prepends history without moving the current viewport a
   });
 
   await scrollChatViewportToTop(page);
-  await turnsRequestStarted;
+  await expect
+    .poll(() => threadTurnsLoadRequests(page).then((requests) => requests.length))
+    .toBe(1);
   const anchor = await captureTextAnchor(page, "anchored turn 006");
-  releaseTurnsResponse();
+  await releaseDeferredThreadTurnsLoad(page);
 
   await expect.poll(() => threadTurnCount(page)).toBe(10);
   await page.waitForTimeout(300);
   await expect.poll(() => visibleTextTop(page, anchor.text)).toBeGreaterThanOrEqual(anchor.top - 2);
   await expect.poll(() => visibleTextTop(page, anchor.text)).toBeLessThanOrEqual(anchor.top + 2);
+  expect(httpTurnsRequests()).toBe(0);
 });
 
 function buildTextTurns(start: number, end: number, prefix: string) {
@@ -401,4 +392,67 @@ async function threadTurnCount(page: import("@playwright/test").Page) {
     }
     return store.history?.thread?.turns?.length ?? 0;
   });
+}
+
+function trackThreadTurnsHttpRequests(page: Page) {
+  let count = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/threads/turns") {
+      count += 1;
+    }
+  });
+  return () => count;
+}
+
+async function installImmediateThreadTurnsLoadStub(page: Page, response: unknown) {
+  await installThreadTurnsLoadStub(page, response, false);
+}
+
+async function installDeferredThreadTurnsLoadStub(page: Page, response: unknown) {
+  await installThreadTurnsLoadStub(page, response, true);
+}
+
+async function installThreadTurnsLoadStub(page: Page, response: unknown, deferred: boolean) {
+  await page.evaluate(
+    ({ response, deferred }) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const realtime = app?.config?.globalProperties?.$pinia?._s?.get("gateway-realtime");
+      if (!realtime) {
+        throw new Error("Unable to locate gateway realtime Pinia store");
+      }
+      const original = realtime.request.bind(realtime);
+      (window as any).__threadTurnsLoadRequests = [];
+      if (deferred) {
+        (window as any).__threadTurnsLoadResponse = response;
+        (window as any).__threadTurnsLoadPromise = new Promise((resolve) => {
+          (window as any).__releaseThreadTurnsLoad = () =>
+            resolve((window as any).__threadTurnsLoadResponse);
+        });
+      }
+      realtime.request = async (buildMessage: (requestId: string) => any, timeoutMs?: number) => {
+        const requestId = `e2e-thread-turns-${crypto.randomUUID()}`;
+        const request = buildMessage(requestId);
+        if (request?.type !== "thread.turns.load") {
+          return original(buildMessage, timeoutMs);
+        }
+        (window as any).__threadTurnsLoadRequests.push(request);
+        return deferred ? await (window as any).__threadTurnsLoadPromise : response;
+      };
+    },
+    { response, deferred },
+  );
+}
+
+async function releaseDeferredThreadTurnsLoad(page: Page) {
+  await page.evaluate(() => {
+    const release = (window as any).__releaseThreadTurnsLoad;
+    if (typeof release !== "function") {
+      throw new Error("Missing deferred thread turns release callback");
+    }
+    release();
+  });
+}
+
+async function threadTurnsLoadRequests(page: Page) {
+  return await page.evaluate(() => (window as any).__threadTurnsLoadRequests ?? []);
 }

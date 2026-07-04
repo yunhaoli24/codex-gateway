@@ -7,6 +7,7 @@ import {
   unsubscribeThread,
 } from "./handlers/thread-events";
 import { clearThreadGoal, getThreadGoal, setThreadGoal } from "./handlers/thread-goals";
+import { loadThreadTurns } from "./handlers/thread-turn-pages";
 import {
   closeTerminal,
   listTerminals,
@@ -31,6 +32,7 @@ export const realtimeMessageDispatcher = new RealtimeMessageDispatcher({
   "thread.start": startThread,
   "thread.subscribe": subscribeThread,
   "thread.unsubscribe": unsubscribeThread,
+  "thread.turns.load": loadThreadTurns,
   "thread.goal.set": setThreadGoal,
   "thread.goal.get": getThreadGoal,
   "thread.goal.clear": clearThreadGoal,

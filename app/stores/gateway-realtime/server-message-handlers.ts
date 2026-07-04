@@ -31,6 +31,7 @@ export interface RealtimeServerMessageHandlerContext {
 const requestResponseMessageTypes = [
   "thread.snapshot",
   "thread.started",
+  "thread.turns.page",
   "turn.start.accepted",
   "turn.steer.accepted",
   "turn.interrupt.accepted",

@@ -1,4 +1,8 @@
 import type { RealtimeClientMessage } from "~~/shared/types";
+import {
+  isStaleThreadCursorErrorLike,
+  STALE_THREAD_CURSOR_ERROR_CODE,
+} from "~~/shared/gateway-errors";
 import { realtimeMessageDispatcher } from "./message-handlers";
 import { RealtimeAuthenticationRequiredError } from "./message-dispatcher";
 import { sendRealtimePeerMessage, stateFor, type RealtimePeer } from "./peer-state";
@@ -31,7 +35,7 @@ export async function handleRealtimePeerMessage(peer: RealtimePeer, rawMessage: 
       message: error?.message || "Realtime message failed",
       requestId: request && "requestId" in request ? request.requestId : undefined,
       request,
-      code: "realtimeMessageFailed",
+      code: realtimeErrorCode(error),
       details: realtimeErrorDetails(request, error),
     });
   }
@@ -71,6 +75,7 @@ function parseClientMessage(raw: string): RealtimeClientMessage {
 }
 
 function realtimeErrorDetails(request: RealtimeClientMessage | undefined, error: any) {
+  const code = realtimeErrorCode(error);
   return {
     requestType: request?.type ?? null,
     requestId: request && "requestId" in request ? request.requestId : null,
@@ -78,8 +83,16 @@ function realtimeErrorDetails(request: RealtimeClientMessage | undefined, error:
     threadId: request && "threadId" in request ? request.threadId : null,
     sessionId: request && "sessionId" in request ? request.sessionId : null,
     serverRequestId: request && "serverRequestId" in request ? request.serverRequestId : null,
+    code,
     errorName: error?.name ?? null,
     statusCode: error?.statusCode ?? error?.cause?.statusCode ?? null,
     statusMessage: error?.statusMessage ?? error?.cause?.statusMessage ?? null,
   };
+}
+
+function realtimeErrorCode(error: unknown) {
+  if (isStaleThreadCursorErrorLike(error)) {
+    return STALE_THREAD_CURSOR_ERROR_CODE;
+  }
+  return "realtimeMessageFailed";
 }

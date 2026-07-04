@@ -1,4 +1,4 @@
-import type { ComposerTurnOptions } from "~~/shared/types";
+import type { ComposerTurnOptions, ThreadTurnsPageResult } from "~~/shared/types";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 
 export function requestTurnStart(input: {
@@ -73,5 +73,25 @@ export function respondToServerRequest(
     threadId,
     serverRequestId,
     result,
+  }));
+}
+
+export function requestThreadTurnsPage(input: {
+  hostId: number;
+  threadId: string;
+  cursor: string;
+  limit: number;
+  sortDirection: "asc" | "desc";
+}) {
+  return useGatewayRealtimeStore().request<
+    { type: "thread.turns.page"; hostId: number; threadId: string } & ThreadTurnsPageResult
+  >((requestId) => ({
+    type: "thread.turns.load",
+    requestId,
+    hostId: input.hostId,
+    threadId: input.threadId,
+    cursor: input.cursor,
+    limit: input.limit,
+    sortDirection: input.sortDirection,
   }));
 }

@@ -43,36 +43,6 @@ export async function authenticatedFetch<T>(
   }, request);
 }
 
-export async function authenticatedRawFetch(
-  page: Page,
-  request: {
-    url: string;
-    method?: string;
-    body?: unknown;
-  },
-) {
-  return await page.evaluate(async (request) => {
-    const token = localStorage.getItem("codex-gateway-auth-token");
-    if (!token) {
-      throw new Error("Missing E2E auth token");
-    }
-    const response = await fetch(request.url, {
-      method: request.method ?? "GET",
-      headers: {
-        authorization: `Bearer ${token}`,
-        ...(request.body === undefined ? {} : { "content-type": "application/json" }),
-      },
-      body: request.body === undefined ? undefined : JSON.stringify(request.body),
-    });
-    const text = await response.text();
-    return {
-      ok: response.ok,
-      status: response.status,
-      body: text ? JSON.parse(text) : null,
-    };
-  }, request);
-}
-
 async function waitForHydratedApp(page: Page, options: { resetConfig?: boolean } = {}) {
   const diagnostics = collectPageDiagnostics(page);
   await expect(page.getByTestId("app-ready"), await diagnostics()).toBeAttached({
