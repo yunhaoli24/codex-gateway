@@ -19,7 +19,7 @@ const props = defineProps<{
     v-if="fileChangeDiff(props.change)"
     class="diff-markdown max-h-[min(55vh,26rem)] border-t border-hairline bg-surface"
     viewport-class="max-h-[min(55vh,26rem)]"
-    horizontal
+    allow-horizontal-overflow
     natural-height
     :threshold="48"
     :follow-key="fileChangeFollowKey(props.change)"

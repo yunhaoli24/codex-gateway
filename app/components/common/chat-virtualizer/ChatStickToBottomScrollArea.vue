@@ -9,7 +9,7 @@ const props = withDefaults(
     class?: HTMLAttributes["class"];
     viewportClass?: HTMLAttributes["class"];
     contentClass?: HTMLAttributes["class"];
-    horizontal?: boolean;
+    allowHorizontalOverflow?: boolean;
     threshold?: number;
     followKey?: unknown;
     estimateSize?: number;
@@ -32,7 +32,6 @@ const chatVirtualizer = useChatVirtualizer({
   estimateSize: () => props.estimateSize,
   getItemElement: () => contentRef.value,
   threshold: () => props.threshold,
-  horizontal: () => props.horizontal,
 });
 const virtualizer = chatVirtualizer.virtualizer;
 
@@ -111,16 +110,16 @@ function handleViewportReady() {
   <ChatVirtualScrollFrame
     ref="scrollFrameRef"
     :class="props.class"
-    :horizontal="props.horizontal"
+    :allow-horizontal-overflow="props.allowHorizontalOverflow"
     :viewport-class="
-      props.horizontal ? ['overflow-auto', props.viewportClass] : props.viewportClass
+      props.allowHorizontalOverflow ? ['overflow-auto', props.viewportClass] : props.viewportClass
     "
     :style="rootStyle"
     @viewport-ready="handleViewportReady"
   >
     <div
       class="relative"
-      :class="props.horizontal ? 'min-w-full w-max' : 'w-full'"
+      :class="props.allowHorizontalOverflow ? 'min-w-full w-max' : 'w-full'"
       :ref="chatVirtualizer.containerRef"
     >
       <div
@@ -129,7 +128,7 @@ function handleViewportReady() {
         :data-index="virtualRow.index"
         :class="[
           'absolute left-0 top-0',
-          props.horizontal ? 'min-w-full w-max' : 'w-full',
+          props.allowHorizontalOverflow ? 'min-w-full w-max' : 'w-full',
           props.contentClass,
         ]"
       >
@@ -138,7 +137,10 @@ function handleViewportReady() {
       <div
         v-else
         :ref="setContentRef"
-        :class="[props.horizontal ? 'min-w-full w-max' : 'w-full', props.contentClass]"
+        :class="[
+          props.allowHorizontalOverflow ? 'min-w-full w-max' : 'w-full',
+          props.contentClass,
+        ]"
       >
         <slot />
       </div>

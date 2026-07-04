@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { openApp } from "./helpers/app";
-import { seedGatewayThread } from "./helpers/gateway-store";
+import { appendFileDiffLines, seedGatewayThread } from "./helpers/gateway-store";
+import { diffScrollLeft, setDiffScrollLeft } from "./helpers/scroll";
 
 test("file diff blocks can collapse and expand after virtual timeline measurement", async ({
   page,
@@ -107,6 +108,64 @@ test("short command output uses natural height instead of a fixed minimum", asyn
       }),
     )
     .toBeLessThan(96);
+});
+
+test("streaming diff keeps user-selected horizontal scroll position", async ({ page }) => {
+  await openApp(page);
+  const threadId = "e2e-diff-horizontal-scroll-thread";
+  const longValue = "x".repeat(220);
+  const diff = [
+    "diff --git a/src/wide.py b/src/wide.py",
+    "index 1111111..2222222 100644",
+    "--- a/src/wide.py",
+    "+++ b/src/wide.py",
+    "@@ -1,20 +1,20 @@",
+    ...Array.from(
+      { length: 36 },
+      (_, index) => `+wide_line_${String(index + 1).padStart(3, "0")} = '${longValue}'`,
+    ),
+  ].join("\n");
+
+  await seedGatewayThread(page, {
+    threadId,
+    projectId: 1,
+    currentThread: { id: threadId, name: "Diff Horizontal Scroll" },
+    history: {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "turn-diff-horizontal",
+            status: "running",
+            items: [
+              {
+                id: "file-wide-1",
+                type: "fileChange",
+                status: "running",
+                changes: [{ path: "src/wide.py", kind: "update", diff }],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  await openIntermediateSteps(page);
+  await expect(page.getByText("wide_line_001")).toBeVisible();
+  const chosenScrollLeft = await setDiffScrollLeft(page, "wide_line_001", 96);
+  expect(chosenScrollLeft).toBeGreaterThan(0);
+
+  await appendFileDiffLines(page, {
+    itemId: "file-wide-1",
+    path: "src/wide.py",
+    prefix: `streamed wide diff line ${longValue}`,
+    count: 24,
+  });
+
+  await page.waitForTimeout(300);
+  await expect.poll(() => diffScrollLeft(page, "wide_line_001")).toBeGreaterThanOrEqual(94);
+  await expect.poll(() => diffScrollLeft(page, "wide_line_001")).toBeLessThanOrEqual(98);
 });
 
 async function openIntermediateSteps(page: import("@playwright/test").Page) {

@@ -116,6 +116,24 @@ export async function commandOutputScrollTop(page: Page) {
     });
 }
 
+export async function setDiffScrollLeft(page: Page, text: string, scrollLeft: number) {
+  return await page.getByText(text).first().evaluate((element: HTMLElement, scrollLeft) => {
+    const viewport = element.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+    if (!viewport) throw new Error("Missing diff viewport");
+    viewport.scrollLeft = scrollLeft;
+    viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
+    return viewport.scrollLeft;
+  }, scrollLeft);
+}
+
+export async function diffScrollLeft(page: Page, text: string) {
+  return await page.getByText(text).first().evaluate((element: HTMLElement) => {
+    const viewport = element.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+    if (!viewport) throw new Error("Missing diff viewport");
+    return viewport.scrollLeft;
+  });
+}
+
 async function chatViewportMaxScrollTop(page: Page) {
   return await page.getByTestId(chatScrollAreaTestId).evaluate((root: HTMLElement) => {
     const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;

@@ -6,11 +6,11 @@ const props = withDefaults(
   defineProps<{
     class?: HTMLAttributes["class"];
     viewportClass?: HTMLAttributes["class"];
-    horizontal?: boolean;
+    allowHorizontalOverflow?: boolean;
     style?: StyleValue;
   }>(),
   {
-    horizontal: false,
+    allowHorizontalOverflow: false,
   },
 );
 
@@ -40,7 +40,7 @@ defineExpose({ getViewport });
       data-slot="scroll-area-viewport"
       :class="[
         'h-full w-full [overflow-anchor:none]',
-        props.horizontal ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden',
+        props.allowHorizontalOverflow ? 'overflow-auto' : 'overflow-y-auto overflow-x-hidden',
         props.viewportClass,
       ]"
       @touchmove.stop

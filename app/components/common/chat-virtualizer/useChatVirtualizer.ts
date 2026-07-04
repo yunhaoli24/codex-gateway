@@ -14,7 +14,6 @@ interface ChatVirtualizerOptions {
   getItemElement: (index: number) => Element | null | undefined;
   threshold?: ThresholdSource;
   overscan?: MaybeRefOrGetter<number>;
-  horizontal?: MaybeRefOrGetter<boolean>;
   onViewportScroll?: (viewport: HTMLElement) => void;
   forgetItemElement?: (index: number) => void;
   scrollToBottom?: (viewport: HTMLElement) => void;
@@ -42,7 +41,6 @@ export function useChatVirtualizer(options: ChatVirtualizerOptions) {
       getScrollElement: options.getViewport,
       getItemKey: options.getItemKey,
       estimateSize: options.estimateSize,
-      horizontal: Boolean(toValue(options.horizontal)),
       overscan: toValue(options.overscan) ?? 0,
       ...createChatVirtualizerBehavior({
         followLatest: sticky.followLatest.value,

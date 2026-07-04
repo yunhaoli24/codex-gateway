@@ -100,7 +100,7 @@ async function respond(decision: "accept" | "decline") {
         v-if="output"
         class="mt-2 max-h-56 rounded-lg border border-hairline bg-canvas-soft"
         viewport-class="max-h-56"
-        horizontal
+        allow-horizontal-overflow
         natural-height
         :threshold="48"
         :estimate-size="44"
