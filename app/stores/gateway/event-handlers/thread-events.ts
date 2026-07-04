@@ -7,8 +7,7 @@ export const threadEventHandlers: GatewayEventHandlerRegistry = {
   "thread/status/changed": (ctx, event, params) => {
     const threadId = threadIdFromParams(params);
     if (threadId) {
-      ctx.events.emit({
-        type: "thread-status-detected",
+      ctx.events.emit("thread-status-detected", {
         hostId: event.hostId,
         threadId: String(threadId),
         status: runtimeStatusFromAppThreadStatus(params.status),
@@ -18,8 +17,7 @@ export const threadEventHandlers: GatewayEventHandlerRegistry = {
   "thread/settings/updated": (ctx, event, params) => {
     const threadId = threadIdFromParams(params);
     if (threadId) {
-      ctx.events.emit({
-        type: "thread-settings-detected",
+      ctx.events.emit("thread-settings-detected", {
         hostId: event.hostId,
         threadId: String(threadId),
         settings: {
@@ -34,8 +32,7 @@ export const threadEventHandlers: GatewayEventHandlerRegistry = {
     const threadId = threadIdFromParams(params);
     const tokenUsage = normalizeTokenUsage(params.tokenUsage);
     if (threadId && tokenUsage) {
-      ctx.events.emit({
-        type: "thread-token-usage-detected",
+      ctx.events.emit("thread-token-usage-detected", {
         hostId: event.hostId,
         threadId: String(threadId),
         tokenUsage,

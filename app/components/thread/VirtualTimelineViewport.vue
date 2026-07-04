@@ -2,11 +2,7 @@
 import type { VirtualItem } from "@tanstack/virtual-core";
 import type { ComponentPublicInstance } from "vue";
 import { computed, onMounted, ref, watch } from "vue";
-import ChatVirtualScrollFrame from "@/components/common/ChatVirtualScrollFrame.vue";
-import { useDirectDomVirtualizer } from "@/composables/useDirectDomVirtualizer";
-import { useVirtualStickToBottom } from "@/composables/useVirtualStickToBottom";
-import { createChatVirtualizerBehavior } from "@/utils/chat-virtualizer-options";
-import { shouldAdjustDetachedResize } from "@/utils/virtual-resize-adjustment";
+import { ChatVirtualScrollFrame, useChatVirtualizer } from "@/components/common/chat-virtualizer";
 
 interface TimelineViewportRow {
   key: string;
@@ -27,10 +23,15 @@ const scrollFrameRef = ref<InstanceType<typeof ChatVirtualScrollFrame> | null>(n
 const rowElements = new Map<number, Element>();
 const threshold = 80;
 
-const sticky = useVirtualStickToBottom({
+const chatVirtualizer = useChatVirtualizer({
+  count: () => props.rows.length,
   threshold,
   getViewport: scrollViewport,
-  measure: measureVisibleRows,
+  getItemKey: (index: number) => props.rows[index]?.key ?? index,
+  estimateSize: (index: number) => props.estimateSize(props.rows[index], index),
+  getItemElement: (index: number) => rowElements.get(index),
+  forgetItemElement: (index: number) => rowElements.delete(index),
+  overscan: 6,
   onViewportScroll: (viewport) => {
     if (viewport.scrollTop <= 80) {
       emit("reachStart");
@@ -42,27 +43,9 @@ const sticky = useVirtualStickToBottom({
     }
   },
 });
+const virtualizer = chatVirtualizer.virtualizer;
 
-const directVirtualizer = useDirectDomVirtualizer(
-  computed(() => ({
-    count: props.rows.length,
-    getScrollElement: scrollViewport,
-    getItemKey: (index: number) => props.rows[index]?.key ?? index,
-    estimateSize: (index: number) => props.estimateSize(props.rows[index], index),
-    overscan: 6,
-    ...createChatVirtualizerBehavior({
-      followLatest: sticky.followLatest.value,
-      scrollEndThreshold: threshold,
-    }),
-    shouldAdjustScrollPositionOnItemSizeChange: (item: VirtualItem, _delta: number) =>
-      shouldAdjustDetachedResize(sticky.followLatest.value, item, scrollViewport, (index) =>
-        rowElements.get(index),
-      ),
-  })),
-);
-const virtualizer = directVirtualizer.virtualizer;
-
-const virtualRows = computed(() => virtualizer.value.getVirtualItems());
+const virtualRows = chatVirtualizer.virtualItems;
 const rowKeySignature = computed(() => props.rows.map((row) => row.key).join("\u0000"));
 
 function scrollViewport() {
@@ -78,20 +61,8 @@ function setRowRef(refValue: Element | ComponentPublicInstance | null) {
   if (Number.isFinite(index)) {
     rowElements.set(index, element);
   }
-  directVirtualizer.measureElement(element);
-  sticky.bindInputListeners();
-}
-
-function measureVisibleRows() {
-  for (const virtualRow of virtualRows.value) {
-    const element = rowElements.get(virtualRow.index);
-    if (element?.isConnected) {
-      virtualizer.value.measureElement(element);
-    } else {
-      rowElements.delete(virtualRow.index);
-    }
-  }
-  directVirtualizer.applyDirectStyles();
+  chatVirtualizer.measureElement(element);
+  chatVirtualizer.bindInputListeners();
 }
 
 function rowStyle(_virtualRow: VirtualItem) {
@@ -104,15 +75,15 @@ function rowStyle(_virtualRow: VirtualItem) {
 }
 
 function resetFollowLatest() {
-  directVirtualizer.refresh();
-  sticky.reset();
+  chatVirtualizer.refresh();
+  chatVirtualizer.reset();
 }
 
 watch(
   () => props.followKey,
   () => {
-    directVirtualizer.refresh();
-    sticky.stickIfFollowing();
+    chatVirtualizer.refresh();
+    chatVirtualizer.stickIfFollowing();
   },
   { flush: "post" },
 );
@@ -121,14 +92,14 @@ watch(
   rowKeySignature,
   () => {
     rowElements.clear();
-    directVirtualizer.refresh();
-    sticky.stickIfFollowing();
+    chatVirtualizer.refresh();
+    chatVirtualizer.stickIfFollowing();
   },
   { flush: "post" },
 );
 
 watch(
-  () => sticky.userDetached.value,
+  () => chatVirtualizer.userDetached.value,
   (detached) => {
     emit("userDetachedChange", detached);
   },
@@ -136,13 +107,13 @@ watch(
 );
 
 onMounted(() => {
-  sticky.bindInputListeners();
+  chatVirtualizer.bindInputListeners();
   resetFollowLatest();
 });
 
 function handleViewportReady() {
-  directVirtualizer.refresh();
-  sticky.bindInputListeners();
+  chatVirtualizer.refresh();
+  chatVirtualizer.bindInputListeners();
   resetFollowLatest();
 }
 
@@ -153,14 +124,14 @@ defineExpose({ resetFollowLatest });
   <ChatVirtualScrollFrame
     ref="scrollFrameRef"
     data-testid="chat-scroll-area"
-    :data-follow-latest="sticky.followLatest.value ? 'true' : 'false'"
+    :data-follow-latest="chatVirtualizer.followLatest.value ? 'true' : 'false'"
     class="h-full min-h-0 flex-1 overflow-hidden"
     @viewport-ready="handleViewportReady"
   >
     <div
       class="mx-auto min-h-[calc(100dvh-14rem)] w-full max-w-4xl px-[clamp(0.875rem,4vw,2rem)] py-4 md:min-h-[calc(100vh-16rem)] md:py-[clamp(2rem,6vh,3rem)]"
     >
-      <div :ref="directVirtualizer.containerRef" class="relative">
+      <div :ref="chatVirtualizer.containerRef" class="relative">
         <div
           v-for="virtualRow in virtualRows"
           :key="String(virtualRow.key)"

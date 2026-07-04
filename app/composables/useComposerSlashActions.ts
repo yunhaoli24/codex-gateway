@@ -3,6 +3,8 @@ import type { SlashCommand } from "@/composables/useSlashCommands";
 import { useGatewayStore } from "@/stores/gateway";
 
 type ComposerSlashCommand = Extract<SlashCommand["id"], "new" | "plan" | "goal">;
+type SlashCommandAction = (args: string) => Promise<void> | void;
+type GoalControlAction = () => Promise<void>;
 
 export function useComposerSlashActions(input: {
   text: Ref<string>;
@@ -13,16 +15,34 @@ export function useComposerSlashActions(input: {
 }) {
   const store = useGatewayStore();
 
+  const slashCommandActions: Record<ComposerSlashCommand, SlashCommandAction> = {
+    new: async () => {
+      input.text.value = "";
+      await input.startNewThread();
+    },
+    plan: () => input.activatePlanMode(),
+    goal: runGoalCommand,
+  };
+
+  const goalControlActions: Record<string, GoalControlAction> = {
+    clear: () => store.clearSelectedThreadGoal(),
+    pause: () => store.setSelectedThreadGoalStatus("paused"),
+    resume: () => store.setSelectedThreadGoalStatus("active"),
+  };
+
+  const selectedCommandMenuActions: Record<
+    ComposerSlashCommand,
+    (command: SlashCommand) => Promise<void> | void
+  > = {
+    new: (command) => runCommand(command.id, ""),
+    plan: (command) => runCommand(command.id, ""),
+    goal: (command) => {
+      input.text.value = `${command.command} `;
+    },
+  };
+
   async function runSlashCommand(command: SlashCommand) {
-    if (command.id === "new") {
-      await runCommand("new", "");
-      return;
-    }
-    if (command.id === "plan") {
-      await runCommand("plan", "");
-      return;
-    }
-    input.text.value = "/goal ";
+    await selectedCommandMenuActions[command.id](command);
   }
 
   async function executeInlineSlashCommand() {
@@ -35,16 +55,7 @@ export function useComposerSlashActions(input: {
   }
 
   async function runCommand(command: ComposerSlashCommand, args: string) {
-    if (command === "new") {
-      input.text.value = "";
-      await input.startNewThread();
-      return;
-    }
-    if (command === "plan") {
-      input.activatePlanMode();
-      return;
-    }
-    await runGoalCommand(args);
+    await slashCommandActions[command](args);
   }
 
   async function runGoalCommand(args: string) {
@@ -58,16 +69,9 @@ export function useComposerSlashActions(input: {
     }
     input.text.value = "";
     store.clearError();
-    if (control === "clear") {
-      await store.clearSelectedThreadGoal();
-      return;
-    }
-    if (control === "pause") {
-      await store.setSelectedThreadGoalStatus("paused");
-      return;
-    }
-    if (control === "resume") {
-      await store.setSelectedThreadGoalStatus("active");
+    const controlAction = goalControlActions[control];
+    if (controlAction) {
+      await controlAction();
       return;
     }
     await store.setSelectedThreadGoal(args.trim());

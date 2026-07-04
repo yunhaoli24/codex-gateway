@@ -13,8 +13,7 @@ export const itemEventHandlers: GatewayEventHandlerRegistry = {
     emitTerminalProcessCompleted(ctx, event, params, threadId);
   },
   "item/commandExecution/requestApproval": (ctx, event, params, threadId) => {
-    ctx.events.emit({
-      type: "history-item-upsert",
+    ctx.events.emit("history-item-upsert", {
       hostId: event.hostId,
       threadId,
       item: {
@@ -33,8 +32,7 @@ export const itemEventHandlers: GatewayEventHandlerRegistry = {
     });
   },
   "item/fileChange/requestApproval": (ctx, event, params, threadId) => {
-    ctx.events.emit({
-      type: "history-item-upsert",
+    ctx.events.emit("history-item-upsert", {
       hostId: event.hostId,
       threadId,
       item: {
@@ -52,8 +50,7 @@ export const itemEventHandlers: GatewayEventHandlerRegistry = {
   },
   "item/fileChange/patchUpdated": (ctx, event, params, threadId) => {
     emitRunning(ctx, event, params, threadId);
-    ctx.events.emit({
-      type: "history-item-upsert",
+    ctx.events.emit("history-item-upsert", {
       hostId: event.hostId,
       threadId,
       item: {
@@ -73,8 +70,7 @@ function emitRunning(
   params: AppServerEventParams,
   threadId: string,
 ) {
-  ctx.events.emit({
-    type: "thread-status-detected",
+  ctx.events.emit("thread-status-detected", {
     hostId: event.hostId,
     threadId,
     status: "running",
@@ -92,8 +88,7 @@ function emitTerminalProcessCompleted(
   if (item?.type !== "commandExecution" || !params.turnId || !item.id) {
     return;
   }
-  ctx.events.emit({
-    type: "terminal-process-completed",
+  ctx.events.emit("terminal-process-completed", {
     hostId: event.hostId,
     threadId,
     turnId: String(params.turnId),
@@ -112,8 +107,7 @@ function upsertStartedOrCompletedItem(
     return;
   }
   const eventIso = event.createdAt || new Date().toISOString();
-  ctx.events.emit({
-    type: "history-item-upsert",
+  ctx.events.emit("history-item-upsert", {
     hostId: event.hostId,
     threadId,
     item: {

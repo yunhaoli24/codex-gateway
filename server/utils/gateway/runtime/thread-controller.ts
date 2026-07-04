@@ -61,7 +61,10 @@ export class ThreadController {
 
   handleNotification(message: any) {
     const method = message.method || "notification";
-    threadRuntimeEvents.record(this.host.id, this.threadId, method, message);
+    threadRuntimeEvents.record(this.host.id, this.threadId, method, message, {
+      resolveGoal: () =>
+        this.enqueue(() => this.client.request("thread/goal/get", { threadId: this.threadId })),
+    });
   }
 
   handleStderr(text: string) {

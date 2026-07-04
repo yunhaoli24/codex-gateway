@@ -1,3 +1,4 @@
+import { useTimeoutFn } from "@vueuse/core";
 import { ref } from "vue";
 
 interface LongPressContextMenuOptions {
@@ -9,22 +10,40 @@ export function useLongPressContextMenu(options: LongPressContextMenuOptions = {
   const delayMs = options.delayMs ?? 550;
   const moveTolerance = options.moveTolerance ?? 12;
   const longPressTriggered = ref(false);
-  let timer: ReturnType<typeof setTimeout> | null = null;
   let startX = 0;
   let startY = 0;
   let pointerId: number | null = null;
+  let contextMenuTarget: HTMLElement | null = null;
+  let contextMenuX = 0;
+  let contextMenuY = 0;
+  const longPressTimer = useTimeoutFn(fireLongPress, delayMs, { immediate: false });
+  const resetFlagTimer = useTimeoutFn(
+    () => {
+      longPressTriggered.value = false;
+    },
+    500,
+    { immediate: false },
+  );
 
   function clearTimer() {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
+    longPressTimer.stop();
   }
 
   function resetLongPressFlag() {
-    window.setTimeout(() => {
-      longPressTriggered.value = false;
-    }, 500);
+    resetFlagTimer.stop();
+    resetFlagTimer.start();
+  }
+
+  function fireLongPress() {
+    longPressTriggered.value = true;
+    contextMenuTarget?.dispatchEvent(
+      new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: contextMenuX,
+        clientY: contextMenuY,
+      }),
+    );
   }
 
   function onPointerDown(event: PointerEvent) {
@@ -35,25 +54,15 @@ export function useLongPressContextMenu(options: LongPressContextMenuOptions = {
     startX = event.clientX;
     startY = event.clientY;
     pointerId = event.pointerId;
+    contextMenuTarget = event.currentTarget as HTMLElement;
+    contextMenuX = event.clientX;
+    contextMenuY = event.clientY;
     longPressTriggered.value = false;
-    timer = setTimeout(() => {
-      timer = null;
-      longPressTriggered.value = true;
-      event.preventDefault();
-      const target = event.currentTarget as HTMLElement;
-      target.dispatchEvent(
-        new MouseEvent("contextmenu", {
-          bubbles: true,
-          cancelable: true,
-          clientX: event.clientX,
-          clientY: event.clientY,
-        }),
-      );
-    }, delayMs);
+    longPressTimer.start();
   }
 
   function onPointerMove(event: PointerEvent) {
-    if (pointerId !== event.pointerId || !timer) {
+    if (pointerId !== event.pointerId || !longPressTimer.isPending.value) {
       return;
     }
     const distance = Math.hypot(event.clientX - startX, event.clientY - startY);
@@ -68,6 +77,7 @@ export function useLongPressContextMenu(options: LongPressContextMenuOptions = {
     }
     clearTimer();
     pointerId = null;
+    contextMenuTarget = null;
     if (longPressTriggered.value) {
       event.preventDefault();
       resetLongPressFlag();

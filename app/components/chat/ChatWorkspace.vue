@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { useGatewayTerminalTransport } from "@/composables/useGatewayTerminalTransport";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import WorkspaceTabs from "./WorkspaceTabs.vue";
 import { openWorkspaceTerminal, useChatWorkspaceState } from "./chat-workspace-state";
 
 const store = useGatewayStore();
+const threadTurns = useGatewayThreadTurnsStore();
+const terminalTransport = useGatewayTerminalTransport();
 const {
   selectedHostId,
   selectedProjectId,
@@ -24,11 +28,11 @@ const {
 } = useChatWorkspaceState(store);
 
 function loadOlderTurns() {
-  void store.loadOlderTurns();
+  void threadTurns.loadOlderTurns();
 }
 
 function openCurrentTerminal() {
-  openWorkspaceTerminal(store);
+  openWorkspaceTerminal(store, terminalTransport);
 }
 </script>
 

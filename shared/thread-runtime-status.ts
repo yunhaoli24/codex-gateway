@@ -22,6 +22,11 @@ interface RuntimeStatusCandidate {
   status?: ThreadStatusLike;
 }
 
+type RuntimeStatusEventReducer = (
+  event: GatewayEvent,
+  params: Record<string, unknown>,
+) => ThreadRuntimeStatus | null;
+
 const ACTIVE_STATUS_VALUES = new Set([
   "active",
   "inProgress",
@@ -36,6 +41,13 @@ const ACTIVE_STATUS_VALUES = new Set([
 const TERMINAL_STATUS_VALUES = new Set(["completed", "failed", "interrupted"]);
 const COMPLETED_THREAD_VALUES = new Set(["completed", "idle", "notLoaded", "inactive"]);
 const POST_TURN_ACTIVE_ITEM_TYPES = new Set(["contextCompaction", "sleep"]);
+const RUNTIME_STATUS_EVENT_REDUCERS: Record<string, RuntimeStatusEventReducer> = {
+  "turn/started": () => "running",
+  "turn/completed": (_event, params) =>
+    runtimeStatusFromCompletedTurn(recordField(params, "turn")),
+  "thread/status/changed": (_event, params) =>
+    runtimeStatusFromAppThreadStatus(recordField(params, "status")),
+};
 
 export function isThreadActiveStatus(status: unknown) {
   const value = statusValue(status);
@@ -65,6 +77,21 @@ export function terminalTurnStatus(status: unknown): ThreadRuntimeStatus {
   const value = statusValue(status);
   if (value === "failed") return "failed";
   if (value === "interrupted") return "interrupted";
+  return "completed";
+}
+
+export function runtimeStatusFromCompletedTurn(turn: unknown): ThreadRuntimeStatus {
+  const completedTurn = asTurnLike(turn) ?? undefined;
+  const value = statusValue(completedTurn?.status);
+  if (value === "completed" && hasPostTurnActiveItems(completedTurn)) {
+    return "running";
+  }
+  if (value && TERMINAL_STATUS_VALUES.has(value)) {
+    return terminalTurnStatus(value);
+  }
+  if (completedTurn && (hasActiveItems(completedTurn) || isThreadActiveStatus(completedTurn.status))) {
+    return "running";
+  }
   return "completed";
 }
 
@@ -160,16 +187,7 @@ function runtimeStatusFromEvent(event: GatewayEvent | undefined): ThreadRuntimeS
     return null;
   }
   const params = eventParams(event);
-  if (event.method === "turn/started") {
-    return "running";
-  }
-  if (event.method === "turn/completed") {
-    return terminalTurnStatus(asTurnLike(recordField(params, "turn"))?.status);
-  }
-  if (event.method === "thread/status/changed") {
-    return runtimeStatusFromAppThreadStatus(recordField(params, "status"));
-  }
-  return null;
+  return RUNTIME_STATUS_EVENT_REDUCERS[event.method]?.(event, params) ?? null;
 }
 
 function runtimeStatusFromTopLevelThreadStatus(status: unknown): ThreadRuntimeStatus | null {
@@ -241,7 +259,7 @@ function hasPostTurnActiveItems(turn: TurnLike | undefined) {
 
 function eventParams(event: GatewayEvent) {
   const payload = isRecord(event.payload) ? event.payload : null;
-  return isRecord(payload?.params) ? payload.params : payload;
+  return isRecord(payload?.params) ? payload.params : (payload ?? {});
 }
 
 function recordField(record: unknown, key: string) {

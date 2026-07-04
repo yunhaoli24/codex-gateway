@@ -23,6 +23,10 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   await openApp(page);
   await expect.poll(() => realtimeSockets.size, { timeout: 10_000 }).toBe(1);
   expect([...realtimeSockets].every((socket) => isTokenlessRealtimeUrl(socket.url()))).toBe(true);
+  const resumePingOffset = await realtimeClientMessageCount(page);
+  await triggerRealtimeResume(page);
+  const resumePing = await waitForRealtimeClientMessage(page, "ping", resumePingOffset);
+  expect(typeof resumePing.nonce).toBe("string");
 
   const host = await addRemoteHost(page, remote);
   const project = await addRemoteProject(page, remote, host.id);
@@ -81,8 +85,15 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   const reconnectedMarker = `E2E WS重连 ${Date.now()}`;
   await sendTextTurn(page, reconnectedMarker);
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "停止生成");
+  const reconnectMessageOffset = await realtimeClientMessageCount(page);
   await closeRealtimeSockets(page);
   await expect.poll(() => realtimeSockets.size, { timeout: 30_000 }).toBe(1);
+  const reconnectActivate = await waitForRealtimeClientMessage(
+    page,
+    "thread.activate",
+    reconnectMessageOffset,
+  );
+  expect(reconnectActivate.threadId).toBe(threadId);
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
     timeout: 120_000,
   });
@@ -104,7 +115,9 @@ test("fans out a real remote app-server thread to multiple browser clients acros
       .getByText(steerMarker),
   ).toBeVisible({ timeout: 30_000 });
 
-  const secondContext = await browser.newContext();
+  const secondContext = await browser.newContext({
+    storageState: await page.context().storageState(),
+  });
   const secondPage = await secondContext.newPage();
   const secondRealtimeSockets = trackActiveRealtimeSockets(secondPage);
   await openApp(secondPage, { resetConfig: false });
@@ -261,6 +274,13 @@ async function currentSelectedThreadId(page: Page) {
 async function closeRealtimeSockets(page: Page) {
   await page.evaluate(() => {
     (window as any).__closeGatewayRealtimeSockets?.();
+  });
+}
+
+async function triggerRealtimeResume(page: Page) {
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
   });
 }
 

@@ -1,8 +1,7 @@
 import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { activeRemoteTurnId } from "../thread-turns/active-turn";
 import { pinnedKey } from "../thread-utils/identity";
-import { runtimeStatusFromThreadState } from "../thread-utils/status";
-import type { GatewayStoreContext } from "../types";
+import type { GatewayStoreContext, GatewayStoreState } from "../types";
 
 export interface ThreadRuntimeProjection {
   key: string;
@@ -23,14 +22,35 @@ export interface ActiveTerminalProcessInput {
   processId: string;
 }
 
+type ThreadRuntimeStateSource = Pick<
+  GatewayStoreState,
+  | "selectedHostId"
+  | "selectedThreadId"
+  | "currentThread"
+  | "history"
+  | "events"
+  | "threadViews"
+  | "threadStatuses"
+  | "activeTurnIdsByThreadKey"
+  | "activeTerminalProcessByThreadKey"
+>;
+
 export function projectThreadRuntime(
   ctx: GatewayStoreContext,
   hostId: number,
   threadId: string,
 ): ThreadRuntimeProjection {
+  return projectThreadRuntimeFromState(ctx.state, hostId, threadId);
+}
+
+export function projectThreadRuntimeFromState(
+  state: ThreadRuntimeStateSource,
+  hostId: number,
+  threadId: string,
+): ThreadRuntimeProjection {
   const key = pinnedKey(hostId, threadId);
-  const status = effectiveRuntimeStatus(ctx, hostId, threadId, ctx.state.threadStatuses[key]);
-  const activeTurnId = activeTurnIdForStatus(ctx, hostId, threadId, status);
+  const status = effectiveRuntimeStatusFromState(state, state.threadStatuses[key]);
+  const activeTurnId = activeTurnIdForStatusFromState(state, hostId, threadId, status);
   return {
     key,
     status,
@@ -42,22 +62,16 @@ export function projectThreadRuntime(
 
 export function effectiveRuntimeStatus(
   ctx: GatewayStoreContext,
-  hostId: number,
-  threadId: string,
   storedStatus: ThreadRuntimeStatus | undefined,
 ): ThreadRuntimeStatus {
-  const historyStatus = runtimeStatusFromThreadState(
-    currentThreadForThread(ctx, hostId, threadId),
-    historyForThread(ctx, hostId, threadId),
-    eventsForThread(ctx, hostId, threadId),
-  );
-  if (storedStatus === "running" && activeRemoteTurnId(historyForThread(ctx, hostId, threadId))) {
-    return "running";
-  }
-  if (storedStatus === "running" && historyStatus && historyStatus !== "running") {
-    return historyStatus;
-  }
-  return storedStatus ?? historyStatus ?? "idle";
+  return effectiveRuntimeStatusFromState(ctx.state, storedStatus);
+}
+
+export function effectiveRuntimeStatusFromState(
+  _state: ThreadRuntimeStateSource,
+  storedStatus: ThreadRuntimeStatus | undefined,
+): ThreadRuntimeStatus {
+  return storedStatus ?? "idle";
 }
 
 export function applyThreadRuntimeStatus(
@@ -129,8 +143,8 @@ export function clearThreadTerminalProcess(
   // records an authoritative terminal thread status.
 }
 
-function activeTurnIdForStatus(
-  ctx: GatewayStoreContext,
+function activeTurnIdForStatusFromState(
+  state: ThreadRuntimeStateSource,
   hostId: number,
   threadId: string,
   status: ThreadRuntimeStatus,
@@ -143,35 +157,19 @@ function activeTurnIdForStatus(
   // items after reconnect, so history is only a source for the turn id once the
   // thread is already known to be running.
   return (
-    ctx.state.activeTurnIdsByThreadKey[key] ??
-    ctx.state.activeTerminalProcessByThreadKey[key]?.turnId ??
-    activeRemoteTurnId(historyForThread(ctx, hostId, threadId)) ??
+    state.activeTurnIdsByThreadKey[key] ??
+    state.activeTerminalProcessByThreadKey[key]?.turnId ??
+    activeRemoteTurnId(historyForThread(state, hostId, threadId)) ??
     null
   );
 }
 
-function historyForThread(ctx: GatewayStoreContext, hostId: number, threadId: string) {
-  if (ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId) {
-    return ctx.state.history;
+function historyForThread(state: ThreadRuntimeStateSource, hostId: number, threadId: string) {
+  if (state.selectedHostId === hostId && state.selectedThreadId === threadId) {
+    return state.history;
   }
   const key = pinnedKey(hostId, threadId);
-  return ctx.state.threadViews[key]?.history ?? null;
-}
-
-function currentThreadForThread(ctx: GatewayStoreContext, hostId: number, threadId: string) {
-  if (ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId) {
-    return ctx.state.currentThread;
-  }
-  const key = pinnedKey(hostId, threadId);
-  return ctx.state.threadViews[key]?.currentThread ?? null;
-}
-
-function eventsForThread(ctx: GatewayStoreContext, hostId: number, threadId: string) {
-  if (ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId) {
-    return ctx.state.events;
-  }
-  const key = pinnedKey(hostId, threadId);
-  return ctx.state.threadViews[key]?.events ?? [];
+  return state.threadViews[key]?.history ?? null;
 }
 
 function removeActiveTurn(ctx: GatewayStoreContext, key: string) {

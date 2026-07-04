@@ -1,7 +1,7 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
+import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayStoreContext } from "../types";
-import { sendRealtimeRequest } from "../realtime/request-response";
 
 export type ThreadSnapshotMessage = Extract<
   import("~~/shared/types").RealtimeServerMessage,
@@ -22,8 +22,7 @@ export function requestActivateThreadSnapshot(
     limit?: number;
   },
 ) {
-  return sendRealtimeRequest<ThreadSnapshotMessage>(
-    ctx,
+  return useGatewayRealtimeStore().request<ThreadSnapshotMessage>(
     (requestId) => ({
       type: "thread.activate",
       requestId,
@@ -41,8 +40,7 @@ export function requestStartThread(ctx: GatewayStoreContext, options: ComposerTu
   if (!hostId) {
     throw new Error("Host is required to start a thread");
   }
-  return sendRealtimeRequest<ThreadStartedMessage>(
-    ctx,
+  return useGatewayRealtimeStore().request<ThreadStartedMessage>(
     (requestId) => ({
       type: "thread.start",
       requestId,

@@ -1,5 +1,6 @@
 import { computed, ref, unref, type MaybeRef } from "vue";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
 
 type RequestId = string | number;
@@ -12,6 +13,7 @@ interface ServerRequestResponderSource {
 
 export function useServerRequestResponder(source: ServerRequestResponderSource) {
   const store = useGatewayStore();
+  const threadTurns = useGatewayThreadTurnsStore();
   const { t } = useI18n();
   const responding = ref(false);
   const context = computed(() => ({
@@ -36,7 +38,7 @@ export function useServerRequestResponder(source: ServerRequestResponderSource) 
 
     responding.value = true;
     try {
-      await store.respondToServerRequest(hostId, threadId, requestId, result);
+      await threadTurns.respondToServerRequest(hostId, threadId, requestId, result);
       return true;
     } catch (error: any) {
       store.setError(

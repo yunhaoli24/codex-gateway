@@ -17,8 +17,7 @@ export function emitNotificationItem(
   threadId: string,
   input: NotificationItemInput,
 ) {
-  ctx.events.emit({
-    type: "history-item-upsert",
+  ctx.events.emit("history-item-upsert", {
     hostId,
     threadId,
     item: {

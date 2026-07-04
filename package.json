@@ -26,6 +26,7 @@
     "@nuxtjs/device": "^4.0.0",
     "@nuxtjs/i18n": "^10.4.0",
     "@pinia/nuxt": "^0.11.3",
+    "@posva/event-emitter": "^1.0.3",
     "@tanstack/virtual-core": "^3.17.3",
     "@tanstack/vue-table": "^8.21.3",
     "@tanstack/vue-virtual": "^3.13.31",

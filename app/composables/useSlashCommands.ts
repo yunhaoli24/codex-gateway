@@ -18,6 +18,28 @@ export function useSlashCommands(args: {
 }) {
   const selectedIndex = ref(0);
   const dismissed = ref(false);
+  const keyHandlers: Record<string, (event: KeyboardEvent) => void> = {
+    ArrowDown: (event) => {
+      event.preventDefault();
+      selectedIndex.value = (selectedIndex.value + 1) % filteredCommands.value.length;
+    },
+    ArrowUp: (event) => {
+      event.preventDefault();
+      selectedIndex.value =
+        (selectedIndex.value - 1 + filteredCommands.value.length) % filteredCommands.value.length;
+    },
+    Escape: (event) => {
+      event.preventDefault();
+      dismiss();
+    },
+    Enter: (event) => {
+      event.preventDefault();
+      const command = filteredCommands.value[selectedIndex.value];
+      if (command) {
+        void args.onSelect(command);
+      }
+    },
+  };
 
   const query = computed(() => {
     const text = args.text.value.trimStart();
@@ -71,31 +93,13 @@ export function useSlashCommands(args: {
     if (event.isComposing || !menuOpen.value) {
       return false;
     }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      selectedIndex.value = (selectedIndex.value + 1) % filteredCommands.value.length;
-      return true;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      selectedIndex.value =
-        (selectedIndex.value - 1 + filteredCommands.value.length) % filteredCommands.value.length;
-      return true;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      dismiss();
-      return true;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      const command = filteredCommands.value[selectedIndex.value];
-      if (command) {
-        void args.onSelect(command);
-      }
-      return true;
-    }
-    return false;
+    return runKeyHandler(event);
+  }
+
+  function runKeyHandler(event: KeyboardEvent) {
+    const handler = keyHandlers[event.key];
+    handler?.(event);
+    return Boolean(handler);
   }
 
   return {

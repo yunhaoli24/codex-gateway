@@ -1,23 +1,24 @@
 import { mergeTurnItems } from "./item-merge";
 import { ensureHistoryThread } from "./shape";
 import { terminalTurnStatus } from "../thread-runtime-status";
+import type { ThreadHistoryItem, ThreadHistoryTurn } from "./types";
 
 export function mergeThreadTurns(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  turns: any[],
+  turns: ThreadHistoryTurn[],
   direction: "prepend" | "append",
 ) {
   const nextHistory = ensureHistoryThread(history, currentThread, threadId);
   const existingTurns = nextHistory.thread.turns;
   const seen = new Set(
     existingTurns
-      .map((turn: any) => turn?.id)
+      .map((turn) => turn?.id)
       .filter(Boolean)
       .map(String),
   );
-  const incoming = turns.filter((turn: any) => {
+  const incoming = turns.filter((turn) => {
     if (!turn?.id) {
       return true;
     }
@@ -37,7 +38,7 @@ export function syncCompletedTurn(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  turn: any,
+  turn: ThreadHistoryTurn,
 ) {
   if (!turn?.id) {
     return history;
@@ -46,12 +47,20 @@ export function syncCompletedTurn(
   const nextHistory = ensureHistoryThread(history, currentThread, threadId);
   const turns = nextHistory.thread.turns;
   const syncedTurn = { ...turn, status: terminalTurnStatus(turn.status) };
-  const index = turns.findIndex((candidate: any) => candidate?.id === turn.id);
+  const index = turns.findIndex((candidate) => candidate?.id === turn.id);
   if (index >= 0) {
-    const existingItems = Array.isArray(turns[index].items) ? turns[index].items : [];
-    const incomingItems = Array.isArray(syncedTurn.items) ? syncedTurn.items : [];
+    const existingTurn = turns[index];
+    if (!existingTurn) {
+      return history;
+    }
+    const existingItems = Array.isArray(existingTurn.items)
+      ? (existingTurn.items as ThreadHistoryItem[])
+      : [];
+    const incomingItems = Array.isArray(syncedTurn.items)
+      ? (syncedTurn.items as ThreadHistoryItem[])
+      : [];
     turns[index] = {
-      ...turns[index],
+      ...existingTurn,
       ...syncedTurn,
       items: mergeTurnItems(existingItems, incomingItems),
     };

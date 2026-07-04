@@ -4,7 +4,8 @@ import { computed, watchEffect } from "vue";
 import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import TerminalPanel from "@/components/terminal/TerminalPanel.vue";
-import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayTerminalTransport } from "@/composables/useGatewayTerminalTransport";
+import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
 import type { TerminalSessionState } from "@/stores/gateway/types";
 import AgentWorkspacePane from "./AgentWorkspacePane.vue";
 import WorkspaceHeader from "./WorkspaceHeader.vue";
@@ -33,11 +34,12 @@ const emit = defineEmits<{
   openTerminal: [];
 }>();
 
-const store = useGatewayStore();
-const { workspaceTabs, activeWorkspaceTabId, terminalSessions } = storeToRefs(store);
+const terminalStore = useGatewayTerminalStore();
+const terminalTransport = useGatewayTerminalTransport();
+const { workspaceTabs, activeWorkspaceTabId, terminalSessions } = storeToRefs(terminalStore);
 const activeTab = computed({
   get: () => activeWorkspaceTabId.value,
-  set: (value) => store.setActiveWorkspaceTab(String(value || "agent")),
+  set: (value) => terminalStore.setActiveWorkspaceTab(String(value || "agent")),
 });
 
 const visibleTabs = computed(() =>
@@ -64,7 +66,7 @@ const terminalPanels = computed(() =>
 
 watchEffect(() => {
   if (!visibleTabs.value.some((tab) => tab.id === activeWorkspaceTabId.value)) {
-    store.activateAgentTab();
+    terminalStore.activateAgentTab();
   }
 });
 
@@ -89,7 +91,7 @@ function sessionMatchesSelection(session: TerminalSessionState | undefined) {
       :thread-title="threadTitle"
       :can-open-terminal="canOpenTerminal"
       @open-terminal="emit('openTerminal')"
-      @close-terminal="store.closeTerminal"
+      @close-terminal="terminalTransport.closeTerminal"
     >
       <template #mobile-start>
         <slot name="mobile-header-start" />

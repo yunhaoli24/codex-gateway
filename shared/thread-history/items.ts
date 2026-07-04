@@ -1,12 +1,13 @@
 import { findTurnForItem, isClientOnlyItem, sameItem, turnId } from "./item-identity";
 import { mergeThreadItem } from "./item-merge";
 import { ensureHistoryThread } from "./shape";
+import type { ThreadHistoryItem } from "./types";
 
 export function mergeItemIntoLatestTurn(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  item: any,
+  item: ThreadHistoryItem,
 ) {
   if (!item || typeof item !== "object") {
     return history;
@@ -20,18 +21,20 @@ export function mergeItemIntoLatestTurn(
   const turns = nextHistory.thread.turns;
   const existing = findTurnForItem(turns, item);
   if (existing) {
-    existing.turn.items = [...existing.turn.items];
-    existing.turn.items[existing.itemIndex] = mergeThreadItem(
-      existing.turn.items[existing.itemIndex],
-      item,
-    );
+    const existingItems = Array.isArray(existing.turn.items) ? [...existing.turn.items] : [];
+    const existingItem = existingItems[existing.itemIndex];
+    if (!existingItem) {
+      return history;
+    }
+    existing.turn.items = existingItems;
+    existing.turn.items[existing.itemIndex] = mergeThreadItem(existingItem, item);
     nextHistory.thread.turns = [...turns];
     return nextHistory;
   }
 
   const clientTurnId = isClientOnlyItem(item) ? `client-${item.clientId}` : "";
   const targetTurnId = itemTurnId || clientTurnId;
-  let turnIndex = turns.findIndex((candidate: any) => turnId(candidate) === targetTurnId);
+  let turnIndex = turns.findIndex((candidate) => turnId(candidate) === targetTurnId);
   let turn = turnIndex >= 0 ? turns[turnIndex] : null;
   if (!turn) {
     turn = { id: targetTurnId, items: [], status: statusForNewTurn(item) };
@@ -44,9 +47,12 @@ export function mergeItemIntoLatestTurn(
     turn.items = [...turn.items];
   }
 
-  const index = turn.items.findIndex((candidate: any) => sameItem(candidate, item));
+  const index = turn.items.findIndex((candidate) => sameItem(candidate, item));
   if (index >= 0) {
-    turn.items[index] = mergeThreadItem(turn.items[index], item);
+    const existingItem = turn.items[index];
+    if (existingItem) {
+      turn.items[index] = mergeThreadItem(existingItem, item);
+    }
   } else {
     turn.items.push(item);
   }
@@ -55,7 +61,7 @@ export function mergeItemIntoLatestTurn(
   return nextHistory;
 }
 
-function statusForNewTurn(item: any) {
+function statusForNewTurn(item: ThreadHistoryItem) {
   const status = typeof item?.status === "string" ? item.status : item?.status?.type;
   return isActiveItemStatus(status) ? "inProgress" : "completed";
 }
@@ -75,7 +81,7 @@ export function insertSteerItemIntoActiveTurn(
   currentThread: unknown,
   threadId: string,
   turnIdValue: string,
-  item: any,
+  item: ThreadHistoryItem,
 ) {
   if (!item || typeof item !== "object" || !turnIdValue) {
     return history;
@@ -83,7 +89,7 @@ export function insertSteerItemIntoActiveTurn(
 
   const nextHistory = ensureHistoryThread(history, currentThread, threadId);
   const turns = nextHistory.thread.turns;
-  let turnIndex = turns.findIndex((candidate: any) => turnId(candidate) === turnIdValue);
+  let turnIndex = turns.findIndex((candidate) => turnId(candidate) === turnIdValue);
   let turn = turnIndex >= 0 ? turns[turnIndex] : null;
   if (!turn) {
     turn = { id: turnIdValue, items: [], status: "inProgress" };
@@ -96,11 +102,13 @@ export function insertSteerItemIntoActiveTurn(
 
   const existing = findTurnForItem(turns, item);
   if (existing) {
-    existing.turn.items = [...existing.turn.items];
-    existing.turn.items[existing.itemIndex] = mergeThreadItem(
-      existing.turn.items[existing.itemIndex],
-      item,
-    );
+    const existingItems = Array.isArray(existing.turn.items) ? [...existing.turn.items] : [];
+    const existingItem = existingItems[existing.itemIndex];
+    if (!existingItem) {
+      return history;
+    }
+    existing.turn.items = existingItems;
+    existing.turn.items[existing.itemIndex] = mergeThreadItem(existingItem, item);
     nextHistory.thread.turns = [...turns];
     return nextHistory;
   }

@@ -1,15 +1,16 @@
 import { paramsTurnId } from "./item-identity";
 import { updateItemInTurnById } from "./turn-item-mutations";
+import type { ThreadHistoryItem } from "./types";
 
 export function appendAgentDelta(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  params: any,
+  params: Record<string, unknown>,
 ) {
-  const itemIdValue = params?.itemId ? String(params.itemId) : "";
+  const itemIdValue = stringParam(params, "itemId");
   const turnIdValue = paramsTurnId(params);
-  const delta = params?.delta || "";
+  const delta = typeof params.delta === "string" ? params.delta : "";
   if (!itemIdValue || !turnIdValue || !delta) {
     return history;
   }
@@ -28,7 +29,7 @@ export function appendAgentDelta(
       turnId: turnIdValue,
       status: "inProgress",
     }),
-    (item) => ({ ...item, text: `${item.text || ""}${delta}` }),
+    (item) => ({ ...item, text: `${stringItemField(item, "text")}${delta}` }),
   );
 }
 
@@ -36,11 +37,11 @@ export function appendPlanDelta(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  params: any,
+  params: Record<string, unknown>,
 ) {
   return appendTextDelta(history, currentThread, threadId, params, "plan", (item, delta) => ({
     ...item,
-    text: `${item.text || ""}${delta}`,
+    text: `${stringItemField(item, "text")}${delta}`,
   }));
 }
 
@@ -48,7 +49,7 @@ export function appendReasoningSummaryDelta(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  params: any,
+  params: Record<string, unknown>,
 ) {
   return appendTextDelta(history, currentThread, threadId, params, "reasoning", (item, delta) => {
     const summary = Array.isArray(item.summary) ? [...item.summary] : [];
@@ -62,7 +63,7 @@ export function appendReasoningTextDelta(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  params: any,
+  params: Record<string, unknown>,
 ) {
   return appendTextDelta(history, currentThread, threadId, params, "reasoning", (item, delta) => {
     const content = Array.isArray(item.content) ? [...item.content] : [];
@@ -76,13 +77,13 @@ function appendTextDelta(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  params: any,
+  params: Record<string, unknown>,
   itemType: string,
-  update: (item: any, delta: string) => any,
+  update: (item: ThreadHistoryItem, delta: string) => ThreadHistoryItem,
 ) {
-  const itemIdValue = params?.itemId ? String(params.itemId) : "";
+  const itemIdValue = stringParam(params, "itemId");
   const turnIdValue = paramsTurnId(params);
-  const delta = params?.delta || "";
+  const delta = typeof params.delta === "string" ? params.delta : "";
   if (!itemIdValue || !turnIdValue || !delta) {
     return history;
   }
@@ -103,12 +104,12 @@ export function appendItemOutputDelta(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  params: any,
+  params: Record<string, unknown>,
   itemType: "commandExecution" | "fileChange",
 ) {
-  const itemIdValue = params?.itemId ? String(params.itemId) : "";
+  const itemIdValue = stringParam(params, "itemId");
   const turnIdValue = paramsTurnId(params);
-  const delta = params?.delta || "";
+  const delta = typeof params.delta === "string" ? params.delta : "";
   if (!itemIdValue || !turnIdValue || !delta) {
     return history;
   }
@@ -126,6 +127,19 @@ export function appendItemOutputDelta(
       status: "inProgress",
       aggregatedOutput: delta,
     }),
-    (item) => ({ ...item, aggregatedOutput: `${item.aggregatedOutput || ""}${delta}` }),
+    (item) => ({
+      ...item,
+      aggregatedOutput: `${stringItemField(item, "aggregatedOutput")}${delta}`,
+    }),
   );
+}
+
+function stringParam(params: Record<string, unknown>, key: string) {
+  const value = params[key];
+  return typeof value === "string" || typeof value === "number" ? String(value) : "";
+}
+
+function stringItemField(item: ThreadHistoryItem, key: string) {
+  const value = item[key];
+  return typeof value === "string" ? value : "";
 }

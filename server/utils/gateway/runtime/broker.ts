@@ -1,22 +1,20 @@
 import type { HostRecord, ThreadGoalStatus, ThreadSettingsState } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
-import { randomUUID } from "node:crypto";
-import type {
-  ServerRequestResponseInput,
-  TurnsPage,
-  TurnStartInput,
-  TurnSteerInput,
-} from "./types";
-import { DEFAULT_TURN_PAGE_LIMIT } from "./types";
+import type { ServerRequestResponseInput, TurnStartInput, TurnSteerInput } from "./types";
 import { ControllerRegistry } from "./controller-registry";
-import { buildTurnStartParams, buildUserInput } from "../protocol/thread-payload";
-import { pageCursorState, pageToFullHistory } from "./thread-history-pages";
-import { runtimeLog } from "./runtime-log";
 import { ThreadOpenService } from "./thread-open-service";
+import { ThreadTurnCommandService } from "./turn-commands";
+import { ThreadGoalService } from "./thread-goals";
+import { ThreadSettingsService } from "./thread-settings";
+import { ThreadCatalogService } from "./thread-catalog";
 
 class ThreadBroker {
   private readonly registry = new ControllerRegistry();
   private readonly openService = new ThreadOpenService(this.registry);
+  private readonly turnCommands = new ThreadTurnCommandService(this.registry, this.openService);
+  private readonly goals = new ThreadGoalService(this.registry);
+  private readonly settings = new ThreadSettingsService(this.registry);
+  private readonly catalog = new ThreadCatalogService(this.registry);
 
   async openThread(
     host: HostRecord,
@@ -37,55 +35,15 @@ class ThreadBroker {
   }
 
   async startTurn(host: HostRecord, threadId: string, input: TurnStartInput) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureSubscribed();
-    await controller.ensureConnected();
-    const clientUserMessageId = input.clientUserMessageId || `gateway-${randomUUID()}`;
-    return controller.enqueue(() =>
-      controller.client.request<any>(
-        "turn/start",
-        buildTurnStartParams(threadId, clientUserMessageId, input),
-      ),
-    );
+    return this.turnCommands.startTurn(host, threadId, input);
   }
 
   async steerTurn(host: HostRecord, threadId: string, input: TurnSteerInput) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureSubscribed();
-    await controller.ensureConnected();
-    const clientUserMessageId = input.clientUserMessageId || `gateway-steer-${randomUUID()}`;
-    return controller
-      .enqueue(() =>
-        controller.client.request<{ turnId?: string }>("turn/steer", {
-          threadId,
-          expectedTurnId: input.expectedTurnId,
-          clientUserMessageId,
-          input: buildUserInput(input),
-        }),
-      )
-      .catch(async (error) => {
-        if (isNoActiveTurnToSteer(error)) {
-          runtimeLog("refreshing thread after stale steer state", {
-            hostId: host.id,
-            threadId,
-            expectedTurnId: input.expectedTurnId,
-          });
-          await this.refreshThreadState(host, threadId, null, INITIAL_TURN_PAGE_LIMIT);
-        }
-        throw error;
-      });
+    return this.turnCommands.steerTurn(host, threadId, input);
   }
 
   async interruptTurn(host: HostRecord, threadId: string, turnId: string) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureSubscribed();
-    await controller.ensureConnected();
-    return controller.enqueue(() =>
-      controller.client.request<Record<string, never>>("turn/interrupt", {
-        threadId,
-        turnId,
-      }),
-    );
+    return this.turnCommands.interruptTurn(host, threadId, turnId);
   }
 
   async respondToServerRequest(
@@ -93,28 +51,11 @@ class ThreadBroker {
     threadId: string,
     input: ServerRequestResponseInput,
   ) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureConnected();
-    if (input.error) {
-      controller.client.respondError(
-        input.requestId,
-        input.error.code,
-        input.error.message,
-        input.error.data,
-      );
-    } else {
-      controller.client.respond(input.requestId, input.result ?? {});
-    }
+    return this.turnCommands.respondToServerRequest(host, threadId, input);
   }
 
   async updateThreadSettings(host: HostRecord, threadId: string, input: ThreadSettingsState) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureSubscribed();
-    const params: Record<string, unknown> = { threadId };
-    if ("model" in input) params.model = input.model;
-    if ("effort" in input) params.effort = input.effort;
-    if ("approvalPolicy" in input) params.approvalPolicy = input.approvalPolicy;
-    return controller.enqueue(() => controller.client.request("thread/settings/update", params));
+    return this.settings.updateThreadSettings(host, threadId, input);
   }
 
   async setThreadGoal(
@@ -126,43 +67,27 @@ class ThreadBroker {
       tokenBudget?: number | null;
     },
   ) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureSubscribed();
-    const params: Record<string, unknown> = { threadId };
-    if ("objective" in input) params.objective = input.objective;
-    if ("status" in input) params.status = input.status;
-    if ("tokenBudget" in input) params.tokenBudget = input.tokenBudget;
-    return controller.enqueue(() => controller.client.request("thread/goal/set", params));
+    return this.goals.setThreadGoal(host, threadId, input);
   }
 
   async getThreadGoal(host: HostRecord, threadId: string) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureSubscribed();
-    return controller.enqueue(() => controller.client.request("thread/goal/get", { threadId }));
+    return this.goals.getThreadGoal(host, threadId);
   }
 
   async clearThreadGoal(host: HostRecord, threadId: string) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureSubscribed();
-    return controller.enqueue(() => controller.client.request("thread/goal/clear", { threadId }));
+    return this.goals.clearThreadGoal(host, threadId);
   }
 
   async listThreads(host: HostRecord, params: Record<string, unknown>) {
-    const client = await this.registry.getHostClient(host);
-    return client.request("thread/list", params);
+    return this.catalog.listThreads(host, params);
   }
 
   async listModels(host: HostRecord, params: Record<string, unknown>) {
-    const client = await this.registry.getHostClient(host);
-    return client.request("model/list", params);
+    return this.catalog.listModels(host, params);
   }
 
   async renameThread(host: HostRecord, threadId: string, name: string) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureSubscribed();
-    return controller.enqueue(() =>
-      controller.client.request("thread/name/set", { threadId, name }),
-    );
+    return this.settings.renameThread(host, threadId, name);
   }
 
   async listThreadTurns(
@@ -174,21 +99,7 @@ class ThreadBroker {
       sortDirection?: "asc" | "desc";
     },
   ) {
-    const controller = await this.registry.getController(host, threadId);
-    await controller.ensureSubscribed();
-    const page = await controller.enqueue(() =>
-      controller.client.request<TurnsPage>("thread/turns/list", {
-        threadId,
-        cursor: params.cursor ?? null,
-        limit: params.limit ?? DEFAULT_TURN_PAGE_LIMIT,
-        sortDirection: params.sortDirection ?? "desc",
-        itemsView: "full",
-      }),
-    );
-    return {
-      history: pageToFullHistory({ id: threadId }, page),
-      turnsPage: pageCursorState(page),
-    };
+    return this.catalog.listThreadTurns(host, threadId, params);
   }
 
   async getController(host: HostRecord, threadId: string) {
@@ -233,12 +144,3 @@ class ThreadBroker {
 }
 
 export const threadBroker = new ThreadBroker();
-
-function isNoActiveTurnToSteer(error: unknown) {
-  return (
-    (error as any)?.rpcMethod === "turn/steer" &&
-    String((error as any)?.message ?? "")
-      .toLowerCase()
-      .includes("no active turn")
-  );
-}

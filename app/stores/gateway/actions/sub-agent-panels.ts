@@ -1,4 +1,5 @@
 import type { GatewayStoreContext, SubAgentPanelState } from "../types";
+import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { pinnedKey } from "../thread-utils/identity";
 import { removeThreadView } from "../thread-open/thread-view-cache";
 
@@ -89,7 +90,7 @@ function panelKey(panel: Pick<SubAgentPanelState, "hostId" | "threadId">) {
 function closeThreadPreview(ctx: GatewayStoreContext, hostId: number, threadId: string) {
   const isSelected = ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId;
   if (!isSelected) {
-    ctx.closeThreadEvents(hostId, threadId);
+    useGatewayRealtimeStore().closeThreadEvents(hostId, threadId);
     removeThreadView(ctx, hostId, threadId);
   }
 }

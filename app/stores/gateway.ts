@@ -1,5 +1,6 @@
 import { computed, reactive, toRefs } from "vue";
 import { defineStore } from "pinia";
+import { EventEmitter } from "@posva/event-emitter";
 import type { ThreadSettingsState } from "~~/shared/types";
 import { createGatewayState } from "./gateway/state";
 import type { GatewayStoreContext } from "./gateway/types";
@@ -8,10 +9,8 @@ import { createCoreActions } from "./gateway/actions/core";
 import { createHostActions } from "./gateway/actions/hosts";
 import { createProjectActions } from "./gateway/actions/projects";
 import { createThreadActions } from "./gateway/actions/threads";
-import { createRealtimeActions } from "./gateway/actions/realtime";
 import { createComposerActions } from "./gateway/actions/composer";
-import { createTerminalActions } from "./gateway/actions/terminals";
-import { createGatewayDomainEvents } from "./gateway/domain-events";
+import type { GatewayDomainEventMap } from "./gateway/domain-events";
 import { registerGatewayDomainSubscribers } from "./gateway/domain-subscribers";
 import { projectThreadRuntime } from "./gateway/thread-runtime/projector";
 
@@ -19,7 +18,7 @@ export type { ThreadRuntimeStatus } from "./gateway/types";
 
 export const useGatewayStore = defineStore("gateway", () => {
   const state = reactive(createGatewayState());
-  const events = createGatewayDomainEvents();
+  const events = new EventEmitter<GatewayDomainEventMap>();
   const { t } = useI18n();
 
   const selectedHost = computed(
@@ -86,13 +85,6 @@ export const useGatewayStore = defineStore("gateway", () => {
         panel.parentThreadId === state.selectedThreadId,
     );
   });
-  const activeWorkspaceTab = computed(
-    () =>
-      state.workspaceTabs.find((tab) => tab.id === state.activeWorkspaceTabId) ??
-      state.workspaceTabs[0],
-  );
-  const terminalSessionSnapshots = computed(() => Object.values(state.terminalSessions));
-
   const ctx = {} as GatewayStoreContext;
   Object.assign(ctx, {
     state,
@@ -141,12 +133,6 @@ export const useGatewayStore = defineStore("gateway", () => {
       get selectedComposerDraft() {
         return selectedComposerDraft.value;
       },
-      get activeWorkspaceTab() {
-        return activeWorkspaceTab.value;
-      },
-      get terminalSessionSnapshots() {
-        return terminalSessionSnapshots.value;
-      },
     }),
   );
 
@@ -155,9 +141,7 @@ export const useGatewayStore = defineStore("gateway", () => {
     ...createHostActions(ctx),
     ...createProjectActions(ctx),
     ...createThreadActions(ctx),
-    ...createRealtimeActions(ctx),
     ...createComposerActions(ctx),
-    ...createTerminalActions(ctx),
   };
   Object.assign(ctx, actions);
   registerGatewayDomainSubscribers(ctx);
@@ -178,8 +162,6 @@ export const useGatewayStore = defineStore("gateway", () => {
     selectedComposerDraft,
     activeSubAgentPanel,
     visibleSubAgentPanels,
-    activeWorkspaceTab,
-    terminalSessionSnapshots,
     ...actions,
   };
 });

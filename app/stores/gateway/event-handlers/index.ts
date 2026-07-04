@@ -1,9 +1,9 @@
 import type { GatewayEvent } from "~~/shared/types";
-import { isThreadServerRequestMethod } from "~~/shared/server-requests";
 import type { GatewayStoreContext } from "../types";
 import { threadIdFromParams } from "../thread-utils/identity";
-import { appServerEventHandlers } from "./registry";
-import { upsertUnhandledServerRequest } from "./request-events";
+import { appServerEventDispatcher } from "./registry";
+
+const transientErrorRecoveryBlockedMethods = new Set(["error"]);
 
 export function applyAppServerEvent(ctx: GatewayStoreContext, event: GatewayEvent) {
   const payload = event.payload as any;
@@ -15,13 +15,8 @@ export function applyAppServerEvent(ctx: GatewayStoreContext, event: GatewayEven
 
   const threadId = String(targetThreadId);
   clearRecoveredTransientError(ctx, event, params, threadId);
-  const handler = appServerEventHandlers[event.method];
-  if (handler) {
-    handler(ctx, event, params, threadId);
+  if (appServerEventDispatcher.dispatch(event.method, { ctx, event, params, threadId })) {
     return;
-  }
-  if (payload?.id !== undefined && isThreadServerRequestMethod(event.method)) {
-    upsertUnhandledServerRequest(ctx, event, params, threadId);
   }
 }
 
@@ -32,7 +27,7 @@ function clearRecoveredTransientError(
   threadId: string,
 ) {
   const current = ctx.state.error;
-  if (!current?.transient || event.method === "error") {
+  if (!current?.transient || transientErrorRecoveryBlockedMethods.has(event.method)) {
     return;
   }
   const eventTurnId = turnIdFromParams(params);

@@ -2,6 +2,7 @@ import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import type { useGatewayStore } from "@/stores/gateway";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
+import type { useGatewayTerminalTransport } from "@/composables/useGatewayTerminalTransport";
 
 export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>) {
   const refs = storeToRefs(store);
@@ -52,14 +53,17 @@ export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>)
   };
 }
 
-export function openWorkspaceTerminal(store: ReturnType<typeof useGatewayStore>) {
+export function openWorkspaceTerminal(
+  store: ReturnType<typeof useGatewayStore>,
+  terminal: ReturnType<typeof useGatewayTerminalTransport>,
+) {
   const refs = storeToRefs(store);
   if (!refs.selectedHostId.value || !refs.selectedHost.value) {
     return;
   }
   if (refs.selectedThreadId.value) {
     const thread = (refs.currentThread.value as any) || {};
-    void store.openTerminal({
+    void terminal.openTerminal({
       scope: "thread",
       hostId: refs.selectedHostId.value,
       projectId: refs.selectedProjectId.value,
@@ -70,7 +74,7 @@ export function openWorkspaceTerminal(store: ReturnType<typeof useGatewayStore>)
     return;
   }
   if (refs.selectedProject.value) {
-    void store.openTerminal({
+    void terminal.openTerminal({
       scope: "project",
       hostId: refs.selectedProject.value.hostId,
       projectId: refs.selectedProject.value.id,
@@ -79,7 +83,7 @@ export function openWorkspaceTerminal(store: ReturnType<typeof useGatewayStore>)
     });
     return;
   }
-  void store.openTerminal({
+  void terminal.openTerminal({
     scope: "host",
     hostId: refs.selectedHostId.value,
     title: refs.selectedHost.value.name,

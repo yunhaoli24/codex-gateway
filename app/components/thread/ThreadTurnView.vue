@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { ChevronDownIcon, ChevronRightIcon, ListTreeIcon } from "@lucide/vue";
-import { computed, ref, watch } from "vue";
+import { computed } from "vue";
 import type { ThreadRuntimeStatus } from "~~/shared/types";
-import { isThreadActiveStatus } from "~~/shared/thread-runtime-status";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ThreadItemView from "@/components/thread/ThreadItemView.vue";
 import { useGatewayStore } from "@/stores/gateway";
-import { isThreadPlanItem } from "@/utils/thread-plan";
+import {
+  buildThreadTurnSections,
+  itemKey,
+  userMessageVariant as userMessageVariantForSection,
+} from "./thread-turn-sections";
+import { useIntermediateStepsDisclosure } from "./useIntermediateStepsDisclosure";
 
 const props = withDefaults(
   defineProps<{
@@ -25,96 +29,25 @@ const props = withDefaults(
 const { t } = useI18n();
 const store = useGatewayStore();
 
-const items = computed(() => (Array.isArray(props.turn.items) ? props.turn.items : []));
+const turn = computed(() => props.turn);
 const planModeActive = computed(() => selectedThreadMode() === "plan");
-const finalAgentIndex = computed(() =>
-  findFinalAgentIndex(items.value, props.turn.status, planModeActive.value),
+const sections = computed(() =>
+  buildThreadTurnSections(props.turn, { planModeActive: planModeActive.value }),
 );
-const hasFinalAnswer = computed(() => finalAgentIndex.value >= 0);
-const firstIntermediateIndex = computed(() => {
-  const firstNonUser = items.value.findIndex(
-    (item: any) => item?.type !== "userMessage" || isSteerUserMessage(item),
-  );
-  return firstNonUser >= 0 ? firstNonUser : items.value.length;
-});
-const userItems = computed(() => items.value.slice(0, firstIntermediateIndex.value));
-const intermediateItems = computed(() => {
-  if (hasFinalAnswer.value) {
-    return items.value.slice(firstIntermediateIndex.value, finalAgentIndex.value);
-  }
-  return items.value.slice(firstIntermediateIndex.value);
-});
-const finalItems = computed(() => {
-  if (!hasFinalAnswer.value) {
-    return [];
-  }
-  return items.value.slice(finalAgentIndex.value);
-});
-const turnIsActive = computed(
-  () =>
-    isThreadActiveStatus(props.turn.status) ||
-    items.value.some((item) => isThreadActiveStatus(item?.status)),
-);
+const items = computed(() => sections.value.items);
+const userItems = computed(() => sections.value.userItems);
+const intermediateItems = computed(() => sections.value.intermediateItems);
+const finalItems = computed(() => sections.value.finalItems);
+const turnIsActive = computed(() => sections.value.turnIsActive);
 const threadIsRunning = computed(() => props.threadRuntimeStatus === "running");
-const intermediateOpen = ref(false);
-const intermediateOpenTouchedByUser = ref(false);
-
-watch(
-  () => [
-    props.turn.id,
-    props.threadRuntimeStatus,
-    statusValue(props.turn.status),
-    props.autoCollapseIntermediate,
-    ...items.value.map((item: any) => statusValue(item?.status)),
-  ],
-  () => {
-    if (threadIsRunning.value && turnIsActive.value) {
-      intermediateOpenTouchedByUser.value = false;
-      intermediateOpen.value = true;
-      return;
-    }
-    if (props.autoCollapseIntermediate && !intermediateOpenTouchedByUser.value) {
-      intermediateOpen.value = false;
-    }
-  },
-  { immediate: true },
-);
-
-watch(
-  () => props.turn.id,
-  () => {
-    intermediateOpenTouchedByUser.value = false;
-  },
-);
-
-function setIntermediateOpen(open: boolean) {
-  intermediateOpenTouchedByUser.value = true;
-  intermediateOpen.value = open;
-}
-
-function findFinalAgentIndex(turnItems: any[], status: unknown, preferPlanFinal: boolean) {
-  const explicitFinalIndex = findLastIndex(
-    turnItems,
-    (item) => item?.type === "agentMessage" && item?.phase === "final_answer",
-  );
-  if (explicitFinalIndex >= 0) {
-    return explicitFinalIndex;
-  }
-  if (status !== "completed") {
-    return -1;
-  }
-  if (preferPlanFinal) {
-    const finalPlanIndex = findLastIndex(turnItems, isThreadPlanItem);
-    if (finalPlanIndex >= 0) {
-      return finalPlanIndex;
-    }
-  }
-  const finalAgentMessageIndex = findLastIndex(turnItems, (item) => item?.type === "agentMessage");
-  if (finalAgentMessageIndex >= 0) {
-    return finalAgentMessageIndex;
-  }
-  return findLastIndex(turnItems, (item) => item?.type === "appNotification");
-}
+const autoCollapseIntermediate = computed(() => props.autoCollapseIntermediate);
+const { intermediateOpen, setIntermediateOpen } = useIntermediateStepsDisclosure({
+  turn,
+  items,
+  turnIsActive,
+  threadIsRunning,
+  autoCollapseIntermediate,
+});
 
 function selectedThreadMode() {
   if (!props.hostId || !props.threadId) {
@@ -123,47 +56,8 @@ function selectedThreadMode() {
   return store.threadCollaborationModesByKey[`${props.hostId}:${props.threadId}`] ?? "default";
 }
 
-function findLastIndex<T>(list: T[], predicate: (item: T) => boolean) {
-  for (let index = list.length - 1; index >= 0; index -= 1) {
-    const item = list[index];
-    if (item !== undefined && predicate(item)) {
-      return index;
-    }
-  }
-  return -1;
-}
-
 function userMessageVariant(item: any) {
-  if (item?.type !== "userMessage") {
-    return "normal";
-  }
-  if (isSteerUserMessage(item)) {
-    return "steer";
-  }
-  const itemIndex = items.value.findIndex((candidate: any) => candidate === item);
-  return firstNonUserIndex(itemIndex) >= 0 ? "steer" : "normal";
-}
-
-function isSteerUserMessage(item: any) {
-  return (
-    item?.type === "userMessage" &&
-    typeof item.clientId === "string" &&
-    item.clientId.startsWith("steer-")
-  );
-}
-
-function firstNonUserIndex(beforeIndex: number) {
-  return items.value.findIndex(
-    (candidate: any, index) => index < beforeIndex && candidate?.type !== "userMessage",
-  );
-}
-
-function statusValue(status: any) {
-  return typeof status === "string" ? status : status?.type;
-}
-
-function itemKey(item: any, section: string, index: number) {
-  return item?.id || item?.clientId || `${section}-${index}-${item?.type || "item"}`;
+  return userMessageVariantForSection(item, sections.value);
 }
 </script>
 

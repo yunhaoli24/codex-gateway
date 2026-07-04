@@ -3,22 +3,29 @@ import { gatewayEventStore } from "../state/gateway-events";
 import { currentGatewayUserId } from "../state/memory";
 import { subAgentThreadStore } from "../state/sub-agent-threads";
 import { threadSnapshotStore } from "../state/thread-snapshots";
-import { notifyThreadTurnCompleted } from "../notifications/thread-terminal-notifier";
+import { dispatchThreadRuntimeNotification } from "../notifications/thread-notification-dispatcher";
 import { applyEventToOpenSnapshot } from "./open-snapshot-events";
 
 type ThreadEventSubscriber = (event: GatewayEvent) => void;
+export type ThreadGoalResolver = () => Promise<unknown>;
 
 class ThreadRuntimeEventBus {
   private readonly subscribers = new Map<string, Set<ThreadEventSubscriber>>();
 
-  record(hostId: number, threadId: string, method: string, payload: unknown) {
+  record(
+    hostId: number,
+    threadId: string,
+    method: string,
+    payload: unknown,
+    options: { resolveGoal?: ThreadGoalResolver } = {},
+  ) {
     const event = gatewayEventStore.add(hostId, threadId, method, payload);
     subAgentThreadStore.recordRuntimeEvent(hostId, threadId, method, payload);
     threadSnapshotStore.update(hostId, threadId, (snapshot) =>
       applyEventToOpenSnapshot(snapshot, method, payload, event.createdAt),
     );
     this.publish(event);
-    notifyThreadTurnCompleted(event);
+    dispatchThreadRuntimeNotification(event, options);
     return event;
   }
 

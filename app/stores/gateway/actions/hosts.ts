@@ -1,5 +1,6 @@
 import type { HostRecord } from "~~/shared/types";
 import { gatewayApi } from "@/utils/gateway-api";
+import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayStoreContext } from "../types";
 import { writeGatewayRouteSelection } from "../route-state";
 
@@ -40,20 +41,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
 
     async deleteHost(hostId: number) {
       await gatewayApi(`/api/hosts/${hostId}`, { method: "DELETE" });
-      for (const key of Object.keys(ctx.state.realtimeThreadSubscriptions)) {
-        if (key.startsWith(`${hostId}:`)) {
-          const subscription = ctx.state.realtimeThreadSubscriptions[key];
-          if (!subscription) {
-            continue;
-          }
-          ctx.sendRealtime({
-            type: "thread.unsubscribe",
-            hostId: subscription.hostId,
-            threadId: subscription.threadId,
-          });
-          delete ctx.state.realtimeThreadSubscriptions[key];
-        }
-      }
+      useGatewayRealtimeStore().closeHostThreadEvents(hostId);
       ctx.state.hosts = ctx.state.hosts.filter((host) => host.id !== hostId);
       ctx.state.projects = ctx.state.projects.filter((project) => project.hostId !== hostId);
       const { [hostId]: _removedConnectionStatus, ...hostConnectionStatuses } =

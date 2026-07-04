@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { RealtimeClientMessage } from "~~/shared/types";
 import { userStore } from "../../auth/users";
+import { subscribeTerminalEvents } from "./terminal";
 import { sendRealtimePeerMessage, stateFor, type RealtimePeer } from "../peer-state";
 
 export function authenticatePeer(
@@ -24,4 +25,5 @@ export function authenticatePeer(
     threadUnsubscribers: new Map(),
   };
   sendRealtimePeerMessage(peer, { type: "ready", connectionId: randomUUID() });
+  subscribeTerminalEvents(peer);
 }

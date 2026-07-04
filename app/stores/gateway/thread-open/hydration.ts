@@ -1,5 +1,6 @@
 import type { ThreadOpenResult } from "~~/shared/types";
 import { normalizeTokenUsage } from "~~/shared/token-usage";
+import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { threadIdFromParams } from "../thread-utils/identity";
 import { runtimeStatusFromThreadState } from "../thread-utils/status";
 import type { GatewayStoreContext } from "../types";
@@ -16,7 +17,7 @@ export function applyOpenedThreadResult(
     ctx.state.selectedProjectId = result.projectId;
   }
   ctx.state.selectedThreadId = threadId;
-  ctx.rememberThreadSubscription(result.hostId, threadId, result.lastEventId);
+  useGatewayRealtimeStore().rememberThreadSubscription(result.hostId, threadId, result.lastEventId);
   if (result.project) {
     ctx.mergeProjects([result.project]);
   }

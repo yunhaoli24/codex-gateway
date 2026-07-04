@@ -5,9 +5,11 @@ import { Toaster } from "@/components/ui/sonner";
 import LoginScreen from "@/components/auth/LoginScreen.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
+const realtime = useGatewayRealtimeStore();
 const auth = useAuthStore();
 const device = useDevice();
 const { currentThread, selectedThreadId, initializing } = storeToRefs(store);
@@ -36,6 +38,7 @@ watch(
     if (!authenticated) {
       return;
     }
+    realtime.installHealthCheck();
     void store.refresh().catch((error) => {
       console.error("[gateway] failed to refresh app", error);
     });

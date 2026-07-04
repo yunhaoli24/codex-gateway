@@ -1,5 +1,5 @@
 import type { ThreadGoal, ThreadGoalStatus } from "~~/shared/types";
-import { sendRealtimeRequest } from "../realtime/request-response";
+import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayStoreContext } from "../types";
 import { pinnedKey } from "../thread-utils/identity";
 
@@ -29,10 +29,10 @@ export function createThreadGoalActions(ctx: GatewayStoreContext) {
       if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
         return;
       }
-      const message = await sendRealtimeRequest<{
+      const message = await useGatewayRealtimeStore().request<{
         type: "thread.goal.updated";
         goal: ThreadGoal;
-      }>(ctx, (requestId) => ({
+      }>((requestId) => ({
         type: "thread.goal.set",
         requestId,
         hostId: ctx.state.selectedHostId!,
@@ -47,10 +47,10 @@ export function createThreadGoalActions(ctx: GatewayStoreContext) {
       if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
         return;
       }
-      const message = await sendRealtimeRequest<{
+      const message = await useGatewayRealtimeStore().request<{
         type: "thread.goal.updated";
         goal: ThreadGoal;
-      }>(ctx, (requestId) => ({
+      }>((requestId) => ({
         type: "thread.goal.set",
         requestId,
         hostId: ctx.state.selectedHostId!,
@@ -64,7 +64,7 @@ export function createThreadGoalActions(ctx: GatewayStoreContext) {
       if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
         return;
       }
-      await sendRealtimeRequest(ctx, (requestId) => ({
+      await useGatewayRealtimeStore().request((requestId) => ({
         type: "thread.goal.clear",
         requestId,
         hostId: ctx.state.selectedHostId!,
@@ -77,10 +77,10 @@ export function createThreadGoalActions(ctx: GatewayStoreContext) {
       if (!ctx.state.selectedHostId || !ctx.state.selectedThreadId) {
         return;
       }
-      const message = await sendRealtimeRequest<{
+      const message = await useGatewayRealtimeStore().request<{
         type: "thread.goal.snapshot";
         goal: ThreadGoal | null;
-      }>(ctx, (requestId) => ({
+      }>((requestId) => ({
         type: "thread.goal.get",
         requestId,
         hostId: ctx.state.selectedHostId!,

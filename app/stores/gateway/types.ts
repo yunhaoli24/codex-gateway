@@ -5,7 +5,6 @@ import type {
   ModelRecord,
   PinnedThreadRecord,
   ProjectRecord,
-  ComposerTurnOptions,
   TerminalOpenTarget,
   TerminalSessionSnapshot,
   ThreadGoal,
@@ -14,7 +13,9 @@ import type {
   ThreadTokenUsageState,
   UploadedFileRecord,
 } from "~~/shared/types";
-import type { GatewayDomainEvents } from "./domain-events";
+import type { EventEmitter } from "@posva/event-emitter";
+import type { GatewayDomainEventMap } from "./domain-events";
+import type { GatewayErrorContext } from "./errors";
 import type { ErrorMessageLabels } from "./thread-utils/identity";
 
 export type { ThreadRuntimeStatus };
@@ -72,19 +73,6 @@ export interface TerminalSessionState extends TerminalSessionSnapshot {
   outputChunks: string[];
 }
 
-export interface SubmittedTurnRequestState {
-  kind: "start" | "steer";
-  hostId: number;
-  projectId: number | null;
-  threadId: string;
-  cwd: string | null;
-  text: string;
-  options: ComposerTurnOptions;
-  retryCount: number;
-  pendingRetryTurnId: string | null;
-  retryTimer: number | null;
-}
-
 export interface GatewayErrorState {
   message: string;
   hostId: number | null;
@@ -121,13 +109,9 @@ export interface GatewayStoreState {
   threadGoalObservedAtByKey: Record<string, number>;
   threadTokenUsageByKey: Record<string, ThreadTokenUsageState>;
   composerDraftsByKey: Record<string, ComposerDraft>;
-  submittedTurnRequestsByKey: Record<string, SubmittedTurnRequestState>;
   threadViews: Record<string, ThreadViewState>;
   subAgentPanels: SubAgentPanelState[];
   activeSubAgentPanelKey: string | null;
-  workspaceTabs: WorkspaceTabState[];
-  activeWorkspaceTabId: string;
-  terminalSessions: Record<string, TerminalSessionState>;
   selectedHostId: number | null;
   selectedProjectId: number | null;
   selectedThreadId: string | null;
@@ -141,23 +125,13 @@ export interface GatewayStoreState {
   olderTurnsCursor: string | null;
   newerTurnsCursor: string | null;
   error: GatewayErrorState | null;
-  realtimeSocket: WebSocket | null;
-  realtimeSocketConnected: boolean;
-  realtimeSocketReconnectTimer: number | null;
-  realtimeSocketReconnectAttempt: number;
-  realtimeSocketGeneration: number;
-  realtimeHostLifecycleSubscribed: boolean;
-  realtimeThreadSubscriptions: Record<
-    string,
-    { hostId: number; threadId: string; afterId: number }
-  >;
   lastEventId: number;
   scrollToLatestToken: number;
 }
 
 export interface GatewayStoreContext {
   state: GatewayStoreState;
-  events: GatewayDomainEvents;
+  events: EventEmitter<GatewayDomainEventMap>;
   t: (key: string, values?: Record<string, unknown>) => string;
   errorLabels: ErrorMessageLabels;
   selectedHost: HostRecord | null;
@@ -172,9 +146,62 @@ export interface GatewayStoreContext {
   selectedThreadGoalObservedAt: number | null;
   selectedThreadTokenUsage: ThreadTokenUsageState | null;
   selectedComposerDraft: ComposerDraft;
-  activeWorkspaceTab: WorkspaceTabState;
-  terminalSessionSnapshots: TerminalSessionState[];
-  [action: string]: any;
+  persistConfig: () => void;
+  syncConfigToServer: () => Promise<void>;
+  applyConfig: (config: GatewayConfig) => void;
+  loadConfigFromServer: () => Promise<void>;
+  refresh: () => Promise<void>;
+  connectAllHosts: () => Promise<void>;
+  listModels: () => Promise<void>;
+  listThreads: (searchTerm?: string) => Promise<void>;
+  decorateThreads: (threads: any[]) => any[];
+  ensureSelectedProject: () => void;
+  mergeProjects: (projects: ProjectRecord[]) => void;
+  beginViewTransition: () => number;
+  isCurrentViewTransition: (epoch: number) => boolean;
+  cacheSelectedThreadView: () => void;
+  restoreThreadView: (hostId: number, threadId: string) => boolean;
+  clearCurrentThreadView: () => void;
+  rememberOpenThread: (threadId: string) => Promise<void>;
+  requestScrollToLatest: () => void;
+  syncSelectedRoute: (options?: { replace?: boolean }) => void;
+  openThread: (
+    threadId: string,
+    context?: { hostId?: number | null; projectId?: number | null; replaceRoute?: boolean },
+  ) => Promise<void>;
+  openThreadPreview: (
+    hostId: number,
+    threadId: string,
+    context?: { projectId?: number | null; limit?: number },
+  ) => Promise<ThreadViewState | undefined>;
+  restoreLastOpenThread: () => Promise<void>;
+  setThreadRunning: (hostId: number, threadId: string, running: boolean) => void;
+  setThreadStatus: (
+    hostId: number,
+    threadId: string,
+    status: ThreadRuntimeStatus,
+    options?: ThreadStatusUpdateOptions,
+  ) => void;
+  setThreadTokenUsage: (
+    hostId: number,
+    threadId: string,
+    tokenUsage: ThreadTokenUsageState,
+  ) => void;
+  setThreadSettings: (
+    hostId: number,
+    threadId: string,
+    settings: ThreadSettingsState | null | undefined,
+  ) => void;
+  updateSelectedThreadSettings: (settings: ThreadSettingsState) => void;
+  setThreadCollaborationMode: (hostId: number, threadId: string, mode: "default" | "plan") => void;
+  dismissPlanImplementationPrompt: (hostId: number, threadId: string, planItemId: string) => void;
+  upsertThreadGoal: (hostId: number, threadId: string, goal: ThreadGoal) => void;
+  clearThreadGoalState: (hostId: number, threadId: string) => void;
+  refreshSelectedThreadGoal: () => Promise<void>;
+  applyLiveEvent: (event: GatewayEvent) => void;
+  upsertPinnedMetadataFromThread: (thread: any) => void;
+  setError: (message: string, context?: GatewayErrorContext & { transient?: boolean }) => void;
+  clearError: () => void;
 }
 
 export interface ThreadStatusUpdateOptions {

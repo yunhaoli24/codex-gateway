@@ -2,12 +2,21 @@ import { appServerTurnErrorFromNotification } from "../errors";
 import { pinnedKey, titleForThread } from "../thread-utils/identity";
 import type { GatewayStoreContext } from "../types";
 import type { GatewayEventHandlerRegistry } from "./types";
+import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 
 export const errorEventHandlers: GatewayEventHandlerRegistry = {
   error: (ctx, event, params, threadId) => {
     const error = appServerTurnErrorFromNotification(params, ctx.t);
     const turnId = typeof params.turnId === "string" ? params.turnId : String(params.turnId ?? "");
-    if (turnId && ctx.maybeQueueServerOverloadedRetry(event.hostId, threadId, turnId, error)) {
+    if (
+      turnId &&
+      useGatewayThreadTurnsStore().maybeQueueServerOverloadedRetry(
+        event.hostId,
+        threadId,
+        turnId,
+        error,
+      )
+    ) {
       return;
     }
     ctx.setError(threadScopedErrorMessage(ctx, event.hostId, threadId, error.toDisplayMessage()), {

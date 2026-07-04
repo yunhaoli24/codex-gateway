@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import type { ComposerTurnOptions } from "~~/shared/types";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 
 type AttachedFile = {
   name: string;
@@ -21,6 +22,7 @@ export function useComposerTurnSubmit(input: {
   fileReferencesLabel: Ref<string>;
 }) {
   const store = useGatewayStore();
+  const threadTurns = useGatewayThreadTurnsStore();
   const interruptingTurn = ref(false);
   const planModeActive = computed(() => store.selectedThreadCollaborationMode === "plan");
   const hasComposerInput = computed(() =>
@@ -52,7 +54,7 @@ export function useComposerTurnSubmit(input: {
     const attachedImages = files.filter((file) => file.isImage);
     const collaborationMode = planCollaborationMode();
     input.clearDraft();
-    await store.sendTurn(
+    await threadTurns.sendTurn(
       messageWithFileReferences(text, remoteFiles, input.fileReferencesLabel.value),
       {
         ...input.selectedTurnOptions(),
@@ -71,7 +73,7 @@ export function useComposerTurnSubmit(input: {
     }
     interruptingTurn.value = true;
     try {
-      await store.interruptActiveTurn();
+      await threadTurns.interruptActiveTurn();
     } finally {
       interruptingTurn.value = false;
     }

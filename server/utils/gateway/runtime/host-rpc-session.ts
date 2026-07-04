@@ -66,7 +66,15 @@ export class HostRpcSession {
     if (controller) {
       controller.handleNotification(message);
     } else {
-      threadRuntimeEvents.record(this.host.id, threadId, message.method || "notification", message);
+      threadRuntimeEvents.record(
+        this.host.id,
+        threadId,
+        message.method || "notification",
+        message,
+        {
+          resolveGoal: () => this.client.request("thread/goal/get", { threadId }),
+        },
+      );
     }
   }
 
@@ -85,7 +93,9 @@ export class HostRpcSession {
     if (controller) {
       controller.handleNotification(message);
     } else {
-      threadRuntimeEvents.record(this.host.id, threadId, message.method || "request", message);
+      threadRuntimeEvents.record(this.host.id, threadId, message.method || "request", message, {
+        resolveGoal: () => this.client.request("thread/goal/get", { threadId }),
+      });
     }
   }
 

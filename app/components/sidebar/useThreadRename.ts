@@ -9,6 +9,12 @@ export function useThreadRename(store: GatewayStore) {
   const { threads, pinnedThreads } = storeToRefs(store);
   const renamingThreadId = ref<string | null>(null);
   const renameValue = ref("");
+  const renameKeyHandlers: Record<string, (event: KeyboardEvent) => void> = {
+    Escape: (event) => {
+      event.preventDefault();
+      cancelRename();
+    },
+  };
 
   function startInlineRename(thread: any) {
     renamingThreadId.value = String(thread.threadId || thread.id);
@@ -43,10 +49,7 @@ export function useThreadRename(store: GatewayStore) {
   }
 
   function handleRenameKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      cancelRename();
-    }
+    renameKeyHandlers[event.key]?.(event);
   }
 
   return {

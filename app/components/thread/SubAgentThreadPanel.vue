@@ -7,9 +7,11 @@ import SubAgentPanelBody from "@/components/thread/subagent/SubAgentPanelBody.vu
 import SubAgentPanelHeader from "@/components/thread/subagent/SubAgentPanelHeader.vue";
 import type { ThreadTimelineTurn } from "@/components/thread/timeline-rows";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { pinnedKey, titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
+const threadTurns = useGatewayThreadTurnsStore();
 const {
   activeSubAgentPanel,
   activeSubAgentPanelKey,
@@ -74,7 +76,7 @@ async function interruptCurrentPanel() {
   if (!panel) {
     return;
   }
-  await store.interruptThreadTurn({
+  await threadTurns.interruptThreadTurn({
     hostId: panel.hostId,
     threadId: panel.threadId,
     projectId,

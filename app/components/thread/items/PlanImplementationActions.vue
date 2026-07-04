@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { isThreadPlanItemCompleted } from "@/utils/thread-plan";
 
 const props = defineProps<{
@@ -11,6 +12,7 @@ const props = defineProps<{
 }>();
 
 const store = useGatewayStore();
+const threadTurns = useGatewayThreadTurnsStore();
 const applying = ref(false);
 
 const planItemId = computed(() => (props.item.id ? String(props.item.id) : null));
@@ -47,7 +49,9 @@ async function implementPlan() {
   applying.value = true;
   try {
     store.setThreadCollaborationMode(props.hostId, props.threadId, "default");
-    await store.sendTurn("Implement the plan.", { collaborationMode: defaultCollaborationMode() });
+    await threadTurns.sendTurn("Implement the plan.", {
+      collaborationMode: defaultCollaborationMode(),
+    });
   } finally {
     applying.value = false;
   }

@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { openApp } from "./helpers/app";
-import { installRealtimeThreadSnapshotMock } from "./helpers/gateway-store";
+import {
+  installRealtimeInterruptMock,
+  installRealtimeThreadSnapshotMock,
+  seedGatewayThread,
+  setThreadViewHistoryAndStatus,
+  subAgentRuntimeFlags,
+} from "./helpers/gateway-store";
 
 test("sub-agent activity opens a side panel with the sub-agent timeline", async ({ page }) => {
   await openApp(page);
@@ -61,50 +67,38 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
       }),
     ),
   });
-  await page.evaluate(
-    ({ threadId, subThreadId }) => {
-      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-      const pinia = app?.config?.globalProperties?.$pinia;
-      const store = pinia?._s?.get("gateway");
-      if (!store) {
-        throw new Error("Unable to locate gateway Pinia store");
-      }
-      store.hosts = [{ id: 1, name: "E2E Host", sshHost: "localhost", sshUser: "codex" }];
-      store.selectedHostId = 1;
-      store.selectedThreadId = threadId;
-      store.currentThread = { id: threadId, name: "Parent Thread" };
-      store.history = {
-        thread: {
-          id: threadId,
-          turns: [
-            {
-              id: "parent-turn",
-              status: "running",
-              items: [
-                {
-                  id: "subagent-activity",
-                  type: "subAgentActivity",
-                  kind: "started",
-                  agentThreadId: subThreadId,
-                  agentPath: "agent-e2e",
-                },
-                {
-                  id: "subagent-activity-2",
-                  type: "subAgentActivity",
-                  kind: "started",
-                  agentThreadId: subThreadId + "-2",
-                  agentPath: "agent-e2e-second",
-                },
-              ],
-            },
-          ],
-        },
-      };
-      store.initializing = false;
-      store.loading = false;
+  await seedGatewayThread(page, {
+    threadId,
+    currentThread: { id: threadId, name: "Parent Thread" },
+    status: "running",
+    history: {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "parent-turn",
+            status: "running",
+            items: [
+              {
+                id: "subagent-activity",
+                type: "subAgentActivity",
+                kind: "started",
+                agentThreadId: subThreadId,
+                agentPath: "agent-e2e",
+              },
+              {
+                id: "subagent-activity-2",
+                type: "subAgentActivity",
+                kind: "started",
+                agentThreadId: secondSubThreadId,
+                agentPath: "agent-e2e-second",
+              },
+            ],
+          },
+        ],
+      },
     },
-    { threadId, subThreadId },
-  );
+  });
 
   const mainPane = page.getByTestId("chat-main-pane");
   const widthBeforeOpen = (await mainPane.boundingBox())?.width ?? 0;
@@ -120,59 +114,35 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
   await expect(
     page.getByTestId("chat-scroll-area").getByText("agent-e2e", { exact: true }),
   ).toBeVisible();
-  await page.evaluate(
-    ({ subThreadId }) => {
-      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-      const key = `1:${subThreadId}`;
-      store.threadViews[key] = {
-        ...store.threadViews[key],
-        history: {
-          thread: {
-            id: subThreadId,
-            turns: [
+  await setThreadViewHistoryAndStatus(page, {
+    hostId: 1,
+    threadId: subThreadId,
+    status: "running",
+    turnId: "sub-turn-running",
+    history: {
+      thread: {
+        id: subThreadId,
+        turns: [
+          {
+            id: "sub-turn-running",
+            status: "inProgress",
+            items: [
               {
-                id: "sub-turn-running",
+                id: "sub-reasoning",
+                type: "reasoning",
                 status: "inProgress",
-                items: [
-                  {
-                    id: "sub-reasoning",
-                    type: "reasoning",
-                    status: "inProgress",
-                    summary: ["Sub-agent is still running"],
-                  },
-                ],
+                summary: ["Sub-agent is still running"],
               },
             ],
           },
-        },
-      };
-      store.setThreadStatus(1, subThreadId, "running", { turnId: "sub-turn-running" });
-      store.realtimeSocketConnected = true;
-      (window as any).__subagentInterruptRequest = null;
-      const previousSocket = store.realtimeSocket;
-      store.realtimeSocket = {
-        readyState: WebSocket.OPEN,
-        send(raw: string) {
-          const message = JSON.parse(raw);
-          if (message.type !== "turn.interrupt") {
-            previousSocket?.send(raw);
-            return;
-          }
-          (window as any).__subagentInterruptRequest = message;
-          window.setTimeout(() => {
-            store.handleRealtimeMessage({
-              type: "turn.interrupt.accepted",
-              requestId: message.requestId,
-              hostId: message.hostId,
-              threadId: message.threadId,
-            });
-          }, 0);
-        },
-      };
+        ],
+      },
     },
-    { subThreadId },
-  );
+  });
+  await installRealtimeInterruptMock(page, {
+    windowKey: "__subagentInterruptRequest",
+    passThroughNonInterrupt: true,
+  });
   await page.getByRole("button", { name: "停止子代理" }).click();
   await expect
     .poll(() => page.evaluate(() => (window as any).__subagentInterruptRequest))
@@ -187,51 +157,40 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
   await expect(panel.getByTestId("subagent-tab")).toHaveCount(2);
   await expect(panel.getByTestId("subagent-panel-title")).toHaveText("agent-e2e-second");
   await expect(panel.getByText("Sub-agent finding from agent-e2e-second.")).toBeVisible();
-  await page.evaluate(() => {
-    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-    store.selectedThreadId = "e2e-other-parent-thread";
-    store.currentThread = { id: "e2e-other-parent-thread", name: "Other Parent Thread" };
-    store.history = { thread: { id: "e2e-other-parent-thread", turns: [] } };
+  await seedGatewayThread(page, {
+    threadId: "e2e-other-parent-thread",
+    currentThread: { id: "e2e-other-parent-thread", name: "Other Parent Thread" },
+    history: { thread: { id: "e2e-other-parent-thread", turns: [] } },
   });
   await expect(panel).toBeHidden();
   await expect
     .poll(async () => (await mainPane.boundingBox())?.width ?? 0)
     .toBeGreaterThan(widthBeforeOpen * 0.95);
-  await page.evaluate(
-    ({ threadId }) => {
-      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-      store.selectedThreadId = threadId;
-      store.currentThread = { id: threadId, name: "Parent Thread" };
-      store.history = {
-        thread: {
-          id: threadId,
-          turns: [
-            {
-              id: "parent-turn",
-              status: "running",
-              items: [],
-            },
-          ],
-        },
-      };
+  await seedGatewayThread(page, {
+    threadId,
+    currentThread: { id: threadId, name: "Parent Thread" },
+    status: "running",
+    history: {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "parent-turn",
+            status: "running",
+            items: [],
+          },
+        ],
+      },
     },
-    { threadId },
-  );
+  });
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("subagent-tab")).toHaveCount(2);
   await expect
     .poll(() =>
-      page.evaluate(() => {
-        const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-        const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-        return {
-          view: Boolean(store.threadViews["1:e2e-subagent-thread"]),
-          secondView: Boolean(store.threadViews["1:e2e-subagent-thread-2"]),
-          subscribed: Boolean(store.realtimeThreadSubscriptions["1:e2e-subagent-thread"]),
-          secondSubscribed: Boolean(store.realtimeThreadSubscriptions["1:e2e-subagent-thread-2"]),
-        };
+      subAgentRuntimeFlags(page, {
+        hostId: 1,
+        firstThreadId: subThreadId,
+        secondThreadId: secondSubThreadId,
       }),
     )
     .toEqual({
@@ -247,15 +206,10 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
   await expect(panel).toBeHidden();
   await expect
     .poll(() =>
-      page.evaluate(() => {
-        const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-        const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-        return {
-          view: Boolean(store.threadViews["1:e2e-subagent-thread"]),
-          secondView: Boolean(store.threadViews["1:e2e-subagent-thread-2"]),
-          subscribed: Boolean(store.realtimeThreadSubscriptions["1:e2e-subagent-thread"]),
-          secondSubscribed: Boolean(store.realtimeThreadSubscriptions["1:e2e-subagent-thread-2"]),
-        };
+      subAgentRuntimeFlags(page, {
+        hostId: 1,
+        firstThreadId: subThreadId,
+        secondThreadId: secondSubThreadId,
       }),
     )
     .toEqual({

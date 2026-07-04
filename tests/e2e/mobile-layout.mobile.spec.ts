@@ -125,6 +125,7 @@ test("opens and closes the subagent side panel on mobile", async ({ page }) => {
     store.loading = false;
   });
 
+  await openIntermediateSteps(page);
   await page.getByTestId("open-subagent-panel").click();
   const panel = page.getByTestId("subagent-panel");
   await expect(panel).toBeVisible();
@@ -135,6 +136,15 @@ test("opens and closes the subagent side panel on mobile", async ({ page }) => {
   await page.getByLabel("关闭子代理面板").click();
   await expect(panel).toBeHidden();
 });
+
+async function openIntermediateSteps(page: Page) {
+  const toggle = page.getByRole("button", { name: /中间过程/ }).first();
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("data-state")) !== "open") {
+    await toggle.click();
+  }
+  await expect(toggle).toHaveAttribute("data-state", "open");
+}
 
 async function createConfiguredHostAndProject(
   page: Page,

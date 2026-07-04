@@ -1,15 +1,15 @@
 <script setup lang="ts">
+import { useTimestamp } from "@vueuse/core";
 import { CheckCircle2Icon, Loader2Icon, TimerIcon } from "@lucide/vue";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { isItemInProgress } from "@/utils/thread-items";
 import { formatDurationMs, itemCompletedAtMs, itemStartedAtMs } from "@/utils/item-timing";
 
 const props = defineProps<{ item: Record<string, any> }>();
 
 const { t } = useI18n();
-const now = ref(Date.now());
-const localStartedAt = ref(now.value);
-let timer: ReturnType<typeof setInterval> | null = null;
+const { timestamp: now, pause, resume } = useTimestamp({ controls: true, interval: 250 });
+const localStartedAt = ref(Date.now());
 
 const inProgress = computed(() => isItemInProgress(props.item));
 const durationMs = computed(() => Number(props.item.durationMs || props.item.duration_ms || 0));
@@ -27,17 +27,7 @@ const timeLabel = computed(() => {
   return `${formatDurationMs(elapsedMs.value)} / ${formatDurationMs(durationMs.value)}`;
 });
 
-onMounted(() => {
-  timer = setInterval(() => {
-    if (inProgress.value) {
-      now.value = Date.now();
-    }
-  }, 250);
-});
-
-onBeforeUnmount(() => {
-  if (timer) clearInterval(timer);
-});
+watch(inProgress, (active) => (active ? resume() : pause()), { immediate: true });
 </script>
 
 <template>

@@ -1,4 +1,14 @@
 services:
+  bark-target:
+    image: node:22-bookworm
+    command: ["node", "/app/bark-server.mjs"]
+    environment:
+      BARK_TEST_PORT: "8080"
+      BARK_TEST_LOG: /requests/requests.jsonl
+    volumes:
+      - ./bark-server.mjs:/app/bark-server.mjs:ro
+      - bark-requests:/requests
+
   ssh-target:
     build:
       context: ./docker
@@ -17,6 +27,7 @@ services:
       dockerfile: tests/e2e/runner.Dockerfile
     depends_on:
       - ssh-target
+      - bark-target
     environment:
       CI: ${CI:-}
       E2E_CONTAINERIZED: "1"
@@ -29,13 +40,17 @@ services:
       E2E_REMOTE_PROJECT_PATH: /workspace/codex-gateway
       E2E_CODEX_CLI_VERSION: ${E2E_CODEX_CLI_VERSION:-0.140.0}
       E2E_CODEX_MODEL: ${E2E_CODEX_MODEL:-gpt-5.4-mini}
+      E2E_BARK_SERVER_URL: http://bark-target:8080
+      E2E_BARK_REQUEST_LOG: /bark-requests/requests.jsonl
       HOME: /home/pwuser
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     volumes:
       - ${E2E_CODEX_HOME:-${HOME}/.codex}:/codex-auth:ro
       - ../../test-results:/workspace/codex-gateway/test-results
+      - bark-requests:/bark-requests
       - runner-home:/home/pwuser
     working_dir: /workspace/codex-gateway
 
 volumes:
+  bark-requests:
   runner-home:

@@ -4,22 +4,20 @@ import type { GatewayEventHandlerRegistry } from "./types";
 
 export const deltaEventHandlers: GatewayEventHandlerRegistry = {
   "item/agentMessage/delta": (ctx, event, params, threadId) => {
-    ctx.events.emit({ type: "history-agent-delta", hostId: event.hostId, threadId, params });
+    ctx.events.emit("history-agent-delta", { hostId: event.hostId, threadId, params });
   },
   "item/plan/delta": (ctx, event, params, threadId) => {
-    ctx.events.emit({ type: "history-plan-delta", hostId: event.hostId, threadId, params });
+    ctx.events.emit("history-plan-delta", { hostId: event.hostId, threadId, params });
   },
   "item/reasoning/summaryTextDelta": (ctx, event, params, threadId) => {
-    ctx.events.emit({
-      type: "history-reasoning-summary-delta",
+    ctx.events.emit("history-reasoning-summary-delta", {
       hostId: event.hostId,
       threadId,
       params,
     });
   },
   "item/reasoning/textDelta": (ctx, event, params, threadId) => {
-    ctx.events.emit({
-      type: "history-reasoning-text-delta",
+    ctx.events.emit("history-reasoning-text-delta", {
       hostId: event.hostId,
       threadId,
       params,
@@ -40,15 +38,13 @@ function emitOutputDelta(
   threadId: string,
   itemType: "commandExecution" | "fileChange",
 ) {
-  ctx.events.emit({
-    type: "thread-status-detected",
+  ctx.events.emit("thread-status-detected", {
     hostId: event.hostId,
     threadId,
     status: "running",
     turnId: params.turnId ? String(params.turnId) : null,
   });
-  ctx.events.emit({
-    type: "history-item-output-delta",
+  ctx.events.emit("history-item-output-delta", {
     hostId: event.hostId,
     threadId,
     params,

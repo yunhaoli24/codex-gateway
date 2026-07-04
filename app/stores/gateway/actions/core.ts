@@ -1,5 +1,6 @@
 import { toast } from "vue-sonner";
 import { gatewayApi } from "@/utils/gateway-api";
+import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayConfig, GatewayNotificationSettings } from "~~/shared/types";
 import { defaultGatewayConfig, normalizeNotificationSettings } from "../config";
 import type { GatewayStoreContext } from "../types";
@@ -88,7 +89,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       ctx.clearError();
       try {
         const routeSelection = readGatewayRouteSelection();
-        ctx.connectHostLifecycleEvents();
+        useGatewayRealtimeStore().connectHostLifecycleEvents();
         ctx.state.projects = [];
         ctx.state.threads = [];
         ctx.state.models = [];

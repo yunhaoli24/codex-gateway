@@ -1,15 +1,15 @@
 <script setup lang="ts">
+import { useTimestamp } from "@vueuse/core";
 import { BrainIcon, Loader2Icon } from "@lucide/vue";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import MarkdownContent from "@/components/common/MarkdownContent.vue";
 import { isItemInProgress, threadItemText } from "@/utils/thread-items";
 import { formatDurationMs, itemCompletedAtMs, itemStartedAtMs } from "@/utils/item-timing";
 
 const props = defineProps<{ item: Record<string, any> }>();
 const { t } = useI18n();
-const now = ref(Date.now());
-const localStartedAt = ref(now.value);
-let timer: ReturnType<typeof setInterval> | null = null;
+const { timestamp: now, pause, resume } = useTimestamp({ controls: true, interval: 100 });
+const localStartedAt = ref(Date.now());
 
 const text = computed(() => threadItemText(props.item));
 const inProgress = computed(() => isItemInProgress(props.item));
@@ -20,17 +20,7 @@ const elapsedMs = computed(
 );
 const timeLabel = computed(() => formatDurationMs(elapsedMs.value));
 
-onMounted(() => {
-  timer = setInterval(() => {
-    if (inProgress.value) {
-      now.value = Date.now();
-    }
-  }, 100);
-});
-
-onBeforeUnmount(() => {
-  if (timer) clearInterval(timer);
-});
+watch(inProgress, (active) => (active ? resume() : pause()), { immediate: true });
 </script>
 
 <template>

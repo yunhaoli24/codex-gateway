@@ -4,7 +4,7 @@ export function updateTurnDiff(
   history: unknown,
   currentThread: unknown,
   threadId: string,
-  params: any,
+  params: Record<string, unknown>,
 ) {
   if (!params?.turnId || typeof params.diff !== "string") {
     return history;
@@ -12,7 +12,7 @@ export function updateTurnDiff(
 
   const nextHistory = ensureHistoryThread(history, currentThread, threadId);
   const turns = nextHistory.thread.turns;
-  let turn = turns.find((candidate: any) => candidate?.id === params.turnId);
+  const turn = turns.find((candidate) => candidate?.id === params.turnId);
   if (!turn) {
     return history;
   }

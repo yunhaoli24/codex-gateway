@@ -3,6 +3,28 @@ import { applyAppServerEventToHistory } from "~~/shared/thread-history/app-serve
 import { normalizeTokenUsage } from "~~/shared/token-usage";
 import type { ThreadOpenSnapshot } from "./types";
 
+type SnapshotEventReducer = (
+  snapshot: ThreadOpenSnapshot,
+  params: Record<string, any>,
+) => ThreadOpenSnapshot;
+
+const snapshotEventReducers: Record<string, SnapshotEventReducer> = {
+  "thread/status/changed": (snapshot, params) =>
+    updateSnapshotThreadStatus(snapshot, params.status),
+  "thread/settings/updated": (snapshot, params) => ({
+    ...snapshot,
+    threadSettings: {
+      model: params.threadSettings?.model ?? null,
+      effort: params.threadSettings?.effort ?? null,
+      approvalPolicy: params.threadSettings?.approvalPolicy ?? null,
+    },
+  }),
+  "thread/tokenUsage/updated": (snapshot, params) => ({
+    ...snapshot,
+    tokenUsage: normalizeTokenUsage(params.tokenUsage) ?? snapshot.tokenUsage,
+  }),
+};
+
 export function applyEventToOpenSnapshot(
   snapshot: ThreadOpenSnapshot | null,
   method: string,
@@ -25,26 +47,7 @@ export function applyEventToOpenSnapshot(
     }),
   );
   let nextSnapshot = withSnapshotHistory(snapshot, history);
-
-  if (method === "thread/status/changed") {
-    nextSnapshot = updateSnapshotThreadStatus(nextSnapshot, params.status);
-  }
-  if (method === "thread/settings/updated") {
-    nextSnapshot = {
-      ...nextSnapshot,
-      threadSettings: {
-        model: params.threadSettings?.model ?? null,
-        effort: params.threadSettings?.effort ?? null,
-        approvalPolicy: params.threadSettings?.approvalPolicy ?? null,
-      },
-    };
-  }
-  if (method === "thread/tokenUsage/updated") {
-    nextSnapshot = {
-      ...nextSnapshot,
-      tokenUsage: normalizeTokenUsage(params.tokenUsage) ?? nextSnapshot.tokenUsage,
-    };
-  }
+  nextSnapshot = snapshotEventReducers[method]?.(nextSnapshot, params) ?? nextSnapshot;
   return nextSnapshot;
 }
 

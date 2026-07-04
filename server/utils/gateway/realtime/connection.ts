@@ -1,64 +1,7 @@
 import type { RealtimeClientMessage } from "~~/shared/types";
-import { authenticatePeer } from "./handlers/auth";
-import { subscribeHostLifecycle, unsubscribeHostLifecycle } from "./handlers/host-lifecycle";
-import {
-  activateThread,
-  startThread,
-  subscribeThread,
-  unsubscribeThread,
-} from "./handlers/thread-events";
-import { clearThreadGoal, getThreadGoal, setThreadGoal } from "./handlers/thread-goals";
-import {
-  closeTerminal,
-  listTerminals,
-  openTerminal,
-  resizeTerminal,
-  subscribeTerminalEvents,
-  writeTerminalInput,
-} from "./handlers/terminal";
-import {
-  interruptTurn,
-  ping,
-  respondToServerRequest,
-  startTurn,
-  steerTurn,
-} from "./handlers/turns";
-import { runPeerScoped, sendRealtimePeerMessage, stateFor, type RealtimePeer } from "./peer-state";
-
-type RealtimeMessageHandler<T extends RealtimeClientMessage["type"]> = (
-  peer: RealtimePeer,
-  request: Extract<RealtimeClientMessage, { type: T }>,
-) => void | Promise<void>;
-
-type RealtimeMessageHandlerRegistry = {
-  [K in RealtimeClientMessage["type"]]?: RealtimeMessageHandler<K>;
-};
-
-const publicHandlers: RealtimeMessageHandlerRegistry = {
-  "auth.authenticate": authenticatePeer,
-};
-
-const authenticatedHandlers: RealtimeMessageHandlerRegistry = {
-  "host.lifecycle.subscribe": subscribeHostLifecycle,
-  "host.lifecycle.unsubscribe": unsubscribeHostLifecycle,
-  "thread.activate": activateThread,
-  "thread.start": startThread,
-  "thread.subscribe": subscribeThread,
-  "thread.unsubscribe": unsubscribeThread,
-  "thread.goal.set": setThreadGoal,
-  "thread.goal.get": getThreadGoal,
-  "thread.goal.clear": clearThreadGoal,
-  "turn.start": startTurn,
-  "turn.steer": steerTurn,
-  "turn.interrupt": interruptTurn,
-  "serverRequest.respond": respondToServerRequest,
-  "terminal.open": openTerminal,
-  "terminal.list": listTerminals,
-  "terminal.input": writeTerminalInput,
-  "terminal.resize": resizeTerminal,
-  "terminal.close": closeTerminal,
-  ping,
-};
+import { realtimeMessageDispatcher } from "./message-handlers";
+import { RealtimeAuthenticationRequiredError } from "./message-dispatcher";
+import { sendRealtimePeerMessage, stateFor, type RealtimePeer } from "./peer-state";
 
 export function openRealtimePeer(peer: RealtimePeer) {
   const state = stateFor(peer);
@@ -77,13 +20,12 @@ export async function handleRealtimePeerMessage(peer: RealtimePeer, rawMessage: 
   let request: RealtimeClientMessage | undefined;
   try {
     request = parseClientMessage(rawMessage);
-    const wasAuthenticated = stateFor(peer).authenticated;
-    const handler = handlerFor(peer, request);
-    await handler(peer, request as never);
-    if (!wasAuthenticated && request.type === "auth.authenticate") {
-      subscribeTerminalEvents(peer);
-    }
+    await realtimeMessageDispatcher.dispatch(peer, request);
   } catch (error: any) {
+    if (error instanceof RealtimeAuthenticationRequiredError) {
+      rejectUnauthenticatedPeer(peer, request);
+      return;
+    }
     sendRealtimePeerMessage(peer, {
       type: "error",
       message: error?.message || "Realtime message failed",
@@ -111,28 +53,7 @@ export function cleanupRealtimePeer(peer: RealtimePeer) {
   state.threadUnsubscribers.clear();
 }
 
-function handlerFor(peer: RealtimePeer, request: RealtimeClientMessage) {
-  const state = stateFor(peer);
-  if (state.authenticated) {
-    const handler = authenticatedHandlers[request.type] ?? publicHandlers[request.type];
-    if (handler) {
-      return scopedHandler(peer, handler);
-    }
-    throw new Error(`Unsupported realtime message: ${request.type}`);
-  }
-  const publicHandler = publicHandlers[request.type];
-  if (publicHandler) {
-    return publicHandler;
-  }
-  return unauthenticatedHandler;
-}
-
-function scopedHandler(peer: RealtimePeer, handler: RealtimeMessageHandler<any>) {
-  return (scopedPeer: RealtimePeer, request: any) =>
-    runPeerScoped(peer, () => handler(scopedPeer, request));
-}
-
-function unauthenticatedHandler(peer: RealtimePeer, request: RealtimeClientMessage) {
+function rejectUnauthenticatedPeer(peer: RealtimePeer, request: RealtimeClientMessage | undefined) {
   sendRealtimePeerMessage(peer, {
     type: "error",
     message: "Realtime connection is not authenticated",

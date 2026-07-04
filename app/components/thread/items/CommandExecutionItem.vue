@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import HighlightedCode from "@/components/common/HighlightedCode.vue";
-import TanStackStickToBottomScrollArea from "@/components/common/TanStackStickToBottomScrollArea.vue";
+import { ChatStickToBottomScrollArea } from "@/components/common/chat-virtualizer";
 import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
 
 const props = defineProps<{
@@ -96,7 +96,7 @@ async function respond(decision: "accept" | "decline") {
           {{ t("app.serverRequestResolved") }}
         </div>
       </div>
-      <TanStackStickToBottomScrollArea
+      <ChatStickToBottomScrollArea
         v-if="output"
         class="mt-2 max-h-56 rounded-lg border border-hairline bg-canvas-soft"
         viewport-class="max-h-56"
@@ -111,7 +111,7 @@ async function respond(decision: "accept" | "decline") {
           language="shell"
           pre-class="syntax-highlight min-w-max whitespace-pre p-3 text-xs leading-5 text-ink-secondary"
         />
-      </TanStackStickToBottomScrollArea>
+      </ChatStickToBottomScrollArea>
       <div
         v-else
         class="mt-2 rounded-lg border border-hairline bg-canvas-soft px-3 py-2 text-sm text-ink-faint"

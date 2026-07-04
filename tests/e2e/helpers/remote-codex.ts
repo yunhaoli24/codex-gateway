@@ -210,9 +210,9 @@ export async function sendImageTurnThroughGateway(
   await page.evaluate(
     async ({ marker, imagePath, model }) => {
       const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway-thread-turns");
       if (!store) {
-        throw new Error("Unable to locate gateway Pinia store");
+        throw new Error("Unable to locate gateway thread-turns Pinia store");
       }
       await store.sendTurn(`回复：${marker}`, {
         model: model || undefined,

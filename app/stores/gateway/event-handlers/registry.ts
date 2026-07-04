@@ -6,9 +6,10 @@ import { notificationEventHandlers } from "./notification-events";
 import { requestEventHandlers } from "./request-events";
 import { threadEventHandlers } from "./thread-events";
 import { turnEventHandlers } from "./turn-events";
+import { AppServerEventDispatcher } from "./dispatcher";
 import type { GatewayEventHandlerRegistry } from "./types";
 
-export const appServerEventHandlers: GatewayEventHandlerRegistry = {
+const appServerEventHandlers: GatewayEventHandlerRegistry = {
   ...threadEventHandlers,
   ...goalEventHandlers,
   ...turnEventHandlers,
@@ -18,3 +19,5 @@ export const appServerEventHandlers: GatewayEventHandlerRegistry = {
   ...errorEventHandlers,
   ...notificationEventHandlers,
 };
+
+export const appServerEventDispatcher = new AppServerEventDispatcher(appServerEventHandlers);
