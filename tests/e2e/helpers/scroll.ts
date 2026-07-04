@@ -63,6 +63,23 @@ export async function captureVisibleTextAnchor(page: Page, prefix: string) {
   }, prefix);
 }
 
+export async function captureTextAnchor(page: Page, text: string) {
+  return await page.getByTestId(chatScrollAreaTestId).evaluate((root: HTMLElement, text) => {
+    const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+    if (!viewport) throw new Error("Missing chat viewport");
+    const element = Array.from(viewport.querySelectorAll("p")).find(
+      (candidate) => candidate.textContent?.trim() === text,
+    );
+    if (!element) {
+      throw new Error(`Missing text anchor ${text}`);
+    }
+    return {
+      text,
+      top: element.getBoundingClientRect().top,
+    };
+  }, text);
+}
+
 export async function visibleAgentLineTop(page: Page, text: string) {
   return await visibleTextTop(page, text);
 }
@@ -86,6 +103,16 @@ export async function scrollChatViewportToBottom(page: Page) {
     const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
     if (!viewport) throw new Error("Missing chat viewport");
     viewport.scrollTop = viewport.scrollHeight;
+    viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+}
+
+export async function scrollChatViewportToTop(page: Page) {
+  await page.getByTestId(chatScrollAreaTestId).evaluate((root: HTMLElement) => {
+    const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+    if (!viewport) throw new Error("Missing chat viewport");
+    viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -240 }));
+    viewport.scrollTop = 0;
     viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
 }
@@ -117,21 +144,27 @@ export async function commandOutputScrollTop(page: Page) {
 }
 
 export async function setDiffScrollLeft(page: Page, text: string, scrollLeft: number) {
-  return await page.getByText(text).first().evaluate((element: HTMLElement, scrollLeft) => {
-    const viewport = element.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
-    if (!viewport) throw new Error("Missing diff viewport");
-    viewport.scrollLeft = scrollLeft;
-    viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
-    return viewport.scrollLeft;
-  }, scrollLeft);
+  return await page
+    .getByText(text)
+    .first()
+    .evaluate((element: HTMLElement, scrollLeft) => {
+      const viewport = element.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+      if (!viewport) throw new Error("Missing diff viewport");
+      viewport.scrollLeft = scrollLeft;
+      viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
+      return viewport.scrollLeft;
+    }, scrollLeft);
 }
 
 export async function diffScrollLeft(page: Page, text: string) {
-  return await page.getByText(text).first().evaluate((element: HTMLElement) => {
-    const viewport = element.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
-    if (!viewport) throw new Error("Missing diff viewport");
-    return viewport.scrollLeft;
-  });
+  return await page
+    .getByText(text)
+    .first()
+    .evaluate((element: HTMLElement) => {
+      const viewport = element.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+      if (!viewport) throw new Error("Missing diff viewport");
+      return viewport.scrollLeft;
+    });
 }
 
 async function chatViewportMaxScrollTop(page: Page) {

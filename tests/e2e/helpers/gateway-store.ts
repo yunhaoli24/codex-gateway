@@ -17,6 +17,8 @@ interface SeedGatewayThreadInput {
   threads?: unknown[];
   status?: "idle" | "running" | "completed" | "failed" | "interrupted";
   loading?: boolean;
+  olderTurnsCursor?: string | null;
+  newerTurnsCursor?: string | null;
   events?: GatewayEvent[];
   lastEventId?: number;
   threadViews?: Record<string, unknown>;
@@ -76,6 +78,8 @@ export async function seedGatewayThread(page: Page, input: SeedGatewayThreadInpu
     store.history = input.history ?? (threadId ? input.defaultHistory : null);
     store.events = input.events ?? [];
     store.lastEventId = input.lastEventId ?? store.lastEventId;
+    store.olderTurnsCursor = input.olderTurnsCursor ?? null;
+    store.newerTurnsCursor = input.newerTurnsCursor ?? null;
     store.threadViews = { ...store.threadViews, ...input.threadViews };
     store.initializing = false;
     store.loading = input.loading ?? false;

@@ -10,7 +10,7 @@ export function createGatewayThreadTurnActions() {
   const { t } = useI18n();
   return {
     sendTurn: (text: string, options?: ComposerTurnOptions) => sendTurn(t, text, options),
-    loadOlderTurns: () => loadOlderTurns(t),
+    loadOlderTurns: (options?: { limit?: number }) => loadOlderTurns(t, options),
     interruptActiveTurn: () => interruptActiveTurn(t),
     interruptThreadTurn: (input: { hostId: number; threadId: string; projectId?: number | null }) =>
       interruptThreadTurn(t, input),

@@ -3,6 +3,11 @@ import type { VirtualItem } from "@tanstack/virtual-core";
 import type { ComponentPublicInstance } from "vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { ChatVirtualScrollFrame, useChatVirtualizer } from "@/components/common/chat-virtualizer";
+import {
+  capturePrependAnchor,
+  restorePrependAnchor,
+  type PrependAnchor,
+} from "@/components/common/chat-virtualizer/prepend-anchor";
 
 interface TimelineViewportRow {
   key: string;
@@ -46,7 +51,8 @@ const chatVirtualizer = useChatVirtualizer({
 const virtualizer = chatVirtualizer.virtualizer;
 
 const virtualRows = chatVirtualizer.virtualItems;
-const rowKeySignature = computed(() => props.rows.map((row) => row.key).join("\u0000"));
+const rowKeys = computed(() => props.rows.map((row) => row.key));
+let pendingPrependAnchor: PrependAnchor | null = null;
 
 function scrollViewport() {
   return scrollFrameRef.value?.getViewport() ?? null;
@@ -89,9 +95,33 @@ watch(
 );
 
 watch(
-  rowKeySignature,
-  () => {
+  rowKeys,
+  (nextKeys, previousKeys) => {
+    pendingPrependAnchor = capturePrependAnchor({
+      previousKeys,
+      nextKeys,
+      viewport: scrollViewport(),
+    });
+  },
+  { flush: "sync" },
+);
+
+watch(
+  rowKeys,
+  async () => {
+    const prependAnchor = pendingPrependAnchor;
+    pendingPrependAnchor = null;
     rowElements.clear();
+    if (prependAnchor) {
+      await restorePrependAnchor({
+        anchor: prependAnchor,
+        getViewport: scrollViewport,
+        refresh: chatVirtualizer.refresh,
+        measureVisibleItems: chatVirtualizer.measureVisibleItems,
+        scrollToIndex: (index) => virtualizer.value.scrollToIndex(index, { align: "start" }),
+      });
+      return;
+    }
     chatVirtualizer.refresh();
     chatVirtualizer.stickIfFollowing();
   },
@@ -137,6 +167,7 @@ defineExpose({ resetFollowLatest });
           :key="String(virtualRow.key)"
           :ref="setRowRef"
           :data-index="virtualRow.index"
+          :data-row-key="rows[virtualRow.index]?.key"
           class="pb-5 md:pb-8"
           :style="rowStyle(virtualRow)"
         >

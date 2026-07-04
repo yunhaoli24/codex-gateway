@@ -4,6 +4,7 @@ import { useGatewayStore } from "@/stores/gateway";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import WorkspaceTabs from "./WorkspaceTabs.vue";
 import { openWorkspaceTerminal, useChatWorkspaceState } from "./chat-workspace-state";
+import { useBackgroundTurnTopUp } from "./useBackgroundTurnTopUp";
 
 const store = useGatewayStore();
 const threadTurns = useGatewayThreadTurnsStore();
@@ -34,6 +35,19 @@ function loadOlderTurns() {
 function openCurrentTerminal() {
   openWorkspaceTerminal(store, terminalTransport);
 }
+
+useBackgroundTurnTopUp({
+  selectedHostId,
+  selectedThreadId,
+  selectedThreadViewReady,
+  loading,
+  loadingOlderTurns,
+  olderTurnsCursor,
+  historyTurns,
+  loadOlderTurns: (options) => {
+    void threadTurns.loadOlderTurns(options);
+  },
+});
 </script>
 
 <template>

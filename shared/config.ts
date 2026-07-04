@@ -1,6 +1,7 @@
 import type { GatewayConfig, GatewayNotificationSettings } from "./types";
 
 export const INITIAL_TURN_PAGE_LIMIT = 2;
+export const OPEN_THREAD_BACKGROUND_TURN_TARGET = 5;
 export const OLDER_TURN_PAGE_LIMIT = 5;
 export const SERVER_TURN_CACHE_LIMIT = 50;
 export const DEFAULT_BARK_SERVER_URL = "https://api.day.app";

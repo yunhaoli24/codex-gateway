@@ -1,6 +1,10 @@
 import { defineEventHandler, getRequestURL, setResponseStatus, type H3Event } from "h3";
 import type { GatewayConfig, HostRecord } from "~~/shared/types";
 import { normalizeNotificationSettings } from "~~/shared/config";
+import {
+  isStaleThreadCursorErrorLike,
+  STALE_THREAD_CURSOR_ERROR_CODE,
+} from "~~/shared/gateway-errors";
 import { userStore } from "../auth/users";
 import { hostRuntimeSupervisor } from "../runtime/host-runtime-supervisor";
 import {
@@ -62,6 +66,7 @@ export function defineGatewayEventHandler<T>(handler: (event: H3Event) => Promis
       return {
         error: true,
         statusCode,
+        code: publicErrorCode(error),
         message: publicErrorMessage(error),
         details: publicErrorDetails(event, context?.scope ?? "request", context?.details ?? {}),
       };
@@ -167,12 +172,22 @@ function serializeError(error: unknown): Record<string, unknown> {
 }
 
 function statusCodeFromError(error: unknown) {
+  if (isStaleThreadCursorErrorLike(error)) {
+    return 409;
+  }
   const statusCode =
     typeof (error as any)?.statusCode === "number" ? Number((error as any).statusCode) : null;
   if (statusCode && statusCode >= 400 && statusCode < 600) {
     return statusCode;
   }
   return 502;
+}
+
+function publicErrorCode(error: unknown) {
+  if (isStaleThreadCursorErrorLike(error)) {
+    return STALE_THREAD_CURSOR_ERROR_CODE;
+  }
+  return undefined;
 }
 
 function publicErrorMessage(error: unknown) {

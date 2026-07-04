@@ -8,6 +8,7 @@ import {
   seedGatewayThread,
 } from "./helpers/gateway-store";
 import {
+  captureTextAnchor,
   captureVisibleAgentLineAnchor,
   captureVisibleTextAnchor,
   chatViewportScrollTop,
@@ -16,9 +17,46 @@ import {
   parkChatViewportInMiddle,
   parkCommandOutputInMiddle,
   scrollChatViewportToBottom,
+  scrollChatViewportToTop,
   visibleAgentLineTop,
   visibleTextTop,
 } from "./helpers/scroll";
+
+test("opened threads render two turns first and then top up to five turns", async ({ page }) => {
+  await openApp(page);
+  const threadId = "e2e-background-turn-top-up-thread";
+  let requestedLimit: string | null = null;
+  await page.route("**/api/threads/turns?**", async (route) => {
+    const url = new URL(route.request().url());
+    requestedLimit = url.searchParams.get("limit");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        history: { thread: { id: threadId, turns: buildTextTurns(1, 3, "background turn") } },
+        turnsPage: { nextCursor: null, backwardsCursor: null },
+      }),
+    });
+  });
+
+  await seedGatewayThread(page, {
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId, name: "Background Turn Top Up" },
+    olderTurnsCursor: JSON.stringify({ turnId: "turn-004", includeAnchor: false }),
+    history: {
+      thread: {
+        id: threadId,
+        turns: buildTextTurns(4, 5, "background turn"),
+      },
+    },
+  });
+
+  await expect(page.getByText("background turn 004")).toBeVisible();
+  await expect(page.getByText("background turn 005")).toBeVisible();
+  await expect.poll(() => threadTurnCount(page)).toBe(5);
+  expect(requestedLimit).toBe("3");
+});
 
 test("streaming output does not force scroll when the user is reading earlier content", async ({
   page,
@@ -284,3 +322,83 @@ test("manually expanded completed intermediate steps stay open after returning t
   await expect(toggle).toHaveAttribute("data-state", "open");
   await expect(page.getByTestId("intermediate-steps")).toBeVisible();
 });
+
+test("loading older turns prepends history without moving the current viewport anchor", async ({
+  page,
+}) => {
+  await openApp(page);
+  const threadId = "e2e-load-older-anchor-thread";
+  let markTurnsRequestStarted = () => {};
+  let releaseTurnsResponse = () => {};
+  const turnsRequestStarted = new Promise<void>((resolve) => {
+    markTurnsRequestStarted = resolve;
+  });
+  const turnsResponseCanFinish = new Promise<void>((resolve) => {
+    releaseTurnsResponse = resolve;
+  });
+  await page.route("**/api/threads/turns?**", async (route) => {
+    markTurnsRequestStarted();
+    await turnsResponseCanFinish;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        history: { thread: { id: threadId, turns: buildTextTurns(1, 5, "anchored turn") } },
+        turnsPage: { nextCursor: null, backwardsCursor: null },
+      }),
+    });
+  });
+  await seedGatewayThread(page, {
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId, name: "Load Older Anchor" },
+    olderTurnsCursor: JSON.stringify({ turnId: "turn-006", includeAnchor: false }),
+    history: {
+      thread: {
+        id: threadId,
+        turns: buildTextTurns(6, 10, "anchored turn"),
+      },
+    },
+  });
+
+  await scrollChatViewportToTop(page);
+  await turnsRequestStarted;
+  const anchor = await captureTextAnchor(page, "anchored turn 006");
+  releaseTurnsResponse();
+
+  await expect.poll(() => threadTurnCount(page)).toBe(10);
+  await page.waitForTimeout(300);
+  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeGreaterThanOrEqual(anchor.top - 2);
+  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeLessThanOrEqual(anchor.top + 2);
+});
+
+function buildTextTurns(start: number, end: number, prefix: string) {
+  return Array.from({ length: end - start + 1 }, (_, index) => {
+    const number = start + index;
+    const label = String(number).padStart(3, "0");
+    return {
+      id: `turn-${label}`,
+      status: "completed",
+      items: [
+        {
+          id: `agent-${label}`,
+          type: "agentMessage",
+          phase: "final_answer",
+          status: "completed",
+          text: `${prefix} ${label}`,
+        },
+      ],
+    };
+  });
+}
+
+async function threadTurnCount(page: import("@playwright/test").Page) {
+  return await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    return store.history?.thread?.turns?.length ?? 0;
+  });
+}

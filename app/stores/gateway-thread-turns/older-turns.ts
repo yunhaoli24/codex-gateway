@@ -4,9 +4,10 @@ import { mergeThreadTurns } from "~~/shared/thread-history/turns";
 import { gatewayApi } from "@/utils/gateway-api";
 import { useGatewayStore } from "@/stores/gateway";
 import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
+import { isStaleThreadCursorFetchError } from "./stale-cursor";
 import type { Translate } from "./types";
 
-export async function loadOlderTurns(t: Translate) {
+export async function loadOlderTurns(t: Translate, options: { limit?: number } = {}) {
   const gateway = useGatewayStore();
   if (
     !gateway.selectedHostId ||
@@ -27,7 +28,7 @@ export async function loadOlderTurns(t: Translate) {
         hostId,
         threadId,
         cursor: gateway.olderTurnsCursor,
-        limit: OLDER_TURN_PAGE_LIMIT,
+        limit: options.limit ?? OLDER_TURN_PAGE_LIMIT,
         sortDirection: "desc",
       },
     });
@@ -43,6 +44,16 @@ export async function loadOlderTurns(t: Translate) {
     gateway.newerTurnsCursor = result.turnsPage.backwardsCursor ?? gateway.newerTurnsCursor;
     gateway.cacheSelectedThreadView();
   } catch (error: any) {
+    if (isStaleThreadCursorFetchError(error)) {
+      if (gateway.selectedHostId !== hostId || gateway.selectedThreadId !== threadId) {
+        return;
+      }
+      gateway.olderTurnsCursor = null;
+      gateway.newerTurnsCursor = null;
+      gateway.cacheSelectedThreadView();
+      await gateway.refreshSelectedThreadSnapshot({ showLoading: false, scrollToLatest: false });
+      return;
+    }
     gateway.setError(
       messageFromError(error, t("app.loadOlderTurnsFailed"), errorMessageLabels(t)),
       { hostId, projectId, threadId },
