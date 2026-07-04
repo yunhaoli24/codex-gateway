@@ -34,6 +34,14 @@ export async function chatViewportScrollTop(page: Page) {
   });
 }
 
+export async function chatViewportBottomDistance(page: Page) {
+  return await page.getByTestId(chatScrollAreaTestId).evaluate((root: HTMLElement) => {
+    const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+    if (!viewport) throw new Error("Missing chat viewport");
+    return Math.max(0, viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight);
+  });
+}
+
 export async function captureVisibleAgentLineAnchor(page: Page) {
   return await captureVisibleTextAnchor(page, "agent loop line ");
 }

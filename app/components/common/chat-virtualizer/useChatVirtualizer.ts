@@ -99,6 +99,7 @@ export function useChatVirtualizer(options: ChatVirtualizerOptions) {
     bindInputListeners: sticky.bindInputListeners,
     containerRef: directVirtualizer.containerRef,
     followLatest: sticky.followLatest,
+    followContentChange: sticky.followContentChange,
     initialBottomAligned: sticky.initialBottomAligned,
     isNearBottom: sticky.isNearBottom,
     measureElement,

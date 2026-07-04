@@ -88,8 +88,7 @@ function resetFollowLatest() {
 watch(
   () => props.followKey,
   () => {
-    chatVirtualizer.refresh();
-    chatVirtualizer.stickIfFollowing();
+    chatVirtualizer.followContentChange();
   },
   { flush: "post" },
 );
@@ -122,8 +121,7 @@ watch(
       });
       return;
     }
-    chatVirtualizer.refresh();
-    chatVirtualizer.stickIfFollowing();
+    chatVirtualizer.followContentChange();
   },
   { flush: "post" },
 );

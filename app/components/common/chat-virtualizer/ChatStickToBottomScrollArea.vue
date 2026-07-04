@@ -57,8 +57,6 @@ function setContentRef(refValue: Element | ComponentPublicInstance | null) {
     return;
   }
   measureContent();
-  chatVirtualizer.stickIfFollowing();
-  void chatVirtualizer.settleAndStick();
 }
 
 function measureContent() {
@@ -87,8 +85,8 @@ function measureContent() {
 
 watch(
   () => props.followKey,
-  async () => {
-    chatVirtualizer.stickIfFollowing();
+  () => {
+    measureContent();
   },
   { flush: "post" },
 );

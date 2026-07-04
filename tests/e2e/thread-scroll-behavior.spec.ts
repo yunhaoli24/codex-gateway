@@ -11,6 +11,7 @@ import {
   captureTextAnchor,
   captureVisibleAgentLineAnchor,
   captureVisibleTextAnchor,
+  chatViewportBottomDistance,
   chatViewportScrollTop,
   commandOutputScrollTop,
   detachChatViewportNearBottom,
@@ -55,6 +56,60 @@ test("opened threads render two turns first and then top up to five turns", asyn
   expect(requests).toHaveLength(1);
   expect(requests[0]).toMatchObject({ type: "thread.turns.load", limit: 3 });
   expect(httpTurnsRequests()).toBe(0);
+});
+
+test("streaming output stays pinned when the user is already at the latest content", async ({
+  page,
+}) => {
+  await openApp(page);
+  const threadId = "e2e-pinned-stream-thread";
+  const agentLines = Array.from(
+    { length: 90 },
+    (_, index) => `pinned stream line ${String(index + 1).padStart(3, "0")}`,
+  );
+  await seedGatewayThread(page, {
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId, name: "Pinned Stream" },
+    status: "running",
+    history: {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "turn-pinned-1",
+            status: "running",
+            items: [
+              {
+                id: "user-pinned-1",
+                type: "userMessage",
+                content: [{ type: "text", text: "stream while pinned" }],
+              },
+              {
+                id: "agent-pinned-1",
+                type: "agentMessage",
+                status: "inProgress",
+                text: agentLines.join("\n\n"),
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  await expect(page.getByText("pinned stream line 090")).toBeVisible();
+  await scrollChatViewportToBottom(page);
+  await expect(page.getByTestId("chat-scroll-area")).toHaveAttribute("data-follow-latest", "true");
+
+  for (let batch = 0; batch < 4; batch += 1) {
+    await appendAgentStreamLines(page, {
+      itemId: "agent-pinned-1",
+      prefix: `pinned appended batch ${batch + 1}`,
+      count: 8,
+    });
+    await expect.poll(() => chatViewportBottomDistance(page)).toBeLessThanOrEqual(2);
+  }
 });
 
 test("streaming output does not force scroll when the user is reading earlier content", async ({

@@ -51,6 +51,19 @@ export function useVirtualStickToBottom(options: VirtualStickToBottomOptions) {
     state.initialBottomAligned.value = true;
   }
 
+  function followContentChange() {
+    bindInputListeners();
+    if (!state.followLatest.value) {
+      return;
+    }
+    options.measure();
+    const viewport = options.getViewport();
+    if (viewport) {
+      options.scrollToBottom(viewport);
+      state.markProgrammaticScroll(viewport);
+    }
+  }
+
   function reset() {
     state.reset();
     void scrollToBottom();
@@ -97,6 +110,7 @@ export function useVirtualStickToBottom(options: VirtualStickToBottomOptions) {
   return {
     bindInputListeners,
     followLatest: state.followLatest,
+    followContentChange,
     initialBottomAligned: state.initialBottomAligned,
     isNearBottom: state.isNearBottom,
     reset,
