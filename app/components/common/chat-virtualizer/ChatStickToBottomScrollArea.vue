@@ -137,10 +137,7 @@ function handleViewportReady() {
       <div
         v-else
         :ref="setContentRef"
-        :class="[
-          props.allowHorizontalOverflow ? 'min-w-full w-max' : 'w-full',
-          props.contentClass,
-        ]"
+        :class="[props.allowHorizontalOverflow ? 'min-w-full w-max' : 'w-full', props.contentClass]"
       >
         <slot />
       </div>

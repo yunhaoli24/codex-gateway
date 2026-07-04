@@ -65,11 +65,7 @@ export function useTerminalTheme() {
   }
 
   onMounted(updateRootThemeClass);
-  useMutationObserver(
-    rootElement,
-    updateRootThemeClass,
-    { attributeFilter: ["class"] },
-  );
+  useMutationObserver(rootElement, updateRootThemeClass, { attributeFilter: ["class"] });
 
   const isDark = computed(() => {
     if (rootThemeClass.value === "dark") {

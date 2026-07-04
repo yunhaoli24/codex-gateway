@@ -43,8 +43,7 @@ const COMPLETED_THREAD_VALUES = new Set(["completed", "idle", "notLoaded", "inac
 const POST_TURN_ACTIVE_ITEM_TYPES = new Set(["contextCompaction", "sleep"]);
 const RUNTIME_STATUS_EVENT_REDUCERS: Record<string, RuntimeStatusEventReducer> = {
   "turn/started": () => "running",
-  "turn/completed": (_event, params) =>
-    runtimeStatusFromCompletedTurn(recordField(params, "turn")),
+  "turn/completed": (_event, params) => runtimeStatusFromCompletedTurn(recordField(params, "turn")),
   "thread/status/changed": (_event, params) =>
     runtimeStatusFromAppThreadStatus(recordField(params, "status")),
 };
@@ -89,7 +88,10 @@ export function runtimeStatusFromCompletedTurn(turn: unknown): ThreadRuntimeStat
   if (value && TERMINAL_STATUS_VALUES.has(value)) {
     return terminalTurnStatus(value);
   }
-  if (completedTurn && (hasActiveItems(completedTurn) || isThreadActiveStatus(completedTurn.status))) {
+  if (
+    completedTurn &&
+    (hasActiveItems(completedTurn) || isThreadActiveStatus(completedTurn.status))
+  ) {
     return "running";
   }
   return "completed";
