@@ -22,6 +22,7 @@ The goal is simple: open Codex sessions from many servers in a browser while kee
 - Keep official Codex app-server semantics instead of inventing a parallel protocol.
 - Share one gateway-side SSH/RPC lifecycle per host across browser tabs.
 - Recover thread state after browser reloads, app-server restarts, or temporary SSH disconnects.
+- Open a direct SSH terminal next to the agent loop when you need to inspect or fix the remote environment manually.
 
 ## Architecture
 
@@ -32,6 +33,7 @@ Browser
         ├─ SQLite encrypted config
         ├─ SSH connection pool
         ├─ one shared RPC client per host
+        ├─ direct SSH PTY terminal sessions
         ├─ thread/event cache
         └─ remote official codex app-server
 ```
@@ -40,7 +42,7 @@ Core rules:
 
 - Browsers never connect directly to remote app-servers or SSH hosts.
 - Gateway owns SSH, remote Codex upgrade, app-server startup, RPC, and event fan-out.
-- Turn start, steer, interrupt, and server-request responses use the page WebSocket.
+- Turn start, steer, interrupt, terminal input, terminal resize, and server-request responses use the page WebSocket.
 - Gateway caches recent thread state, warms pinned threads, and periodically refreshes stale running threads from app-server state.
 - The frontend renders domain state from Gateway and does not maintain a second durable timeline.
 
@@ -51,7 +53,9 @@ Core rules:
 - **Codex runtime management**: detects remote Codex versions, upgrades old installs, restarts stale app-server processes, and reconnects automatically.
 - **Thread discovery and restore**: discovers Codex sessions from remote state and opens threads with a small cached turn window first.
 - **Realtime turns**: start new turns, steer running turns, interrupt active turns, and answer app-server dynamic requests over WebSocket.
+- **Plan and goal modes**: slash commands expose Codex plan mode and goal progress, including token/time status in the composer.
 - **Agent loop UI**: reasoning, command execution, terminal waits, file edits, streaming diffs, images, context compaction, sleep, MCP/tool calls, notifications, and sub-agent side panels.
+- **Remote terminal tabs**: open independent SSH PTY terminals beside the agent loop with `@xterm/xterm`; terminal sessions are isolated per user and host.
 - **Multi-client sync**: multiple browser tabs can subscribe to the same thread and receive the same gateway-side app-server event stream.
 - **State repair**: after SSH/app-server reconnect, Gateway refreshes running thread state; a Nitro scheduled task also checks stale running threads.
 - **Bark notifications**: server-side Bark push for completed main turns, de-duplicated per user and turn.
@@ -90,6 +94,15 @@ pnpm build
 pnpm test:e2e
 ```
 
+Environment variables:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `CODEX_GATEWAY_CONFIG_SECRET` | Yes in production | Stable secret used to encrypt stored host/project/thread config. |
+| `CODEX_GATEWAY_DB_PATH` | No | SQLite database path. Defaults to the app data path; Docker uses `/data/codex-gateway.db`. |
+| `HOST` | No | Nuxt listen host. Docker uses `0.0.0.0`. |
+| `PORT` | No | Nuxt listen port. Docker uses `3000`. |
+
 Create an admin user:
 
 ```bash
@@ -99,6 +112,14 @@ pnpm user:create <username> <password>
 ```
 
 `CODEX_GATEWAY_CONFIG_SECRET` encrypts stored connection config. Use a stable, sufficiently long secret in production. Changing it makes existing encrypted config unreadable.
+
+## Security Model
+
+- SSH credentials and Codex tokens stay on the server side.
+- Browser clients authenticate to Gateway with a Bearer token.
+- Stored connection config is encrypted in SQLite with `CODEX_GATEWAY_CONFIG_SECRET`.
+- Direct terminal tabs are server-side SSH PTY channels; they do not expose SSH keys to the browser.
+- Public deployments should run behind a trusted reverse proxy with HTTPS.
 
 ## Docker Deployment
 
@@ -122,6 +143,12 @@ Run:
 
 ```bash
 pnpm test:e2e
+```
+
+If the host machine does not have `pnpm`, use the containerized runner directly:
+
+```bash
+tests/e2e/run-in-containers.sh
 ```
 
 Run the full E2E suite for changes involving SSH, RPC, WebSocket, thread state, config, upload, diff rendering, mobile layout, or app-server protocol handling.
