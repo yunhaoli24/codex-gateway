@@ -34,6 +34,7 @@ const props = defineProps<{
   renameValue: string;
   longPressHandlers?: Record<string, unknown>;
   threadRuntimeStatus: (hostId: number, threadId: string) => ThreadRuntimeStatus;
+  threadCompletionAttention: (hostId: number, threadId: string) => boolean;
 }>();
 
 const emit = defineEmits<{
@@ -158,6 +159,9 @@ function hostConnectionStatus(hostId: number) {
                   :test-id="`thread-button-${thread.id}`"
                   :selected="String(thread.id) === String(selectedThreadId)"
                   :status="threadRuntimeStatus(project.hostId, String(thread.id))"
+                  :completion-attention="
+                    threadCompletionAttention(project.hostId, String(thread.id))
+                  "
                   :subtitle="formatRelative(thread.updatedAt)"
                   :rename-active="renamingThreadId === String(thread.id)"
                   :rename-value="renameValue"

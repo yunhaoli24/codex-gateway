@@ -19,6 +19,7 @@ import {
   syncSelectedRoute,
 } from "../thread-open/view-state";
 import { patchThreadView, upsertThreadView } from "../thread-open/thread-view-cache";
+import { clearThreadCompletionAttention } from "../thread-runtime/completion-attention";
 
 export function createThreadOpenActions(ctx: GatewayStoreContext) {
   return {
@@ -67,6 +68,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       if (!targetHostId) {
         return;
       }
+      clearThreadCompletionAttention(ctx, targetHostId, threadId);
       if (
         ctx.state.selectedHostId === targetHostId &&
         ctx.state.selectedThreadId === threadId &&

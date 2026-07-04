@@ -12,6 +12,7 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
     projects,
     pinnedThreads,
     openingPinnedThreadKey,
+    unviewedCompletedThreadKeys,
     threadStatuses,
     hostConnectionStatuses,
     selectedHostId,
@@ -117,12 +118,20 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
     return threadStatuses.value[threadKey(hostId, threadId)] ?? "idle";
   }
 
+  function threadCompletionAttention(hostId: number, threadId: string) {
+    return unviewedCompletedThreadKeys.value.includes(threadKey(hostId, threadId));
+  }
+
   function pinnedRuntimeStatus(thread: any) {
     const key = pinnedThreadKey(thread);
     if (openingPinnedThreadKey.value === key) {
       return "running";
     }
     return threadRuntimeStatus(thread.hostId, String(thread.threadId));
+  }
+
+  function pinnedCompletionAttention(thread: any) {
+    return threadCompletionAttention(thread.hostId, pinnedThreadId(thread));
   }
 
   watch(
@@ -172,6 +181,8 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
     selectProject,
     startThreadInProject,
     threadRuntimeStatus,
+    threadCompletionAttention,
     pinnedRuntimeStatus,
+    pinnedCompletionAttention,
   };
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  BellDotIcon,
   CheckCircle2Icon,
   CircleAlertIcon,
   CirclePauseIcon,
@@ -24,6 +25,7 @@ const props = defineProps<{
   testId: string;
   selected: boolean;
   status: ThreadRuntimeStatus;
+  completionAttention?: boolean;
   subtitle?: string;
   renameActive?: boolean;
   renameValue?: string;
@@ -46,14 +48,18 @@ const { t } = useI18n();
 
 const statusIconByStatus = {
   running: Loader2Icon,
+  completedUnviewed: BellDotIcon,
   completed: CheckCircle2Icon,
   failed: CircleAlertIcon,
   interrupted: CirclePauseIcon,
 } as const;
 
-const statusLabel = computed(() => t(statusLabelKey(props.status)));
+const displayStatus = computed(() =>
+  props.completionAttention ? "completedUnviewed" : props.status,
+);
+const statusLabel = computed(() => t(statusLabelKey(displayStatus.value)));
 const statusIcon = computed(
-  () => statusIconByStatus[props.status as keyof typeof statusIconByStatus] ?? null,
+  () => statusIconByStatus[displayStatus.value as keyof typeof statusIconByStatus] ?? null,
 );
 const statusIconClass = computed(() => ({
   "animate-spin": props.status === "running",
@@ -95,7 +101,7 @@ const statusIconClass = computed(() => ({
         </span>
         <span
           class="ml-2 inline-flex size-4 shrink-0 items-center justify-center"
-          :class="statusClass(status)"
+          :class="statusClass(displayStatus)"
           :aria-label="statusLabel"
         >
           <component :is="statusIcon" v-if="statusIcon" class="size-3.5" :class="statusIconClass" />

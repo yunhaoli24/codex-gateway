@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { openApp } from "./helpers/app";
-import { seedGatewayThread } from "./helpers/gateway-store";
+import { installRealtimeThreadSnapshotMock, seedGatewayThread } from "./helpers/gateway-store";
 
 test("toggles an expanded project closed from the desktop sidebar", async ({ page }) => {
   await openApp(page);
@@ -34,4 +34,61 @@ test("toggles an expanded project closed from the desktop sidebar", async ({ pag
 
   await page.getByTestId("project-button-201").click();
   await expect(page.getByTestId("thread-button-toggle-thread")).toBeHidden();
+});
+
+test("marks completed threads as needing review until they are opened", async ({ page }) => {
+  await openApp(page);
+  await seedGatewayThread(page, {
+    hostId: 102,
+    projectId: 202,
+    threadId: "selected-thread",
+    host: { id: 102, name: "Review Host", sshHost: "localhost", sshUser: "codex" },
+    project: { id: 202, hostId: 102, name: "Review Project", remotePath: "/workspace/review" },
+    currentThread: { id: "selected-thread", name: "Selected Thread" },
+    threads: [
+      {
+        id: "review-thread",
+        name: "Review Thread",
+        pinned: false,
+        updatedAt: Math.floor(Date.now() / 1000),
+      },
+      {
+        id: "selected-thread",
+        name: "Selected Thread",
+        pinned: false,
+        updatedAt: Math.floor(Date.now() / 1000),
+      },
+    ],
+    status: "completed",
+  });
+  await installRealtimeThreadSnapshotMock(page, {
+    hostId: 102,
+    snapshots: {
+      "review-thread": {
+        thread: { id: "review-thread", name: "Review Thread" },
+        history: { thread: { id: "review-thread", turns: [] } },
+        projectId: 202,
+        runtimeStatus: "completed",
+      },
+    },
+  });
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    store.setThreadStatus(102, "review-thread", "running");
+    store.setThreadStatus(102, "review-thread", "completed");
+  });
+
+  await expect(page.getByTestId("thread-button-review-thread")).toBeVisible();
+  await expect(
+    page.getByTestId("thread-button-review-thread").getByLabel("已完成，待查看", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByTestId("thread-button-review-thread").click();
+  await expect(
+    page.getByTestId("thread-button-review-thread").getByLabel("已完成", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("thread-button-review-thread").getByLabel("已完成，待查看", { exact: true }),
+  ).toBeHidden();
 });

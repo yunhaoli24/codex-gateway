@@ -190,6 +190,7 @@
     "reasoningDefault": "默认推理",
     "loadingModels": "加载模型",
     "running": "运行中",
+    "completedUnviewed": "已完成，待查看",
     "completed": "已完成",
     "failed": "失败",
     "interrupted": "已中断",

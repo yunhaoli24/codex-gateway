@@ -13,6 +13,7 @@ export function createGatewayState(): GatewayStoreState {
     openingPinnedThreadKey: null,
     runningThreadKeys: [],
     threadStatuses: {},
+    unviewedCompletedThreadKeys: [],
     activeTurnIdsByThreadKey: {},
     activeTerminalProcessByThreadKey: {},
     threadSettingsByKey: {},

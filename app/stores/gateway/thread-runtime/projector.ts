@@ -2,6 +2,7 @@ import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { activeRemoteTurnId } from "../thread-turns/active-turn";
 import { pinnedKey } from "../thread-utils/identity";
 import type { GatewayStoreContext, GatewayStoreState } from "../types";
+import { syncThreadCompletionAttention } from "./completion-attention";
 
 export interface ThreadRuntimeProjection {
   key: string;
@@ -83,11 +84,13 @@ export function applyThreadRuntimeStatus(
   const key = pinnedKey(hostId, threadId);
   const runningKeys = new Set(ctx.state.runningThreadKeys);
   const nextStatus = input.status;
+  const previousStatus = ctx.state.threadStatuses[key];
 
   ctx.state.threadStatuses = {
     ...ctx.state.threadStatuses,
     [key]: nextStatus,
   };
+  syncThreadCompletionAttention(ctx, hostId, threadId, previousStatus, nextStatus);
 
   if (nextStatus === "running") {
     runningKeys.add(key);

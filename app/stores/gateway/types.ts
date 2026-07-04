@@ -97,6 +97,7 @@ export interface GatewayStoreState {
   openingPinnedThreadKey: string | null;
   runningThreadKeys: string[];
   threadStatuses: Record<string, ThreadRuntimeStatus>;
+  unviewedCompletedThreadKeys: string[];
   activeTurnIdsByThreadKey: Record<string, string>;
   activeTerminalProcessByThreadKey: Record<
     string,

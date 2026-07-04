@@ -1,5 +1,6 @@
 const threadStatusClassByStatus: Record<string, string> = {
   running: "text-primary",
+  completedUnviewed: "text-primary",
   completed: "text-accent-green",
   failed: "text-destructive",
   interrupted: "text-accent-orange",
@@ -7,6 +8,7 @@ const threadStatusClassByStatus: Record<string, string> = {
 
 const threadStatusLabelKeyByStatus: Record<string, string> = {
   running: "app.running",
+  completedUnviewed: "app.completedUnviewed",
   completed: "app.completed",
   failed: "app.failed",
   interrupted: "app.interrupted",

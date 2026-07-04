@@ -193,6 +193,7 @@
     "reasoningDefault": "Default reasoning",
     "loadingModels": "Loading models",
     "running": "Running",
+    "completedUnviewed": "Completed, needs review",
     "completed": "Completed",
     "failed": "Failed",
     "interrupted": "Interrupted",

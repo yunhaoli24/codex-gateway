@@ -11,6 +11,7 @@ const props = defineProps<{
   renameValue: string;
   longPressHandlers?: Record<string, unknown>;
   runtimeStatus: (thread: any) => any;
+  completionAttention: (thread: any) => boolean;
 }>();
 
 const emit = defineEmits<{
@@ -46,6 +47,7 @@ function isSelectedPinnedThread(thread: any) {
         :test-id="`pinned-thread-button-${pinnedThreadId(thread)}`"
         :selected="isSelectedPinnedThread(thread)"
         :status="runtimeStatus(thread)"
+        :completion-attention="completionAttention(thread)"
         :subtitle="subtitleForPinnedThread(thread) || formatRelative(thread.updatedAt)"
         :rename-active="renamingThreadId === pinnedThreadId(thread)"
         :rename-value="renameValue"
