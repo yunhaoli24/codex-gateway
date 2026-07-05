@@ -51,6 +51,7 @@ test("goal slash input derives the goal tag and requires an objective before sub
   await expect(
     page.getByTestId("composer-mode-strip").getByText("完成当前重构").first(),
   ).toBeVisible();
+  await expect(page.getByTestId("chat-scroll-area").getByText("/goal 完成当前重构")).toBeVisible();
 });
 
 test("goal slash menu exposes official app-server controls for an existing goal", async ({
@@ -196,6 +197,9 @@ test("goal progress updates the composer status strip without flooding the agent
   const strip = page.getByTestId("composer-mode-strip");
   await expect(strip.getByText(/持续 \*\*重构\*\* 输入框状态/).first()).toBeVisible();
   await expect(strip.getByText(/256 tokens/).first()).toBeVisible();
+  const goalMessages = page.locator(".thread-user-message", { hasText: "/goal 持续" });
+  await expect(goalMessages).toHaveCount(1);
+  await expect(goalMessages.first().locator("strong").getByText("重构")).toBeVisible();
   await page.getByTestId("composer-goal-summary").click();
   const goalDialog = page.getByRole("dialog");
   await expect(goalDialog.getByText("目标详情")).toBeVisible();
@@ -229,6 +233,7 @@ test("goal progress updates the composer status strip without flooding the agent
 
   await expect(page.getByTestId("composer-mode-strip")).toHaveCount(0);
   await expect(page.getByTestId("chat-scroll-area").getByText("目标已更新")).toHaveCount(0);
+  await expect(goalMessages).toHaveCount(1);
 });
 
 test("plan mode shows implementation actions for a second completed turn plan", async ({

@@ -196,7 +196,12 @@ export interface GatewayStoreContext {
   updateSelectedThreadSettings: (settings: ThreadSettingsState) => void;
   setThreadCollaborationMode: (hostId: number, threadId: string, mode: "default" | "plan") => void;
   dismissPlanImplementationPrompt: (hostId: number, threadId: string, planItemId: string) => void;
-  upsertThreadGoal: (hostId: number, threadId: string, goal: ThreadGoal) => void;
+  upsertThreadGoal: (
+    hostId: number,
+    threadId: string,
+    goal: ThreadGoal,
+    options?: { showObjectiveInTimeline?: boolean; turnId?: string | null },
+  ) => void;
   clearThreadGoalState: (hostId: number, threadId: string) => void;
   refreshSelectedThreadGoal: () => Promise<void>;
   applyLiveEvent: (event: GatewayEvent) => void;

@@ -435,16 +435,21 @@ export async function installSelectedThreadGoalSubmitMock(
     }
     store.setSelectedThreadGoal = async (objective: string) => {
       (window as any)[input.windowKey] = objective;
-      store.upsertThreadGoal(input.hostId, input.threadId, {
-        threadId: input.threadId,
-        objective,
-        status: "active",
-        tokenBudget: null,
-        tokensUsed: 0,
-        timeUsedSeconds: 0,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
+      store.upsertThreadGoal(
+        input.hostId,
+        input.threadId,
+        {
+          threadId: input.threadId,
+          objective,
+          status: "active",
+          tokenBudget: null,
+          tokensUsed: 0,
+          timeUsedSeconds: 0,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        { showObjectiveInTimeline: true },
+      );
     };
   }, input);
 }
