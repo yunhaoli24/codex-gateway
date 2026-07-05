@@ -89,7 +89,7 @@ function hostConnectionStatus(hostId: number) {
               />
             </Button>
           </ContextMenuTrigger>
-          <ContextMenuContent class="w-44">
+          <ContextMenuContent :collision-padding="12" prioritize-position class="w-44">
             <ContextMenuItem @select="emit('addProject', host)">
               <FolderIcon class="mr-2 size-4" />
               {{ $t("app.addProject") }}
@@ -130,7 +130,7 @@ function hostConnectionStatus(hostId: number) {
                     <span class="ml-auto size-2 shrink-0 rounded-full bg-accent-green" />
                   </Button>
                 </ContextMenuTrigger>
-                <ContextMenuContent class="w-44">
+                <ContextMenuContent :collision-padding="12" prioritize-position class="w-44">
                   <ContextMenuItem @select="emit('editProject', project)">
                     <FolderOpenIcon class="mr-2 size-4" />
                     {{ $t("app.editProject") }}

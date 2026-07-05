@@ -3,11 +3,13 @@ import { ref } from "vue";
 
 interface LongPressContextMenuOptions {
   delayMs?: number;
+  menuWidthEstimate?: number;
   moveTolerance?: number;
 }
 
 export function useLongPressContextMenu(options: LongPressContextMenuOptions = {}) {
   const delayMs = options.delayMs ?? 550;
+  const menuWidthEstimate = options.menuWidthEstimate ?? 220;
   const moveTolerance = options.moveTolerance ?? 12;
   const longPressTriggered = ref(false);
   let startX = 0;
@@ -36,14 +38,24 @@ export function useLongPressContextMenu(options: LongPressContextMenuOptions = {
 
   function fireLongPress() {
     longPressTriggered.value = true;
+    const safeX = clampContextMenuX(contextMenuX);
     contextMenuTarget?.dispatchEvent(
       new MouseEvent("contextmenu", {
         bubbles: true,
         cancelable: true,
-        clientX: contextMenuX,
+        clientX: safeX,
         clientY: contextMenuY,
       }),
     );
+  }
+
+  function clampContextMenuX(value: number) {
+    if (typeof window === "undefined") {
+      return value;
+    }
+    const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+    const margin = 12;
+    return Math.min(Math.max(value, margin), Math.max(margin, viewportWidth - menuWidthEstimate));
   }
 
   function onPointerDown(event: PointerEvent) {

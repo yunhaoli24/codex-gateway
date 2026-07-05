@@ -75,7 +75,7 @@ function firstVisibleStableRow(viewport: HTMLElement) {
   const viewportRect = viewport.getBoundingClientRect();
   return Array.from(viewport.querySelectorAll<HTMLElement>("[data-row-key]")).find((element) => {
     const key = element.dataset.rowKey;
-    if (!key || key === "older-turns") {
+    if (!key || element.dataset.prependAnchor === "false") {
       return false;
     }
     const rect = element.getBoundingClientRect();

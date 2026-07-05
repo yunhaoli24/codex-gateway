@@ -109,7 +109,7 @@ const statusIconClass = computed(() => ({
         </span>
       </Button>
     </ContextMenuTrigger>
-    <ContextMenuContent class="w-40">
+    <ContextMenuContent :collision-padding="12" prioritize-position class="w-40">
       <ContextMenuItem @select="emit('togglePin')">
         {{ pinLabel }}
       </ContextMenuItem>

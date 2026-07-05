@@ -10,6 +10,7 @@ import {
 } from "@/components/common/chat-virtualizer/prepend-anchor";
 
 interface TimelineViewportRow {
+  canAnchorPrepend?: boolean;
   key: string;
 }
 
@@ -166,6 +167,9 @@ defineExpose({ resetFollowLatest });
           :ref="setRowRef"
           :data-index="virtualRow.index"
           :data-row-key="rows[virtualRow.index]?.key"
+          :data-prepend-anchor="
+            rows[virtualRow.index]?.canAnchorPrepend === false ? 'false' : 'true'
+          "
           class="pb-5 md:pb-8"
           :style="rowStyle(virtualRow)"
         >

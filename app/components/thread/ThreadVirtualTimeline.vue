@@ -87,6 +87,7 @@ watch(
 <template>
   <VirtualTimelineViewport
     ref="viewportRef"
+    :key="threadId ?? 'empty-thread'"
     :rows="rows"
     :follow-key="followKey"
     :estimate-size="estimateRowSize"

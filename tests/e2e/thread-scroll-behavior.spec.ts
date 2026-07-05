@@ -112,6 +112,122 @@ test("streaming output stays pinned when the user is already at the latest conte
   }
 });
 
+test("switching threads discards stale virtual row measurements", async ({ page }) => {
+  await openApp(page);
+  const longThreadId = "e2e-long-measure-thread";
+  const shortThreadId = "e2e-short-measure-thread";
+  await seedGatewayThread(page, {
+    hostId: 1,
+    projectId: 1,
+    threadId: longThreadId,
+    currentThread: { id: longThreadId, name: "Long Measure" },
+    threads: [
+      {
+        id: longThreadId,
+        name: "Long Measure",
+        pinned: false,
+        updatedAt: Math.floor(Date.now() / 1000),
+      },
+      {
+        id: shortThreadId,
+        name: "Short Measure",
+        pinned: false,
+        updatedAt: Math.floor(Date.now() / 1000),
+      },
+    ],
+    threadViews: {
+      "1:e2e-long-measure-thread": {
+        hostId: 1,
+        projectId: 1,
+        threadId: longThreadId,
+        currentThread: { id: longThreadId, name: "Long Measure" },
+        history: {
+          thread: {
+            id: longThreadId,
+            turns: buildMeasuredTurns(longThreadId, 80),
+          },
+        },
+        events: [],
+        olderTurnsCursor: null,
+        newerTurnsCursor: null,
+        lastEventId: 0,
+        loading: false,
+        error: null,
+      },
+      "1:e2e-short-measure-thread": {
+        hostId: 1,
+        projectId: 1,
+        threadId: shortThreadId,
+        currentThread: { id: shortThreadId, name: "Short Measure" },
+        history: {
+          thread: {
+            id: shortThreadId,
+            turns: buildMeasuredTurns(shortThreadId, 3),
+          },
+        },
+        events: [],
+        olderTurnsCursor: null,
+        newerTurnsCursor: null,
+        lastEventId: 0,
+        loading: false,
+        error: null,
+      },
+    },
+    history: {
+      thread: {
+        id: longThreadId,
+        turns: buildMeasuredTurns(longThreadId, 80),
+      },
+    },
+  });
+
+  await page.getByTestId(`thread-button-${shortThreadId}`).click();
+  await expect(page.getByText("e2e-short-measure-thread line 003")).toBeVisible();
+  await expect.poll(() => visibleTimelineRowsDoNotOverlap(page)).toBe(true);
+
+  await page.getByTestId(`thread-button-${longThreadId}`).click();
+  await expect(page.getByText("e2e-long-measure-thread line 080")).toBeVisible();
+  await expect.poll(() => visibleTimelineRowsDoNotOverlap(page)).toBe(true);
+});
+
+function buildMeasuredTurns(threadId: string, lineCount: number) {
+  return [
+    {
+      id: "same-turn-id",
+      status: "completed",
+      items: [
+        {
+          id: `${threadId}-user`,
+          type: "userMessage",
+          content: [{ type: "text", text: `open ${threadId}` }],
+        },
+        {
+          id: `${threadId}-agent`,
+          type: "agentMessage",
+          phase: "final_answer",
+          text: Array.from(
+            { length: lineCount },
+            (_, index) => `${threadId} line ${String(index + 1).padStart(3, "0")}`,
+          ).join("\n\n"),
+        },
+      ],
+    },
+  ];
+}
+
+async function visibleTimelineRowsDoNotOverlap(page: Page) {
+  return await page.getByTestId("chat-scroll-area").evaluate((root: HTMLElement) => {
+    const viewport = root.querySelector('[data-slot="scroll-area-viewport"]');
+    if (!viewport) throw new Error("Missing chat viewport");
+    const viewportBox = viewport.getBoundingClientRect();
+    const rows = Array.from(root.querySelectorAll<HTMLElement>("[data-row-key]"))
+      .map((row) => row.getBoundingClientRect())
+      .filter((box) => box.bottom > viewportBox.top && box.top < viewportBox.bottom)
+      .sort((a, b) => a.top - b.top);
+    return rows.every((box, index) => index === 0 || box.top >= rows[index - 1]!.bottom - 1);
+  });
+}
+
 test("streaming output does not force scroll when the user is reading earlier content", async ({
   page,
 }) => {
