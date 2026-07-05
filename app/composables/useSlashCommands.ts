@@ -2,6 +2,13 @@ import type { ComputedRef, Ref } from "vue";
 import { computed, ref, watch } from "vue";
 
 export type SlashCommandId = "new" | "plan" | "goal";
+export type SlashMenuItemId =
+  | SlashCommandId
+  | "goal-objective"
+  | "goal-edit"
+  | "goal-pause"
+  | "goal-resume"
+  | "goal-clear";
 
 export interface SlashCommand {
   id: SlashCommandId;
@@ -10,11 +17,18 @@ export interface SlashCommand {
   description: string;
 }
 
+export interface SlashMenuItem {
+  id: SlashMenuItemId;
+  command: string;
+  title: string;
+  description: string;
+}
+
 export function useSlashCommands(args: {
   text: Ref<string>;
-  commands: ComputedRef<SlashCommand[]>;
+  commands: ComputedRef<SlashMenuItem[]>;
   enabled: ComputedRef<boolean>;
-  onSelect: (command: SlashCommand) => void | Promise<void>;
+  onSelect: (command: SlashMenuItem) => void | Promise<void>;
 }) {
   const selectedIndex = ref(0);
   const dismissed = ref(false);
@@ -43,7 +57,7 @@ export function useSlashCommands(args: {
 
   const query = computed(() => {
     const text = args.text.value.trimStart();
-    if (!text.startsWith("/") || /\s/.test(text)) {
+    if (!text.startsWith("/")) {
       return null;
     }
     return text.slice(1).toLowerCase();

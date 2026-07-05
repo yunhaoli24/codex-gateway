@@ -1,14 +1,13 @@
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
-import type { SlashCommand } from "@/composables/useSlashCommands";
 import { useAttachmentUpload } from "@/composables/useAttachmentUpload";
 import { useComposerDraft } from "@/composables/useComposerDraft";
 import { useComposerSlashActions } from "@/composables/useComposerSlashActions";
 import { useComposerTurnSubmit } from "@/composables/useComposerTurnSubmit";
-import { useSlashCommands } from "@/composables/useSlashCommands";
 import { useThreadSettingsControls } from "@/composables/useThreadSettingsControls";
 import { useGatewayStore } from "@/stores/gateway";
 import { latestThreadPlanItem, planItemSummary } from "@/utils/thread-plan";
+import { useComposerSlashMenu } from "./useComposerSlashMenu";
 
 export function useComposerController() {
   const store = useGatewayStore();
@@ -86,30 +85,6 @@ export function useComposerController() {
     if (selectedThreadStatus.value === "interrupted") return t("app.interrupted");
     return t("app.send");
   });
-  const slashCommands = computed<SlashCommand[]>(() => [
-    {
-      id: "new",
-      command: t("app.slashCommandNew"),
-      title: t("app.slashCommandNewTitle"),
-      description: t("app.slashCommandNewDescription"),
-    },
-    ...(selectedThreadId.value
-      ? [
-          {
-            id: "plan" as const,
-            command: t("app.slashCommandPlan"),
-            title: t("app.slashCommandPlanTitle"),
-            description: t("app.slashCommandPlanDescription"),
-          },
-          {
-            id: "goal" as const,
-            command: t("app.slashCommandGoal"),
-            title: t("app.slashCommandGoalTitle"),
-            description: t("app.slashCommandGoalDescription"),
-          },
-        ]
-      : []),
-  ]);
   const slashActions = useComposerSlashActions({
     text: turnText,
     selectedThreadId,
@@ -117,9 +92,10 @@ export function useComposerController() {
     activatePlanMode: submit.activatePlanMode,
     missingGoalObjectiveMessage: computed(() => t("app.goalObjectiveRequired")),
   });
-  const slashCommandsState = useSlashCommands({
+  const slashCommandsState = useComposerSlashMenu({
     text: turnText,
-    commands: slashCommands,
+    selectedThreadId,
+    selectedThreadGoal,
     enabled: composerInputEnabled,
     onSelect: slashActions.runSlashCommand,
   });

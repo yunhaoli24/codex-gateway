@@ -9,7 +9,7 @@ import type {
   ThreadTokenUsageState,
 } from "~~/shared/types";
 import type { ComposerAttachment } from "@/composables/useComposerDraft";
-import type { SlashCommand } from "@/composables/useSlashCommands";
+import type { SlashMenuItem } from "@/composables/useSlashCommands";
 import AttachmentChips from "@/components/chat/composer/AttachmentChips.vue";
 import ComposerModeStrip from "@/components/chat/composer/ComposerModeStrip.vue";
 import ComposerToolbar from "@/components/chat/composer/ComposerToolbar.vue";
@@ -25,7 +25,7 @@ defineProps<{
   goal: ThreadGoal | null;
   goalObservedAt: number | null;
   slashMenuOpen: boolean;
-  filteredSlashCommands: SlashCommand[];
+  filteredSlashCommands: SlashMenuItem[];
   selectedSlashCommandIndex: number;
   composerInputEnabled: boolean;
   uploadingAttachments: boolean;
@@ -54,7 +54,7 @@ const emit = defineEmits<{
   "update:modelValue": [value: string];
   deactivatePlan: [];
   hoverSlashCommand: [index: number];
-  selectSlashCommand: [command: SlashCommand];
+  selectSlashCommand: [command: SlashMenuItem];
   attachmentChange: [event: Event];
   paste: [event: ClipboardEvent];
   removeAttachment: [id: string];

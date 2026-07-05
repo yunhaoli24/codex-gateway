@@ -3,6 +3,7 @@ import { openApp } from "./helpers/app";
 import {
   applyGatewayLiveEvent,
   dismissPlanPrompt,
+  installSelectedThreadGoalControlMock,
   installSelectedThreadGoalSubmitMock,
   seedGatewayThread,
   setThreadCollaborationMode,
@@ -28,6 +29,10 @@ test("goal slash input derives the goal tag and requires an objective before sub
   await expect(
     page.getByTestId("composer-mode-strip").getByText("目标", { exact: true }).first(),
   ).toBeVisible();
+  await expect(page.getByTestId("slash-command-goal-objective")).toBeVisible();
+  await expect(
+    page.getByTestId("slash-command-goal-objective").getByText("设置目标"),
+  ).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(composer).toHaveValue("/goal ");
   await page.keyboard.press("Enter");
@@ -46,6 +51,70 @@ test("goal slash input derives the goal tag and requires an objective before sub
   await expect(
     page.getByTestId("composer-mode-strip").getByText("完成当前重构").first(),
   ).toBeVisible();
+});
+
+test("goal slash menu exposes official app-server controls for an existing goal", async ({
+  page,
+}) => {
+  await openApp(page);
+  const threadId = "e2e-goal-controls-thread";
+  await seedGatewayThread(page, {
+    threadId,
+    currentThread: { id: threadId, name: "Goal Controls" },
+    history: { thread: { id: threadId, turns: [] } },
+  });
+  await installSelectedThreadGoalSubmitMock(page, {
+    hostId: 1,
+    threadId,
+    windowKey: "__submittedGoalObjective",
+  });
+  await installSelectedThreadGoalControlMock(page, {
+    hostId: 1,
+    threadId,
+    windowKey: "__submittedGoalControls",
+  });
+
+  const composer = page.getByPlaceholder("输入后续修改要求");
+  await composer.fill("/goal 保持目标控制清晰");
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__submittedGoalObjective))
+    .toBe("保持目标控制清晰");
+
+  await composer.fill("/goal");
+  await expect(page.getByTestId("slash-command-goal-edit")).toBeVisible();
+  await expect(page.getByTestId("slash-command-goal-pause")).toBeVisible();
+  await expect(page.getByTestId("slash-command-goal-clear")).toBeVisible();
+  await expect(page.locator('[data-testid="slash-command-goal-stop"]')).toHaveCount(0);
+
+  await page.getByTestId("slash-command-goal-pause").click();
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__submittedGoalControls))
+    .toEqual([{ type: "status", status: "paused" }]);
+
+  await composer.fill("/goal");
+  await expect(page.getByTestId("slash-command-goal-resume")).toBeVisible();
+  await page.getByTestId("slash-command-goal-resume").click();
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__submittedGoalControls))
+    .toEqual([
+      { type: "status", status: "paused" },
+      { type: "status", status: "active" },
+    ]);
+
+  await composer.fill("/goal");
+  await page.getByTestId("slash-command-goal-edit").click();
+  await expect(composer).toHaveValue("/goal 保持目标控制清晰");
+
+  await composer.fill("/goal");
+  await page.getByTestId("slash-command-goal-clear").click();
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__submittedGoalControls))
+    .toEqual([
+      { type: "status", status: "paused" },
+      { type: "status", status: "active" },
+      { type: "clear" },
+    ]);
 });
 
 test("goal progress updates the composer status strip without flooding the agent loop", async ({

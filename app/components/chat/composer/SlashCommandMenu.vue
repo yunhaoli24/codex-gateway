@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import type { SlashCommand } from "@/composables/useSlashCommands";
+import type { SlashMenuItem } from "@/composables/useSlashCommands";
 import { Button } from "@/components/ui/button";
 
 defineProps<{
   open: boolean;
-  commands: SlashCommand[];
+  commands: SlashMenuItem[];
   selectedIndex: number;
 }>();
 
 const emit = defineEmits<{
-  select: [command: SlashCommand];
+  select: [command: SlashMenuItem];
   hover: [index: number];
 }>();
 </script>

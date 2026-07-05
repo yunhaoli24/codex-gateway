@@ -39,8 +39,9 @@ const goalBudgetLabel = computed(() => {
   return budget === null || budget === undefined ? "∞" : budget.toLocaleString();
 });
 const goalElapsedLabel = computed(() => formatElapsed(activeGoalElapsedSeconds.value));
+const showGoalInputHint = computed(() => props.goalInputActive && !visibleGoal.value);
 const showStrip = computed(
-  () => props.planModeActive || props.goalInputActive || visibleGoal.value,
+  () => props.planModeActive || showGoalInputHint.value || visibleGoal.value,
 );
 
 watch(visibleGoal, (goal) => (goal ? resume() : pause()), { immediate: true });
@@ -83,7 +84,7 @@ function formatElapsed(seconds: number) {
     </div>
 
     <div
-      v-if="goalInputActive"
+      v-if="showGoalInputHint"
       class="flex min-w-0 items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-ink shadow-sm shadow-ink/5 md:text-base"
     >
       <span class="shrink-0 font-medium text-primary">{{ $t("app.goalModeActive") }}</span>

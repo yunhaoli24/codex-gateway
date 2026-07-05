@@ -1,8 +1,12 @@
 import type { Ref } from "vue";
-import type { SlashCommand } from "@/composables/useSlashCommands";
+import type { SlashMenuItem } from "@/composables/useSlashCommands";
 import { useGatewayStore } from "@/stores/gateway";
 
-type ComposerSlashCommand = Extract<SlashCommand["id"], "new" | "plan" | "goal">;
+type ComposerSlashCommand = Extract<SlashMenuItem["id"], "new" | "plan" | "goal">;
+type GoalMenuCommand = Extract<
+  SlashMenuItem["id"],
+  "goal-objective" | "goal-edit" | "goal-pause" | "goal-resume" | "goal-clear"
+>;
 type SlashCommandAction = (args: string) => Promise<void> | void;
 type GoalControlAction = () => Promise<void>;
 
@@ -32,16 +36,39 @@ export function useComposerSlashActions(input: {
 
   const selectedCommandMenuActions: Record<
     ComposerSlashCommand,
-    (command: SlashCommand) => Promise<void> | void
+    (command: SlashMenuItem) => Promise<void> | void
   > = {
-    new: (command) => runCommand(command.id, ""),
-    plan: (command) => runCommand(command.id, ""),
+    new: () => runCommand("new", ""),
+    plan: () => runCommand("plan", ""),
     goal: (command) => {
       input.text.value = `${command.command} `;
     },
   };
+  const selectedGoalMenuActions: Record<GoalMenuCommand, (command: SlashMenuItem) => void> = {
+    "goal-objective": () => {
+      input.text.value = "/goal ";
+    },
+    "goal-edit": (command) => {
+      input.text.value = `${command.command.replace(/\s+edit$/i, "")} ${
+        store.selectedThreadGoal?.objective ?? ""
+      }`.trimEnd();
+    },
+    "goal-pause": () => {
+      void runGoalCommand("pause");
+    },
+    "goal-resume": () => {
+      void runGoalCommand("resume");
+    },
+    "goal-clear": () => {
+      void runGoalCommand("clear");
+    },
+  };
 
-  async function runSlashCommand(command: SlashCommand) {
+  async function runSlashCommand(command: SlashMenuItem) {
+    if (isGoalMenuCommand(command.id)) {
+      selectedGoalMenuActions[command.id](command);
+      return;
+    }
     await selectedCommandMenuActions[command.id](command);
   }
 
@@ -69,6 +96,10 @@ export function useComposerSlashActions(input: {
     }
     input.text.value = "";
     store.clearError();
+    if (control === "edit") {
+      input.text.value = `/goal ${store.selectedThreadGoal?.objective ?? ""}`.trimEnd();
+      return;
+    }
     const controlAction = goalControlActions[control];
     if (controlAction) {
       await controlAction();
@@ -81,6 +112,16 @@ export function useComposerSlashActions(input: {
     runSlashCommand,
     executeInlineSlashCommand,
   };
+}
+
+function isGoalMenuCommand(id: SlashMenuItem["id"]): id is GoalMenuCommand {
+  return (
+    id === "goal-objective" ||
+    id === "goal-edit" ||
+    id === "goal-pause" ||
+    id === "goal-resume" ||
+    id === "goal-clear"
+  );
 }
 
 function parseSlashCommand(text: string): { id: ComposerSlashCommand; args: string } | null {

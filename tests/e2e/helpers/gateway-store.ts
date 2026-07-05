@@ -449,6 +449,37 @@ export async function installSelectedThreadGoalSubmitMock(
   }, input);
 }
 
+export async function installSelectedThreadGoalControlMock(
+  page: Page,
+  input: { hostId: number; threadId: string; windowKey: string },
+) {
+  await page.evaluate((input) => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+    if (!store) {
+      throw new Error("Unable to locate gateway Pinia store");
+    }
+    (window as any)[input.windowKey] = [];
+    store.setSelectedThreadGoalStatus = async (status: string) => {
+      (window as any)[input.windowKey].push({ type: "status", status });
+      store.upsertThreadGoal(input.hostId, input.threadId, {
+        threadId: input.threadId,
+        objective: store.selectedThreadGoal?.objective ?? "existing goal",
+        status,
+        tokenBudget: null,
+        tokensUsed: 0,
+        timeUsedSeconds: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    };
+    store.clearSelectedThreadGoal = async () => {
+      (window as any)[input.windowKey].push({ type: "clear" });
+      store.clearThreadGoalState(input.hostId, input.threadId);
+    };
+  }, input);
+}
+
 export async function installServerRequestResponderMock(
   page: Page,
   input: { mode: "capture"; windowKey: string } | { mode: "fail"; message: string },
