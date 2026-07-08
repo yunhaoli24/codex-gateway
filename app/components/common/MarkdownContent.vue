@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import MarkdownIt from "markdown-it";
+import { useEventListener } from "@vueuse/core";
 import { ref, watch } from "vue";
+import { parseRemoteFileLink } from "@/utils/file-preview-links";
 import { escapeHtml, highlightCode, normalizeLanguage } from "@/utils/code-highlight";
+import { useFilePreviewContext } from "@/composables/useFilePreviewContext";
+import { useGatewayFilePreviewStore } from "@/stores/gateway-file-preview";
 
 const props = withDefaults(
   defineProps<{
@@ -28,6 +32,9 @@ markdown.renderer.rules.fence = (tokens, index) => {
 };
 
 const rendered = ref("");
+const root = ref<HTMLElement | null>(null);
+const filePreviewContext = useFilePreviewContext();
+const filePreview = useGatewayFilePreviewStore();
 let renderVersion = 0;
 
 watch(
@@ -122,10 +129,37 @@ function diffLineClass(line: string) {
   }
   return "diff-line";
 }
+
+function handleClick(event: MouseEvent) {
+  const anchor = (event.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+  if (!anchor || !filePreviewContext) {
+    return;
+  }
+  const target = parseRemoteFileLink(anchor.href, window.location.href);
+  if (!target) {
+    return;
+  }
+  const hostId = filePreviewContext.hostId.value;
+  const threadId = filePreviewContext.threadId.value;
+  if (!hostId || !threadId) {
+    return;
+  }
+  event.preventDefault();
+  void filePreview.openFilePreview({
+    hostId,
+    projectId: filePreviewContext.projectId.value,
+    threadId,
+    path: target.path,
+    line: target.line,
+  });
+}
+
+useEventListener(root, "click", handleClick);
 </script>
 
 <template>
   <div
+    ref="root"
     class="markdown-content"
     :class="{ 'markdown-content-compact': compact }"
     v-html="rendered"

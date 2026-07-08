@@ -110,37 +110,34 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         ctx.state.olderTurnsCursor = null;
         ctx.state.newerTurnsCursor = null;
 
-        await ctx.connectAllHosts();
-        await ctx.listModels();
-        await ctx.listThreads();
-        if (!ctx.state.selectedProjectId) {
-          ctx.ensureSelectedProject();
-        }
-        if (ctx.state.selectedProjectId) {
-          await ctx.listThreads();
-        }
         const viewUnchangedDuringRefresh = () => ctx.state.viewEpoch === refreshViewEpoch;
         if (routeHostExists && routeSelection.threadId && viewUnchangedDuringRefresh()) {
+          ctx.state.initializing = false;
+          ctx.state.loading = false;
           await ctx.openThread(routeSelection.threadId, {
             hostId: routeSelection.hostId,
             projectId: routeSelection.projectId,
             replaceRoute: true,
           });
-        } else if (
-          !hasGatewayRouteSelection(routeSelection) &&
-          viewUnchangedDuringRefresh() &&
-          (await ctx.restoreLastOpenThread())
-        ) {
-          // Restored the last browser-local UI selection.
-        } else if (viewUnchangedDuringRefresh()) {
-          writeGatewayRouteSelection(
-            {
-              hostId: ctx.state.selectedHostId,
-              projectId: ctx.state.selectedProjectId,
-              threadId: null,
-            },
-            { replace: true },
-          );
+          hydrateNavigationDataInBackground(ctx);
+        } else {
+          await hydrateNavigationData(ctx);
+          if (
+            !hasGatewayRouteSelection(routeSelection) &&
+            viewUnchangedDuringRefresh() &&
+            (await ctx.restoreLastOpenThread())
+          ) {
+            // Restored the last browser-local UI selection.
+          } else if (viewUnchangedDuringRefresh()) {
+            writeGatewayRouteSelection(
+              {
+                hostId: ctx.state.selectedHostId,
+                projectId: ctx.state.selectedProjectId,
+                threadId: null,
+              },
+              { replace: true },
+            );
+          }
         }
       } catch (error: any) {
         ctx.setError(messageFromError(error, ctx.t("app.bootstrapFailed"), ctx.errorLabels), {
@@ -183,4 +180,59 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       }
     },
   };
+}
+
+async function hydrateNavigationData(ctx: GatewayStoreContext) {
+  const anchor = navigationHydrationAnchor(ctx);
+  await ctx.connectAllHosts();
+  if (!canContinueNavigationHydration(ctx, anchor)) {
+    return;
+  }
+  await ctx.listModels();
+  if (!canContinueNavigationHydration(ctx, anchor)) {
+    return;
+  }
+  await ctx.listThreads();
+  if (!canContinueNavigationHydration(ctx, anchor)) {
+    return;
+  }
+  if (!ctx.state.selectedProjectId) {
+    ctx.ensureSelectedProject();
+  }
+  if (!canContinueNavigationHydration(ctx, anchor)) {
+    return;
+  }
+  if (ctx.state.selectedProjectId) {
+    await ctx.listThreads();
+  }
+}
+
+function hydrateNavigationDataInBackground(ctx: GatewayStoreContext) {
+  void hydrateNavigationData(ctx).catch((error: unknown) => {
+    ctx.setError(messageFromError(error, ctx.t("app.bootstrapFailed"), ctx.errorLabels), {
+      hostId: ctx.state.selectedHostId,
+      projectId: ctx.state.selectedProjectId,
+      threadId: ctx.state.selectedThreadId,
+    });
+  });
+}
+
+function navigationHydrationAnchor(ctx: GatewayStoreContext) {
+  return {
+    hostId: ctx.state.selectedHostId,
+    threadId: ctx.state.selectedThreadId,
+  };
+}
+
+function canContinueNavigationHydration(
+  ctx: GatewayStoreContext,
+  anchor: ReturnType<typeof navigationHydrationAnchor>,
+) {
+  if (
+    ctx.state.selectedHostId !== anchor.hostId ||
+    ctx.state.selectedThreadId !== anchor.threadId
+  ) {
+    return false;
+  }
+  return !anchor.hostId || ctx.state.hosts.some((host) => host.id === anchor.hostId);
 }

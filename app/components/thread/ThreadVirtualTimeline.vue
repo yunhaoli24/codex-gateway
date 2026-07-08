@@ -16,6 +16,7 @@ const props = defineProps<{
   threadStatus: ThreadRuntimeStatus;
   turns: ThreadTimelineTurn[];
   hostId: number | null;
+  projectId?: number | null;
   loading: boolean;
   loadingOlder: boolean;
   olderTurnsCursor: string | null;
@@ -113,6 +114,7 @@ watch(
         v-else-if="isTurnRow(row)"
         :turn="turnForRow(row)"
         :host-id="hostId"
+        :project-id="projectId ?? null"
         :thread-id="threadId"
         :thread-runtime-status="threadStatus"
         :auto-collapse-intermediate="!userDetachedFromLatest"

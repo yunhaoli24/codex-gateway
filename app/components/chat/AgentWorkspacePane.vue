@@ -5,8 +5,9 @@ import type { ThreadRuntimeStatus } from "~~/shared/types";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
 import ChatPanelScrollArea from "@/components/chat/ChatPanelScrollArea.vue";
 import ProjectThreadList from "@/components/chat/ProjectThreadList.vue";
-import SubAgentThreadPanel from "@/components/thread/SubAgentThreadPanel.vue";
+import ThreadInspectorPanel from "@/components/thread/inspector/ThreadInspectorPanel.vue";
 import ThreadVirtualTimeline from "@/components/thread/ThreadVirtualTimeline.vue";
+import { useGatewayFilePreviewStore } from "@/stores/gateway-file-preview";
 
 const props = defineProps<{
   initializing: boolean;
@@ -30,11 +31,17 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const filePreview = useGatewayFilePreviewStore();
 const showThreadLoading = computed(
   () =>
     props.initializing ||
     props.openingThread ||
     (Boolean(props.selectedThreadId) && !props.selectedThreadViewReady && !props.visibleError),
+);
+const inspectorHasTabs = computed(
+  () =>
+    props.visibleSubAgentPanels.length > 0 ||
+    filePreview.visibleTabsFor(props.selectedHostId, props.selectedThreadId).length > 0,
 );
 </script>
 
@@ -43,11 +50,7 @@ const showThreadLoading = computed(
     <div
       data-testid="chat-main-pane"
       class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[flex-basis,max-width] duration-300 ease-out md:flex-none"
-      :class="
-        visibleSubAgentPanels.length
-          ? 'md:basis-[72%] md:max-w-[72%]'
-          : 'md:basis-full md:max-w-full'
-      "
+      :class="inspectorHasTabs ? 'md:basis-[72%] md:max-w-[72%]' : 'md:basis-full md:max-w-full'"
     >
       <ChatPanelScrollArea
         v-if="showThreadLoading"
@@ -65,6 +68,7 @@ const showThreadLoading = computed(
         :thread-status="selectedThreadStatus"
         :turns="historyTurns"
         :host-id="selectedHostId"
+        :project-id="selectedProjectId"
         :loading="loading"
         :loading-older="loadingOlderTurns"
         :older-turns-cursor="olderTurnsCursor"
@@ -91,6 +95,6 @@ const showThreadLoading = computed(
 
       <ChatComposer v-if="selectedThreadId || selectedProjectId" />
     </div>
-    <SubAgentThreadPanel />
+    <ThreadInspectorPanel />
   </div>
 </template>

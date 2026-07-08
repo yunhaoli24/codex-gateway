@@ -127,13 +127,13 @@ test("opens and closes the subagent side panel on mobile", async ({ page }) => {
 
   await openIntermediateSteps(page);
   await page.getByTestId("open-subagent-panel").click();
-  const panel = page.getByTestId("subagent-panel");
+  const panel = page.getByTestId("thread-inspector-panel");
   await expect(panel).toBeVisible();
   await expect(panel.getByText("Mobile subagent timeline is readable.")).toBeVisible();
   const panelBox = await panel.boundingBox();
   const viewport = page.viewportSize();
   expect(panelBox?.width).toBeGreaterThan((viewport?.width ?? 0) * 0.9);
-  await page.getByLabel("关闭子代理面板").click();
+  await page.getByLabel("关闭侧边详情").click();
   await expect(panel).toBeHidden();
 });
 

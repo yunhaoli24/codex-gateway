@@ -32,4 +32,9 @@ export type {
   GatewayNotificationSettings,
   PinnedThreadRecord,
 } from "./types/config";
-export type { RemoteDirectoryEntry, UploadedFileRecord, UploadResult } from "./types/files";
+export type {
+  FilePreviewTab,
+  RemoteDirectoryEntry,
+  UploadedFileRecord,
+  UploadResult,
+} from "./types/files";

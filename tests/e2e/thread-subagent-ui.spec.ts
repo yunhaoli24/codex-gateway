@@ -103,9 +103,9 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
   const mainPane = page.getByTestId("chat-main-pane");
   const widthBeforeOpen = (await mainPane.boundingBox())?.width ?? 0;
   await page.getByTestId("open-subagent-panel").first().click();
-  const panel = page.getByTestId("subagent-panel");
+  const panel = page.getByTestId("thread-inspector-panel");
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId("subagent-panel-title")).toHaveText("agent-e2e");
+  await expect(panel.getByTestId("inspector-panel-title")).toHaveText("agent-e2e");
   await expect(panel.getByText("Sub-agent finding from agent-e2e.")).toBeVisible();
   await expect(panel.locator("textarea")).toHaveCount(0);
   await expect
@@ -154,8 +154,8 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
     });
 
   await page.getByTestId("open-subagent-panel").nth(1).click();
-  await expect(panel.getByTestId("subagent-tab")).toHaveCount(2);
-  await expect(panel.getByTestId("subagent-panel-title")).toHaveText("agent-e2e-second");
+  await expect(panel.getByTestId("inspector-tab")).toHaveCount(2);
+  await expect(panel.getByTestId("inspector-panel-title")).toHaveText("agent-e2e-second");
   await expect(panel.getByText("Sub-agent finding from agent-e2e-second.")).toBeVisible();
   await seedGatewayThread(page, {
     threadId: "e2e-other-parent-thread",
@@ -184,7 +184,7 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
     },
   });
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId("subagent-tab")).toHaveCount(2);
+  await expect(panel.getByTestId("inspector-tab")).toHaveCount(2);
   await expect
     .poll(() =>
       subAgentRuntimeFlags(page, {
@@ -199,10 +199,10 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
       subscribed: true,
       secondSubscribed: true,
     });
-  await page.getByLabel("关闭子代理面板").click();
+  await page.getByLabel("关闭侧边详情").click();
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId("subagent-tab")).toHaveCount(1);
-  await page.getByLabel("关闭子代理面板").click();
+  await expect(panel.getByTestId("inspector-tab")).toHaveCount(1);
+  await page.getByLabel("关闭侧边详情").click();
   await expect(panel).toBeHidden();
   await expect
     .poll(() =>

@@ -15,3 +15,20 @@ export interface UploadedFileRecord {
 export interface UploadResult {
   files: UploadedFileRecord[];
 }
+
+export interface FilePreviewTab {
+  key: string;
+  hostId: number;
+  projectId: number | null;
+  threadId: string;
+  path: string;
+  title: string;
+  line: number | null;
+  contentType: string;
+  size: number | null;
+  objectUrl: string;
+  text: string;
+  loading: boolean;
+  error: string | null;
+  updatedAt: number;
+}

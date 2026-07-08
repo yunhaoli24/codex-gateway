@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ChevronDownIcon, ChevronRightIcon, ListTreeIcon } from "@lucide/vue";
-import { computed } from "vue";
+import { computed, toRef } from "vue";
 import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ThreadItemView from "@/components/thread/ThreadItemView.vue";
+import { provideFilePreviewContext } from "@/composables/useFilePreviewContext";
 import { useGatewayStore } from "@/stores/gateway";
 import {
   buildThreadTurnSections,
@@ -17,6 +18,7 @@ const props = withDefaults(
   defineProps<{
     turn: Record<string, any>;
     hostId: number | null;
+    projectId?: number | null;
     threadId: string | null;
     threadRuntimeStatus: ThreadRuntimeStatus;
     autoCollapseIntermediate?: boolean;
@@ -28,6 +30,12 @@ const props = withDefaults(
 
 const { t } = useI18n();
 const store = useGatewayStore();
+const projectId = computed(() => props.projectId ?? null);
+provideFilePreviewContext({
+  hostId: toRef(props, "hostId"),
+  projectId,
+  threadId: toRef(props, "threadId"),
+});
 
 const turn = computed(() => props.turn);
 const planModeActive = computed(() => selectedThreadMode() === "plan");

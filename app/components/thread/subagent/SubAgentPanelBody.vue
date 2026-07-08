@@ -44,6 +44,7 @@ const threadStatus = computed(
       :follow-key="followKey"
       :turns="turns"
       :host-id="panel.hostId"
+      :project-id="null"
       :loading="Boolean(preview?.loading)"
       :loading-older="false"
       :older-turns-cursor="null"
