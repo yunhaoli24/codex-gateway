@@ -56,6 +56,13 @@ function proxyConnectRequest(request: IncomingMessage, clientSocket: Socket, hea
     upstream.pipe(clientSocket);
     clientSocket.pipe(upstream);
   });
+  upstream.on("error", (error) => {
+    if (!clientSocket.destroyed) {
+      clientSocket.end(
+        `HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${error.message}\n`,
+      );
+    }
+  });
   closePairOnError(clientSocket, upstream);
 }
 
@@ -81,6 +88,13 @@ function proxyHttpRequest(request: IncomingMessage, clientSocket: Socket | null)
     upstream.write("\r\n");
     request.pipe(upstream);
     upstream.pipe(clientSocket);
+  });
+  upstream.on("error", (error) => {
+    if (!clientSocket.destroyed) {
+      clientSocket.end(
+        `HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${error.message}\n`,
+      );
+    }
   });
   closePairOnError(clientSocket, upstream);
 }

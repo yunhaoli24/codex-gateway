@@ -12,6 +12,7 @@ export interface AppServerRuntimeState {
   running: boolean;
   appServerVersion: string | null;
   raw: string;
+  versionError: string | null;
 }
 
 export class AppServerRuntimeProbe {
@@ -26,17 +27,19 @@ export class AppServerRuntimeProbe {
     if (result.code === 0) {
       const parsed = parseAppServerRuntimeStateOutput(result.stdout);
       const running = parsed?.status === "running";
-      const appServerVersion = running ? await this.readRunningVersion(host) : null;
+      const version = running ? await this.readRunningVersionResult(host) : null;
       return {
         running,
-        appServerVersion,
+        appServerVersion: version?.version ?? null,
         raw: combined.trim(),
+        versionError: version?.error ?? null,
       };
     }
     return {
       running: false,
       appServerVersion: null,
       raw: combined.trim(),
+      versionError: null,
     };
   }
 
@@ -68,6 +71,14 @@ export class AppServerRuntimeProbe {
   }
 
   async readRunningVersion(host: HostWithSecret) {
+    const result = await this.readRunningVersionResult(host);
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    return result.version;
+  }
+
+  private async readRunningVersionResult(host: HostWithSecret) {
     const { CodexRpcClient } = await import("./rpc");
     const client = new CodexRpcClient(host, {
       skipVersionCheck: true,
@@ -76,13 +87,21 @@ export class AppServerRuntimeProbe {
     try {
       const userAgent = await client.probeRuntimeVersion();
       if (!userAgent) {
-        return null;
+        return { version: null, error: null };
       }
       const parsed = parseCodexVersion(userAgent);
       if (!parsed) {
-        throw new Error(`Unable to parse remote app-server version: ${userAgent}`);
+        return {
+          version: null,
+          error: `Unable to parse remote app-server version: ${userAgent}`,
+        };
       }
-      return parsed.version;
+      return { version: parsed.version, error: null };
+    } catch (error) {
+      return {
+        version: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
     } finally {
       client.close();
     }

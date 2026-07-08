@@ -1,4 +1,8 @@
 import type { HostWithSecret, RemoteCodexVersionState } from "./ssh-types";
+import {
+  isAppServerProxyStartupFailure,
+  isRecoverableCodexInstallError,
+} from "./codex-install-errors";
 import { isCodexVersionAtLeast, SUPPORTED_CODEX_VERSION } from "./codex-version";
 import { hostLifecycleBus } from "../state/host-events";
 import { currentGatewayUserId } from "../state/memory";
@@ -57,6 +61,22 @@ export class CodexRuntimeService {
         currentRuntimeVersion,
         supportedVersion,
       );
+
+      if (runtimeState.running && runtimeState.versionError) {
+        hostLifecycleBus.emit({
+          hostId: host.id,
+          status: "restarting",
+          message: `${hostDisplayName(host)} 的远端 Codex app-server 无法握手，正在重启：${runtimeState.versionError}`,
+        });
+        await this.appServerRuntime.terminateUnmanaged(host);
+        return {
+          version: beforeVersion,
+          appServerVersion: null,
+          supportedVersion,
+          beforeVersion,
+          upgraded: false,
+        };
+      }
 
       if (cliVersionSupported && runtimeVersionSupported) {
         hostLifecycleBus.emit({
@@ -135,8 +155,51 @@ export class CodexRuntimeService {
     this.versionChecks.delete(this.hostKey(hostId));
   }
 
+  async repairAfterProxyFailure(
+    host: HostWithSecret,
+    error: unknown,
+  ): Promise<RemoteCodexVersionState> {
+    if (!isRecoverableCodexInstallError(error) && !isAppServerProxyStartupFailure(error)) {
+      throw error;
+    }
+
+    hostLifecycleBus.emit({
+      hostId: host.id,
+      status: "upgrading",
+      message: `${hostDisplayName(host)} 的远端 Codex app-server 启动失败，正在重新安装 ${SUPPORTED_CODEX_VERSION}：${messageFromError(error)}`,
+    });
+
+    const beforeVersion = await this.readVersionForRepair(host);
+    await this.stopRuntimeIfPresent(host);
+    const version = await this.upgrader.upgrade(host, SUPPORTED_CODEX_VERSION);
+    await this.appServerRuntime.ensureStoppedAfterUpgrade(host);
+
+    return {
+      version,
+      appServerVersion: null,
+      supportedVersion: SUPPORTED_CODEX_VERSION,
+      beforeVersion,
+      upgraded: true,
+    };
+  }
+
   private hostKey(hostId: number) {
     return `${currentGatewayUserId() ?? "anonymous"}:${hostId}`;
+  }
+
+  private async readVersionForRepair(host: HostWithSecret) {
+    try {
+      return await this.versionChecker.readVersionOrRecoverableMissing(host);
+    } catch {
+      return "0.0.0";
+    }
+  }
+
+  private async stopRuntimeIfPresent(host: HostWithSecret) {
+    const runtimeState = await this.appServerRuntime.readState(host);
+    if (runtimeState.running) {
+      await this.appServerRuntime.terminateUnmanaged(host);
+    }
   }
 }
 

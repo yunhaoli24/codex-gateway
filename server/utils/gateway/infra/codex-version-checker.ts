@@ -1,5 +1,6 @@
 import { hostLifecycleBus } from "../state/host-events";
 import { parseCodexVersion, SUPPORTED_CODEX_VERSION } from "./codex-version";
+import { isRecoverableCodexInstallError } from "./codex-install-errors";
 import { codexRemoteVersionPayload, remoteLoginShellCommand } from "./remote-command";
 import type { SshConnectionPool } from "./ssh-connection";
 import type { HostWithSecret } from "./ssh-types";
@@ -38,15 +39,4 @@ export class CodexVersionChecker {
 
 function hostDisplayName(host: HostWithSecret) {
   return host.name || host.sshHost;
-}
-
-function messageFromError(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function isRecoverableCodexInstallError(error: unknown) {
-  const message = messageFromError(error);
-  return /codex executable not found|Missing optional dependency @openai\/codex-|Cannot find module .*@openai\/codex-|Failed to read remote Codex version/i.test(
-    message,
-  );
 }

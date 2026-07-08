@@ -267,7 +267,21 @@ async function runRemoteCodexVersion(remote: RemoteCodexEnv) {
 }
 
 export function remoteCodexCommand(remote: RemoteCodexEnv) {
-  return shellQuote(remote.codexBin || "codex");
+  const candidates = [
+    remote.codexBin,
+    "$HOME/.npm-global/bin/codex",
+    "$HOME/.local/bin/codex",
+  ].filter(Boolean) as string[];
+  const candidateList = candidates.map(shellQuote).join(" ");
+  return `$(
+for candidate in ${candidateList}; do
+  if [ -x "$candidate" ]; then
+    printf '%s\\n' "$candidate"
+    exit 0
+  fi
+done
+command -v codex 2>/dev/null || printf '%s\\n' codex
+)`;
 }
 
 async function currentRouteSelection(page: Page) {

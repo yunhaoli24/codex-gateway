@@ -19,6 +19,24 @@ interface PendingRequest {
 
 export type RpcNotificationHandler = (message: RpcEnvelope) => void;
 
+export class CodexRpcTransportError extends Error {
+  constructor(
+    message: string,
+    readonly detail: {
+      hostId: number;
+      hostName: string;
+      phase: string;
+      stderr: string;
+      code: number | null;
+      signal: string | null;
+    },
+    cause?: unknown,
+  ) {
+    super(formatTransportErrorMessage(message, detail), { cause });
+    this.name = "CodexRpcTransportError";
+  }
+}
+
 function rawWebSocketDataToString(data: RawData) {
   if (Buffer.isBuffer(data)) {
     return data.toString("utf8");
@@ -69,11 +87,19 @@ export class CodexRpcClient extends EventEmitter {
       return;
     }
 
-    const versionState = this.options.skipVersionCheck
+    let versionState = this.options.skipVersionCheck
       ? null
       : await codexRuntime.ensureCodexVersion(this.host);
 
-    await this.connectRemoteProxyWebSocket();
+    try {
+      await this.connectRemoteProxyWebSocket();
+    } catch (error) {
+      if (this.options.skipVersionCheck) {
+        throw error;
+      }
+      versionState = await codexRuntime.repairAfterProxyFailure(this.host, error);
+      await this.connectRemoteProxyWebSocket();
+    }
 
     await this.request(
       "initialize",
@@ -197,6 +223,7 @@ export class CodexRpcClient extends EventEmitter {
   }
 
   private async connectRemoteProxyWebSocket() {
+    this.stderrBuffer = "";
     const channel = await sshConnections.execChannel(
       this.host,
       remoteLoginShellCommand(
@@ -206,6 +233,10 @@ export class CodexRpcClient extends EventEmitter {
       ),
     );
     this.transportClosed = false;
+    let closeDetail: { code: number | null; signal: string | null } = {
+      code: null,
+      signal: null,
+    };
 
     channel.stderr.on("data", (chunk: Buffer) => {
       const text = chunk.toString("utf8");
@@ -213,18 +244,35 @@ export class CodexRpcClient extends EventEmitter {
       this.emit("stderr", text);
     });
     channel.on("close", (code: number | null, signal: string | null) => {
+      closeDetail = { code, signal };
       this.handleTransportClose(this.closedMessage(code, signal), { code, signal });
     });
 
     await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const settleResolve = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve();
+      };
+      const settleReject = (error: unknown, phase: string) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        reject(this.transportError(phase, error, closeDetail));
+      };
       const ws = new WebSocket("ws://localhost/rpc", {
         createConnection: () => channel,
         perMessageDeflate: false,
       });
       this.ws = ws;
-      ws.on("open", () => resolve());
+      ws.on("open", settleResolve);
       ws.on("message", (data) => this.handleMessage(rawWebSocketDataToString(data)));
-      ws.on("error", reject);
+      ws.on("error", (error) => settleReject(error, "websocketHandshake"));
+      channel.on("error", (error: Error) => settleReject(error, "sshChannel"));
       ws.on("close", () => {
         this.handleTransportClose("Codex RPC remote proxy WebSocket closed", {
           code: null,
@@ -245,7 +293,7 @@ export class CodexRpcClient extends EventEmitter {
     this.initialized = false;
     this.ws = null;
     this.emit("close", detail);
-    this.rejectPending(new Error(message));
+    this.rejectPending(this.transportError("transport", new Error(message), detail));
   }
 
   private rejectPending(error: Error) {
@@ -265,6 +313,31 @@ export class CodexRpcClient extends EventEmitter {
       .filter(Boolean)
       .join(", ");
     return detail ? `Codex RPC transport closed (${detail})` : "Codex RPC transport closed";
+  }
+
+  private transportError(
+    phase: string,
+    error: unknown,
+    detail: { code: number | null; signal: string | null },
+  ) {
+    const message =
+      phase === "websocketHandshake"
+        ? "Codex RPC remote proxy WebSocket handshake failed"
+        : phase === "sshChannel"
+          ? "Codex RPC SSH channel failed"
+          : "Codex RPC transport failed";
+    return new CodexRpcTransportError(
+      causeMessage(message, error),
+      {
+        hostId: this.host.id,
+        hostName: this.host.name || this.host.sshHost,
+        phase,
+        stderr: this.stderrBuffer.trim(),
+        code: detail.code,
+        signal: detail.signal,
+      },
+      error,
+    );
   }
 
   private send(message: RpcEnvelope) {
@@ -321,4 +394,20 @@ export class CodexRpcClient extends EventEmitter {
 
     this.emit("notification", message);
   }
+}
+
+function causeMessage(prefix: string, error: unknown) {
+  const detail = error instanceof Error ? error.message : String(error);
+  return detail ? `${prefix}: ${detail}` : prefix;
+}
+
+function formatTransportErrorMessage(message: string, detail: CodexRpcTransportError["detail"]) {
+  const parts = [
+    `host=${detail.hostName}#${detail.hostId}`,
+    `phase=${detail.phase}`,
+    detail.code == null ? null : `channelExit=${detail.code}`,
+    detail.signal ? `signal=${detail.signal}` : null,
+    detail.stderr ? `remoteStderr=${detail.stderr}` : "remoteStderr=<empty>",
+  ].filter(Boolean);
+  return `${message} (${parts.join(", ")})`;
 }

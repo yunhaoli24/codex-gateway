@@ -11,6 +11,10 @@ import { createProxySocket, expandHome, resolveSshConfig, sshConnectionKey } fro
 import { SSH_CONNECTION_CLOSED_BEFORE_READY, withSshConnectRetries } from "./ssh-connect-retry";
 import { currentGatewayUserId } from "../state/memory";
 
+const SSH_READY_TIMEOUT_MS = 30_000;
+const SSH_KEEPALIVE_INTERVAL_MS = 30_000;
+const SSH_KEEPALIVE_COUNT_MAX = 10;
+
 export class SshConnectionPool {
   private clients = new Map<string, Promise<Client>>();
   private hostKeysByUser = new Map<string, Map<number, string>>();
@@ -291,9 +295,9 @@ export class SshConnectionPool {
             : resolved.privateKeyPath
               ? readFileSync(expandHome(resolved.privateKeyPath))
               : undefined,
-          readyTimeout: 15_000,
-          keepaliveInterval: 15_000,
-          keepaliveCountMax: 3,
+          readyTimeout: SSH_READY_TIMEOUT_MS,
+          keepaliveInterval: SSH_KEEPALIVE_INTERVAL_MS,
+          keepaliveCountMax: SSH_KEEPALIVE_COUNT_MAX,
         });
     });
   }
