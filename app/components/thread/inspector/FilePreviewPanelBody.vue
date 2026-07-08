@@ -11,9 +11,11 @@ import { OpenFileViewer } from "@open-file-viewer/vue";
 import "@open-file-viewer/core/style.css";
 import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { computed } from "vue";
+import { isMarkdownPreviewPath } from "~~/shared/file-preview";
 import type { FilePreviewTab } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
 import FilePreviewCodePanel from "@/components/thread/inspector/FilePreviewCodePanel.vue";
+import FilePreviewMarkdownPanel from "@/components/thread/inspector/FilePreviewMarkdownPanel.vue";
 import { useTerminalTheme } from "@/composables/useTerminalTheme";
 import { useGatewayFilePreviewStore } from "@/stores/gateway-file-preview";
 
@@ -35,6 +37,9 @@ const plugins: PreviewPlugin[] = [
   fallbackPlugin(),
 ];
 const isCodePreview = computed(() => Boolean(props.tab.text));
+const isMarkdownPreview = computed(() =>
+  isMarkdownPreviewPath(props.tab.path, props.tab.contentType),
+);
 </script>
 
 <template>
@@ -66,6 +71,8 @@ const isCodePreview = computed(() => Boolean(props.tab.text));
         {{ t("app.retry") }}
       </Button>
     </div>
+
+    <FilePreviewMarkdownPanel v-else-if="isMarkdownPreview" :tab="tab" />
 
     <FilePreviewCodePanel v-else-if="isCodePreview" :tab="tab" />
 

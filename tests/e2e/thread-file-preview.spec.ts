@@ -10,15 +10,26 @@ test("agent file links open a real remote code preview in the inspector", async 
 
   const projectPath = `/home/${remote.username}`;
   const remotePath = `${projectPath}/codex-gateway-preview-${Date.now()}.ts`;
+  const markdownPath = `${projectPath}/codex-gateway-preview-${Date.now()}.md`;
+  const nestedPythonPath = `${projectPath}/deep/prefix/model_${Date.now()}.py`;
   await execRemoteSsh(
     remote,
     `
 set -eu
-mkdir -p ${shellQuote(projectPath)}
+mkdir -p ${shellQuote(projectPath)} ${shellQuote(`${projectPath}/deep/prefix`)}
 cat > ${shellQuote(remotePath)} <<'EOF'
 export function previewMarker() {
   return "codex-gateway-file-preview";
 }
+EOF
+cat > ${shellQuote(markdownPath)} <<'EOF'
+# Rendered Markdown Preview
+
+This **markdown file** should render as HTML.
+EOF
+cat > ${shellQuote(nestedPythonPath)} <<'EOF'
+def nested_preview_marker():
+    return "codex-gateway-nested-python"
 EOF
 `,
   );
@@ -80,6 +91,49 @@ EOF
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("inspector-panel-title")).toHaveText(remotePath.split("/").pop()!);
   await expect(panel.getByText("codex-gateway-file-preview")).toBeVisible();
+  await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
+
+  await seedGatewayThread(page, {
+    hostId: host.id,
+    projectId: project.id,
+    host: { ...host },
+    project: { ...project },
+    threadId,
+    currentThread: { id: threadId, name: "File Preview Thread" },
+    history: {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "file-preview-turn-md",
+            status: "completed",
+            items: [
+              {
+                id: "file-preview-md-message",
+                type: "agentMessage",
+                phase: "final_answer",
+                text: `Open [markdown target](${origin}${markdownPath}) and [nested python](${origin}${nestedPythonPath}:2).`,
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  await page.getByRole("link", { name: "markdown target" }).click();
+  await expect(panel.getByTestId("inspector-panel-title")).toHaveText(
+    markdownPath.split("/").pop()!,
+  );
+  await expect(panel.locator(".markdown-content h1")).toHaveText("Rendered Markdown Preview");
+  await expect(panel.locator(".markdown-content strong")).toHaveText("markdown file");
+
+  await page.getByRole("link", { name: "nested python" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(panel.getByTestId("inspector-panel-title")).toHaveText(
+    nestedPythonPath.split("/").pop()!,
+  );
+  await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
   await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
 });
 

@@ -1,6 +1,7 @@
 import type { FilePreviewTab } from "~~/shared/types";
 import { defineStore } from "pinia";
 import { markRaw } from "vue";
+import { isTextPreviewPath } from "~~/shared/file-preview";
 import { useAuthStore } from "@/stores/auth";
 
 type OpenFilePreviewInput = {
@@ -10,47 +11,6 @@ type OpenFilePreviewInput = {
   path: string;
   line?: number | null;
 };
-
-const textExtensions = new Set([
-  "bash",
-  "c",
-  "cc",
-  "cfg",
-  "conf",
-  "cpp",
-  "css",
-  "csv",
-  "dockerfile",
-  "env",
-  "go",
-  "h",
-  "hpp",
-  "html",
-  "ini",
-  "java",
-  "js",
-  "json",
-  "jsonl",
-  "jsx",
-  "log",
-  "md",
-  "mjs",
-  "py",
-  "rb",
-  "rs",
-  "scss",
-  "sh",
-  "sql",
-  "toml",
-  "ts",
-  "tsx",
-  "txt",
-  "vue",
-  "xml",
-  "yaml",
-  "yml",
-  "zsh",
-]);
 
 export const useGatewayFilePreviewStore = defineStore("gateway-file-preview", () => {
   const tabs = ref<FilePreviewTab[]>([]);
@@ -138,7 +98,7 @@ export const useGatewayFilePreviewStore = defineStore("gateway-file-preview", ()
       tab.contentType = contentType;
       tab.size = blob.size;
       tab.objectUrl = objectUrl;
-      tab.text = isTextPreview(tab.path, contentType) ? await blob.text() : "";
+      tab.text = isTextPreviewPath(tab.path, contentType) ? await blob.text() : "";
       filesByKey.value = { ...filesByKey.value, [tab.key]: file };
     } catch (caught) {
       tab.error = caught instanceof Error ? caught.message : String(caught);
@@ -185,14 +145,6 @@ function authorizationHeaders(): HeadersInit {
 async function responseErrorMessage(response: Response) {
   const text = await response.text().catch(() => "");
   return text || response.statusText || `HTTP ${response.status}`;
-}
-
-function isTextPreview(path: string, contentType: string) {
-  if (contentType.startsWith("text/") || contentType.includes("json")) {
-    return true;
-  }
-  const extension = path.split(".").pop()?.toLowerCase() || "";
-  return textExtensions.has(extension);
 }
 
 function revokeTab(tab: FilePreviewTab | undefined) {

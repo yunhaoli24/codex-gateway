@@ -1,10 +1,11 @@
+import { isPreviewablePath } from "~~/shared/file-preview";
+
 export interface RemoteFileLinkTarget {
   path: string;
   line: number | null;
 }
 
-const likelyRemotePath = /^\/(?:data|home|mnt|opt|root|srv|tmp|var|workspace)\//;
-const fileLikePath = /\.[A-Za-z0-9][A-Za-z0-9_-]{0,12}(?::\d+)?$/;
+const browserOwnedPath = /^\/(?:_nuxt|api|favicon\.ico|robots\.txt)(?:\/|$)/;
 
 export function parseRemoteFileLink(href: string, baseHref: string): RemoteFileLinkTarget | null {
   let url: URL;
@@ -20,11 +21,11 @@ export function parseRemoteFileLink(href: string, baseHref: string): RemoteFileL
   }
 
   const decodedPath = decodeURIComponent(url.pathname);
-  if (!likelyRemotePath.test(decodedPath) || !fileLikePath.test(decodedPath)) {
+  const { path, line } = splitLineSuffix(decodedPath);
+  if (browserOwnedPath.test(path) || !isPreviewablePath(path)) {
     return null;
   }
 
-  const { path, line } = splitLineSuffix(decodedPath);
   return { path, line };
 }
 
