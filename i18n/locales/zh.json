@@ -77,6 +77,7 @@
     "slashGoalClearDescription": "调用 app-server 清除当前目标",
     "planModeActive": "计划模式",
     "goalModeActive": "目标",
+    "threadGoal": "Goal",
     "goalInputHint": "输入目标后回车",
     "goalDetailsTitle": "目标详情",
     "goalDetailsDescription": "当前目标的推进状态由 app-server 同步。",
@@ -84,6 +85,12 @@
     "goalElapsed": "推进时间",
     "goalTokensUsed": "已用 Token",
     "goalTokenBudget": "Token 预算",
+    "goalStatusActive": "Active",
+    "goalStatusPaused": "Paused",
+    "goalStatusBlocked": "Blocked",
+    "goalStatusUsageLimited": "Usage limited",
+    "goalStatusBudgetLimited": "Budget limited",
+    "goalStatusComplete": "Complete",
     "deactivatePlanMode": "退出计划模式",
     "goalObjectiveRequired": "请输入目标内容，例如 /goal 完成当前重构",
     "planImplementationPrompt": "是否执行这个计划？",
@@ -357,7 +364,7 @@
       },
       "mcpServerStatusUpdated": {
         "title": "MCP 服务状态更新",
-        "message": "{server} · {status} {error}"
+        "message": "{server} · {status} {failureReason} {error}"
       },
       "accountUpdated": {
         "title": "账号状态已更新",

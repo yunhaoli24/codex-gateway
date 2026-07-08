@@ -21,6 +21,7 @@ import HookPromptItem from "@/components/thread/items/HookPromptItem.vue";
 import SubAgentActivityItem from "@/components/thread/items/SubAgentActivityItem.vue";
 import CollabAgentToolCallItem from "@/components/thread/items/CollabAgentToolCallItem.vue";
 import AppNotificationItem from "@/components/thread/items/AppNotificationItem.vue";
+import ThreadGoalItem from "@/components/thread/items/ThreadGoalItem.vue";
 
 const threadItemComponents = {
   agentMessage: AgentMessageItem,
@@ -47,6 +48,7 @@ const threadItemComponents = {
   serverRequest: ServerRequestItem,
   sleep: SleepItem,
   subAgentActivity: SubAgentActivityItem,
+  threadGoal: ThreadGoalItem,
   turnPlan: TurnPlanItem,
   userMessage: UserMessageItem,
   webSearch: ToolCallItem,

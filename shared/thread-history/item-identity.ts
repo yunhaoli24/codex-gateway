@@ -21,6 +21,16 @@ export function isClientOnlyItem(item: ThreadHistoryItem | null | undefined) {
   return item?.type === "userMessage" && item?.clientId && !item?.turnId;
 }
 
+export function syntheticTurnIdForItem(item: ThreadHistoryItem | null | undefined) {
+  if (isClientOnlyItem(item)) {
+    return item?.clientId ? `client-${item.clientId}` : "";
+  }
+  if (item?.type === "threadGoal" && item?.id && !item?.turnId) {
+    return `system-${item.id}`;
+  }
+  return "";
+}
+
 export function sameItem(
   left: ThreadHistoryItem | null | undefined,
   right: ThreadHistoryItem | null | undefined,

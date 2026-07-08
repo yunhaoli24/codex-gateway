@@ -448,7 +448,7 @@ export async function installSelectedThreadGoalSubmitMock(
           createdAt: Date.now(),
           updatedAt: Date.now(),
         },
-        { showObjectiveInTimeline: true },
+        { showInTimeline: true },
       );
     };
   }, input);

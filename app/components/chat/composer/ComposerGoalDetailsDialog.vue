@@ -46,32 +46,36 @@ defineProps<{
         <DialogDescription>{{ $t("app.goalDetailsDescription") }}</DialogDescription>
       </DialogHeader>
 
-      <div class="min-h-0 flex-1 overflow-hidden px-6 py-5">
-        <ScrollArea class="h-full min-h-0">
-          <div class="space-y-4 pr-4">
-            <div class="rounded-2xl border border-hairline bg-canvas-soft p-4">
-              <div class="mb-2 text-xs font-medium uppercase tracking-wide text-ink-muted">
-                {{ $t("app.goalObjective") }}
-              </div>
+      <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 py-5">
+        <div
+          class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-hairline bg-canvas-soft"
+        >
+          <div
+            class="shrink-0 border-b border-hairline px-4 py-3 text-xs font-medium uppercase tracking-wide text-ink-muted"
+          >
+            {{ $t("app.goalObjective") }}
+          </div>
+          <ScrollArea class="min-h-0 flex-1">
+            <div class="p-4 pr-6">
               <MarkdownContent :content="goal.objective" compact />
             </div>
+          </ScrollArea>
+        </div>
 
-            <dl class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div class="rounded-2xl border border-hairline bg-surface p-3">
-                <dt class="text-xs text-ink-muted">{{ $t("app.goalElapsed") }}</dt>
-                <dd class="mt-1 font-mono text-sm text-ink">{{ elapsedLabel }}</dd>
-              </div>
-              <div class="rounded-2xl border border-hairline bg-surface p-3">
-                <dt class="text-xs text-ink-muted">{{ $t("app.goalTokensUsed") }}</dt>
-                <dd class="mt-1 font-mono text-sm text-ink">{{ tokensLabel }}</dd>
-              </div>
-              <div class="rounded-2xl border border-hairline bg-surface p-3">
-                <dt class="text-xs text-ink-muted">{{ $t("app.goalTokenBudget") }}</dt>
-                <dd class="mt-1 font-mono text-sm text-ink">{{ budgetLabel }}</dd>
-              </div>
-            </dl>
+        <dl class="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-3">
+          <div class="rounded-2xl border border-hairline bg-surface p-3">
+            <dt class="text-xs text-ink-muted">{{ $t("app.goalElapsed") }}</dt>
+            <dd class="mt-1 font-mono text-sm text-ink">{{ elapsedLabel }}</dd>
           </div>
-        </ScrollArea>
+          <div class="rounded-2xl border border-hairline bg-surface p-3">
+            <dt class="text-xs text-ink-muted">{{ $t("app.goalTokensUsed") }}</dt>
+            <dd class="mt-1 font-mono text-sm text-ink">{{ tokensLabel }}</dd>
+          </div>
+          <div class="rounded-2xl border border-hairline bg-surface p-3">
+            <dt class="text-xs text-ink-muted">{{ $t("app.goalTokenBudget") }}</dt>
+            <dd class="mt-1 font-mono text-sm text-ink">{{ budgetLabel }}</dd>
+          </div>
+        </dl>
       </div>
     </DialogContent>
   </Dialog>

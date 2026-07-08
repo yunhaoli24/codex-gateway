@@ -20,6 +20,20 @@ export interface ThreadGoal {
   updatedAt: number;
 }
 
+export interface ThreadGoalTimelineItem {
+  type: "threadGoal";
+  id: string;
+  turnId?: string | null;
+  threadId: string;
+  objective: string;
+  status: ThreadGoalStatus;
+  tokenBudget: number | null;
+  tokensUsed: number;
+  timeUsedSeconds: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ThreadOpenResult {
   hostId: number;
   thread: unknown;

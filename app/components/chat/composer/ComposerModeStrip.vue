@@ -5,6 +5,7 @@ import { computed, watch } from "vue";
 import type { ThreadGoal } from "~~/shared/types";
 import ComposerGoalDetailsDialog from "@/components/chat/composer/ComposerGoalDetailsDialog.vue";
 import { Button } from "@/components/ui/button";
+import { formatGoalElapsed } from "@/utils/thread-goal-display";
 
 const props = defineProps<{
   planModeActive: boolean;
@@ -38,27 +39,13 @@ const goalBudgetLabel = computed(() => {
   const budget = visibleGoal.value?.tokenBudget;
   return budget === null || budget === undefined ? "∞" : budget.toLocaleString();
 });
-const goalElapsedLabel = computed(() => formatElapsed(activeGoalElapsedSeconds.value));
+const goalElapsedLabel = computed(() => formatGoalElapsed(activeGoalElapsedSeconds.value));
 const showGoalInputHint = computed(() => props.goalInputActive && !visibleGoal.value);
 const showStrip = computed(
   () => props.planModeActive || showGoalInputHint.value || visibleGoal.value,
 );
 
 watch(visibleGoal, (goal) => (goal ? resume() : pause()), { immediate: true });
-
-function formatElapsed(seconds: number) {
-  if (seconds < 60) {
-    return `${seconds.toFixed(1)}s`;
-  }
-  const totalSeconds = Math.floor(seconds);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const remainingSeconds = totalSeconds % 60;
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${remainingSeconds}s`;
-  }
-  return `${minutes}m ${remainingSeconds}s`;
-}
 </script>
 
 <template>

@@ -1,4 +1,4 @@
-import { findTurnForItem, isClientOnlyItem, sameItem, turnId } from "./item-identity";
+import { findTurnForItem, sameItem, syntheticTurnIdForItem, turnId } from "./item-identity";
 import { mergeThreadItem } from "./item-merge";
 import { ensureHistoryThread } from "./shape";
 import type { ThreadHistoryItem } from "./types";
@@ -13,7 +13,8 @@ export function mergeItemIntoLatestTurn(
     return history;
   }
   const itemTurnId = item.turnId ? String(item.turnId) : "";
-  if (!itemTurnId && !isClientOnlyItem(item)) {
+  const syntheticTurnId = syntheticTurnIdForItem(item);
+  if (!itemTurnId && !syntheticTurnId) {
     return history;
   }
 
@@ -32,8 +33,7 @@ export function mergeItemIntoLatestTurn(
     return nextHistory;
   }
 
-  const clientTurnId = isClientOnlyItem(item) ? `client-${item.clientId}` : "";
-  const targetTurnId = itemTurnId || clientTurnId;
+  const targetTurnId = itemTurnId || syntheticTurnId;
   let turnIndex = turns.findIndex((candidate) => turnId(candidate) === targetTurnId);
   let turn = turnIndex >= 0 ? turns[turnIndex] : null;
   if (!turn) {

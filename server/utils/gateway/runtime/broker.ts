@@ -7,6 +7,7 @@ import { ThreadTurnCommandService } from "./turn-commands";
 import { ThreadGoalService } from "./thread-goals";
 import { ThreadSettingsService } from "./thread-settings";
 import { ThreadCatalogService } from "./thread-catalog";
+import { ThreadHistoryReader } from "./thread-history-reader";
 
 class ThreadBroker {
   private readonly registry = new ControllerRegistry();
@@ -15,6 +16,7 @@ class ThreadBroker {
   private readonly goals = new ThreadGoalService(this.registry);
   private readonly settings = new ThreadSettingsService(this.registry);
   private readonly catalog = new ThreadCatalogService(this.registry);
+  private readonly historyReader = new ThreadHistoryReader(this.registry);
 
   async openThread(
     host: HostRecord,
@@ -99,7 +101,7 @@ class ThreadBroker {
       sortDirection?: "asc" | "desc";
     },
   ) {
-    return this.catalog.listThreadTurns(host, threadId, params);
+    return this.historyReader.listThreadTurns(host, threadId, params);
   }
 
   async getController(host: HostRecord, threadId: string) {

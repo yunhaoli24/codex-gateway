@@ -2,10 +2,7 @@ import type { ThreadGoal, ThreadGoalStatus } from "~~/shared/types";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayStoreContext } from "../types";
 import { pinnedKey } from "../thread-utils/identity";
-import {
-  goalObjectiveMessageItem,
-  shouldInsertGoalObjectiveMessage,
-} from "../thread-goals/goal-history";
+import { threadGoalTimelineItem } from "../thread-goals/goal-timeline";
 
 export function createThreadGoalActions(ctx: GatewayStoreContext) {
   return {
@@ -13,16 +10,18 @@ export function createThreadGoalActions(ctx: GatewayStoreContext) {
       hostId: number,
       threadId: string,
       goal: ThreadGoal,
-      options: { showObjectiveInTimeline?: boolean; turnId?: string | null } = {},
+      options: { showInTimeline?: boolean; turnId?: string | null } = {},
     ) {
       const key = pinnedKey(hostId, threadId);
-      const previousGoal = ctx.state.threadGoalsByKey[key];
-      if (options.showObjectiveInTimeline && shouldInsertGoalObjectiveMessage(previousGoal, goal)) {
-        ctx.events.emit("history-item-upsert", {
-          hostId,
-          threadId,
-          item: goalObjectiveMessageItem(goal, options.turnId),
-        });
+      if (options.showInTimeline) {
+        const item = threadGoalTimelineItem(goal, options.turnId);
+        if (item) {
+          ctx.events.emit("history-item-upsert", {
+            hostId,
+            threadId,
+            item,
+          });
+        }
       }
       ctx.state.threadGoalsByKey = {
         ...ctx.state.threadGoalsByKey,
@@ -58,7 +57,7 @@ export function createThreadGoalActions(ctx: GatewayStoreContext) {
         status: "active",
       }));
       ctx.upsertThreadGoal(ctx.state.selectedHostId, ctx.state.selectedThreadId, message.goal, {
-        showObjectiveInTimeline: true,
+        showInTimeline: true,
       });
     },
 

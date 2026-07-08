@@ -84,9 +84,13 @@ function findFinalAgentIndex(turnItems: any[], status: unknown, preferPlanFinal:
 
 function firstIntermediateItemIndex(items: any[]) {
   const firstNonUser = items.findIndex(
-    (item: any) => item?.type !== "userMessage" || isSteerUserMessage(item),
+    (item: any) => !isLeadTranscriptItem(item) || isSteerUserMessage(item),
   );
   return firstNonUser >= 0 ? firstNonUser : items.length;
+}
+
+function isLeadTranscriptItem(item: any) {
+  return item?.type === "userMessage" || item?.type === "threadGoal";
 }
 
 function isTurnActive(turn: Record<string, any>, items: any[]) {

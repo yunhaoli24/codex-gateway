@@ -80,6 +80,7 @@
     "slashGoalClearDescription": "Clear the current goal through app-server",
     "planModeActive": "Plan mode",
     "goalModeActive": "Goal",
+    "threadGoal": "Goal",
     "goalInputHint": "Enter an objective and press Enter",
     "goalDetailsTitle": "Goal details",
     "goalDetailsDescription": "Current goal progress is synchronized from app-server.",
@@ -87,6 +88,12 @@
     "goalElapsed": "Elapsed",
     "goalTokensUsed": "Tokens used",
     "goalTokenBudget": "Token budget",
+    "goalStatusActive": "Active",
+    "goalStatusPaused": "Paused",
+    "goalStatusBlocked": "Blocked",
+    "goalStatusUsageLimited": "Usage limited",
+    "goalStatusBudgetLimited": "Budget limited",
+    "goalStatusComplete": "Complete",
     "deactivatePlanMode": "Exit plan mode",
     "goalObjectiveRequired": "Enter an objective, for example /goal finish this refactor",
     "planImplementationPrompt": "Implement this plan?",
@@ -360,7 +367,7 @@
       },
       "mcpServerStatusUpdated": {
         "title": "MCP server status updated",
-        "message": "{server} · {status} {error}"
+        "message": "{server} · {status} {failureReason} {error}"
       },
       "accountUpdated": {
         "title": "Account updated",

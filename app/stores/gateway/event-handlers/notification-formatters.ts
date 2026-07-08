@@ -110,11 +110,17 @@ const formatters: Record<VisibleNotificationMethod, NotificationFormatter> = {
       },
     ),
   "mcpServer/startupStatus/updated": (ctx, params) =>
-    simpleNotification(ctx, "mcpServerStatusUpdated", params.error ? "warning" : "info", {
-      server: text(params.name),
-      status: text(params.status),
-      error: text(params.error),
-    }),
+    simpleNotification(
+      ctx,
+      "mcpServerStatusUpdated",
+      params.error || params.failureReason ? "warning" : "info",
+      {
+        server: text(params.name),
+        status: text(params.status),
+        failureReason: text(params.failureReason),
+        error: text(params.error),
+      },
+    ),
   "account/updated": (ctx, params) =>
     simpleNotification(ctx, "accountUpdated", "info", {
       authMode: text(params.authMode),

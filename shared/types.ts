@@ -14,6 +14,7 @@ export type {
   ComposerTurnOptions,
   ThreadGoal,
   ThreadGoalStatus,
+  ThreadGoalTimelineItem,
   ThreadOpenResult,
   ThreadRuntimeStatus,
   ThreadSettingsState,

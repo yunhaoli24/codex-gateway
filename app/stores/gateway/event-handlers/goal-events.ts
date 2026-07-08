@@ -6,7 +6,7 @@ export const goalEventHandlers: GatewayEventHandlerRegistry = {
       return;
     }
     ctx.upsertThreadGoal(event.hostId, threadId, params.goal, {
-      showObjectiveInTimeline: true,
+      showInTimeline: true,
       turnId: params.turnId ? String(params.turnId) : null,
     });
   },

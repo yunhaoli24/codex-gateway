@@ -200,7 +200,7 @@ export interface GatewayStoreContext {
     hostId: number,
     threadId: string,
     goal: ThreadGoal,
-    options?: { showObjectiveInTimeline?: boolean; turnId?: string | null },
+    options?: { showInTimeline?: boolean; turnId?: string | null },
   ) => void;
   clearThreadGoalState: (hostId: number, threadId: string) => void;
   refreshSelectedThreadGoal: () => Promise<void>;

@@ -51,7 +51,10 @@ test("goal slash input derives the goal tag and requires an objective before sub
   await expect(
     page.getByTestId("composer-mode-strip").getByText("完成当前重构").first(),
   ).toBeVisible();
-  await expect(page.getByTestId("chat-scroll-area").getByText("/goal 完成当前重构")).toBeVisible();
+  await expect(page.getByTestId("thread-goal-item").getByText("完成当前重构")).toBeVisible();
+  await expect(page.locator(".thread-user-message", { hasText: "/goal 完成当前重构" })).toHaveCount(
+    0,
+  );
 });
 
 test("goal slash menu exposes official app-server controls for an existing goal", async ({
@@ -147,6 +150,8 @@ test("goal progress updates the composer status strip without flooding the agent
   });
 
   const threadId = "e2e-goal-progress-thread";
+  const goalCreatedAt = Date.now() - 4000;
+  const goalObjective = "持续 **重构** 输入框状态\n\n- 保持滚动稳定";
   await applyGatewayLiveEvent(page, {
     id: 301,
     hostId: 1,
@@ -158,12 +163,12 @@ test("goal progress updates the composer status strip without flooding the agent
         turnId: "turn-goal-progress",
         goal: {
           threadId,
-          objective: "持续 **重构** 输入框状态\n\n- 保持滚动稳定",
+          objective: goalObjective,
           status: "active",
           tokenBudget: null,
           tokensUsed: 128,
           timeUsedSeconds: 3,
-          createdAt: Date.now() - 3000,
+          createdAt: goalCreatedAt,
           updatedAt: Date.now(),
         },
       },
@@ -181,12 +186,12 @@ test("goal progress updates the composer status strip without flooding the agent
         turnId: "turn-goal-progress",
         goal: {
           threadId,
-          objective: "持续 **重构** 输入框状态\n\n- 保持滚动稳定",
+          objective: goalObjective,
           status: "active",
           tokenBudget: null,
           tokensUsed: 256,
           timeUsedSeconds: 4,
-          createdAt: Date.now() - 4000,
+          createdAt: goalCreatedAt,
           updatedAt: Date.now(),
         },
       },
@@ -197,9 +202,10 @@ test("goal progress updates the composer status strip without flooding the agent
   const strip = page.getByTestId("composer-mode-strip");
   await expect(strip.getByText(/持续 \*\*重构\*\* 输入框状态/).first()).toBeVisible();
   await expect(strip.getByText(/256 tokens/).first()).toBeVisible();
-  const goalMessages = page.locator(".thread-user-message", { hasText: "/goal 持续" });
-  await expect(goalMessages).toHaveCount(1);
-  await expect(goalMessages.first().locator("strong").getByText("重构")).toBeVisible();
+  const goalCards = page.getByTestId("thread-goal-item");
+  await expect(goalCards).toHaveCount(1);
+  await expect(goalCards.first().locator("strong").getByText("重构")).toBeVisible();
+  await expect(page.locator(".thread-user-message", { hasText: "/goal 持续" })).toHaveCount(0);
   await page.getByTestId("composer-goal-summary").click();
   const goalDialog = page.getByRole("dialog");
   await expect(goalDialog.getByText("目标详情")).toBeVisible();
@@ -218,12 +224,12 @@ test("goal progress updates the composer status strip without flooding the agent
         turnId: "turn-goal-progress",
         goal: {
           threadId,
-          objective: "持续重构输入框状态",
+          objective: goalObjective,
           status: "complete",
           tokenBudget: null,
           tokensUsed: 512,
           timeUsedSeconds: 8,
-          createdAt: Date.now() - 8000,
+          createdAt: goalCreatedAt,
           updatedAt: Date.now(),
         },
       },
@@ -233,7 +239,46 @@ test("goal progress updates the composer status strip without flooding the agent
 
   await expect(page.getByTestId("composer-mode-strip")).toHaveCount(0);
   await expect(page.getByTestId("chat-scroll-area").getByText("目标已更新")).toHaveCount(0);
-  await expect(goalMessages).toHaveCount(1);
+  await expect(goalCards).toHaveCount(1);
+  await expect(goalCards.first().getByText("Complete")).toBeVisible();
+});
+
+test("goal snapshot updates only the composer status strip without fabricating history", async ({
+  page,
+}) => {
+  await openApp(page);
+  const threadId = "e2e-goal-snapshot-thread";
+  await seedGatewayThread(page, {
+    threadId,
+    currentThread: { id: threadId, name: "Goal Snapshot" },
+    history: { thread: { id: threadId, turns: [] } },
+  });
+
+  await page.evaluate(
+    (input) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+      if (!store) {
+        throw new Error("Unable to locate gateway Pinia store");
+      }
+      store.upsertThreadGoal(input.hostId, input.threadId, {
+        threadId: input.threadId,
+        objective: "从 app-server 快照恢复当前目标",
+        status: "active",
+        tokenBudget: 1000,
+        tokensUsed: 42,
+        timeUsedSeconds: 5,
+        createdAt: Date.now() - 5000,
+        updatedAt: Date.now(),
+      });
+    },
+    { hostId: 1, threadId },
+  );
+
+  await expect(
+    page.getByTestId("composer-mode-strip").getByText("从 app-server 快照恢复当前目标").first(),
+  ).toBeVisible();
+  await expect(page.getByTestId("thread-goal-item")).toHaveCount(0);
 });
 
 test("plan mode shows implementation actions for a second completed turn plan", async ({
