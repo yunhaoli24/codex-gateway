@@ -2,12 +2,17 @@ import { createServer, type IncomingMessage } from "node:http";
 import { connect as connectTcp, type Socket } from "node:net";
 
 export class LocalHttpConnectProxy {
+  private readonly sockets = new Set<Socket>();
   private readonly server = createServer((request, response) => {
     proxyHttpRequest(request, response.socket);
   });
 
   async listen() {
     this.server.on("connect", proxyConnectRequest);
+    this.server.on("connection", (socket) => {
+      this.sockets.add(socket);
+      socket.on("close", () => this.sockets.delete(socket));
+    });
     await new Promise<void>((resolve, reject) => {
       this.server.once("error", reject);
       this.server.listen(0, "127.0.0.1", () => {
@@ -19,6 +24,9 @@ export class LocalHttpConnectProxy {
   }
 
   async close() {
+    for (const socket of this.sockets) {
+      socket.destroy();
+    }
     await new Promise<void>((resolve) => {
       this.server.close(() => resolve());
     });

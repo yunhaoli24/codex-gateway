@@ -146,6 +146,10 @@ export const useGatewayStore = defineStore("gateway", () => {
   Object.assign(ctx, actions);
   registerGatewayDomainSubscribers(ctx);
 
+  function resetState() {
+    Object.assign(state, createGatewayState());
+  }
+
   return {
     ...toRefs(state),
     selectedHost,
@@ -162,6 +166,7 @@ export const useGatewayStore = defineStore("gateway", () => {
     selectedComposerDraft,
     activeSubAgentPanel,
     visibleSubAgentPanels,
+    resetState,
     ...actions,
   };
 });

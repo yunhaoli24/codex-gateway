@@ -9,15 +9,16 @@ import type {
 } from "./ssh-types";
 import { createProxySocket, expandHome, resolveSshConfig, sshConnectionKey } from "./ssh-config";
 import { SSH_CONNECTION_CLOSED_BEFORE_READY, withSshConnectRetries } from "./ssh-connect-retry";
+import { currentGatewayUserId } from "../state/memory";
 
 export class SshConnectionPool {
   private clients = new Map<string, Promise<Client>>();
-  private hostKeys = new Map<number, string>();
+  private hostKeysByUser = new Map<string, Map<number, string>>();
 
   connect(host: HostWithSecret): Promise<Client> {
     const resolved = resolveSshConfig(host);
     const key = sshConnectionKey(host, resolved);
-    this.hostKeys.set(host.id, key);
+    this.scopedHostKeys().set(host.id, key);
 
     const existing = this.clients.get(key);
     if (existing) {
@@ -172,37 +173,42 @@ export class SshConnectionPool {
       return await callback(remotePort);
     } finally {
       client.off("tcp connection", listener);
-      await this.unforwardIn(client, options.remoteHost, remotePort);
+      await this.closeReverseTcpForward(client, options.remoteHost, remotePort);
     }
   }
 
   syncHosts(hosts: HostWithSecret[]) {
+    const scopedHostKeys = this.scopedHostKeys();
+    const previousKeys = new Set(scopedHostKeys.values());
     const activeKeys = new Set<string>();
-    this.hostKeys.clear();
+    scopedHostKeys.clear();
     for (const host of hosts) {
       const key = sshConnectionKey(host, resolveSshConfig(host));
       activeKeys.add(key);
-      this.hostKeys.set(host.id, key);
+      scopedHostKeys.set(host.id, key);
     }
 
-    for (const [key, client] of this.clients) {
-      if (!activeKeys.has(key)) {
-        this.clients.delete(key);
-        void client.then((connection) => connection.end()).catch(() => {});
+    for (const key of previousKeys) {
+      if (!activeKeys.has(key) && !this.isReferenced(key)) {
+        this.disconnectKey(key);
       }
     }
   }
 
   disconnectHost(host: HostWithSecret) {
-    const key = this.hostKeys.get(host.id) ?? sshConnectionKey(host, resolveSshConfig(host));
+    const key =
+      this.scopedHostKeys().get(host.id) ?? sshConnectionKey(host, resolveSshConfig(host));
     this.disconnectKey(key);
   }
 
   disconnect(hostId: number) {
-    const key = this.hostKeys.get(hostId);
+    const scopedHostKeys = this.scopedHostKeys();
+    const key = scopedHostKeys.get(hostId);
     if (key) {
-      this.disconnectKey(key);
-      this.hostKeys.delete(hostId);
+      scopedHostKeys.delete(hostId);
+      if (!this.isReferenced(key)) {
+        this.disconnectKey(key);
+      }
     }
   }
 
@@ -210,6 +216,31 @@ export class SshConnectionPool {
     const client = this.clients.get(key);
     this.clients.delete(key);
     void client?.then((connection) => connection.end()).catch(() => {});
+  }
+
+  private scopedHostKeys() {
+    const scope = this.userScopeKey();
+    let hostKeys = this.hostKeysByUser.get(scope);
+    if (!hostKeys) {
+      hostKeys = new Map();
+      this.hostKeysByUser.set(scope, hostKeys);
+    }
+    return hostKeys;
+  }
+
+  private userScopeKey() {
+    return String(currentGatewayUserId() ?? "anonymous");
+  }
+
+  private isReferenced(key: string) {
+    for (const hostKeys of this.hostKeysByUser.values()) {
+      for (const referencedKey of hostKeys.values()) {
+        if (referencedKey === key) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private async connectOnce(
@@ -280,9 +311,25 @@ export class SshConnectionPool {
   }
 
   private async unforwardIn(client: Client, remoteHost: string, remotePort: number) {
-    await new Promise<void>((resolve) => {
-      client.unforwardIn(remoteHost, remotePort, () => resolve());
+    await new Promise<void>((resolve, reject) => {
+      client.unforwardIn(remoteHost, remotePort, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
     });
+  }
+
+  private async closeReverseTcpForward(client: Client, remoteHost: string, remotePort: number) {
+    try {
+      await this.unforwardIn(client, remoteHost, remotePort);
+    } catch (error) {
+      if (!isConnectionLevelSshError(error)) {
+        throw error;
+      }
+    }
   }
 }
 

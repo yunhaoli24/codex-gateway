@@ -142,6 +142,34 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
     connect();
   }
 
+  function resetForSessionChange() {
+    if (!import.meta.client) {
+      return;
+    }
+    const socket = state.socket;
+    state.generation += 1;
+    state.socket = null;
+    state.connected = false;
+    state.reconnectAttempt = 0;
+    state.readyCount = 0;
+    state.hostLifecycleSubscribed = false;
+    state.threadSubscriptions = {};
+    lifecycleNotificationKeys.clear();
+    if (state.reconnectTimer) {
+      window.clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = null;
+    }
+    clearHealthTimer();
+    rejectAllRequests(new Error(t("app.realtimeDisconnected")));
+    if (
+      socket &&
+      socket.readyState !== WebSocket.CLOSED &&
+      socket.readyState !== WebSocket.CLOSING
+    ) {
+      socket.close();
+    }
+  }
+
   function scheduleReconnect() {
     if (!import.meta.client || state.reconnectTimer) {
       return;
@@ -429,6 +457,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
     ...toRefs(state),
     connect,
     reconnectNow,
+    resetForSessionChange,
     scheduleReconnect,
     send,
     request,

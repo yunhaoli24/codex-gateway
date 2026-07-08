@@ -92,6 +92,15 @@ export const useGatewayThreadTurnsStore = defineStore("gateway-thread-turns", ()
     return state.submittedTurnRequestsByKey[key];
   }
 
+  function resetState() {
+    for (const request of Object.values(state.submittedTurnRequestsByKey)) {
+      if (request.retryTimer) {
+        clearTimeout(request.retryTimer);
+      }
+    }
+    state.submittedTurnRequestsByKey = {};
+  }
+
   const actions = createGatewayThreadTurnActions();
 
   return {
@@ -103,6 +112,7 @@ export const useGatewayThreadTurnsStore = defineStore("gateway-thread-turns", ()
     patchRequest,
     setRequest,
     requestByKey,
+    resetState,
     ...actions,
   };
 });

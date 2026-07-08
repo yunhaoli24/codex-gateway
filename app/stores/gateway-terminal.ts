@@ -15,11 +15,7 @@ interface GatewayTerminalState {
 
 export const useGatewayTerminalStore = defineStore("gateway-terminal", () => {
   const { t } = useI18n();
-  const state = reactive<GatewayTerminalState>({
-    workspaceTabs: [agentTab(t)],
-    activeWorkspaceTabId: AGENT_TAB_ID,
-    terminalSessions: {},
-  });
+  const state = reactive<GatewayTerminalState>(createTerminalState(t));
 
   const activeWorkspaceTab = computed(
     () =>
@@ -114,6 +110,10 @@ export const useGatewayTerminalStore = defineStore("gateway-terminal", () => {
       : [...state.workspaceTabs, tab];
   }
 
+  function resetState() {
+    Object.assign(state, createTerminalState(t));
+  }
+
   return {
     ...toRefs(state),
     activeWorkspaceTab,
@@ -126,8 +126,17 @@ export const useGatewayTerminalStore = defineStore("gateway-terminal", () => {
     appendTerminalOutput,
     markTerminalExited,
     removeTerminalSession,
+    resetState,
   };
 });
+
+function createTerminalState(t: (key: string) => string): GatewayTerminalState {
+  return {
+    workspaceTabs: [agentTab(t)],
+    activeWorkspaceTabId: AGENT_TAB_ID,
+    terminalSessions: {},
+  };
+}
 
 function agentTab(t: (key: string) => string) {
   return {

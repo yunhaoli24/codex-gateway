@@ -6,15 +6,20 @@ import LoginScreen from "@/components/auth/LoginScreen.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGatewayStore } from "@/stores/gateway";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
+import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
+import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const realtime = useGatewayRealtimeStore();
+const terminal = useGatewayTerminalStore();
+const threadTurns = useGatewayThreadTurnsStore();
 const auth = useAuthStore();
 const device = useDevice();
 const { currentThread, selectedThreadId, initializing } = storeToRefs(store);
-const { isAuthenticated } = storeToRefs(auth);
+const { initialized, isAuthenticated, token } = storeToRefs(auth);
 const mounted = ref(false);
+let activeSessionToken = "";
 const layoutName = computed(() => (device.isMobileOrTablet ? "mobile" : "default"));
 const pageTitle = computed(() => {
   if (!selectedThreadId.value || !currentThread.value) {
@@ -46,9 +51,17 @@ onMounted(() => {
 });
 
 watch(
-  isAuthenticated,
-  (authenticated) => {
-    if (!authenticated) {
+  [initialized, token],
+  ([authInitialized, currentToken]) => {
+    if (!authInitialized || currentToken === activeSessionToken) {
+      return;
+    }
+    const hadPreviousSession = Boolean(activeSessionToken);
+    activeSessionToken = currentToken;
+    if (hadPreviousSession || !currentToken) {
+      resetClientSessionState();
+    }
+    if (!currentToken) {
       return;
     }
     realtime.installHealthCheck();
@@ -58,6 +71,13 @@ watch(
   },
   { immediate: true },
 );
+
+function resetClientSessionState() {
+  realtime.resetForSessionChange();
+  store.resetState();
+  terminal.resetState();
+  threadTurns.resetState();
+}
 </script>
 
 <template>

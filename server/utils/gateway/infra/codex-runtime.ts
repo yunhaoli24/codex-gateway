@@ -1,6 +1,7 @@
 import type { HostWithSecret, RemoteCodexVersionState } from "./ssh-types";
 import { isCodexVersionAtLeast, SUPPORTED_CODEX_VERSION } from "./codex-version";
 import { hostLifecycleBus } from "../state/host-events";
+import { currentGatewayUserId } from "../state/memory";
 import type { SshConnectionPool } from "./ssh-connection";
 import { AppServerRuntimeProbe } from "./app-server-runtime-probe";
 import { CodexUpgrader } from "./codex-upgrader";
@@ -8,7 +9,7 @@ import { CodexVersionChecker } from "./codex-version-checker";
 import { HostVerifyService } from "./host-verify-service";
 
 export class CodexRuntimeService {
-  private readonly versionChecks = new Map<number, Promise<RemoteCodexVersionState>>();
+  private readonly versionChecks = new Map<string, Promise<RemoteCodexVersionState>>();
   private readonly appServerRuntime: AppServerRuntimeProbe;
   private readonly upgrader: CodexUpgrader;
   private readonly versionChecker: CodexVersionChecker;
@@ -26,15 +27,16 @@ export class CodexRuntimeService {
   }
 
   async ensureCodexVersion(host: HostWithSecret): Promise<RemoteCodexVersionState> {
-    const existing = this.versionChecks.get(host.id);
+    const key = this.hostKey(host.id);
+    const existing = this.versionChecks.get(key);
     if (existing) {
       return existing;
     }
 
     const check = this.checkAndUpgradeCodex(host).finally(() => {
-      this.versionChecks.delete(host.id);
+      this.versionChecks.delete(key);
     });
-    this.versionChecks.set(host.id, check);
+    this.versionChecks.set(key, check);
     return check;
   }
 
@@ -130,7 +132,11 @@ export class CodexRuntimeService {
   }
 
   clearVersionCheck(hostId: number) {
-    this.versionChecks.delete(hostId);
+    this.versionChecks.delete(this.hostKey(hostId));
+  }
+
+  private hostKey(hostId: number) {
+    return `${currentGatewayUserId() ?? "anonymous"}:${hostId}`;
   }
 }
 
