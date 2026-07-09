@@ -73,6 +73,8 @@ export class HostRpcSession {
         message,
         {
           resolveGoal: () => this.client.request("thread/goal/get", { threadId }),
+          resolveThread: () =>
+            this.client.request("thread/read", { threadId, includeTurns: false }),
         },
       );
     }
@@ -95,6 +97,7 @@ export class HostRpcSession {
     } else {
       threadRuntimeEvents.record(this.host.id, threadId, message.method || "request", message, {
         resolveGoal: () => this.client.request("thread/goal/get", { threadId }),
+        resolveThread: () => this.client.request("thread/read", { threadId, includeTurns: false }),
       });
     }
   }

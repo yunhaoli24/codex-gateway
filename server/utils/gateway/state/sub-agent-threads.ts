@@ -66,7 +66,7 @@ function isSubAgentThreadMetadata(thread: any) {
   return typeof thread?.id === "string" && parentThreadIdFromMetadata(thread) !== null;
 }
 
-function parentThreadIdFromMetadata(thread: any) {
+export function parentThreadIdFromMetadata(thread: any) {
   const parentThreadId = thread?.parentThreadId ?? thread?.parent_thread_id;
   return typeof parentThreadId === "string" && parentThreadId.trim() ? parentThreadId.trim() : null;
 }

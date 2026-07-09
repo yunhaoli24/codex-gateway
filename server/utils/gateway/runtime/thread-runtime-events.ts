@@ -8,6 +8,7 @@ import { applyEventToOpenSnapshot } from "./open-snapshot-events";
 
 type ThreadEventSubscriber = (event: GatewayEvent) => void;
 export type ThreadGoalResolver = () => Promise<unknown>;
+export type ThreadMetadataResolver = () => Promise<unknown>;
 
 class ThreadRuntimeEventBus {
   private readonly subscribers = new Map<string, Set<ThreadEventSubscriber>>();
@@ -17,7 +18,7 @@ class ThreadRuntimeEventBus {
     threadId: string,
     method: string,
     payload: unknown,
-    options: { resolveGoal?: ThreadGoalResolver } = {},
+    options: { resolveGoal?: ThreadGoalResolver; resolveThread?: ThreadMetadataResolver } = {},
   ) {
     const event = gatewayEventStore.add(hostId, threadId, method, payload);
     subAgentThreadStore.recordRuntimeEvent(hostId, threadId, method, payload);

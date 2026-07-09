@@ -64,6 +64,10 @@ export class ThreadController {
     threadRuntimeEvents.record(this.host.id, this.threadId, method, message, {
       resolveGoal: () =>
         this.enqueue(() => this.client.request("thread/goal/get", { threadId: this.threadId })),
+      resolveThread: () =>
+        this.enqueue(() =>
+          this.client.request("thread/read", { threadId: this.threadId, includeTurns: false }),
+        ),
     });
   }
 
