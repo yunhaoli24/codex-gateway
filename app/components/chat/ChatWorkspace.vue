@@ -6,6 +6,15 @@ import WorkspaceTabs from "./WorkspaceTabs.vue";
 import { openWorkspaceTerminal, useChatWorkspaceState } from "./chat-workspace-state";
 import { useBackgroundTurnTopUp } from "./useBackgroundTurnTopUp";
 
+withDefaults(
+  defineProps<{
+    layout?: "desktop" | "mobile";
+  }>(),
+  {
+    layout: "desktop",
+  },
+);
+
 const store = useGatewayStore();
 const threadTurns = useGatewayThreadTurnsStore();
 const terminalTransport = useGatewayTerminalTransport();
@@ -53,6 +62,7 @@ useBackgroundTurnTopUp({
 <template>
   <section class="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-surface">
     <WorkspaceTabs
+      :layout="layout"
       :thread-title="threadTitle"
       :initializing="initializing"
       :opening-thread="Boolean(openingThread)"

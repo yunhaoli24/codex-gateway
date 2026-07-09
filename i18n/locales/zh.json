@@ -27,6 +27,7 @@
     "noProjectThreads": "这个项目还没有会话",
     "openThread": "打开会话",
     "agentTab": "Agent",
+    "closeTab": "关闭标签页",
     "openTerminal": "打开终端",
     "closeTerminal": "关闭终端",
     "terminalExited": "终端已退出",

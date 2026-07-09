@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import type { ThreadRuntimeStatus } from "@/stores/gateway";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 import { selectedRowClass, statusClass, statusLabelKey } from "./sidebar-utils";
+import SidebarRowLabel from "./SidebarRowLabel.vue";
 
 const props = defineProps<{
   thread: any;
@@ -89,16 +90,14 @@ const statusIconClass = computed(() => ({
         :class="selectedRowClass(selected)"
         @click="emit('open')"
       >
-        <span class="min-w-0 text-left">
-          <span class="flex min-w-0 items-center gap-1.5">
+        <SidebarRowLabel :title="titleForThread(thread)" :subtitle="subtitle">
+          <template #title-prefix>
             <StarIcon
               v-if="showPinnedIcon"
               class="size-3.5 shrink-0 fill-current text-accent-orange"
             />
-            <span class="block truncate">{{ titleForThread(thread) }}</span>
-          </span>
-          <span class="block truncate text-xs text-ink-muted">{{ subtitle }}</span>
-        </span>
+          </template>
+        </SidebarRowLabel>
         <span
           class="ml-2 inline-flex size-4 shrink-0 items-center justify-center"
           :class="statusClass(displayStatus)"

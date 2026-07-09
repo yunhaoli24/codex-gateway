@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { storeToRefs } from "pinia";
-import { computed, watchEffect } from "vue";
+import { toRefs } from "vue";
 import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import TerminalPanel from "@/components/terminal/TerminalPanel.vue";
-import { useGatewayTerminalTransport } from "@/composables/useGatewayTerminalTransport";
-import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
-import type { TerminalSessionState } from "@/stores/gateway/types";
+import type { SubAgentPanelState } from "@/stores/gateway/types";
 import AgentWorkspacePane from "./AgentWorkspacePane.vue";
-import WorkspaceHeader from "./WorkspaceHeader.vue";
+import DesktopWorkspaceHeader from "./DesktopWorkspaceHeader.vue";
+import MobileWorkspaceHeader from "./MobileWorkspaceHeader.vue";
+import WorkspaceFilePreviewPanel from "./WorkspaceFilePreviewPanel.vue";
+import WorkspaceSubAgentPanel from "./WorkspaceSubAgentPanel.vue";
+import { useWorkspaceTabs } from "./useWorkspaceTabs";
 
 const props = defineProps<{
+  layout: "desktop" | "mobile";
   threadTitle: string;
   initializing: boolean;
   openingThread: boolean;
@@ -24,7 +26,7 @@ const props = defineProps<{
   olderTurnsCursor: string | null;
   visibleError: string | null;
   followKey: unknown[];
-  visibleSubAgentPanels: any[];
+  visibleSubAgentPanels: SubAgentPanelState[];
   canOpenTerminal: boolean;
   selectedThreadViewReady: boolean;
 }>();
@@ -34,69 +36,46 @@ const emit = defineEmits<{
   openTerminal: [];
 }>();
 
-const terminalStore = useGatewayTerminalStore();
-const terminalTransport = useGatewayTerminalTransport();
-const { workspaceTabs, activeWorkspaceTabId, terminalSessions } = storeToRefs(terminalStore);
-const activeTab = computed({
-  get: () => activeWorkspaceTabId.value,
-  set: (value) => terminalStore.setActiveWorkspaceTab(String(value || "agent")),
+const { selectedHostId, selectedProjectId, selectedThreadId, visibleSubAgentPanels } =
+  toRefs(props);
+const {
+  activeTab,
+  activeWorkspaceTabId,
+  visibleTabs,
+  terminalPanels,
+  subAgentPanels,
+  filePanels,
+  closeWorkspaceTab,
+  interruptSubAgent,
+} = useWorkspaceTabs({
+  selectedHostId,
+  selectedProjectId,
+  selectedThreadId,
+  visibleSubAgentPanels,
 });
-
-const visibleTabs = computed(() =>
-  workspaceTabs.value.filter((tab) => {
-    if (tab.kind === "agent") {
-      return true;
-    }
-    return Boolean(tab.sessionId && sessionMatchesSelection(terminalSessions.value[tab.sessionId]));
-  }),
-);
-
-const terminalPanels = computed(() =>
-  visibleTabs.value.flatMap((tab) => {
-    if (tab.kind !== "terminal" || !tab.sessionId) {
-      return [];
-    }
-    const session = terminalSessions.value[tab.sessionId];
-    if (!session) {
-      return [];
-    }
-    return [{ ...tab, session }] satisfies Array<typeof tab & { session: TerminalSessionState }>;
-  }),
-);
-
-watchEffect(() => {
-  if (!visibleTabs.value.some((tab) => tab.id === activeWorkspaceTabId.value)) {
-    terminalStore.activateAgentTab();
-  }
-});
-
-function sessionMatchesSelection(session: TerminalSessionState | undefined) {
-  if (!session || session.hostId !== props.selectedHostId) {
-    return false;
-  }
-  if (session.scope === "thread") {
-    return session.threadId === props.selectedThreadId;
-  }
-  if (session.scope === "project") {
-    return !props.selectedThreadId && session.projectId === props.selectedProjectId;
-  }
-  return !props.selectedThreadId && !props.selectedProjectId;
-}
 </script>
 
 <template>
   <Tabs v-model="activeTab" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-    <WorkspaceHeader
+    <DesktopWorkspaceHeader
+      v-if="layout === 'desktop'"
       :tabs="visibleTabs"
       :thread-title="threadTitle"
       :can-open-terminal="canOpenTerminal"
       @open-terminal="emit('openTerminal')"
-      @close-terminal="terminalTransport.closeTerminal"
+      @close-tab="closeWorkspaceTab"
+    />
+    <MobileWorkspaceHeader
+      v-else
+      :tabs="visibleTabs"
+      :can-open-terminal="canOpenTerminal"
+      @open-terminal="emit('openTerminal')"
+      @close-tab="closeWorkspaceTab"
     >
-      <template #mobile-start>
+      <template #start>
         <slot name="mobile-header-start" />
       </template>
-    </WorkspaceHeader>
+    </MobileWorkspaceHeader>
 
     <TabsContent value="agent" class="flex min-h-0 flex-1 flex-col overflow-hidden">
       <AgentWorkspacePane
@@ -112,7 +91,6 @@ function sessionMatchesSelection(session: TerminalSessionState | undefined) {
         :older-turns-cursor="olderTurnsCursor"
         :visible-error="visibleError"
         :follow-key="followKey"
-        :visible-sub-agent-panels="visibleSubAgentPanels"
         :selected-thread-view-ready="selectedThreadViewReady"
         @load-older="emit('loadOlder')"
       />
@@ -125,6 +103,32 @@ function sessionMatchesSelection(session: TerminalSessionState | undefined) {
       class="flex min-h-0 flex-1 flex-col overflow-hidden"
     >
       <TerminalPanel :session="tab.session" :active="activeWorkspaceTabId === tab.id" />
+    </TabsContent>
+
+    <TabsContent
+      v-for="tab in subAgentPanels"
+      :key="tab.id"
+      :value="tab.id"
+      class="flex min-h-0 flex-1 flex-col overflow-hidden"
+    >
+      <WorkspaceSubAgentPanel
+        :title="tab.title"
+        :panel="tab.panel"
+        :preview="tab.preview"
+        :turns="tab.turns"
+        :follow-key="tab.followKey"
+        :status="tab.status"
+        @interrupt="interruptSubAgent"
+      />
+    </TabsContent>
+
+    <TabsContent
+      v-for="tab in filePanels"
+      :key="tab.id"
+      :value="tab.id"
+      class="flex min-h-0 flex-1 flex-col overflow-hidden"
+    >
+      <WorkspaceFilePreviewPanel :file="tab.file" />
     </TabsContent>
   </Tabs>
 </template>

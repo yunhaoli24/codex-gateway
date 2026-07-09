@@ -73,7 +73,7 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await expectTerminalContains(page, terminalMarker);
   await page
     .getByRole("tab", { name: project.name })
-    .getByLabel(/关闭终端|Close terminal/)
+    .getByLabel(/关闭标签页|Close tab/)
     .click();
   await expect(page.getByRole("tab", { name: project.name })).toBeHidden();
 

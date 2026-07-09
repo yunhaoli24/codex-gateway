@@ -18,8 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
     background-color 140ms ease;
 }
 
-.sidebar-scroll-area:hover :deep([data-slot="scroll-area-scrollbar"]),
-.sidebar-scroll-area:focus-within :deep([data-slot="scroll-area-scrollbar"]) {
+.sidebar-scroll-area:hover :deep([data-slot="scroll-area-scrollbar"]) {
   opacity: 0.75;
 }
 

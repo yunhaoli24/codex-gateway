@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { openApp } from "./helpers/app";
 import {
   installRealtimeInterruptMock,
@@ -8,7 +8,7 @@ import {
   subAgentRuntimeFlags,
 } from "./helpers/gateway-store";
 
-test("sub-agent activity opens a side panel with the sub-agent timeline", async ({ page }) => {
+test("sub-agent activity opens workspace tabs with sub-agent timelines", async ({ page }) => {
   await openApp(page);
   const threadId = "e2e-parent-thread";
   const subThreadId = "e2e-subagent-thread";
@@ -101,16 +101,15 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
   });
 
   const mainPane = page.getByTestId("chat-main-pane");
-  const widthBeforeOpen = (await mainPane.boundingBox())?.width ?? 0;
   await page.getByTestId("open-subagent-panel").first().click();
-  const panel = page.getByTestId("thread-inspector-panel");
+  const panel = page.getByTestId("workspace-subagent-panel");
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId("inspector-panel-title")).toHaveText("agent-e2e");
+  await expect(panel.getByTestId("workspace-panel-title")).toHaveText("agent-e2e");
   await expect(panel.getByText("Sub-agent finding from agent-e2e.")).toBeVisible();
   await expect(panel.locator("textarea")).toHaveCount(0);
-  await expect
-    .poll(async () => (await mainPane.boundingBox())?.width ?? widthBeforeOpen)
-    .toBeLessThan(widthBeforeOpen * 0.85);
+  await expect(mainPane).toBeHidden();
+  await agentWorkspaceTab(page).click();
+  await expect(mainPane).toBeVisible();
   await expect(
     page.getByTestId("chat-scroll-area").getByText("agent-e2e", { exact: true }),
   ).toBeVisible();
@@ -143,6 +142,7 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
     windowKey: "__subagentInterruptRequest",
     passThroughNonInterrupt: true,
   });
+  await subAgentTab(page, "agent-e2e").click();
   await page.getByRole("button", { name: "停止子代理" }).click();
   await expect
     .poll(() => page.evaluate(() => (window as any).__subagentInterruptRequest))
@@ -153,9 +153,11 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
       turnId: "sub-turn-running",
     });
 
+  await agentWorkspaceTab(page).click();
   await page.getByTestId("open-subagent-panel").nth(1).click();
-  await expect(panel.getByTestId("inspector-tab")).toHaveCount(2);
-  await expect(panel.getByTestId("inspector-panel-title")).toHaveText("agent-e2e-second");
+  await expect(subAgentTab(page, "agent-e2e")).toHaveCount(1);
+  await expect(subAgentTab(page, "agent-e2e-second")).toHaveCount(1);
+  await expect(panel.getByTestId("workspace-panel-title")).toHaveText("agent-e2e-second");
   await expect(panel.getByText("Sub-agent finding from agent-e2e-second.")).toBeVisible();
   await seedGatewayThread(page, {
     threadId: "e2e-other-parent-thread",
@@ -163,9 +165,7 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
     history: { thread: { id: "e2e-other-parent-thread", turns: [] } },
   });
   await expect(panel).toBeHidden();
-  await expect
-    .poll(async () => (await mainPane.boundingBox())?.width ?? 0)
-    .toBeGreaterThan(widthBeforeOpen * 0.95);
+  await expect(mainPane).toBeVisible();
   await seedGatewayThread(page, {
     threadId,
     currentThread: { id: threadId, name: "Parent Thread" },
@@ -184,7 +184,8 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
     },
   });
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId("inspector-tab")).toHaveCount(2);
+  await expect(subAgentTab(page, "agent-e2e")).toHaveCount(1);
+  await expect(subAgentTab(page, "agent-e2e-second")).toHaveCount(1);
   await expect
     .poll(() =>
       subAgentRuntimeFlags(page, {
@@ -199,11 +200,12 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
       subscribed: true,
       secondSubscribed: true,
     });
-  await page.getByLabel("关闭侧边详情").click();
+  await closeWorkspaceTab(page);
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId("inspector-tab")).toHaveCount(1);
-  await page.getByLabel("关闭侧边详情").click();
+  await expect(subAgentTab(page, "agent-e2e-second")).toHaveCount(0);
+  await closeWorkspaceTab(page);
   await expect(panel).toBeHidden();
+  await expect(mainPane).toBeVisible();
   await expect
     .poll(() =>
       subAgentRuntimeFlags(page, {
@@ -219,3 +221,17 @@ test("sub-agent activity opens a side panel with the sub-agent timeline", async 
       secondSubscribed: false,
     });
 });
+
+function subAgentTab(page: Page, title: string) {
+  return page.locator(
+    `[data-testid="workspace-tab"][data-tab-kind="subagent"][data-tab-title="${title}"]`,
+  );
+}
+
+function agentWorkspaceTab(page: Page) {
+  return page.locator('[data-testid="workspace-tab"][data-tab-kind="agent"]');
+}
+
+async function closeWorkspaceTab(page: Page) {
+  await page.getByRole("button", { name: "关闭标签页" }).last().click();
+}

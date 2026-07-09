@@ -36,7 +36,7 @@ watch([selectedHostId, selectedProjectId, selectedThreadId], () => {
     data-testid="mobile-layout"
     class="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-canvas-soft text-ink"
   >
-    <ChatWorkspace>
+    <ChatWorkspace layout="mobile">
       <template #mobile-header-start>
         <Sheet v-model:open="sidebarOpen">
           <Button

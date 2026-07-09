@@ -4,7 +4,7 @@ import { authenticatedFetch, openApp } from "./helpers/app";
 import { seedGatewayThread } from "./helpers/gateway-store";
 import { execRemoteSsh, readRemoteEnv } from "./helpers/remote-codex";
 
-test("agent file links open a real remote code preview in the inspector", async ({ page }) => {
+test("agent file links open a real remote code preview in a workspace tab", async ({ page }) => {
   const remote = await readRemoteEnv();
   await openApp(page);
 
@@ -87,9 +87,9 @@ EOF
   });
 
   await page.getByRole("link", { name: "preview target" }).click();
-  const panel = page.getByTestId("thread-inspector-panel");
+  const panel = page.getByTestId("workspace-file-panel");
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId("inspector-panel-title")).toHaveText(remotePath.split("/").pop()!);
+  await expect(panel.getByTestId("workspace-panel-title")).toHaveText(remotePath.split("/").pop()!);
   await expect(panel.getByText("codex-gateway-file-preview")).toBeVisible();
   await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
 
@@ -121,16 +121,18 @@ EOF
     },
   });
 
+  await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "markdown target" }).click();
-  await expect(panel.getByTestId("inspector-panel-title")).toHaveText(
+  await expect(panel.getByTestId("workspace-panel-title")).toHaveText(
     markdownPath.split("/").pop()!,
   );
   await expect(panel.locator(".markdown-content h1")).toHaveText("Rendered Markdown Preview");
   await expect(panel.locator(".markdown-content strong")).toHaveText("markdown file");
 
+  await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "nested python" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(panel.getByTestId("inspector-panel-title")).toHaveText(
+  await expect(panel.getByTestId("workspace-panel-title")).toHaveText(
     nestedPythonPath.split("/").pop()!,
   );
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
@@ -139,4 +141,8 @@ EOF
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function agentWorkspaceTab(page: import("@playwright/test").Page) {
+  return page.locator('[data-testid="workspace-tab"][data-tab-kind="agent"]');
 }

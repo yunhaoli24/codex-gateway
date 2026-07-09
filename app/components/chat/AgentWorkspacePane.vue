@@ -5,9 +5,7 @@ import type { ThreadRuntimeStatus } from "~~/shared/types";
 import ChatComposer from "@/components/chat/ChatComposer.vue";
 import ChatPanelScrollArea from "@/components/chat/ChatPanelScrollArea.vue";
 import ProjectThreadList from "@/components/chat/ProjectThreadList.vue";
-import ThreadInspectorPanel from "@/components/thread/inspector/ThreadInspectorPanel.vue";
 import ThreadVirtualTimeline from "@/components/thread/ThreadVirtualTimeline.vue";
-import { useGatewayFilePreviewStore } from "@/stores/gateway-file-preview";
 
 const props = defineProps<{
   initializing: boolean;
@@ -22,7 +20,6 @@ const props = defineProps<{
   olderTurnsCursor: string | null;
   visibleError: string | null;
   followKey: unknown[];
-  visibleSubAgentPanels: any[];
   selectedThreadViewReady: boolean;
 }>();
 
@@ -31,27 +28,17 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const filePreview = useGatewayFilePreviewStore();
 const showThreadLoading = computed(
   () =>
     props.initializing ||
     props.openingThread ||
     (Boolean(props.selectedThreadId) && !props.selectedThreadViewReady && !props.visibleError),
 );
-const inspectorHasTabs = computed(
-  () =>
-    props.visibleSubAgentPanels.length > 0 ||
-    filePreview.visibleTabsFor(props.selectedHostId, props.selectedThreadId).length > 0,
-);
 </script>
 
 <template>
   <div class="relative flex min-h-0 flex-1 overflow-hidden">
-    <div
-      data-testid="chat-main-pane"
-      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[flex-basis,max-width] duration-300 ease-out md:flex-none"
-      :class="inspectorHasTabs ? 'md:basis-[72%] md:max-w-[72%]' : 'md:basis-full md:max-w-full'"
-    >
+    <div data-testid="chat-main-pane" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <ChatPanelScrollArea
         v-if="showThreadLoading"
         class="flex items-center justify-center text-[0.9375rem] text-ink-muted"
@@ -95,6 +82,5 @@ const inspectorHasTabs = computed(
 
       <ChatComposer v-if="selectedThreadId || selectedProjectId" />
     </div>
-    <ThreadInspectorPanel />
   </div>
 </template>

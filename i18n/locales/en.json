@@ -27,6 +27,7 @@
     "noProjectThreads": "No threads in this project",
     "openThread": "Open thread",
     "agentTab": "Agent",
+    "closeTab": "Close tab",
     "openTerminal": "Open terminal",
     "closeTerminal": "Close terminal",
     "terminalExited": "Terminal exited",

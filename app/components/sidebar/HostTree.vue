@@ -18,6 +18,7 @@ import {
 import type { ThreadRuntimeStatus } from "@/stores/gateway";
 import { formatRelative, selectedRowClass } from "./sidebar-utils";
 import HostStatusIndicator from "./HostStatusIndicator.vue";
+import SidebarRowLabel from "./SidebarRowLabel.vue";
 import ThreadRow from "./ThreadRow.vue";
 
 const props = defineProps<{
@@ -79,10 +80,7 @@ function hostConnectionStatus(hostId: number) {
               />
               <ChevronRightIcon v-else class="size-3.5 shrink-0 text-ink-muted" />
               <ServerIcon class="size-4 shrink-0" />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate">{{ host.name }}</span>
-                <span class="block truncate text-xs text-ink-muted">{{ host.sshHost }}</span>
-              </span>
+              <SidebarRowLabel :title="host.name" :subtitle="host.sshHost" />
               <HostStatusIndicator
                 :status="hostConnectionStatus(host.id).status"
                 :label="hostConnectionStatus(host.id).message"
@@ -126,7 +124,7 @@ function hostConnectionStatus(hostId: number) {
                     />
                     <ChevronRightIcon v-else class="size-3.5 shrink-0 text-ink-muted" />
                     <FolderIcon class="size-4 shrink-0" />
-                    <span class="truncate">{{ project.name }}</span>
+                    <SidebarRowLabel :title="project.name" />
                     <span class="ml-auto size-2 shrink-0 rounded-full bg-accent-green" />
                   </Button>
                 </ContextMenuTrigger>

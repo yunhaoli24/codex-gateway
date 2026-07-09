@@ -64,9 +64,12 @@ export interface ComposerDraft {
 
 export interface WorkspaceTabState {
   id: string;
-  kind: "agent" | "terminal";
+  kind: "agent" | "terminal" | "subagent" | "file";
   title: string;
+  subtitle?: string;
   sessionId?: string;
+  subAgentKey?: string;
+  fileKey?: string;
 }
 
 export interface TerminalSessionState extends TerminalSessionSnapshot {
