@@ -16,14 +16,12 @@ import {
 test("parses current Codex CLI and app-server user-agent versions", () => {
   expect(parseCodexVersion("codex-cli 0.142.2")?.version).toBe("0.142.2");
   expect(
-    parseCodexVersion(
-      "Codex Desktop/0.142.0 (Debian 13.0.0; x86_64) unknown (codex_gateway_probe; 0.1.0)",
-    )?.version,
+    parseCodexVersion("Codex Desktop/0.142.0 (Debian 13.0.0; x86_64) unknown (codex-tui; 0.143.0)")
+      ?.version,
   ).toBe("0.142.0");
   expect(
-    parseCodexVersion(
-      "codex-tui/0.142.4 (Ubuntu 24.4.0; x86_64) unknown (codex_gateway_probe; 0.1.0)",
-    )?.version,
+    parseCodexVersion("codex-tui/0.142.4 (Ubuntu 24.4.0; x86_64) unknown (codex-tui; 0.143.0)")
+      ?.version,
   ).toBe("0.142.4");
   expect(parseCodexVersion("codex_cli_rs/9.8.7-test (Test OS; x86_64) rust")?.version).toBe(
     "9.8.7-test",

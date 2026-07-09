@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import WebSocket, { type RawData } from "ws";
 import type { HostRecord, RpcEnvelope } from "~~/shared/types";
+import { SUPPORTED_CODEX_VERSION } from "./codex-version";
 import { codexRuntime, sshConnections } from "./host-services";
 import { hostLifecycleBus } from "../state/host-events";
 import {
@@ -51,6 +52,12 @@ interface CodexRpcClientOptions {
   skipVersionCheck?: boolean;
   requireExistingAppServer?: boolean;
 }
+
+const officialTuiClientInfo = {
+  name: "codex-tui",
+  title: null,
+  version: SUPPORTED_CODEX_VERSION,
+};
 
 export class CodexRpcClient extends EventEmitter {
   private nextId = 1;
@@ -105,9 +112,7 @@ export class CodexRpcClient extends EventEmitter {
       "initialize",
       {
         clientInfo: {
-          name: "codex_gateway",
-          title: "Codex Gateway",
-          version: "0.1.0",
+          ...officialTuiClientInfo,
         },
         capabilities: {
           experimentalApi: true,
@@ -140,9 +145,7 @@ export class CodexRpcClient extends EventEmitter {
         "initialize",
         {
           clientInfo: {
-            name: "codex_gateway_probe",
-            title: "Codex Gateway Probe",
-            version: "0.1.0",
+            ...officialTuiClientInfo,
           },
           capabilities: {},
         },
