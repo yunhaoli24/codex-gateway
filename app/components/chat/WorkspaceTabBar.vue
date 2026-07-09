@@ -18,7 +18,7 @@ const secondaryTabs = computed(() => props.tabs.filter((tab) => tab.kind !== "ag
 </script>
 
 <template>
-  <TabsList variant="line" class="min-w-0 max-w-full justify-start overflow-hidden">
+  <TabsList variant="line" class="min-w-0 w-full max-w-full justify-start overflow-hidden">
     <TabsTrigger
       v-if="agentTab"
       data-testid="workspace-tab"

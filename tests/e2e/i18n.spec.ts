@@ -23,9 +23,12 @@ test("requires bearer auth for protected HTTP APIs", async ({ page }) => {
 test("defaults to Chinese and can switch to English", async ({ page }) => {
   await openApp(page);
   await expect(page.getByText("设置")).toBeVisible();
+  await page.getByTestId("settings-toggle").click();
+  await page.getByRole("tab", { name: "外观" }).click();
   await page.getByRole("combobox").first().click();
   await page.getByRole("option", { name: "English" }).click();
-  await expect(page.getByText("Settings")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Appearance" })).toBeVisible();
 });
 
 test("config JSON editor shows current config by default and scrolls", async ({ page }) => {
