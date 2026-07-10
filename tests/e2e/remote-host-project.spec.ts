@@ -23,7 +23,9 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await expect(page.getByPlaceholder("输入后续修改要求")).toBeHidden();
   await expect.poll(() => realtimeSockets.size, { timeout: 10_000 }).toBe(1);
 
-  const host = await addRemoteHost(page, remote);
+  const hostName = `docker-codex-${Date.now()}`;
+  const host = await addRemoteHost(page, remote, hostName);
+  await verifyRemoteDirectoryBrowser(page, remote, host.id, hostName);
   const discovered = await createRemoteHistoricalRollout(remote);
   const discoveryResponse = await authenticatedFetch<any>(page, {
     url: `/api/threads?hostId=${host.id}&limit=50`,
@@ -233,6 +235,42 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   expect(deleteProjectResponse.ok(), await deleteProjectResponse.text()).toBe(true);
   await expect(page.getByTestId(`project-button-${project.id}`)).toBeHidden();
 });
+
+async function verifyRemoteDirectoryBrowser(
+  page: Page,
+  remote: Awaited<ReturnType<typeof readRemoteEnv>>,
+  hostId: number,
+  hostName: string,
+) {
+  const directoryName = `gateway-directory-${Date.now()}`;
+  await execRemoteSsh(remote, `mkdir -p "$HOME/media/${directoryName}"`);
+
+  await page.getByTestId(`host-button-${hostId}`).click({ button: "right" });
+  await page.getByRole("menuitem", { name: /添加项目|Add project/ }).click();
+  await page.getByTestId("project-browse-path-input").fill("media/");
+  await page.getByRole("button", { name: /浏览|Browse/ }).click();
+  await expect(page.getByTestId("project-browse-path-input")).toHaveValue(
+    `/home/${remote.username}/media`,
+  );
+  await expect(page.getByRole("button", { name: directoryName })).toBeVisible();
+
+  const missingPath = `missing-directory-${Date.now()}`;
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/remote/directories?") && response.request().method() === "GET",
+  );
+  await page.getByTestId("project-browse-path-input").fill(missingPath);
+  await page.getByRole("button", { name: /浏览|Browse/ }).click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(404);
+  const payload = await response.json();
+  expect(payload.code).toBe("remoteDirectoryNotFound");
+  expect(payload.message).toContain(missingPath);
+  expect(payload.message).toContain(`/home/${remote.username}/${missingPath}`);
+  await expect(page.getByText(new RegExp(`Remote directory.*${missingPath}`))).toBeVisible();
+  await expect(page.getByText(new RegExp(`主机: ${hostName}|Host: ${hostName}`))).toBeVisible();
+  await page.keyboard.press("Escape");
+}
 
 function trackActiveRealtimeSockets(page: Page) {
   const sockets = new Set<WebSocket>();

@@ -1,4 +1,5 @@
 import type { ErrorMessageLabels } from "./thread-utils/identity";
+import { gatewayErrorMessage, gatewayErrorPayload } from "@/utils/gateway-error";
 
 export type GatewayErrorKind = "appServerTurn" | "http" | "rpc" | "realtime" | "unknown";
 
@@ -86,13 +87,8 @@ export function unknownGatewayErrorFromError(
   fallback: string,
   labels: ErrorMessageLabels,
 ) {
-  const payload = error?.data || error?.response?._data || error;
-  const message =
-    payload?.message ||
-    payload?.statusMessage ||
-    error?.statusMessage ||
-    error?.message ||
-    fallback;
+  const payload = gatewayErrorPayload(error);
+  const message = gatewayErrorMessage(error, fallback);
   const details = payload?.details;
   if (!details || typeof details !== "object") {
     return new UnknownGatewayDisplayError(message);
@@ -168,12 +164,7 @@ export function isServerOverloadedAppError(error: unknown) {
 }
 
 export function isServerOverloadedRequestError(error: any) {
-  const message =
-    error?.data?.message ||
-    error?.response?._data?.message ||
-    error?.message ||
-    error?.statusMessage ||
-    null;
+  const message = gatewayErrorMessage(error, "");
   return (
     message === APP_SERVER_SERVER_OVERLOADED_MESSAGE ||
     message === APP_SERVER_RPC_OVERLOADED_MESSAGE

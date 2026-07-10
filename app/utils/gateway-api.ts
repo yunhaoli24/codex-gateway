@@ -5,6 +5,7 @@ import {
   currentGatewayConfigRevision,
   GatewayConfigConflictError,
 } from "./gateway-config-revision";
+import { gatewayErrorPayload } from "./gateway-error";
 
 export async function gatewayApi<T>(
   request: NitroFetchRequest,
@@ -37,10 +38,7 @@ export async function gatewayConfigApi<T>(
   try {
     return await gatewayApi<T>(request, { ...options, headers });
   } catch (error: any) {
-    if (
-      error?.data?.code === "configConflict" ||
-      error?.response?._data?.code === "configConflict"
-    ) {
+    if (gatewayErrorPayload(error).code === "configConflict") {
       throw new GatewayConfigConflictError();
     }
     throw error;
