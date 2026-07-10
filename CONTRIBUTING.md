@@ -19,6 +19,11 @@ CODEX_GATEWAY_DB_PATH="./data/codex-gateway.db" \
 pnpm user:create <username> <password>
 ```
 
+## Git Workflow
+
+- Check out a dedicated branch such as `feat/*` or `fix/*` before making any code change. If the current branch is already neither `main` nor `master`, keep using it instead of creating another branch.
+- Never commit or push code changes directly to `main` or `master`. Use a branch, pull request, and review for all collaborative changes to avoid conflicts.
+
 ## Pull Requests
 
 - Keep Codex app-server as the authoritative source for thread and turn state.
