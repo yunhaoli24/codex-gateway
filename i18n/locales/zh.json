@@ -250,6 +250,8 @@
     "closeInspectorTab": "关闭 {title}",
     "loadingFilePreview": "正在加载文件预览",
     "filePreviewFailed": "文件预览失败",
+    "binaryFileTitle": "无法以文本方式显示此文件",
+    "binaryFileDescription": "该文件是二进制文件或使用了不支持的文本编码。Office、PDF 和图片仍可使用专用查看器预览。",
     "noFilePreview": "暂无可用文件预览",
     "retry": "重试",
     "collabAgentToolCall": "协作代理调用",

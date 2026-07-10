@@ -14,6 +14,8 @@ test("the unified file workspace browses, restores, and refreshes real remote fi
   const remotePath = `${projectPath}/codex-gateway-preview-${Date.now()}.ts`;
   const markdownPath = `${projectPath}/codex-gateway-preview-${Date.now()}.md`;
   const nestedPythonPath = `${projectPath}/deep/prefix/model_${Date.now()}.py`;
+  const unknownTextPath = `${projectPath}/codex-gateway-preview-${Date.now()}.customformat`;
+  const binaryPath = `${projectPath}/codex-gateway-preview-${Date.now()}.bin`;
   await execRemoteSsh(
     remote,
     `
@@ -33,6 +35,11 @@ cat > ${shellQuote(nestedPythonPath)} <<'EOF'
 def nested_preview_marker():
     return "codex-gateway-nested-python"
 EOF
+cat > ${shellQuote(unknownTextPath)} <<'EOF'
+feature_enabled=true
+unknown extensions still render as text
+EOF
+printf '\\000\\001\\002codex-gateway-binary' > ${shellQuote(binaryPath)}
 `,
   );
 
@@ -72,7 +79,7 @@ EOF
               id: "file-preview-md-message",
               type: "agentMessage",
               phase: "final_answer",
-              text: `Open [markdown target](${origin}${markdownPath}) and [nested python](${origin}${nestedPythonPath}:2).`,
+              text: `Open [markdown target](${origin}${markdownPath}), [nested python](${origin}${nestedPythonPath}:2), [unknown text](${origin}${unknownTextPath}), and [binary target](${origin}${binaryPath}).`,
             },
           ],
         },
@@ -112,7 +119,11 @@ EOF
   const panel = page.getByTestId("workspace-file-panel");
   await expect(panel).toBeVisible();
   await expect(
-    page.getByTestId("remote-file-tree").getByTitle(projectPath, { exact: true }),
+    page
+      .getByTestId("remote-file-tree")
+      .locator(":scope > div")
+      .first()
+      .getByTitle(projectPath, { exact: true }),
   ).toBeVisible();
   await expect(fileTab(page, remotePath)).toBeVisible();
   await expect(panel.getByText("codex-gateway-file-preview")).toBeVisible();
@@ -150,6 +161,18 @@ EOF
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
   await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
 
+  await agentWorkspaceTab(page).click();
+  await page.getByRole("link", { name: "unknown text" }).click();
+  await expect(fileTab(page, unknownTextPath)).toBeVisible();
+  await expect(panel.getByText("unknown extensions still render as text")).toBeVisible();
+
+  await agentWorkspaceTab(page).click();
+  await page.getByRole("link", { name: "binary target" }).click();
+  await expect(fileTab(page, binaryPath)).toBeVisible();
+  await expect(panel.getByText("无法以文本方式显示此文件")).toBeVisible();
+
+  await fileTab(page, nestedPythonPath).click();
+
   await reloadApp(page);
   await seedGatewayThread(page, {
     hostId: host.id,
@@ -162,7 +185,7 @@ EOF
   });
   await expect(filesWorkspaceTab(page)).toBeVisible();
   await filesWorkspaceTab(page).click();
-  await expect(page.getByTestId("file-workspace-tab")).toHaveCount(3);
+  await expect(page.getByTestId("file-workspace-tab")).toHaveCount(5);
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
 
   await execRemoteSsh(

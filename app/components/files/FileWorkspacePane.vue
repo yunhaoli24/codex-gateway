@@ -3,7 +3,6 @@ import { FilesIcon } from "@lucide/vue";
 import { useEventListener } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import {
   Sheet,
   SheetContent,
@@ -14,6 +13,7 @@ import {
 import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
 import { useAuthStore } from "@/stores/auth";
 import FilePreviewViewport from "./FilePreviewViewport.vue";
+import FileWorkspaceSplitPane from "./FileWorkspaceSplitPane.vue";
 import FileWorkspaceTabs from "./FileWorkspaceTabs.vue";
 import RemoteFileTree from "./RemoteFileTree.vue";
 
@@ -92,18 +92,17 @@ function revalidateWorkspace() {
 
 <template>
   <div data-testid="workspace-file-panel" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-    <ResizablePanelGroup v-if="layout === 'desktop'" direction="horizontal">
-      <ResizablePanel :default-size="22" :min-size="15" :max-size="38">
+    <FileWorkspaceSplitPane v-if="layout === 'desktop'">
+      <template #tree>
         <RemoteFileTree
           :host-id="hostId"
           :thread-id="threadId"
           :root-path="rootPath"
           @open="openFile"
         />
-      </ResizablePanel>
-      <ResizableHandle />
-      <ResizablePanel :default-size="78" :min-size="45">
-        <div class="flex h-full min-h-0 flex-col overflow-hidden">
+      </template>
+      <template #preview>
+        <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
           <FileWorkspaceTabs
             :documents="documents"
             :active-path="scope?.activePath ?? null"
@@ -122,8 +121,8 @@ function revalidateWorkspace() {
             </div>
           </div>
         </div>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      </template>
+    </FileWorkspaceSplitPane>
 
     <template v-else>
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden">

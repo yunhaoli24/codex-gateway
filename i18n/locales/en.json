@@ -253,6 +253,8 @@
     "closeInspectorTab": "Close {title}",
     "loadingFilePreview": "Loading file preview",
     "filePreviewFailed": "File preview failed",
+    "binaryFileTitle": "This file cannot be displayed as text",
+    "binaryFileDescription": "The file is binary or uses an unsupported text encoding. Office, PDF, and image files still open in their dedicated viewer.",
     "noFilePreview": "No file preview available",
     "retry": "Retry",
     "collabAgentToolCall": "Collab agent call",

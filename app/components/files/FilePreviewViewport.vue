@@ -35,9 +35,10 @@ const plugins: PreviewPlugin[] = [
   officePlugin({ pdf: { workerSrc: pdfWorkerSrc } }),
   fallbackPlugin(),
 ];
-const isCodePreview = computed(() => Boolean(props.document.text));
-const isMarkdownPreview = computed(() =>
-  isMarkdownPreviewPath(props.document.path, props.document.contentType),
+const isMarkdownPreview = computed(
+  () =>
+    props.document.previewKind === "text" &&
+    isMarkdownPreviewPath(props.document.path, props.document.contentType),
 );
 </script>
 
@@ -73,9 +74,23 @@ const isMarkdownPreview = computed(() =>
       </Button>
     </div>
     <FileMarkdownPreview v-else-if="isMarkdownPreview" :document="document" />
-    <FileCodePreview v-else-if="isCodePreview" :document="document" />
+    <FileCodePreview v-else-if="document.previewKind === 'text'" :document="document" />
+    <div
+      v-else-if="document.previewKind === 'binary'"
+      class="flex min-h-0 flex-1 items-center justify-center bg-canvas p-6"
+    >
+      <div
+        class="max-w-lg rounded-xl border border-hairline bg-surface px-5 py-4 text-center shadow-sm"
+      >
+        <FileWarningIcon class="mx-auto size-7 text-ink-faint" />
+        <div class="mt-3 text-sm font-semibold text-ink">{{ t("app.binaryFileTitle") }}</div>
+        <div class="mt-1.5 text-sm leading-6 text-ink-muted">
+          {{ t("app.binaryFileDescription") }}
+        </div>
+      </div>
+    </div>
     <OpenFileViewer
-      v-else-if="file"
+      v-else-if="document.previewKind === 'document' && file"
       :key="document.updatedAt"
       :file="file"
       :file-name="document.title"

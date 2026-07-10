@@ -1,5 +1,4 @@
 import { markRaw, reactive } from "vue";
-import { isTextPreviewPath } from "~~/shared/file-preview";
 import type { FilePreviewDocument } from "~~/shared/types";
 import { fetchRemoteFile } from "@/utils/remote-file-transport";
 import type { OpenWorkspaceFileInput } from "./types";
@@ -15,6 +14,7 @@ export function createFileDocument(input: OpenWorkspaceFileInput) {
     title: fileName(input.path),
     line: input.line ?? null,
     contentType: "",
+    previewKind: "text",
     size: null,
     objectUrl: "",
     text: "",
@@ -44,11 +44,10 @@ export async function loadFileDocument(document: FilePreviewDocument) {
     const objectUrl = URL.createObjectURL(response.blob);
     disposeFileDocument(document);
     document.contentType = response.contentType;
+    document.previewKind = response.previewKind;
     document.size = response.blob.size;
     document.objectUrl = objectUrl;
-    document.text = isTextPreviewPath(document.path, response.contentType)
-      ? await response.blob.text()
-      : "";
+    document.text = response.previewKind === "text" ? await response.blob.text() : "";
     document.etag = response.etag;
     document.lastModified = response.lastModified;
     document.stale = false;

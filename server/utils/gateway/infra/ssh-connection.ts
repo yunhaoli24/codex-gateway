@@ -1,6 +1,6 @@
 import { createReadStream, readFileSync } from "node:fs";
 import { connect as connectTcp } from "node:net";
-import { Client, type ClientChannel } from "ssh2";
+import { Client, type ClientChannel, type SFTPWrapper } from "ssh2";
 import type {
   CommandResult,
   HostWithSecret,
@@ -9,6 +9,8 @@ import type {
 } from "./ssh-types";
 import { createProxySocket, expandHome, resolveSshConfig, sshConnectionKey } from "./ssh-config";
 import { SSH_CONNECTION_CLOSED_BEFORE_READY, withSshConnectRetries } from "./ssh-connect-retry";
+import { isConnectionLevelSshError } from "./ssh-errors";
+import { SftpChannelPool } from "./ssh-sftp";
 import { currentGatewayUserId } from "../state/memory";
 
 const SSH_READY_TIMEOUT_MS = 30_000;
@@ -17,6 +19,7 @@ const SSH_KEEPALIVE_COUNT_MAX = 10;
 
 export class SshConnectionPool {
   private clients = new Map<string, Promise<Client>>();
+  private sftpChannels = new SftpChannelPool();
   private hostKeysByUser = new Map<string, Map<number, string>>();
 
   connect(host: HostWithSecret): Promise<Client> {
@@ -112,34 +115,22 @@ export class SshConnectionPool {
     });
   }
 
-  async uploadFile(host: HostWithSecret, localPath: string, remotePath: string) {
-    const client = await this.connect(host);
-    await new Promise<void>((resolve, reject) => {
-      client.sftp((error, sftp) => {
-        if (error) {
-          reject(error);
-          return;
-        }
+  sftp(host: HostWithSecret): Promise<SFTPWrapper> {
+    const resolved = resolveSshConfig(host);
+    const key = sshConnectionKey(host, resolved);
+    this.scopedHostKeys().set(host.id, key);
+    return this.sftpChannels.get(host, key, () => this.connect(host));
+  }
 
-        const reader = createReadStream(localPath);
-        const writer = sftp.createWriteStream(remotePath, { mode: 0o600 });
-        const cleanup = () => {
-          sftp.end();
-        };
-        reader.on("error", (streamError: NodeJS.ErrnoException) => {
-          cleanup();
-          reject(streamError);
-        });
-        writer.on("error", (streamError: Error) => {
-          cleanup();
-          reject(streamError);
-        });
-        writer.on("close", () => {
-          cleanup();
-          resolve();
-        });
-        reader.pipe(writer);
-      });
+  async uploadFile(host: HostWithSecret, localPath: string, remotePath: string) {
+    const sftp = await this.sftp(host);
+    await new Promise<void>((resolve, reject) => {
+      const reader = createReadStream(localPath);
+      const writer = sftp.createWriteStream(remotePath, { mode: 0o600 });
+      reader.on("error", reject);
+      writer.on("error", reject);
+      writer.on("close", resolve);
+      reader.pipe(writer);
     });
     return remotePath;
   }
@@ -217,6 +208,7 @@ export class SshConnectionPool {
   }
 
   private disconnectKey(key: string) {
+    this.sftpChannels.close(key);
     const client = this.clients.get(key);
     this.clients.delete(key);
     void client?.then((connection) => connection.end()).catch(() => {});
@@ -335,11 +327,4 @@ export class SshConnectionPool {
       }
     }
   }
-}
-
-function isConnectionLevelSshError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return /No response from server|Not connected|Connection lost|Channel open failure|ECONNRESET|EPIPE/i.test(
-    message,
-  );
 }

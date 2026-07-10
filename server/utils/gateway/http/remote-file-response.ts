@@ -1,3 +1,4 @@
+import { isBinaryFileSync } from "isbinaryfile";
 import type { H3Event } from "h3";
 import { getHeader, sendStream, setResponseHeader, setResponseStatus } from "h3";
 import { remoteFiles } from "../infra/host-services";
@@ -7,7 +8,7 @@ export async function sendRemoteFile(
   event: H3Event,
   host: HostWithSecret,
   path: string,
-  options: { maxSize: number; contentType: string },
+  options: { maxSize: number; contentType: string; previewKind: "document" | "detect" },
 ) {
   const metadata = await remoteFiles.statRemoteFile(host, path, {
     maxSize: options.maxSize,
@@ -24,6 +25,15 @@ export async function sendRemoteFile(
   const file = await remoteFiles.openRemoteFile(host, metadata);
   setResponseHeader(event, "content-type", options.contentType);
   setResponseHeader(event, "content-length", file.size);
+  setResponseHeader(
+    event,
+    "x-codex-file-preview-kind",
+    options.previewKind === "document"
+      ? "document"
+      : isBinaryFileSync(file.sample)
+        ? "binary"
+        : "text",
+  );
   return sendStream(event, file.stream);
 }
 
