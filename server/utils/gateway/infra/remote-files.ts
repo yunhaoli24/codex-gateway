@@ -3,6 +3,21 @@ import { shellQuote } from "./shell";
 import type { SshConnectionPool } from "./ssh-connection";
 import type { RemoteFileResult, HostWithSecret } from "./ssh-types";
 
+export class RemoteDirectoryNotFoundError extends Error {
+  readonly statusCode = 404;
+  readonly code = "remoteDirectoryNotFound";
+
+  constructor(
+    readonly inputPath: string,
+    readonly resolvedPath: string,
+  ) {
+    super(
+      `Remote directory does not exist or is not a directory: ${inputPath} (resolved to ${resolvedPath})`,
+    );
+    this.name = "RemoteDirectoryNotFoundError";
+  }
+}
+
 export class RemoteFileService {
   constructor(private readonly ssh: SshConnectionPool) {}
 
@@ -14,11 +29,12 @@ input=$1
 case "$input" in
   "~") base=$HOME ;;
   "~/"*) base=$HOME/\${input#~/} ;;
-  *) base=$input ;;
+  /*) base=$input ;;
+  *) base=$HOME/$input ;;
 esac
 if ! [ -d "$base" ]; then
-  echo "Remote path is not a directory: $input" >&2
-  exit 1
+  printf '%s' "$base"
+  exit 44
 fi
 base=$(cd "$base" && pwd -P)
 printf 'BASE\\t%s\\n' "$base"
@@ -40,6 +56,9 @@ done
       `sh -c ${shellQuote(script)} sh ${shellQuote(normalizedPath)}`,
     );
     const result = await this.ssh.exec(host, command);
+    if (result.code === 44) {
+      throw new RemoteDirectoryNotFoundError(normalizedPath, result.stdout.trim());
+    }
     if (result.code !== 0) {
       throw new Error(result.stderr || `Failed to list remote directory: ${normalizedPath}`);
     }
