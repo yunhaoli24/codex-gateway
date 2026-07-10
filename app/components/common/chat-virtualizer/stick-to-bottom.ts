@@ -2,10 +2,10 @@ import { nextTick, onBeforeUnmount } from "vue";
 import { createStickToBottomState, type ThresholdSource } from "./stick-to-bottom-state";
 import { createViewportInputIntent } from "./viewport-input-intent";
 
-type VirtualStickToBottomOptions = {
+type StickToBottomOptions = {
   threshold?: ThresholdSource;
   getViewport: () => HTMLElement | null;
-  measure: () => void;
+  measure?: () => void;
   onViewportScroll?: (viewport: HTMLElement) => void;
   scrollToBottom: (viewport: HTMLElement) => void;
 };
@@ -14,7 +14,7 @@ function nextFrame() {
   return new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
-export function useVirtualStickToBottom(options: VirtualStickToBottomOptions) {
+export function useStickToBottom(options: StickToBottomOptions) {
   const state = createStickToBottomState({
     threshold: options.threshold,
     getViewport: options.getViewport,
@@ -36,12 +36,12 @@ export function useVirtualStickToBottom(options: VirtualStickToBottomOptions) {
     if (version !== state.currentVersion() || !state.followLatest.value) {
       return;
     }
-    options.measure();
+    options.measure?.();
     await nextFrame();
     if (version !== state.currentVersion() || !state.followLatest.value) {
       return;
     }
-    options.measure();
+    options.measure?.();
     const viewport = options.getViewport();
     if (viewport) {
       options.scrollToBottom(viewport);
@@ -56,7 +56,7 @@ export function useVirtualStickToBottom(options: VirtualStickToBottomOptions) {
     if (!state.followLatest.value) {
       return;
     }
-    options.measure();
+    options.measure?.();
     const viewport = options.getViewport();
     if (viewport) {
       options.scrollToBottom(viewport);
@@ -83,11 +83,11 @@ export function useVirtualStickToBottom(options: VirtualStickToBottomOptions) {
   async function settleAndStick(frameCount = 4) {
     // Some containers first mount at height 0 while wrappers such as
     // CollapsibleContent and syntax highlighters settle. A few post-mount
-    // frames prevent virtual rows from keeping that stale zero measurement.
+    // frames prevent the initial bottom alignment from using stale geometry.
     for (let index = 0; index < frameCount; index += 1) {
       await nextFrame();
       bindInputListeners();
-      options.measure();
+      options.measure?.();
       if (state.followLatest.value) {
         const viewport = options.getViewport();
         if (viewport) {

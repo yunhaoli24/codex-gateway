@@ -3,7 +3,7 @@ import { computed, toValue, type ComponentPublicInstance, type MaybeRefOrGetter 
 import { createChatVirtualizerBehavior } from "./anchoring";
 import { useDirectDomVirtualizer } from "./direct-dom-virtualizer";
 import { shouldAdjustDetachedResize } from "./measurement";
-import { useVirtualStickToBottom } from "./stick-to-bottom";
+import { useStickToBottom } from "./stick-to-bottom";
 import type { ThresholdSource } from "./stick-to-bottom-state";
 
 interface ChatVirtualizerOptions {
@@ -21,7 +21,7 @@ interface ChatVirtualizerOptions {
 
 export function useChatVirtualizer(options: ChatVirtualizerOptions) {
   const threshold = () => toValue(options.threshold) ?? 120;
-  const sticky = useVirtualStickToBottom({
+  const sticky = useStickToBottom({
     threshold,
     getViewport: options.getViewport,
     measure: measureVisibleItems,
