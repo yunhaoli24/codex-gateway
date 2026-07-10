@@ -28,6 +28,11 @@
 - `pnpm test:e2e` 会启动 Nuxt dev server，并通过 Docker 启动真实 SSH 测试环境；不要把 E2E 改成 mock app-server 或 fake 数据。
 - 如果 E2E 失败，先看 Playwright trace、webServer 日志和 Docker SSH 环境日志，再判断是测试环境还是代码问题。
 
+## Git 协作
+
+- 任何代码更改必须先从 `main`/`master` checkout 新分支，例如 `feat/*`、`fix/*`；如果当前已经位于非 `main`/`master` 分支，则无需再次创建分支。
+- 禁止直接在 `main` 或 `master` 分支提交与推送代码更改。多人协作统一通过“分支 + PR + Review”完成合并，避免直接推送造成冲突。
+
 ## 代码风格
 
 - 全项目使用 Nuxt 4 + TypeScript；前后端都写 TS，不引入 Go/Python/Rust 等新服务实现。
