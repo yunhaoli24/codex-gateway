@@ -17,9 +17,11 @@ export function createHostActions(ctx: GatewayStoreContext) {
       ctx.state.currentThread = null;
       ctx.state.history = null;
       ctx.state.events = [];
+      ctx.state.models = [];
+      ctx.state.modelsHostId = null;
       ctx.clearError();
       writeGatewayRouteSelection({ hostId: host.id, projectId: null, threadId: null });
-      await ctx.listThreads();
+      await Promise.all([ctx.listModels(), ctx.listThreads()]);
       ctx.ensureSelectedProject();
       if (ctx.state.selectedProjectId) {
         await ctx.listThreads();
@@ -64,6 +66,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
         ctx.state.olderTurnsCursor = null;
         ctx.state.newerTurnsCursor = null;
         ctx.state.models = [];
+        ctx.state.modelsHostId = null;
         writeGatewayRouteSelection(
           {
             hostId: ctx.state.selectedHostId,
@@ -98,6 +101,7 @@ export function createHostActions(ctx: GatewayStoreContext) {
       ctx.state.newerTurnsCursor = null;
       ctx.state.lastEventId = 0;
       ctx.state.models = [];
+      ctx.state.modelsHostId = null;
       writeGatewayRouteSelection({ hostId, projectId: null, threadId: null });
       await ctx.listModels();
       await ctx.listThreads();

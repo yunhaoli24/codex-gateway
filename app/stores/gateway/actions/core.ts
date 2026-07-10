@@ -92,6 +92,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         ctx.state.projects = [];
         ctx.state.threads = [];
         ctx.state.models = [];
+        ctx.state.modelsHostId = null;
         await ctx.loadConfigFromServer();
 
         const routeHostExists = routeSelection.hostId

@@ -75,6 +75,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         ctx.state.currentThread &&
         ctx.state.history
       ) {
+        void ctx.ensureSelectedHostModels();
         ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         useGatewayRealtimeStore().connectThreadEvents();
@@ -83,7 +84,12 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
         return;
       }
       const viewEpoch = ctx.beginViewTransition();
+      if (ctx.state.modelsHostId !== targetHostId) {
+        ctx.state.models = [];
+        ctx.state.modelsHostId = null;
+      }
       activatePendingThreadView(ctx, targetHostId, targetProjectId, threadId);
+      void ctx.ensureSelectedHostModels();
       if (ctx.restoreThreadView(targetHostId, threadId)) {
         ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });

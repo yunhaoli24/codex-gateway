@@ -7,6 +7,7 @@ export function createGatewayState(): GatewayStoreState {
     projects: [],
     threads: [],
     models: [],
+    modelsHostId: null,
     loadingModels: false,
     hostConnectionStatuses: {},
     gatewayConfig: defaultGatewayConfig(),

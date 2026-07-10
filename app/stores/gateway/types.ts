@@ -91,6 +91,7 @@ export interface GatewayStoreState {
   projects: ProjectRecord[];
   threads: Array<any>;
   models: ModelRecord[];
+  modelsHostId: number | null;
   loadingModels: boolean;
   hostConnectionStatuses: Record<
     number,
@@ -157,6 +158,7 @@ export interface GatewayStoreContext {
   refresh: () => Promise<void>;
   connectAllHosts: () => Promise<void>;
   listModels: () => Promise<void>;
+  ensureSelectedHostModels: () => Promise<void>;
   listThreads: (searchTerm?: string) => Promise<void>;
   decorateThreads: (threads: any[]) => any[];
   ensureSelectedProject: () => void;

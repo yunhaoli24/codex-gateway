@@ -5,6 +5,38 @@ import { writeGatewayRouteSelection } from "../route-state";
 import { messageFromError } from "../thread-utils/identity";
 
 export function createProjectActions(ctx: GatewayStoreContext) {
+  let pendingModelRequest: { hostId: number; promise: Promise<void> } | null = null;
+
+  async function loadModels(hostId: number) {
+    ctx.state.loadingModels = true;
+    const projectId = ctx.state.selectedProjectId;
+    const threadId = ctx.state.selectedThreadId;
+    try {
+      const response = await gatewayApi<ModelListResult>("/api/models", {
+        query: {
+          hostId,
+          includeHidden: false,
+          limit: 50,
+        },
+      });
+      if (ctx.state.selectedHostId !== hostId) {
+        return;
+      }
+      ctx.state.models = response.data ?? [];
+      ctx.state.modelsHostId = hostId;
+    } catch (error: any) {
+      ctx.setError(messageFromError(error, ctx.t("app.listModelsFailed"), ctx.errorLabels), {
+        hostId,
+        projectId,
+        threadId,
+      });
+    } finally {
+      if (ctx.state.selectedHostId === hostId) {
+        ctx.state.loadingModels = false;
+      }
+    }
+  }
+
   return {
     async selectProject(projectId: number) {
       ctx.cacheSelectedThreadView();
@@ -45,34 +77,29 @@ export function createProjectActions(ctx: GatewayStoreContext) {
     async listModels() {
       if (!ctx.state.selectedHostId) {
         ctx.state.models = [];
+        ctx.state.modelsHostId = null;
         return;
       }
 
-      ctx.state.loadingModels = true;
       const hostId = ctx.state.selectedHostId;
-      const projectId = ctx.state.selectedProjectId;
-      const threadId = ctx.state.selectedThreadId;
-      try {
-        const response = await gatewayApi<ModelListResult>("/api/models", {
-          query: {
-            hostId,
-            includeHidden: false,
-            limit: 50,
-          },
-        });
-        if (ctx.state.selectedHostId !== hostId) {
-          return;
-        }
-        ctx.state.models = response.data ?? [];
-      } catch (error: any) {
-        ctx.setError(messageFromError(error, ctx.t("app.listModelsFailed"), ctx.errorLabels), {
-          hostId,
-          projectId,
-          threadId,
-        });
-      } finally {
-        ctx.state.loadingModels = false;
+      if (pendingModelRequest?.hostId === hostId) {
+        return pendingModelRequest.promise;
       }
+
+      const promise = loadModels(hostId).finally(() => {
+        if (pendingModelRequest?.promise === promise) {
+          pendingModelRequest = null;
+        }
+      });
+      pendingModelRequest = { hostId, promise };
+      return promise;
+    },
+
+    async ensureSelectedHostModels() {
+      if (!ctx.state.selectedHostId || ctx.state.modelsHostId === ctx.state.selectedHostId) {
+        return;
+      }
+      await ctx.listModels();
     },
 
     async createProject(input: Record<string, unknown>) {
