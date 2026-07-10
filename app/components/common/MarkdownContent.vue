@@ -5,7 +5,7 @@ import { ref, watch } from "vue";
 import { parseRemoteFileLink } from "@/utils/file-preview-links";
 import { escapeHtml, highlightCode, normalizeLanguage } from "@/utils/code-highlight";
 import { useFilePreviewContext } from "@/composables/useFilePreviewContext";
-import { useGatewayFilePreviewStore } from "@/stores/gateway-file-preview";
+import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
 
 const props = withDefaults(
   defineProps<{
@@ -34,7 +34,7 @@ markdown.renderer.rules.fence = (tokens, index) => {
 const rendered = ref("");
 const root = ref<HTMLElement | null>(null);
 const filePreviewContext = useFilePreviewContext();
-const filePreview = useGatewayFilePreviewStore();
+const fileWorkspace = useGatewayFileWorkspaceStore();
 let renderVersion = 0;
 
 watch(
@@ -145,7 +145,7 @@ function handleClick(event: MouseEvent) {
     return;
   }
   event.preventDefault();
-  void filePreview.openFilePreview({
+  void fileWorkspace.openFile({
     hostId,
     projectId: filePreviewContext.projectId.value,
     threadId,

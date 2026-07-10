@@ -78,17 +78,10 @@ function migrate(db: DatabaseSync) {
     CREATE TABLE IF NOT EXISTS user_configs (
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       encrypted_config_json TEXT NOT NULL,
-      config_version INTEGER NOT NULL DEFAULT 1,
-      revision INTEGER NOT NULL DEFAULT 1,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
   `);
-
-  const configColumns = db.prepare("PRAGMA table_info(user_configs)").all();
-  if (!configColumns.some((column: any) => String(column.name) === "revision")) {
-    db.exec("ALTER TABLE user_configs ADD COLUMN revision INTEGER NOT NULL DEFAULT 1");
-  }
 }

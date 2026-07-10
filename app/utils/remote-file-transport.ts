@@ -1,0 +1,65 @@
+import type { RemoteDirectoryResult } from "~~/shared/types";
+import { useAuthStore } from "@/stores/auth";
+import { gatewayApi } from "@/utils/gateway-api";
+
+export type RemoteFileResponse =
+  | { changed: false }
+  | {
+      changed: true;
+      blob: Blob;
+      contentType: string;
+      etag: string | null;
+      lastModified: string | null;
+    };
+
+export function listRemoteDirectory(hostId: number, path: string) {
+  return gatewayApi<RemoteDirectoryResult>("/api/remote/directories", {
+    query: { hostId, path },
+  });
+}
+
+export async function fetchRemoteFile(
+  hostId: number,
+  path: string,
+  etag: string | null,
+): Promise<RemoteFileResponse> {
+  const headers = authorizationHeaders();
+  if (etag) {
+    headers.set("if-none-match", etag);
+  }
+  const query = new URLSearchParams({ hostId: String(hostId), path });
+  const response = await fetch(`/api/remote/files?${query.toString()}`, {
+    headers,
+    // ETag validation is explicit; the browser cache must not issue a second unauthenticated fetch.
+    cache: "no-store",
+  });
+  if (response.status === 304) {
+    return { changed: false };
+  }
+  if (!response.ok) {
+    throw new Error(await responseErrorMessage(response));
+  }
+  return {
+    changed: true,
+    blob: await response.blob(),
+    contentType: response.headers.get("content-type") || "",
+    etag: response.headers.get("etag"),
+    lastModified: response.headers.get("last-modified"),
+  };
+}
+
+function authorizationHeaders() {
+  const auth = useAuthStore();
+  auth.hydrate();
+  if (!auth.token) {
+    throw new Error("Authentication is required to read remote files");
+  }
+  const headers = new Headers();
+  headers.set("authorization", `Bearer ${auth.token}`);
+  return headers;
+}
+
+async function responseErrorMessage(response: Response) {
+  const text = await response.text().catch(() => "");
+  return text || response.statusText || `HTTP ${response.status}`;
+}

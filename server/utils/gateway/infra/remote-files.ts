@@ -1,7 +1,8 @@
+import type { FileEntryWithStats } from "ssh2";
 import { remoteLoginShellCommand } from "./remote-command";
 import { shellQuote } from "./shell";
 import type { SshConnectionPool } from "./ssh-connection";
-import type { RemoteFileResult, HostWithSecret } from "./ssh-types";
+import type { HostWithSecret, RemoteFileMetadata, RemoteFileResult } from "./ssh-types";
 
 export class RemoteDirectoryNotFoundError extends Error {
   readonly statusCode = 404;
@@ -22,6 +23,104 @@ export class RemoteFileService {
   constructor(private readonly ssh: SshConnectionPool) {}
 
   async listDirectories(host: HostWithSecret, path: string) {
+    const resolvedPath = await this.resolveRemoteDirectory(host, path);
+    const client = await this.ssh.connect(host);
+    return new Promise<ReturnType<typeof directoryResult>>((resolve, reject) => {
+      client.sftp((error, sftp) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        sftp.readdir(resolvedPath, (readError, entries) => {
+          sftp.end();
+          if (readError) {
+            reject(readError);
+            return;
+          }
+          resolve(directoryResult(resolvedPath, entries));
+        });
+      });
+    });
+  }
+
+  async uploadFile(host: HostWithSecret, localPath: string, remotePath: string) {
+    const directory = remotePath.split("/").slice(0, -1).join("/") || ".";
+    const mkdir = await this.ssh.exec(
+      host,
+      remoteLoginShellCommand(`mkdir -p ${shellQuote(directory)}`),
+    );
+    if (mkdir.code !== 0) {
+      throw new Error(mkdir.stderr || `Failed to create remote upload directory: ${directory}`);
+    }
+    return this.ssh.uploadFile(host, localPath, remotePath);
+  }
+
+  async statRemoteFile(
+    host: HostWithSecret,
+    remotePath: string,
+    options: { maxSize: number },
+  ): Promise<RemoteFileMetadata> {
+    const path = remotePath.trim();
+    if (!path.startsWith("/")) {
+      throw new Error("Remote file path must be absolute");
+    }
+    const client = await this.ssh.connect(host);
+    return new Promise<RemoteFileMetadata>((resolve, reject) => {
+      client.sftp((error, sftp) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        sftp.stat(path, (statError, stats) => {
+          sftp.end();
+          if (statError) {
+            reject(statError);
+            return;
+          }
+          if (!stats.isFile()) {
+            reject(new Error("Remote path is not a file"));
+            return;
+          }
+          if (stats.size > options.maxSize) {
+            reject(new Error(`Remote file exceeds ${options.maxSize} bytes`));
+            return;
+          }
+          resolve({ path, size: stats.size, modifiedAt: stats.mtime * 1000 });
+        });
+      });
+    });
+  }
+
+  async openRemoteFile(
+    host: HostWithSecret,
+    metadata: RemoteFileMetadata,
+  ): Promise<RemoteFileResult> {
+    const client = await this.ssh.connect(host);
+    return new Promise<RemoteFileResult>((resolve, reject) => {
+      client.sftp((error, sftp) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        const stream = sftp.createReadStream(metadata.path);
+        stream.once("close", () => sftp.end());
+        stream.once("error", () => sftp.end());
+        resolve({ path: metadata.path, size: metadata.size, stream });
+      });
+    });
+  }
+
+  async createUploadDirectory(host: HostWithSecret) {
+    const script =
+      'root="${TMPDIR:-/tmp}/codex-gateway-uploads"; mkdir -p "$root"; mktemp -d "$root/upload.XXXXXXXXXX"';
+    const result = await this.ssh.exec(host, remoteLoginShellCommand(script));
+    if (result.code !== 0) {
+      throw new Error(result.stderr || "Failed to create remote upload directory");
+    }
+    return result.stdout.trim();
+  }
+
+  private async resolveRemoteDirectory(host: HostWithSecret, path: string) {
     const normalizedPath = path?.trim() || ".";
     const script = `
 set -eu
@@ -36,21 +135,8 @@ if ! [ -d "$base" ]; then
   printf '%s' "$base"
   exit 44
 fi
-base=$(cd "$base" && pwd -P)
-printf 'BASE\\t%s\\n' "$base"
-for entry in "$base"/*; do
-  [ -e "$entry" ] || continue
-  name=\${entry##*/}
-  case "$name" in .*) continue ;; esac
-  if [ -d "$entry" ]; then
-    type=directory
-  elif [ -f "$entry" ]; then
-    type=file
-  else
-    type=other
-  fi
-  printf 'ENTRY\\t%s\\t%s\\t%s\\n' "$type" "$name" "$entry"
-done
+cd "$base"
+pwd -P
 `;
     const command = remoteLoginShellCommand(
       `sh -c ${shellQuote(script)} sh ${shellQuote(normalizedPath)}`,
@@ -60,124 +146,29 @@ done
       throw new RemoteDirectoryNotFoundError(normalizedPath, result.stdout.trim());
     }
     if (result.code !== 0) {
-      throw new Error(result.stderr || `Failed to list remote directory: ${normalizedPath}`);
-    }
-    return parseDirectoryListing(result.stdout);
-  }
-
-  async uploadFile(host: HostWithSecret, localPath: string, remotePath: string) {
-    const directory = remotePath.split("/").slice(0, -1).join("/") || ".";
-    const mkdir = await this.ssh.exec(
-      host,
-      remoteLoginShellCommand(`mkdir -p ${shellQuote(directory)}`),
-    );
-    if (mkdir.code !== 0) {
-      throw new Error(mkdir.stderr || `Failed to create remote upload directory: ${directory}`);
-    }
-
-    return this.ssh.uploadFile(host, localPath, remotePath);
-  }
-
-  async openRemoteFile(
-    host: HostWithSecret,
-    remotePath: string,
-    options: { maxSize: number },
-  ): Promise<RemoteFileResult> {
-    const path = remotePath.trim();
-    if (!path.startsWith("/")) {
-      throw new Error("Remote file path must be absolute");
-    }
-
-    const client = await this.ssh.connect(host);
-    return new Promise<RemoteFileResult>((resolve, reject) => {
-      client.sftp((error, sftp) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        let cleaned = false;
-        const cleanup = () => {
-          if (cleaned) {
-            return;
-          }
-          cleaned = true;
-          sftp.end();
-        };
-
-        sftp.stat(path, (statError, stats) => {
-          if (statError) {
-            cleanup();
-            reject(statError);
-            return;
-          }
-          if (!stats.isFile()) {
-            cleanup();
-            reject(new Error("Remote path is not a file"));
-            return;
-          }
-          if (stats.size > options.maxSize) {
-            cleanup();
-            reject(new Error(`Remote file exceeds ${options.maxSize} bytes`));
-            return;
-          }
-
-          const stream = sftp.createReadStream(path);
-          stream.once("close", cleanup);
-          stream.once("error", cleanup);
-          resolve({ path, size: stats.size, stream });
-        });
-      });
-    });
-  }
-
-  async createUploadDirectory(host: HostWithSecret) {
-    const script =
-      'root="${TMPDIR:-/tmp}/codex-gateway-uploads"; mkdir -p "$root"; mktemp -d "$root/upload.XXXXXXXXXX"';
-    const result = await this.ssh.exec(host, remoteLoginShellCommand(script));
-    if (result.code !== 0) {
-      throw new Error(result.stderr || "Failed to create remote upload directory");
+      throw new Error(result.stderr || `Failed to resolve remote directory: ${normalizedPath}`);
     }
     return result.stdout.trim();
   }
 }
 
-function parseDirectoryListing(output: string) {
-  let path = "";
-  const entries: Array<{ name: string; path: string; type: "directory" | "file" | "other" }> = [];
-
-  for (const line of output.split("\n")) {
-    if (!line) {
-      continue;
-    }
-    const [recordType, ...fields] = line.split("\t");
-    if (recordType === "BASE") {
-      path = fields.join("\t");
-      continue;
-    }
-    if (recordType !== "ENTRY" || fields.length < 3) {
-      continue;
-    }
-    const [type, name, ...pathParts] = fields;
-    if (!name) {
-      continue;
-    }
-    if (type !== "directory" && type !== "file" && type !== "other") {
-      continue;
-    }
-    entries.push({
-      type,
-      name,
-      path: pathParts.join("\t"),
-    });
-  }
-
+function directoryResult(path: string, source: FileEntryWithStats[]) {
+  const entries = source.map(({ filename, attrs }) => ({
+    name: filename,
+    path: `${path.replace(/\/$/, "")}/${filename}`,
+    type: attrs.isDirectory()
+      ? ("directory" as const)
+      : attrs.isFile()
+        ? ("file" as const)
+        : ("other" as const),
+    size: attrs.isFile() ? attrs.size : null,
+    modifiedAt: attrs.mtime ? attrs.mtime * 1000 : null,
+  }));
   entries.sort((left, right) => {
     if (left.type !== right.type) {
       return left.type === "directory" ? -1 : 1;
     }
     return left.name.localeCompare(right.name);
   });
-
   return { path, entries };
 }

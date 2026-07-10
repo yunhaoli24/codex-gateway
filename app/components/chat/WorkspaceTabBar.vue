@@ -53,7 +53,7 @@ function iconName(kind: WorkspaceTabState["kind"]) {
         {{ tab.title }}
       </span>
       <button
-        v-if="tab.kind !== 'agent'"
+        v-if="tab.kind === 'terminal' || tab.kind === 'subagent'"
         type="button"
         class="ml-1 inline-flex size-4 items-center justify-center rounded-sm text-ink-muted opacity-70 hover:bg-surface hover:text-ink group-data-active:opacity-100"
         :aria-label="$t('app.closeTab')"

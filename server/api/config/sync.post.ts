@@ -1,12 +1,8 @@
 import { readValidatedBody } from "h3";
 import { sshConnections } from "../../utils/gateway/infra/host-services";
-import {
-  defineGatewayEventHandler,
-  requireCurrentUserConfigRevision,
-  saveCurrentUserConfig,
-} from "../../utils/gateway/http/errors";
+import { defineGatewayConfigMutationHandler } from "../../utils/gateway/http/config-mutation";
+import { saveCurrentUserConfig } from "../../utils/gateway/http/errors";
 import { parseGatewayConfig } from "../../utils/gateway/http/validation/config";
-import { userStore } from "../../utils/gateway/auth/users";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
 import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-supervisor";
 import { hostStore } from "../../utils/gateway/state/hosts";
@@ -14,13 +10,10 @@ import type { StoredHostRecord } from "../../utils/gateway/state/memory";
 import { runtimeConfigStore } from "../../utils/gateway/state/runtime-config";
 import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
 
-export default defineGatewayEventHandler(async (event) => {
+export default defineGatewayConfigMutationHandler(async (event) => {
   const previousHosts = hostStore.listWithSecret();
   const userId = event.context.auth!.user.id;
   const config = await readValidatedBody(event, parseGatewayConfig);
-  const expectedRevision = requireCurrentUserConfigRevision(event);
-  // Reject stale full snapshots before touching the user-scoped runtime state.
-  userStore.assertConfigRevision(userId, expectedRevision);
   runtimeConfigStore.replace(config);
   const nextHosts = hostStore.listWithSecret();
   const hostsToClose = changedOrDeletedHosts(previousHosts, nextHosts);
@@ -32,7 +25,7 @@ export default defineGatewayEventHandler(async (event) => {
     sshConnections.syncHosts(nextHosts);
     hostRuntimeSupervisor.syncCurrentUserConfig();
   }
-  saveCurrentUserConfig(event, expectedRevision);
+  saveCurrentUserConfig(event);
   return runtimeConfigStore.export();
 });
 

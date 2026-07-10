@@ -1,7 +1,7 @@
 import { extname } from "node:path";
-import { createError, getValidatedQuery, sendStream, setResponseHeader } from "h3";
-import { remoteFiles } from "../../utils/gateway/infra/host-services";
+import { createError, getValidatedQuery } from "h3";
 import { defineGatewayEventHandler } from "../../utils/gateway/http/errors";
+import { sendRemoteFile } from "../../utils/gateway/http/remote-file-response";
 import { requireRecord } from "../../utils/gateway/http/validation/common";
 import { remoteImageSchema } from "../../utils/gateway/http/validation/remote";
 import { hostStore } from "../../utils/gateway/state/hosts";
@@ -27,14 +27,10 @@ export default defineGatewayEventHandler(async (event) => {
   }
 
   try {
-    const file = await remoteFiles.openRemoteFile(host, query.path, {
+    return await sendRemoteFile(event, host, query.path, {
       maxSize: MAX_REMOTE_IMAGE_BYTES,
+      contentType: mimeType,
     });
-    setResponseHeader(event, "content-type", mimeType);
-    setResponseHeader(event, "content-length", file.size);
-    setResponseHeader(event, "cache-control", "private, max-age=60");
-    setResponseHeader(event, "x-content-type-options", "nosniff");
-    return sendStream(event, file.stream);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw createError({ statusCode: 404, statusMessage: message || "Remote image not found" });

@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import type { HostRecord, ProjectRecord } from "../../shared/types";
 import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
-import { readRemoteEnv, waitForSelectedThreadId } from "./helpers/remote-codex";
+import { seedGatewayThread } from "./helpers/gateway-store";
+import { execRemoteSsh, readRemoteEnv, waitForSelectedThreadId } from "./helpers/remote-codex";
 
 test("uses the mobile layout with hidden sidebar and usable composer shell", async ({ page }) => {
   await openApp(page);
@@ -137,6 +139,41 @@ test("opens and closes the subagent side panel on mobile", async ({ page }) => {
   await expect(panel).toBeHidden();
 });
 
+test("browses the current thread file workspace from a mobile sheet", async ({ page }) => {
+  const remote = await readRemoteEnv();
+  await openApp(page);
+  const { host, project } = await createConfiguredHostAndProject(page, remote);
+  const rootPath = `/home/${remote.username}`;
+  const path = `${rootPath}/mobile-file-preview-${Date.now()}.md`;
+  await execRemoteSsh(
+    remote,
+    `printf '%s\n' '# Mobile File Workspace' 'Rendered from the remote tree.' > ${shellQuote(path)}`,
+  );
+  const threadId = `mobile-file-thread-${Date.now()}`;
+  await seedGatewayThread(page, {
+    hostId: host.id,
+    projectId: project.id,
+    host: { ...host },
+    project: { ...project },
+    threadId,
+    currentThread: { id: threadId, name: "Mobile Files", cwd: rootPath },
+    history: { thread: { id: threadId, turns: [] } },
+    status: "completed",
+  });
+
+  await page.locator('[data-testid="workspace-tab"][data-tab-kind="files"]').click();
+  const panel = page.getByTestId("workspace-file-panel");
+  await expect(panel).toBeVisible();
+  await page.getByRole("button", { name: "文件树", exact: true }).click();
+  const tree = page.getByTestId("remote-file-tree");
+  await expect(tree).toBeVisible();
+  await tree.getByText(path.split("/").pop()!, { exact: true }).click();
+  await expect(panel.locator(".markdown-content h1")).toHaveText("Mobile File Workspace");
+  const panelBox = await panel.boundingBox();
+  const viewport = page.viewportSize();
+  expect(panelBox?.width).toBeLessThanOrEqual(viewport?.width ?? 0);
+});
+
 async function openIntermediateSteps(page: Page) {
   const toggle = page.getByRole("button", { name: /中间过程/ }).first();
   await expect(toggle).toBeVisible();
@@ -150,7 +187,7 @@ async function createConfiguredHostAndProject(
   page: Page,
   remote: Awaited<ReturnType<typeof readRemoteEnv>>,
 ) {
-  const host = await authenticatedFetch<{ id: number }>(page, {
+  const host = await authenticatedFetch<HostRecord>(page, {
     url: "/api/hosts",
     method: "POST",
     body: {
@@ -163,7 +200,7 @@ async function createConfiguredHostAndProject(
       proxyUrl: remote.proxyUrl ?? null,
     },
   });
-  const project = await authenticatedFetch<{ id: number }>(page, {
+  const project = await authenticatedFetch<ProjectRecord>(page, {
     url: "/api/projects",
     method: "POST",
     body: {
@@ -173,6 +210,10 @@ async function createConfiguredHostAndProject(
     },
   });
   return { host, project };
+}
+
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 async function longPress(page: Page, locator: Locator) {

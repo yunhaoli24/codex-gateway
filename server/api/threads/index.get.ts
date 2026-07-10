@@ -35,13 +35,10 @@ export default defineGatewayEventHandler(async (event) => {
   const result = await threadBroker.listThreads(host, listParams);
 
   const threads = Array.isArray((result as any)?.data) ? (result as any).data : [];
-  let projectsChanged = indexThreadProjects(host.id, threads);
+  indexThreadProjects(host.id, threads);
 
   if (shouldDiscoverHostProjects(query)) {
-    projectsChanged = (await discoverHostProjects(host, result, listParams)) || projectsChanged;
-  }
-  if (projectsChanged) {
-    saveCurrentUserConfig(event);
+    await discoverHostProjects(host, result, listParams);
   }
   const mergedThreads = mergeThreads(
     threads,
@@ -72,7 +69,6 @@ async function discoverHostProjects(
   firstPage: unknown,
   firstParams: Record<string, unknown>,
 ) {
-  let projectsChanged = false;
   let cursor =
     typeof (firstPage as any)?.nextCursor === "string" ? (firstPage as any).nextCursor : null;
   const seenCursors = new Set<string>();
@@ -85,14 +81,12 @@ async function discoverHostProjects(
       useStateDbOnly: false,
     });
     const threads = Array.isArray((page as any)?.data) ? (page as any).data : [];
-    projectsChanged = indexThreadProjects(host.id, threads) || projectsChanged;
+    indexThreadProjects(host.id, threads);
     cursor = typeof (page as any)?.nextCursor === "string" ? (page as any).nextCursor : null;
   }
-  return projectsChanged;
 }
 
 function indexThreadProjects(hostId: number, threads: any[]) {
-  const projectCountBeforeIndexing = projectStore.count();
   for (const thread of threads) {
     if (typeof thread?.cwd !== "string" || !thread.cwd.trim()) {
       continue;
@@ -109,7 +103,6 @@ function indexThreadProjects(hostId: number, threads: any[]) {
       });
     }
   }
-  return projectStore.count() !== projectCountBeforeIndexing;
 }
 
 function mergeThreads(remoteThreads: any[], indexedThreads: any[], searchTerm: string | null) {

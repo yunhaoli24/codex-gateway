@@ -21,6 +21,11 @@ export type GatewayDomainEventMap = {
     turnId: string;
     itemId: string;
   };
+  "remote-files-changed": {
+    hostId: number;
+    threadId: string;
+    paths: string[];
+  };
   "thread-settings-detected": {
     hostId: number;
     threadId: string;

@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
 import type { HostRecord, ProjectRecord } from "../../shared/types";
-import { authenticatedFetch, openApp } from "./helpers/app";
+import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
 import { seedGatewayThread } from "./helpers/gateway-store";
 import { execRemoteSsh, readRemoteEnv } from "./helpers/remote-codex";
 
-test("agent file links open a real remote code preview in a workspace tab", async ({ page }) => {
+test("the unified file workspace browses, restores, and refreshes real remote files", async ({
+  page,
+}) => {
   const remote = await readRemoteEnv();
   await openApp(page);
 
@@ -58,13 +60,32 @@ EOF
   });
   const origin = await page.evaluate(() => window.location.origin);
   const threadId = `file-preview-thread-${Date.now()}`;
+  const latestHistory = {
+    thread: {
+      id: threadId,
+      turns: [
+        {
+          id: "file-preview-turn-md",
+          status: "completed",
+          items: [
+            {
+              id: "file-preview-md-message",
+              type: "agentMessage",
+              phase: "final_answer",
+              text: `Open [markdown target](${origin}${markdownPath}) and [nested python](${origin}${nestedPythonPath}:2).`,
+            },
+          ],
+        },
+      ],
+    },
+  };
   await seedGatewayThread(page, {
     hostId: host.id,
     projectId: project.id,
     host: { ...host },
     project: { ...project },
     threadId,
-    currentThread: { id: threadId, name: "File Preview Thread" },
+    currentThread: { id: threadId, name: "File Preview Thread", cwd: projectPath },
     history: {
       thread: {
         id: threadId,
@@ -86,12 +107,23 @@ EOF
     },
   });
 
+  await expect(filesWorkspaceTab(page)).toBeVisible();
   await page.getByRole("link", { name: "preview target" }).click();
   const panel = page.getByTestId("workspace-file-panel");
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId("workspace-panel-title")).toHaveText(remotePath.split("/").pop()!);
+  await expect(
+    page.getByTestId("remote-file-tree").getByTitle(projectPath, { exact: true }),
+  ).toBeVisible();
+  await expect(fileTab(page, remotePath)).toBeVisible();
   await expect(panel.getByText("codex-gateway-file-preview")).toBeVisible();
   await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
+
+  await page
+    .getByTestId("remote-file-tree")
+    .getByText(markdownPath.split("/").pop()!, { exact: true })
+    .click();
+  await expect(fileTab(page, markdownPath)).toBeVisible();
+  await expect(panel.locator(".markdown-content h1")).toHaveText("Rendered Markdown Preview");
 
   await seedGatewayThread(page, {
     hostId: host.id,
@@ -99,44 +131,47 @@ EOF
     host: { ...host },
     project: { ...project },
     threadId,
-    currentThread: { id: threadId, name: "File Preview Thread" },
-    history: {
-      thread: {
-        id: threadId,
-        turns: [
-          {
-            id: "file-preview-turn-md",
-            status: "completed",
-            items: [
-              {
-                id: "file-preview-md-message",
-                type: "agentMessage",
-                phase: "final_answer",
-                text: `Open [markdown target](${origin}${markdownPath}) and [nested python](${origin}${nestedPythonPath}:2).`,
-              },
-            ],
-          },
-        ],
-      },
-    },
+    currentThread: { id: threadId, name: "File Preview Thread", cwd: projectPath },
+    history: latestHistory,
   });
 
   await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "markdown target" }).click();
-  await expect(panel.getByTestId("workspace-panel-title")).toHaveText(
-    markdownPath.split("/").pop()!,
-  );
+  await expect(fileTab(page, markdownPath)).toBeVisible();
   await expect(panel.locator(".markdown-content h1")).toHaveText("Rendered Markdown Preview");
   await expect(panel.locator(".markdown-content strong")).toHaveText("markdown file");
 
   await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "nested python" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(panel.getByTestId("workspace-panel-title")).toHaveText(
-    nestedPythonPath.split("/").pop()!,
-  );
+  await expect(fileTab(page, nestedPythonPath)).toBeVisible();
+  await expect(page.locator('[data-testid="workspace-tab"][data-tab-kind="files"]')).toHaveCount(1);
+  await expect(page.getByTestId("file-workspace-tab")).toHaveCount(3);
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
   await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
+
+  await reloadApp(page);
+  await seedGatewayThread(page, {
+    hostId: host.id,
+    projectId: project.id,
+    host: { ...host },
+    project: { ...project },
+    threadId,
+    currentThread: { id: threadId, name: "File Preview Thread", cwd: projectPath },
+    history: latestHistory,
+  });
+  await expect(filesWorkspaceTab(page)).toBeVisible();
+  await filesWorkspaceTab(page).click();
+  await expect(page.getByTestId("file-workspace-tab")).toHaveCount(3);
+  await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
+
+  await execRemoteSsh(
+    remote,
+    `sleep 1; printf '%s\n' 'def nested_preview_marker():' '    return "remote-file-refreshed"' > ${shellQuote(nestedPythonPath)}`,
+  );
+  await agentWorkspaceTab(page).click();
+  await filesWorkspaceTab(page).click();
+  await expect(panel.getByText("remote-file-refreshed")).toBeVisible();
 });
 
 function shellQuote(value: string) {
@@ -145,4 +180,12 @@ function shellQuote(value: string) {
 
 function agentWorkspaceTab(page: import("@playwright/test").Page) {
   return page.locator('[data-testid="workspace-tab"][data-tab-kind="agent"]');
+}
+
+function filesWorkspaceTab(page: import("@playwright/test").Page) {
+  return page.locator('[data-testid="workspace-tab"][data-tab-kind="files"]');
+}
+
+function fileTab(page: import("@playwright/test").Page, path: string) {
+  return page.locator(`[data-testid="file-workspace-tab"][data-file-path=${JSON.stringify(path)}]`);
 }

@@ -1,6 +1,7 @@
 import { getRouterParam } from "h3";
 import { sshConnections } from "../../utils/gateway/infra/host-services";
-import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
+import { defineGatewayConfigMutationHandler } from "../../utils/gateway/http/config-mutation";
+import { saveCurrentUserConfig } from "../../utils/gateway/http/errors";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
 import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-supervisor";
 import { gatewayEventStore } from "../../utils/gateway/state/gateway-events";
@@ -11,7 +12,7 @@ import { threadMetadataStore } from "../../utils/gateway/state/thread-metadata";
 import { threadSnapshotStore } from "../../utils/gateway/state/thread-snapshots";
 import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
 
-export default defineGatewayEventHandler((event) => {
+export default defineGatewayConfigMutationHandler((event) => {
   const id = Number(getRouterParam(event, "id"));
   const userId = event.context.auth!.user.id;
   hostStore.delete(id);

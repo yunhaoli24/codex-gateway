@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import type { FilePreviewTab } from "~~/shared/types";
+import type { FilePreviewDocument } from "~~/shared/types";
 import MarkdownContent from "@/components/common/MarkdownContent.vue";
 
-defineProps<{
-  tab: FilePreviewTab;
-}>();
+defineProps<{ document: FilePreviewDocument }>();
 </script>
 
 <template>
   <div class="h-full overflow-auto bg-canvas px-4 py-4 text-ink">
-    <MarkdownContent :content="tab.text" />
+    <MarkdownContent :content="document.text" />
   </div>
 </template>

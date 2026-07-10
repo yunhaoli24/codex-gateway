@@ -12,22 +12,21 @@ import "@open-file-viewer/core/style.css";
 import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { computed } from "vue";
 import { isMarkdownPreviewPath } from "~~/shared/file-preview";
-import type { FilePreviewTab } from "~~/shared/types";
+import type { FilePreviewDocument } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
-import FilePreviewCodePanel from "@/components/thread/inspector/FilePreviewCodePanel.vue";
-import FilePreviewMarkdownPanel from "@/components/thread/inspector/FilePreviewMarkdownPanel.vue";
+import FileCodePreview from "@/components/files/FileCodePreview.vue";
+import FileMarkdownPreview from "@/components/files/FileMarkdownPreview.vue";
 import { useTerminalTheme } from "@/composables/useTerminalTheme";
-import { useGatewayFilePreviewStore } from "@/stores/gateway-file-preview";
+import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
 
 const props = defineProps<{
-  tab: FilePreviewTab;
+  document: FilePreviewDocument;
 }>();
 
 const { t, locale } = useI18n();
-const filePreview = useGatewayFilePreviewStore();
+const fileWorkspace = useGatewayFileWorkspaceStore();
 const { isDark } = useTerminalTheme();
-
-const file = computed(() => filePreview.fileForTab(props.tab.key));
+const file = computed(() => fileWorkspace.fileForDocument(props.document.key));
 const viewerTheme = computed(() => (isDark.value ? "dark" : "light"));
 const viewerLocale = computed(() => (locale.value === "en" ? "en-US" : "zh-CN"));
 const plugins: PreviewPlugin[] = [
@@ -36,21 +35,23 @@ const plugins: PreviewPlugin[] = [
   officePlugin({ pdf: { workerSrc: pdfWorkerSrc } }),
   fallbackPlugin(),
 ];
-const isCodePreview = computed(() => Boolean(props.tab.text));
+const isCodePreview = computed(() => Boolean(props.document.text));
 const isMarkdownPreview = computed(() =>
-  isMarkdownPreviewPath(props.tab.path, props.tab.contentType),
+  isMarkdownPreviewPath(props.document.path, props.document.contentType),
 );
 </script>
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface">
-    <div v-if="tab.loading" class="flex flex-1 items-center justify-center text-sm text-ink-muted">
+    <div
+      v-if="document.loading"
+      class="flex flex-1 items-center justify-center text-sm text-ink-muted"
+    >
       <Loader2Icon class="mr-2 size-4 animate-spin" />
       {{ t("app.loadingFilePreview") }}
     </div>
-
     <div
-      v-else-if="tab.error"
+      v-else-if="document.error"
       class="m-3 flex flex-col gap-3 rounded-xl border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive"
     >
       <div class="flex items-start gap-2">
@@ -58,7 +59,7 @@ const isMarkdownPreview = computed(() =>
         <div class="min-w-0">
           <div class="font-medium">{{ t("app.filePreviewFailed") }}</div>
           <div class="mt-1 whitespace-pre-wrap break-words text-destructive/85">
-            {{ tab.error }}
+            {{ document.error }}
           </div>
         </div>
       </div>
@@ -66,21 +67,19 @@ const isMarkdownPreview = computed(() =>
         variant="outline"
         size="sm"
         class="self-start"
-        @click="filePreview.openFilePreview(tab)"
+        @click="fileWorkspace.reloadDocument(document)"
       >
         {{ t("app.retry") }}
       </Button>
     </div>
-
-    <FilePreviewMarkdownPanel v-else-if="isMarkdownPreview" :tab="tab" />
-
-    <FilePreviewCodePanel v-else-if="isCodePreview" :tab="tab" />
-
+    <FileMarkdownPreview v-else-if="isMarkdownPreview" :document="document" />
+    <FileCodePreview v-else-if="isCodePreview" :document="document" />
     <OpenFileViewer
       v-else-if="file"
+      :key="document.updatedAt"
       :file="file"
-      :file-name="tab.title"
-      :mime-type="tab.contentType"
+      :file-name="document.title"
+      :mime-type="document.contentType"
       width="100%"
       height="100%"
       fit="contain"
@@ -90,12 +89,5 @@ const isMarkdownPreview = computed(() =>
       :plugins="plugins"
       class-name="h-full"
     />
-
-    <div
-      v-else
-      class="flex flex-1 items-center justify-center px-4 text-center text-sm text-ink-muted"
-    >
-      {{ t("app.noFilePreview") }}
-    </div>
   </div>
 </template>

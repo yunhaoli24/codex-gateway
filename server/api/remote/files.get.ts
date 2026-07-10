@@ -1,11 +1,11 @@
 import { extname } from "node:path";
-import { createError, getValidatedQuery, sendStream, setResponseHeader } from "h3";
-import { remoteFiles } from "../../utils/gateway/infra/host-services";
+import { createError, getValidatedQuery } from "h3";
 import {
   defineGatewayEventHandler,
   hostLogContext,
   setGatewayRequestLogContext,
 } from "../../utils/gateway/http/errors";
+import { sendRemoteFile } from "../../utils/gateway/http/remote-file-response";
 import { requireRecord } from "../../utils/gateway/http/validation/common";
 import { remoteFileSchema } from "../../utils/gateway/http/validation/remote";
 import { hostStore } from "../../utils/gateway/state/hosts";
@@ -43,14 +43,10 @@ export default defineGatewayEventHandler(async (event) => {
   });
 
   try {
-    const file = await remoteFiles.openRemoteFile(host, query.path, {
+    return await sendRemoteFile(event, host, query.path, {
       maxSize: MAX_REMOTE_FILE_BYTES,
+      contentType: mimeTypeForPath(query.path),
     });
-    setResponseHeader(event, "content-type", mimeTypeForPath(query.path));
-    setResponseHeader(event, "content-length", file.size);
-    setResponseHeader(event, "cache-control", "private, max-age=60");
-    setResponseHeader(event, "x-content-type-options", "nosniff");
-    return sendStream(event, file.stream);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const statusCode = message.includes("exceeds") ? 413 : 404;

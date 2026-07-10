@@ -32,7 +32,7 @@ export const runtimeConfigStore = {
         ...host,
         hasPassword: Boolean(host.password),
       })),
-      projects: projectStore.list(),
+      projects: projectStore.listConfigured(),
       pinnedThreads: gatewayMemoryState.pinnedThreads,
       notifications: normalizeNotificationSettings(gatewayMemoryState.notifications),
     };

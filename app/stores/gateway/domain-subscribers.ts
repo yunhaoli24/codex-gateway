@@ -16,8 +16,16 @@ import {
   rememberActiveTerminalProcess,
   clearActiveTerminalProcess,
 } from "./thread-turns/terminal-processes";
+import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
 
 export function registerGatewayDomainSubscribers(ctx: GatewayStoreContext) {
+  ctx.events.on("remote-files-changed", (event) => {
+    useGatewayFileWorkspaceStore().markRemoteFilesChanged(
+      event.hostId,
+      event.threadId,
+      event.paths,
+    );
+  });
   ctx.events.on("thread-status-detected", (event) => {
     ctx.setThreadStatus(event.hostId, event.threadId, event.status, {
       turnId: event.turnId,
