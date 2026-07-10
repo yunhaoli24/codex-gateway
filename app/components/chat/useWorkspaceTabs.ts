@@ -2,11 +2,13 @@ import { watchImmediate } from "@vueuse/core";
 import { storeToRefs } from "pinia";
 import type { ComputedRef, Ref } from "vue";
 import { computed, ref, watch } from "vue";
-import type { FilePreviewTab } from "~~/shared/types";
 import type { ThreadTimelineTurn } from "@/components/thread/timeline-rows";
 import { useGatewayTerminalTransport } from "@/composables/useGatewayTerminalTransport";
 import { useGatewayStore } from "@/stores/gateway";
-import { useGatewayFilePreviewStore } from "@/stores/gateway-file-preview";
+import {
+  fileWorkspaceScopeKey,
+  useGatewayFileWorkspaceStore,
+} from "@/stores/gateway-file-workspace";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
 import type {
@@ -17,7 +19,7 @@ import type {
 import { pinnedKey, titleForThread } from "@/stores/gateway/thread-utils/identity";
 import {
   AGENT_WORKSPACE_TAB_ID,
-  fileWorkspaceTabId,
+  FILES_WORKSPACE_TAB_ID,
   subAgentWorkspaceTabId,
   terminalWorkspaceTabId,
 } from "@/stores/gateway/workspace-tabs";
@@ -34,7 +36,7 @@ export function useWorkspaceTabs(selection: WorkspaceTabSelection) {
   const gatewayStore = useGatewayStore();
   const terminalStore = useGatewayTerminalStore();
   const terminalTransport = useGatewayTerminalTransport();
-  const filePreview = useGatewayFilePreviewStore();
+  const fileWorkspace = useGatewayFileWorkspaceStore();
   const threadTurns = useGatewayThreadTurnsStore();
   const { activeWorkspaceTabId, terminalSessions } = storeToRefs(terminalStore);
   const { activeSubAgentPanelKey, threadViews, threadStatuses } = storeToRefs(gatewayStore);
@@ -51,9 +53,6 @@ export function useWorkspaceTabs(selection: WorkspaceTabSelection) {
     get: () => activeWorkspaceTabId.value,
     set: (value) => activateWorkspaceTab(String(value || AGENT_WORKSPACE_TAB_ID)),
   });
-  const selectedFileTabs = computed(() =>
-    filePreview.visibleTabsFor(selection.selectedHostId.value, selection.selectedThreadId.value),
-  );
   const terminalPanels = computed(() =>
     Object.values(terminalSessions.value)
       .filter((session) => sessionMatchesSelection(session, selection))
@@ -65,24 +64,30 @@ export function useWorkspaceTabs(selection: WorkspaceTabSelection) {
   const subAgentPanels = computed(() =>
     selection.visibleSubAgentPanels.value.map((panel) => createSubAgentPanel(panel)),
   );
-  const filePanels = computed(() =>
-    selectedFileTabs.value.map((file) => ({
-      id: fileWorkspaceTabId(file.key),
-      file,
-    })),
-  );
-  const visibleTabs = computed<WorkspaceTabState[]>(() => [
-    { id: AGENT_WORKSPACE_TAB_ID, kind: "agent", title: t("app.agentTab") },
-    ...terminalPanels.value.map(({ session }) => terminalTab(session)),
-    ...subAgentPanels.value.map(({ panel, title, key }) => ({
-      id: subAgentWorkspaceTabId(key),
-      kind: "subagent" as const,
-      title,
-      subtitle: panel.threadId,
-      subAgentKey: key,
-    })),
-    ...selectedFileTabs.value.map(fileTab),
-  ]);
+  const visibleTabs = computed<WorkspaceTabState[]>(() => {
+    const tabs: WorkspaceTabState[] = [
+      { id: AGENT_WORKSPACE_TAB_ID, kind: "agent", title: t("app.agentTab") },
+    ];
+    if (selection.selectedThreadId.value) {
+      tabs.push({ id: FILES_WORKSPACE_TAB_ID, kind: "files", title: t("app.filesTab") });
+    }
+    tabs.push(
+      ...terminalPanels.value.map(({ session }) => terminalTab(session)),
+      ...subAgentPanels.value.map(({ panel, title, key }) => ({
+        id: subAgentWorkspaceTabId(key),
+        kind: "subagent" as const,
+        title,
+        subtitle: panel.threadId,
+        subAgentKey: key,
+      })),
+    );
+    return tabs;
+  });
+  const fileWorkspaceRoot = computed(() => {
+    const thread = gatewayStore.currentThread as Record<string, unknown> | null;
+    const cwd = typeof thread?.cwd === "string" ? thread.cwd : "";
+    return cwd || gatewayStore.selectedProject?.remotePath || "";
+  });
 
   watch(
     [selectionScopeKey, () => visibleTabs.value.map((tab) => tab.id)],
@@ -98,12 +103,23 @@ export function useWorkspaceTabs(selection: WorkspaceTabSelection) {
     },
     { immediate: true },
   );
-  watchImmediate(
-    () => filePreview.activeTabKey,
-    (key) => activateExistingTab(key ? fileWorkspaceTabId(key) : null),
-  );
   watchImmediate(activeSubAgentPanelKey, (key) =>
     activateExistingTab(key ? subAgentWorkspaceTabId(key) : null),
+  );
+  watchImmediate(
+    () => fileWorkspace.workspaceOpenRequest,
+    (request) => {
+      const hostId = selection.selectedHostId.value;
+      const threadId = selection.selectedThreadId.value;
+      if (
+        request &&
+        hostId &&
+        threadId &&
+        request.scopeKey === fileWorkspaceScopeKey(hostId, threadId)
+      ) {
+        activateExistingTab(FILES_WORKSPACE_TAB_ID);
+      }
+    },
   );
 
   function createSubAgentPanel(panel: SubAgentPanelState) {
@@ -132,9 +148,6 @@ export function useWorkspaceTabs(selection: WorkspaceTabSelection) {
     if (tab.kind === "subagent" && tab.subAgentKey) {
       closeSubAgentTab(tab.subAgentKey);
       return;
-    }
-    if (tab.kind === "file" && tab.fileKey) {
-      filePreview.closeTab(tab.fileKey);
     }
   }
 
@@ -187,7 +200,7 @@ export function useWorkspaceTabs(selection: WorkspaceTabSelection) {
     visibleTabs,
     terminalPanels,
     subAgentPanels,
-    filePanels,
+    fileWorkspaceRoot,
     closeWorkspaceTab,
     interruptSubAgent,
   };
@@ -217,15 +230,5 @@ function terminalTab(session: TerminalSessionState): WorkspaceTabState {
     kind: "terminal",
     title: session.title,
     sessionId: session.sessionId,
-  };
-}
-
-function fileTab(file: FilePreviewTab): WorkspaceTabState {
-  return {
-    id: fileWorkspaceTabId(file.key),
-    kind: "file",
-    title: file.title,
-    subtitle: file.path,
-    fileKey: file.key,
   };
 }

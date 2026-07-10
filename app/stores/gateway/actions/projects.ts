@@ -113,6 +113,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       } else {
         ctx.state.projects.push(project);
       }
+      upsertConfiguredProject(ctx, project);
       ctx.persistConfig();
       ctx.cacheSelectedThreadView();
       ctx.beginViewTransition();
@@ -140,6 +141,7 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       ctx.state.projects = ctx.state.projects.map((item) =>
         item.id === projectId ? project : item,
       );
+      upsertConfiguredProject(ctx, project);
       if (ctx.state.selectedProjectId !== projectId) {
         return project;
       }
@@ -168,6 +170,9 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       const project = ctx.state.projects.find((item) => item.id === projectId);
       await gatewayApi(`/api/projects/${projectId}`, { method: "DELETE" });
       ctx.state.projects = ctx.state.projects.filter((item) => item.id !== projectId);
+      ctx.state.gatewayConfig.projects = ctx.state.gatewayConfig.projects.filter(
+        (item) => item.id !== projectId,
+      );
 
       if (ctx.state.selectedProjectId !== projectId) {
         return;
@@ -207,7 +212,6 @@ export function createProjectActions(ctx: GatewayStoreContext) {
           ctx.state.projects.push(project);
         }
       }
-      ctx.persistConfig();
     },
 
     ensureSelectedProject() {
@@ -219,4 +223,13 @@ export function createProjectActions(ctx: GatewayStoreContext) {
         null;
     },
   };
+}
+
+function upsertConfiguredProject(ctx: GatewayStoreContext, project: ProjectRecord) {
+  const index = ctx.state.gatewayConfig.projects.findIndex((item) => item.id === project.id);
+  if (index >= 0) {
+    ctx.state.gatewayConfig.projects[index] = project;
+  } else {
+    ctx.state.gatewayConfig.projects.push(project);
+  }
 }

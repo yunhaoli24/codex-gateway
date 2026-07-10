@@ -5,7 +5,13 @@ export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
   css: ["~/assets/css/tailwind.css"],
-  modules: ["@pinia/nuxt", "@nuxtjs/device", "@nuxtjs/i18n", "shadcn-nuxt"],
+  modules: [
+    "@pinia/nuxt",
+    "pinia-plugin-persistedstate/nuxt",
+    "@nuxtjs/device",
+    "@nuxtjs/i18n",
+    "shadcn-nuxt",
+  ],
   shadcn: {
     prefix: "",
     componentDir: "./app/components/ui",

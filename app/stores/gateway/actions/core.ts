@@ -1,7 +1,6 @@
 import { toast } from "vue-sonner";
 import { klona } from "klona";
-import { gatewayApi, gatewayConfigApi } from "@/utils/gateway-api";
-import { GatewayConfigConflictError } from "@/utils/gateway-config-revision";
+import { gatewayApi } from "@/utils/gateway-api";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayConfig, GatewayNotificationSettings } from "~~/shared/types";
 import { defaultGatewayConfig, normalizeNotificationSettings } from "../config";
@@ -28,7 +27,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       ctx.state.gatewayConfig = {
         version: 1,
         hosts: ctx.state.hosts,
-        projects: ctx.state.projects,
+        projects: ctx.state.gatewayConfig.projects,
         pinnedThreads: ctx.state.gatewayConfig.pinnedThreads,
         notifications: normalizeNotificationSettings(ctx.state.gatewayConfig.notifications),
       };
@@ -39,7 +38,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       const config = klona(ctx.state.gatewayConfig);
       const generation = ++configSyncGeneration;
       const sync = async () => {
-        const syncedConfig = await syncGatewayConfig(ctx, config);
+        const syncedConfig = await syncGatewayConfig(config);
         if (generation !== configSyncGeneration) {
           return;
         }
@@ -74,7 +73,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
 
     async importConfigText(text: string) {
       const config = JSON.parse(text) as GatewayConfig;
-      const syncedConfig = await syncGatewayConfig(ctx, {
+      const syncedConfig = await syncGatewayConfig({
         ...defaultGatewayConfig(),
         ...config,
       });
@@ -195,20 +194,11 @@ export function createCoreActions(ctx: GatewayStoreContext) {
   };
 }
 
-async function syncGatewayConfig(ctx: GatewayStoreContext, config: GatewayConfig) {
-  try {
-    return await gatewayConfigApi<GatewayConfig>("/api/config/sync", {
-      method: "POST",
-      body: config,
-    });
-  } catch (error) {
-    if (error instanceof GatewayConfigConflictError) {
-      const message = ctx.t("app.configConflict");
-      ctx.setError(message);
-      throw new GatewayConfigConflictError(message);
-    }
-    throw error;
-  }
+async function syncGatewayConfig(config: GatewayConfig) {
+  return await gatewayApi<GatewayConfig>("/api/config/sync", {
+    method: "POST",
+    body: config,
+  });
 }
 
 async function hydrateNavigationData(ctx: GatewayStoreContext) {

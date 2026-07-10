@@ -27,20 +27,14 @@ export async function authenticatedFetch<T>(
     if (!token) {
       throw new Error("Missing E2E auth token");
     }
-    const revision = sessionStorage.getItem("codex-gateway-config-revision");
     const response = await fetch(request.url, {
       method: request.method ?? "GET",
       headers: {
         authorization: `Bearer ${token}`,
         ...(request.body === undefined ? {} : { "content-type": "application/json" }),
-        ...(request.url === "/api/config/sync" && revision ? { "if-match": `"${revision}"` } : {}),
       },
       body: request.body === undefined ? undefined : JSON.stringify(request.body),
     });
-    const nextRevision = response.headers.get("x-gateway-config-revision");
-    if (nextRevision) {
-      sessionStorage.setItem("codex-gateway-config-revision", nextRevision);
-    }
     const text = await response.text();
     if (!response.ok) {
       throw new Error(text);

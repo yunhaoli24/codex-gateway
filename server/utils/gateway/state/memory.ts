@@ -40,6 +40,7 @@ export interface SubAgentThreadRecord {
 export interface GatewayMemoryState {
   hosts: StoredHostRecord[];
   projects: ProjectRecord[];
+  configuredProjectIds: Set<number>;
   pinnedThreads: PinnedThreadRecord[];
   notifications: GatewayConfig["notifications"];
   threadMetadata: ThreadMetadataRecord[];
@@ -56,6 +57,7 @@ function createGatewayMemoryState(): GatewayMemoryState {
   return {
     hosts: [],
     projects: [],
+    configuredProjectIds: new Set(),
     pinnedThreads: [],
     notifications: normalizeNotificationSettings(),
     threadMetadata: [],
@@ -134,6 +136,7 @@ export function buildGatewayMemoryState(config: GatewayConfig): GatewayMemorySta
       name: project.name.trim(),
       remotePath: project.remotePath.trim(),
     })),
+    configuredProjectIds: new Set((config.projects ?? []).map((project) => project.id)),
     pinnedThreads: normalizePinnedThreads(config.pinnedThreads ?? []),
     notifications: normalizeNotificationSettings(config.notifications),
   };
@@ -142,6 +145,7 @@ export function buildGatewayMemoryState(config: GatewayConfig): GatewayMemorySta
 export const initialGatewayMemoryState: GatewayMemoryState = {
   hosts: [],
   projects: [],
+  configuredProjectIds: new Set(),
   pinnedThreads: [],
   notifications: normalizeNotificationSettings(),
   threadMetadata: [],

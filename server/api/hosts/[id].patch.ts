@@ -1,6 +1,7 @@
 import { getRouterParam, readValidatedBody } from "h3";
 import { sshConnections } from "../../utils/gateway/infra/host-services";
-import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
+import { defineGatewayConfigMutationHandler } from "../../utils/gateway/http/config-mutation";
+import { saveCurrentUserConfig } from "../../utils/gateway/http/errors";
 import { requireRecord } from "../../utils/gateway/http/validation/common";
 import { hostUpdateSchema } from "../../utils/gateway/http/validation/hosts-projects";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
@@ -8,7 +9,7 @@ import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-
 import { hostStore } from "../../utils/gateway/state/hosts";
 import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
 
-export default defineGatewayEventHandler(async (event) => {
+export default defineGatewayConfigMutationHandler(async (event) => {
   const id = Number(getRouterParam(event, "id"));
   const userId = event.context.auth!.user.id;
   const input = await readValidatedBody(event, (body) => hostUpdateSchema.parse(body));

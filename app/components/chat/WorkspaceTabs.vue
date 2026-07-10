@@ -7,7 +7,7 @@ import type { SubAgentPanelState } from "@/stores/gateway/types";
 import AgentWorkspacePane from "./AgentWorkspacePane.vue";
 import DesktopWorkspaceHeader from "./DesktopWorkspaceHeader.vue";
 import MobileWorkspaceHeader from "./MobileWorkspaceHeader.vue";
-import WorkspaceFilePreviewPanel from "./WorkspaceFilePreviewPanel.vue";
+import FileWorkspacePane from "@/components/files/FileWorkspacePane.vue";
 import WorkspaceSubAgentPanel from "./WorkspaceSubAgentPanel.vue";
 import { useWorkspaceTabs } from "./useWorkspaceTabs";
 
@@ -44,7 +44,7 @@ const {
   visibleTabs,
   terminalPanels,
   subAgentPanels,
-  filePanels,
+  fileWorkspaceRoot,
   closeWorkspaceTab,
   interruptSubAgent,
 } = useWorkspaceTabs({
@@ -122,13 +122,16 @@ const {
       />
     </TabsContent>
 
-    <TabsContent
-      v-for="tab in filePanels"
-      :key="tab.id"
-      :value="tab.id"
-      class="flex min-h-0 flex-1 flex-col overflow-hidden"
-    >
-      <WorkspaceFilePreviewPanel :file="tab.file" />
+    <TabsContent value="files" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <FileWorkspacePane
+        v-if="selectedHostId && selectedThreadId"
+        :layout="layout"
+        :host-id="selectedHostId"
+        :project-id="selectedProjectId"
+        :thread-id="selectedThreadId"
+        :root-path="fileWorkspaceRoot"
+        :active="activeWorkspaceTabId === 'files'"
+      />
     </TabsContent>
   </Tabs>
 </template>

@@ -46,6 +46,9 @@ export function createHostActions(ctx: GatewayStoreContext) {
       useGatewayRealtimeStore().closeHostThreadEvents(hostId);
       ctx.state.hosts = ctx.state.hosts.filter((host) => host.id !== hostId);
       ctx.state.projects = ctx.state.projects.filter((project) => project.hostId !== hostId);
+      ctx.state.gatewayConfig.projects = ctx.state.gatewayConfig.projects.filter(
+        (project) => project.hostId !== hostId,
+      );
       const { [hostId]: _removedConnectionStatus, ...hostConnectionStatuses } =
         ctx.state.hostConnectionStatuses;
       ctx.state.hostConnectionStatuses = hostConnectionStatuses;

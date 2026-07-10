@@ -1,4 +1,5 @@
 export const AGENT_WORKSPACE_TAB_ID = "agent";
+export const FILES_WORKSPACE_TAB_ID = "files";
 
 export function terminalWorkspaceTabId(sessionId: string) {
   return `terminal:${sessionId}`;
@@ -6,10 +7,6 @@ export function terminalWorkspaceTabId(sessionId: string) {
 
 export function subAgentWorkspaceTabId(key: string) {
   return `subagent:${key}`;
-}
-
-export function fileWorkspaceTabId(key: string) {
-  return `file:${key}`;
 }
 
 export function terminalSessionIdFromTabId(tabId: string) {

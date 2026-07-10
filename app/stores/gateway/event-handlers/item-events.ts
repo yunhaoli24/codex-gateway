@@ -11,6 +11,7 @@ export const itemEventHandlers: GatewayEventHandlerRegistry = {
   "item/completed": (ctx, event, params, threadId) => {
     upsertStartedOrCompletedItem(ctx, event, params, threadId, "completed");
     emitTerminalProcessCompleted(ctx, event, params, threadId);
+    emitRemoteFilesChanged(ctx, event, params, threadId);
   },
   "item/commandExecution/requestApproval": (ctx, event, params, threadId) => {
     ctx.events.emit("history-item-upsert", {
@@ -94,6 +95,23 @@ function emitTerminalProcessCompleted(
     turnId: String(params.turnId),
     itemId: String(item.id),
   });
+}
+
+function emitRemoteFilesChanged(
+  ctx: GatewayStoreContext,
+  event: GatewayEvent,
+  params: AppServerEventParams,
+  threadId: string,
+) {
+  if (params.item?.type !== "fileChange") {
+    return;
+  }
+  const paths = (Array.isArray(params.item.changes) ? params.item.changes : [])
+    .map((change: Record<string, unknown>) => change.path ?? change.filePath)
+    .filter((path: unknown): path is string => typeof path === "string" && path.length > 0);
+  if (paths.length) {
+    ctx.events.emit("remote-files-changed", { hostId: event.hostId, threadId, paths });
+  }
 }
 
 function upsertStartedOrCompletedItem(

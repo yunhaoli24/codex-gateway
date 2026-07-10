@@ -27,6 +27,7 @@
 - 涉及 SSH、RPC、thread、实时同步、上传、配置导入导出、路由恢复、i18n 的改动，必须运行 `pnpm test:e2e`,不要使用`pnpm exec playwright ..`启动宿主机测试。
 - `pnpm test:e2e` 会启动 Nuxt dev server，并通过 Docker 启动真实 SSH 测试环境；不要把 E2E 改成 mock app-server 或 fake 数据。
 - 如果 E2E 失败，先看 Playwright trace、webServer 日志和 Docker SSH 环境日志，再判断是测试环境还是代码问题。
+- 构建、完整 E2E、镜像导出等长任务应使用一次足够长的前台等待或 `sleep` 后再检查结果，不要用短间隔频繁轮询刷日志。
 
 ## Git 协作
 

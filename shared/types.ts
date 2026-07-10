@@ -33,8 +33,9 @@ export type {
   PinnedThreadRecord,
 } from "./types/config";
 export type {
-  FilePreviewTab,
+  FilePreviewDocument,
   RemoteDirectoryEntry,
+  RemoteDirectoryResult,
   UploadedFileRecord,
   UploadResult,
 } from "./types/files";

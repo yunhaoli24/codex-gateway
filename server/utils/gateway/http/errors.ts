@@ -1,19 +1,13 @@
-import {
-  defineEventHandler,
-  getHeader,
-  getRequestURL,
-  setResponseHeader,
-  setResponseStatus,
-  type H3Event,
-} from "h3";
+import { defineEventHandler, getRequestURL, setResponseStatus, type H3Event } from "h3";
 import type { GatewayConfig, HostRecord } from "~~/shared/types";
-import { GATEWAY_CONFIG_REVISION_HEADER, normalizeNotificationSettings } from "~~/shared/config";
+import { normalizeNotificationSettings } from "~~/shared/config";
 import {
   isStaleThreadCursorErrorLike,
   STALE_THREAD_CURSOR_ERROR_CODE,
 } from "~~/shared/gateway-errors";
-import { ConfigRevisionConflictError, userStore } from "../auth/users";
+import { userStore } from "../auth/users";
 import { hostRuntimeSupervisor } from "../runtime/host-runtime-supervisor";
+import { projectStore } from "../state/projects";
 import {
   buildGatewayMemoryState,
   currentGatewayMemoryState,
@@ -86,41 +80,18 @@ export function ensureUserConfigLoaded(userId: number) {
   if (state.configLoaded) {
     return;
   }
-  const nextState = buildGatewayMemoryState(userStore.loadConfigSnapshot(userId).config);
+  const nextState = buildGatewayMemoryState(userStore.loadConfig(userId));
   nextState.configLoaded = true;
   replaceCurrentGatewayMemoryState(nextState);
   hostRuntimeSupervisor.syncCurrentUserConfig();
 }
 
-export function saveCurrentUserConfig(event: H3Event, expectedRevision?: number) {
+export function saveCurrentUserConfig(event: H3Event) {
   const user = event.context.auth?.user;
   if (!user) {
     return null;
   }
-  const revision = userStore.saveConfig(user.id, runtimeConfigFromMemory(), expectedRevision);
-  exposeConfigRevision(event, revision);
-  return revision;
-}
-
-export function exposeCurrentUserConfigRevision(event: H3Event) {
-  const user = event.context.auth?.user;
-  if (!user) {
-    return null;
-  }
-  const revision = userStore.configRevision(user.id);
-  exposeConfigRevision(event, revision);
-  return revision;
-}
-
-export function requireCurrentUserConfigRevision(event: H3Event) {
-  const rawRevision = getHeader(event, "if-match")?.trim() ?? "";
-  const match = rawRevision.match(/^"(\d+)"$/);
-  if (!match?.[1]) {
-    const error = new Error("Configuration revision is required. Refresh the page and try again.");
-    Object.assign(error, { statusCode: 428, code: "configRevisionRequired" });
-    throw error;
-  }
-  return Number(match[1]);
+  userStore.saveConfig(user.id, runtimeConfigFromMemory());
 }
 
 export function runtimeConfigFromMemory(): GatewayConfig {
@@ -131,7 +102,7 @@ export function runtimeConfigFromMemory(): GatewayConfig {
       ...host,
       hasPassword: Boolean(host.password),
     })),
-    projects: state.projects,
+    projects: projectStore.listConfigured(),
     pinnedThreads: state.pinnedThreads,
     notifications: normalizeNotificationSettings(state.notifications),
   };
@@ -177,15 +148,6 @@ export function hostLogContext(host: HostRecord) {
 }
 
 function serializeError(error: unknown): Record<string, unknown> {
-  if (error instanceof ConfigRevisionConflictError) {
-    return {
-      name: error.name,
-      message: error.message,
-      expectedRevision: error.expectedRevision,
-      actualRevision: error.actualRevision,
-      stack: error.stack,
-    };
-  }
   if (error instanceof CodexRpcError) {
     return {
       name: error.name,
@@ -222,9 +184,6 @@ function statusCodeFromError(error: unknown) {
 }
 
 function publicErrorCode(error: unknown) {
-  if (error instanceof ConfigRevisionConflictError) {
-    return error.code;
-  }
   if (typeof (error as any)?.code === "string") {
     return String((error as any).code);
   }
@@ -232,10 +191,6 @@ function publicErrorCode(error: unknown) {
     return STALE_THREAD_CURSOR_ERROR_CODE;
   }
   return undefined;
-}
-
-function exposeConfigRevision(event: H3Event, revision: number) {
-  setResponseHeader(event, GATEWAY_CONFIG_REVISION_HEADER, String(revision));
 }
 
 function publicErrorMessage(error: unknown) {

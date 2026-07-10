@@ -2,6 +2,13 @@ export interface RemoteDirectoryEntry {
   name: string;
   path: string;
   type: "directory" | "file" | "other";
+  size: number | null;
+  modifiedAt: number | null;
+}
+
+export interface RemoteDirectoryResult {
+  path: string;
+  entries: RemoteDirectoryEntry[];
 }
 
 export interface UploadedFileRecord {
@@ -16,7 +23,7 @@ export interface UploadResult {
   files: UploadedFileRecord[];
 }
 
-export interface FilePreviewTab {
+export interface FilePreviewDocument {
   key: string;
   hostId: number;
   projectId: number | null;
@@ -31,4 +38,7 @@ export interface FilePreviewTab {
   loading: boolean;
   error: string | null;
   updatedAt: number;
+  etag: string | null;
+  lastModified: string | null;
+  stale: boolean;
 }

@@ -28,6 +28,12 @@ export interface RemoteFileResult {
   stream: Readable;
 }
 
+export interface RemoteFileMetadata {
+  path: string;
+  size: number;
+  modifiedAt: number;
+}
+
 export interface RemoteCodexVersionState {
   version: string;
   appServerVersion: string | null;
