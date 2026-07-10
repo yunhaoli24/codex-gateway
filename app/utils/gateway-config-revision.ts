@@ -25,7 +25,11 @@ export function captureGatewayConfigRevision(headers: Headers) {
   if (!import.meta.client || !value || !/^\d+$/.test(value)) {
     return;
   }
-  sessionStorage.setItem(STORAGE_KEY, value);
+  const nextRevision = Number(value);
+  const currentRevision = currentGatewayConfigRevision();
+  if (currentRevision === null || nextRevision > currentRevision) {
+    sessionStorage.setItem(STORAGE_KEY, value);
+  }
 }
 
 export function clearGatewayConfigRevision() {

@@ -177,6 +177,15 @@ export function hostLogContext(host: HostRecord) {
 }
 
 function serializeError(error: unknown): Record<string, unknown> {
+  if (error instanceof ConfigRevisionConflictError) {
+    return {
+      name: error.name,
+      message: error.message,
+      expectedRevision: error.expectedRevision,
+      actualRevision: error.actualRevision,
+      stack: error.stack,
+    };
+  }
   if (error instanceof CodexRpcError) {
     return {
       name: error.name,

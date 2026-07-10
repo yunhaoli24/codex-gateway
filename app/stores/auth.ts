@@ -33,6 +33,7 @@ export const useAuthStore = defineStore("auth", () => {
   }
 
   function setSession(nextToken: string, nextUsername: string) {
+    clearGatewayConfigRevision();
     token.value = nextToken;
     username.value = nextUsername;
     initialized.value = true;
