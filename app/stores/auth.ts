@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import { clearGatewayConfigRevision } from "@/utils/gateway-config-revision";
 
 export const AUTH_STORAGE_KEY = "codex-gateway-auth-token";
 
@@ -58,6 +59,7 @@ export const useAuthStore = defineStore("auth", () => {
   }
 
   function clearSession() {
+    clearGatewayConfigRevision();
     token.value = "";
     username.value = "";
     initialized.value = true;

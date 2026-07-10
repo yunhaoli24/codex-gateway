@@ -1,6 +1,7 @@
 import { toast } from "vue-sonner";
 import { klona } from "klona";
-import { gatewayApi } from "@/utils/gateway-api";
+import { gatewayApi, gatewayConfigApi } from "@/utils/gateway-api";
+import { GatewayConfigConflictError } from "@/utils/gateway-config-revision";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayConfig, GatewayNotificationSettings } from "~~/shared/types";
 import { defaultGatewayConfig, normalizeNotificationSettings } from "../config";
@@ -38,10 +39,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       const config = klona(ctx.state.gatewayConfig);
       const generation = ++configSyncGeneration;
       const sync = async () => {
-        const syncedConfig = await gatewayApi<GatewayConfig>("/api/config/sync", {
-          method: "POST",
-          body: config,
-        });
+        const syncedConfig = await syncGatewayConfig(ctx, config);
         if (generation !== configSyncGeneration) {
           return;
         }
@@ -76,9 +74,9 @@ export function createCoreActions(ctx: GatewayStoreContext) {
 
     async importConfigText(text: string) {
       const config = JSON.parse(text) as GatewayConfig;
-      const syncedConfig = await gatewayApi<GatewayConfig>("/api/config/sync", {
-        method: "POST",
-        body: { ...defaultGatewayConfig(), ...config },
+      const syncedConfig = await syncGatewayConfig(ctx, {
+        ...defaultGatewayConfig(),
+        ...config,
       });
       ctx.state.gatewayConfig = { ...defaultGatewayConfig(), ...syncedConfig };
       ctx.state.hosts = ctx.state.gatewayConfig.hosts;
@@ -195,6 +193,22 @@ export function createCoreActions(ctx: GatewayStoreContext) {
       }
     },
   };
+}
+
+async function syncGatewayConfig(ctx: GatewayStoreContext, config: GatewayConfig) {
+  try {
+    return await gatewayConfigApi<GatewayConfig>("/api/config/sync", {
+      method: "POST",
+      body: config,
+    });
+  } catch (error) {
+    if (error instanceof GatewayConfigConflictError) {
+      const message = ctx.t("app.configConflict");
+      ctx.setError(message);
+      throw new GatewayConfigConflictError(message);
+    }
+    throw error;
+  }
 }
 
 async function hydrateNavigationData(ctx: GatewayStoreContext) {

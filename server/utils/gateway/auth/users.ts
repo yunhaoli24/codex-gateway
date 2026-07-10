@@ -22,6 +22,19 @@ export interface AuthSession {
   user: AuthenticatedUser;
 }
 
+export class ConfigRevisionConflictError extends Error {
+  readonly statusCode = 409;
+  readonly code = "configConflict";
+
+  constructor(
+    readonly expectedRevision: number,
+    readonly actualRevision: number,
+  ) {
+    super("Configuration changed in another browser tab. Refresh the page and try again.");
+    this.name = "ConfigRevisionConflictError";
+  }
+}
+
 const SESSION_DAYS = 30;
 
 export const userStore = {
@@ -128,34 +141,58 @@ export const userStore = {
     return Number(result.changes);
   },
 
-  loadConfig(userId: number): GatewayConfig {
+  loadConfigSnapshot(userId: number): { config: GatewayConfig; revision: number } {
     const row = gatewayDatabase()
-      .prepare("SELECT encrypted_config_json FROM user_configs WHERE user_id = ?")
+      .prepare("SELECT encrypted_config_json, revision FROM user_configs WHERE user_id = ?")
       .get(userId);
     if (!row?.encrypted_config_json) {
-      return defaultGatewayConfig();
+      return { config: defaultGatewayConfig(), revision: 0 };
     }
     return {
-      ...defaultGatewayConfig(),
-      ...decryptJson<GatewayConfig>(String(row.encrypted_config_json)),
+      config: {
+        ...defaultGatewayConfig(),
+        ...decryptJson<GatewayConfig>(String(row.encrypted_config_json)),
+      },
+      revision: Number(row.revision),
     };
   },
 
-  saveConfig(userId: number, config: GatewayConfig) {
+  configRevision(userId: number) {
+    const row = gatewayDatabase()
+      .prepare("SELECT revision FROM user_configs WHERE user_id = ?")
+      .get(userId);
+    return row ? Number(row.revision) : 0;
+  },
+
+  assertConfigRevision(userId: number, expectedRevision: number) {
+    const actualRevision = this.configRevision(userId);
+    if (actualRevision !== expectedRevision) {
+      throw new ConfigRevisionConflictError(expectedRevision, actualRevision);
+    }
+  },
+
+  saveConfig(userId: number, config: GatewayConfig, expectedRevision?: number) {
+    const actualRevision = this.configRevision(userId);
+    if (expectedRevision !== undefined && actualRevision !== expectedRevision) {
+      throw new ConfigRevisionConflictError(expectedRevision, actualRevision);
+    }
+    const revision = actualRevision + 1;
     const encrypted = encryptJson(config);
     const now = new Date().toISOString();
     gatewayDatabase()
       .prepare(
         `
-          INSERT INTO user_configs (user_id, encrypted_config_json, config_version, updated_at)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO user_configs (user_id, encrypted_config_json, config_version, revision, updated_at)
+          VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(user_id) DO UPDATE SET
             encrypted_config_json = excluded.encrypted_config_json,
             config_version = excluded.config_version,
+            revision = excluded.revision,
             updated_at = excluded.updated_at
         `,
       )
-      .run(userId, encrypted, config.version || 1, now);
+      .run(userId, encrypted, config.version || 1, revision, now);
+    return revision;
   },
 
   listStoredConfigs(): Array<{ user: AuthenticatedUser; config: GatewayConfig }> {

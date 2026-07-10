@@ -156,6 +156,7 @@
     "importConfig": "导入配置",
     "importConfigFailed": "导入配置失败",
     "configSyncFailed": "同步配置失败",
+    "configConflict": "配置已在其他标签页中发生变化，请刷新页面后重试",
     "browse": "浏览",
     "browseFailed": "读取目录失败",
     "bootstrapFailed": "加载网关失败",

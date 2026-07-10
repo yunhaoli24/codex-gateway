@@ -159,6 +159,7 @@
     "importConfig": "Import config",
     "importConfigFailed": "Failed to import config",
     "configSyncFailed": "Failed to sync config",
+    "configConflict": "Configuration changed in another tab. Refresh the page and try again",
     "browse": "Browse",
     "browseFailed": "Failed to read directory",
     "bootstrapFailed": "Failed to bootstrap gateway",

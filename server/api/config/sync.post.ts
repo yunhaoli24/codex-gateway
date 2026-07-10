@@ -1,7 +1,12 @@
 import { readValidatedBody } from "h3";
 import { sshConnections } from "../../utils/gateway/infra/host-services";
-import { defineGatewayEventHandler, saveCurrentUserConfig } from "../../utils/gateway/http/errors";
+import {
+  defineGatewayEventHandler,
+  requireCurrentUserConfigRevision,
+  saveCurrentUserConfig,
+} from "../../utils/gateway/http/errors";
 import { parseGatewayConfig } from "../../utils/gateway/http/validation/config";
+import { userStore } from "../../utils/gateway/auth/users";
 import { threadBroker } from "../../utils/gateway/runtime/broker";
 import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-supervisor";
 import { hostStore } from "../../utils/gateway/state/hosts";
@@ -13,6 +18,9 @@ export default defineGatewayEventHandler(async (event) => {
   const previousHosts = hostStore.listWithSecret();
   const userId = event.context.auth!.user.id;
   const config = await readValidatedBody(event, parseGatewayConfig);
+  const expectedRevision = requireCurrentUserConfigRevision(event);
+  // Reject stale full snapshots before touching the user-scoped runtime state.
+  userStore.assertConfigRevision(userId, expectedRevision);
   runtimeConfigStore.replace(config);
   const nextHosts = hostStore.listWithSecret();
   const hostsToClose = changedOrDeletedHosts(previousHosts, nextHosts);
@@ -24,7 +32,7 @@ export default defineGatewayEventHandler(async (event) => {
     sshConnections.syncHosts(nextHosts);
     hostRuntimeSupervisor.syncCurrentUserConfig();
   }
-  saveCurrentUserConfig(event);
+  saveCurrentUserConfig(event, expectedRevision);
   return runtimeConfigStore.export();
 });
 
