@@ -1,5 +1,6 @@
 import { extname } from "node:path";
 import { createError, getValidatedQuery } from "h3";
+import { isDedicatedDocumentPreviewPath } from "~~/shared/file-preview";
 import {
   defineGatewayEventHandler,
   hostLogContext,
@@ -46,6 +47,7 @@ export default defineGatewayEventHandler(async (event) => {
     return await sendRemoteFile(event, host, query.path, {
       maxSize: MAX_REMOTE_FILE_BYTES,
       contentType: mimeTypeForPath(query.path),
+      previewKind: isDedicatedDocumentPreviewPath(query.path) ? "document" : "detect",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

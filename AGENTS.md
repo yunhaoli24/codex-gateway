@@ -33,6 +33,12 @@
 
 - 任何代码更改必须先从 `main`/`master` checkout 新分支，例如 `feat/*`、`fix/*`；如果当前已经位于非 `main`/`master` 分支，则无需再次创建分支。
 - 禁止直接在 `main` 或 `master` 分支提交与推送代码更改。多人协作统一通过“分支 + PR + Review”完成合并，避免直接推送造成冲突。
+- 当用户要求提交、合并并部署时，必须按以下顺序执行，不得从功能分支直接部署：
+  1. 在当前功能分支完成 `pnpm lint`、适用的 `pnpm test:e2e` 和 `git diff --check`。
+  2. 提交全部任务相关改动并推送当前分支到 `origin`。
+  3. 使用 `gh pr create` 创建 PR，确认检查结果和变更范围后使用 `gh pr merge` 合并；禁止绕过 PR 直接推送 `main`。
+  4. 切换回 `main`，使用 `git pull --ff-only origin main` 获取远端合并结果，并确认工作区干净且提交与远端一致。
+  5. 仅从最新 `main` 执行 `docker compose up -d --build codex-gateway`，随后检查容器状态、容器日志和公网健康响应。
 
 ## 代码风格
 

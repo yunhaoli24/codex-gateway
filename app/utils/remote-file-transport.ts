@@ -8,6 +8,7 @@ export type RemoteFileResponse =
       changed: true;
       blob: Blob;
       contentType: string;
+      previewKind: "text" | "binary" | "document";
       etag: string | null;
       lastModified: string | null;
     };
@@ -43,9 +44,18 @@ export async function fetchRemoteFile(
     changed: true,
     blob: await response.blob(),
     contentType: response.headers.get("content-type") || "",
+    previewKind: responsePreviewKind(response),
     etag: response.headers.get("etag"),
     lastModified: response.headers.get("last-modified"),
   };
+}
+
+function responsePreviewKind(response: Response): "text" | "binary" | "document" {
+  const value = response.headers.get("x-codex-file-preview-kind");
+  if (value === "binary" || value === "document") {
+    return value;
+  }
+  return "text";
 }
 
 function authorizationHeaders() {

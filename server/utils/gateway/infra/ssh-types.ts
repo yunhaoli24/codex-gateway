@@ -25,6 +25,7 @@ export interface ReverseTcpForwardOptions {
 export interface RemoteFileResult {
   path: string;
   size: number;
+  sample: Buffer;
   stream: Readable;
 }
 

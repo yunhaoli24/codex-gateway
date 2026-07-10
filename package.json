@@ -42,6 +42,7 @@
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
     "embla-carousel-vue": "^8.6.0",
+    "isbinaryfile": "^6.0.0",
     "klona": "^2.0.6",
     "markdown-it": "^14.3.0",
     "nuxt": "^4.4.8",

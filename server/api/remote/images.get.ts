@@ -30,6 +30,7 @@ export default defineGatewayEventHandler(async (event) => {
     return await sendRemoteFile(event, host, query.path, {
       maxSize: MAX_REMOTE_IMAGE_BYTES,
       contentType: mimeType,
+      previewKind: "document",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

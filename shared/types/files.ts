@@ -32,6 +32,7 @@ export interface FilePreviewDocument {
   title: string;
   line: number | null;
   contentType: string;
+  previewKind: "text" | "binary" | "document";
   size: number | null;
   objectUrl: string;
   text: string;

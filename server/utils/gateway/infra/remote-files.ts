@@ -1,4 +1,5 @@
 import type { FileEntryWithStats } from "ssh2";
+import { posix } from "node:path";
 import { remoteLoginShellCommand } from "./remote-command";
 import { shellQuote } from "./shell";
 import type { SshConnectionPool } from "./ssh-connection";
@@ -24,21 +25,14 @@ export class RemoteFileService {
 
   async listDirectories(host: HostWithSecret, path: string) {
     const resolvedPath = await this.resolveRemoteDirectory(host, path);
-    const client = await this.ssh.connect(host);
+    const sftp = await this.ssh.sftp(host);
     return new Promise<ReturnType<typeof directoryResult>>((resolve, reject) => {
-      client.sftp((error, sftp) => {
-        if (error) {
-          reject(error);
+      sftp.readdir(resolvedPath, (readError, entries) => {
+        if (readError) {
+          reject(readError);
           return;
         }
-        sftp.readdir(resolvedPath, (readError, entries) => {
-          sftp.end();
-          if (readError) {
-            reject(readError);
-            return;
-          }
-          resolve(directoryResult(resolvedPath, entries));
-        });
+        resolve(directoryResult(resolvedPath, entries));
       });
     });
   }
@@ -64,29 +58,22 @@ export class RemoteFileService {
     if (!path.startsWith("/")) {
       throw new Error("Remote file path must be absolute");
     }
-    const client = await this.ssh.connect(host);
+    const sftp = await this.ssh.sftp(host);
     return new Promise<RemoteFileMetadata>((resolve, reject) => {
-      client.sftp((error, sftp) => {
-        if (error) {
-          reject(error);
+      sftp.stat(path, (statError, stats) => {
+        if (statError) {
+          reject(statError);
           return;
         }
-        sftp.stat(path, (statError, stats) => {
-          sftp.end();
-          if (statError) {
-            reject(statError);
-            return;
-          }
-          if (!stats.isFile()) {
-            reject(new Error("Remote path is not a file"));
-            return;
-          }
-          if (stats.size > options.maxSize) {
-            reject(new Error(`Remote file exceeds ${options.maxSize} bytes`));
-            return;
-          }
-          resolve({ path, size: stats.size, modifiedAt: stats.mtime * 1000 });
-        });
+        if (!stats.isFile()) {
+          reject(new Error("Remote path is not a file"));
+          return;
+        }
+        if (stats.size > options.maxSize) {
+          reject(new Error(`Remote file exceeds ${options.maxSize} bytes`));
+          return;
+        }
+        resolve({ path, size: stats.size, modifiedAt: stats.mtime * 1000 });
       });
     });
   }
@@ -95,17 +82,36 @@ export class RemoteFileService {
     host: HostWithSecret,
     metadata: RemoteFileMetadata,
   ): Promise<RemoteFileResult> {
-    const client = await this.ssh.connect(host);
+    const sftp = await this.ssh.sftp(host);
     return new Promise<RemoteFileResult>((resolve, reject) => {
-      client.sftp((error, sftp) => {
-        if (error) {
-          reject(error);
+      const sample = Buffer.alloc(Math.min(metadata.size, 515));
+      const openStream = (bytesRead: number) => {
+        const stream = sftp.createReadStream(metadata.path);
+        resolve({
+          path: metadata.path,
+          size: metadata.size,
+          sample: sample.subarray(0, bytesRead),
+          stream,
+        });
+      };
+      if (!sample.length) {
+        openStream(0);
+        return;
+      }
+      sftp.open(metadata.path, "r", (openError, handle) => {
+        if (openError) {
+          reject(openError);
           return;
         }
-        const stream = sftp.createReadStream(metadata.path);
-        stream.once("close", () => sftp.end());
-        stream.once("error", () => sftp.end());
-        resolve({ path: metadata.path, size: metadata.size, stream });
+        sftp.read(handle, sample, 0, sample.length, 0, (readError, bytesRead) => {
+          sftp.close(handle, (closeError) => {
+            if (readError || closeError) {
+              reject(readError || closeError);
+              return;
+            }
+            openStream(bytesRead);
+          });
+        });
       });
     });
   }
@@ -122,6 +128,9 @@ export class RemoteFileService {
 
   private async resolveRemoteDirectory(host: HostWithSecret, path: string) {
     const normalizedPath = path?.trim() || ".";
+    if (normalizedPath.startsWith("/")) {
+      return posix.normalize(normalizedPath);
+    }
     const script = `
 set -eu
 input=$1
