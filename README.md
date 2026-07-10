@@ -6,6 +6,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](package.json)
 [![Playwright](https://img.shields.io/badge/Playwright-E2E-2EAD33?logo=playwright&logoColor=white)](tests/e2e)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 English | [中文](README.zh-CN.md)
 
@@ -14,6 +15,12 @@ Codex Gateway is a web frontend and connection gateway for the official Codex ap
 It is not a reimplementation of Codex, and it does not run an agent runtime in the browser. The browser talks only to Codex Gateway. Gateway connects to your remote machines over SSH, manages the official `codex app-server` lifecycle, and renders official app-server threads, events, approvals, file changes, images, diffs, terminal output, and sub-agent activity in a web UI.
 
 The goal is simple: open Codex sessions from many servers in a browser while keeping Codex app-server as the source of truth. If Codex Desktop, another client, and Codex Gateway connect to the same app-server thread, they should observe the same state stream.
+
+<p align="center">
+  <img src="docs/images/codex-gateway-workspace.png" alt="Codex Gateway showing remote hosts, projects, a Codex agent loop, and workspace tabs" width="100%">
+</p>
+
+<p align="center"><sub>A browser workspace for Codex sessions running across remote SSH hosts.</sub></p>
 
 ## Why
 
@@ -55,6 +62,7 @@ Core rules:
 - **Realtime turns**: start new turns, steer running turns, interrupt active turns, and answer app-server dynamic requests over WebSocket.
 - **Plan and goal modes**: slash commands expose Codex plan mode and goal progress, including token/time status in the composer.
 - **Agent loop UI**: reasoning, command execution, terminal waits, file edits, streaming diffs, images, context compaction, sleep, MCP/tool calls, notifications, and sub-agent side panels.
+- **Workspace tabs and file previews**: keep the agent loop, SSH terminals, sub-agents, and remote Markdown, code, PDF, and Office previews in one workspace.
 - **Remote terminal tabs**: open independent SSH PTY terminals beside the agent loop with `@xterm/xterm`; terminal sessions are isolated per user and host.
 - **Multi-client sync**: multiple browser tabs can subscribe to the same thread and receive the same gateway-side app-server event stream.
 - **State repair**: after SSH/app-server reconnect, Gateway refreshes running thread state; a Nitro scheduled task also checks stale running threads.
@@ -78,6 +86,26 @@ Core rules:
 ├── Dockerfile
 └── docker-compose.yml
 ```
+
+## Quick Start
+
+Prerequisites: Docker with Compose, Git, and network access from Gateway to the SSH hosts you want to manage.
+
+```bash
+git clone --recurse-submodules https://github.com/yunhaoli24/codex-gateway.git
+cd codex-gateway
+
+cp .env.example .env
+# Replace CODEX_GATEWAY_CONFIG_SECRET in .env with: openssl rand -hex 32
+
+docker network create web-common 2>/dev/null || true
+docker compose build
+docker compose run --rm codex-gateway \
+  node scripts/create-user.mjs admin '<a-password-with-at-least-8-characters>'
+docker compose up -d
+```
+
+Open the service through your reverse proxy, sign in with the manually created account, and add the first SSH host from Settings. The bundled Compose file intentionally exposes port `3000` only to the external `web-common` Docker network.
 
 ## Local Development
 
@@ -157,6 +185,10 @@ Run the full E2E suite for changes involving SSH, RPC, WebSocket, thread state, 
 
 Codex Gateway targets the official Codex app-server protocol. `third_party/openai-codex/` is a submodule used only as a protocol and behavior reference. Gateway should align with official app-server behavior instead of fabricating frontend-only events or maintaining compatibility branches for old protocols.
 
+## Contributing
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing SSH, RPC, realtime state, or app-server protocol behavior. Please report vulnerabilities privately according to [SECURITY.md](SECURITY.md).
+
 ## License
 
-MIT
+[MIT](LICENSE)
