@@ -20,7 +20,6 @@ const props = defineProps<{
     class="diff-markdown max-h-[min(55vh,26rem)] border-t border-hairline bg-surface"
     viewport-class="max-h-[min(55vh,26rem)]"
     allow-horizontal-overflow
-    natural-height
     :threshold="48"
     :follow-key="fileChangeFollowKey(props.change)"
   >

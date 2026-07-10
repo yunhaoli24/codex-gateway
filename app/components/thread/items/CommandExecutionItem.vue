@@ -101,9 +101,7 @@ async function respond(decision: "accept" | "decline") {
         class="mt-2 max-h-56 rounded-lg border border-hairline bg-canvas-soft"
         viewport-class="max-h-56"
         allow-horizontal-overflow
-        natural-height
         :threshold="48"
-        :estimate-size="44"
         :follow-key="rawOutput.length"
       >
         <HighlightedCode
