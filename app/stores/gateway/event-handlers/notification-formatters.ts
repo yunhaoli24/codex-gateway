@@ -123,7 +123,7 @@ const formatters: Record<VisibleNotificationMethod, NotificationFormatter> = {
     ),
   "account/updated": (ctx, params) =>
     simpleNotification(ctx, "accountUpdated", "info", {
-      authMode: text(params.authMode),
+      authMode: accountAuthModeLabel(ctx, params.authMode),
       planType: text(params.planType),
     }),
   "account/rateLimits/updated": rateLimitsUpdatedNotification,
@@ -228,4 +228,22 @@ export function formatNotification(
     ...formatted,
     level: formatted.level ?? (warningMethods.has(method) ? "warning" : "info"),
   };
+}
+
+function accountAuthModeLabel(ctx: GatewayStoreContext, value: unknown) {
+  const mode = text(value);
+  if (!mode) {
+    return "";
+  }
+  const keyByMode: Record<string, string> = {
+    apikey: "app.accountAuthModeApiKey",
+    chatgpt: "app.accountAuthModeChatgpt",
+    chatgptAuthTokens: "app.accountAuthModeChatgptAuthTokens",
+    headers: "app.accountAuthModeHeaders",
+    agentIdentity: "app.accountAuthModeAgentIdentity",
+    personalAccessToken: "app.accountAuthModePersonalAccessToken",
+    bedrockApiKey: "app.accountAuthModeBedrockApiKey",
+  };
+  const key = keyByMode[mode];
+  return key ? ctx.t(key) : mode;
 }
