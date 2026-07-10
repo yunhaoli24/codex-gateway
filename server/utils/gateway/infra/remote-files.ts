@@ -59,7 +59,7 @@ done
     return this.ssh.uploadFile(host, localPath, remotePath);
   }
 
-  async readRemoteFile(
+  async openRemoteFile(
     host: HostWithSecret,
     remotePath: string,
     options: { maxSize: number },
@@ -77,7 +77,12 @@ done
           return;
         }
 
+        let cleaned = false;
         const cleanup = () => {
+          if (cleaned) {
+            return;
+          }
+          cleaned = true;
           sftp.end();
         };
 
@@ -98,14 +103,10 @@ done
             return;
           }
 
-          sftp.readFile(path, (readError, data) => {
-            cleanup();
-            if (readError) {
-              reject(readError);
-              return;
-            }
-            resolve({ path, size: stats.size, data });
-          });
+          const stream = sftp.createReadStream(path);
+          stream.once("close", cleanup);
+          stream.once("error", cleanup);
+          resolve({ path, size: stats.size, stream });
         });
       });
     });

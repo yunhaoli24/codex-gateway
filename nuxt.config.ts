@@ -35,6 +35,7 @@ export default defineNuxtConfig({
     },
     scheduledTasks: {
       "* * * * *": ["gateway:sync-running-threads"],
+      "0 * * * *": ["gateway:prune-expired-sessions"],
     },
   },
   i18n: {

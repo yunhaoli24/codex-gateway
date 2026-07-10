@@ -87,10 +87,6 @@ export function numeric(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-export function numberText(value: unknown) {
-  return typeof value === "number" || typeof value === "bigint" ? String(value) : text(value);
-}
-
 export function truncate(value: string, limit: number) {
   return value.length > limit ? `${value.slice(0, limit)}...` : value;
 }

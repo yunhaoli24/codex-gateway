@@ -319,7 +319,12 @@ function isOlderSnapshot(ctx: GatewayStoreContext, snapshotLastEventId: number) 
 
 async function refreshGoalAfterOpen(ctx: GatewayStoreContext, hostId: number, threadId: string) {
   try {
-    if (ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId) {
+    const key = pinnedKey(hostId, threadId);
+    if (
+      !(key in ctx.state.threadGoalObservedAtByKey) &&
+      ctx.state.selectedHostId === hostId &&
+      ctx.state.selectedThreadId === threadId
+    ) {
       await ctx.refreshSelectedThreadGoal();
     }
   } catch (error: any) {

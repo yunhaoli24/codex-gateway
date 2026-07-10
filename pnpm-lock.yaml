@@ -38,6 +38,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.4
         version: 6.43.4
+      '@fastify/busboy':
+        specifier: ^3.2.0
+        version: 3.2.0
       '@internationalized/date':
         specifier: ^3.12.2
         version: 3.12.2
@@ -98,6 +101,9 @@ importers:
       embla-carousel-vue:
         specifier: ^8.6.0
         version: 8.6.0(vue@3.5.39(typescript@6.0.3))
+      klona:
+        specifier: ^2.0.6
+        version: 2.0.6
       markdown-it:
         specifier: ^14.3.0
         version: 14.3.0
@@ -811,6 +817,9 @@ packages:
   '@eslint/plugin-kit@0.7.2':
     resolution: {integrity: sha512-+CNAzxglkrpNf/kKywqQfk74QjtceuOE7Qm+AF8miRvPF/wmmK5+OJOgVh3AVTT3RP2mH3+FOaxlE5v72owk0A==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@fastify/busboy@3.2.0':
+    resolution: {integrity: sha512-m9FVDXU3GT2ITSe0UaMA5rU3QkfC/UXtCU8y0gSN/GugTqtVldOBWIB5V6V3sbmenVZUIpU6f+mPEO2+m5iTaA==}
 
   '@floating-ui/core@1.7.5':
     resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
@@ -7094,6 +7103,8 @@ snapshots:
     dependencies:
       '@eslint/core': 1.2.1
       levn: 0.4.1
+
+  '@fastify/busboy@3.2.0': {}
 
   '@floating-ui/core@1.7.5':
     dependencies:

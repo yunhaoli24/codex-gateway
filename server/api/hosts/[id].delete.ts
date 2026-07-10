@@ -13,6 +13,7 @@ import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
 
 export default defineGatewayEventHandler((event) => {
   const id = Number(getRouterParam(event, "id"));
+  const userId = event.context.auth!.user.id;
   hostStore.delete(id);
   projectStore.deleteForHost(id);
   threadMetadataStore.deleteForHost(id);
@@ -20,7 +21,7 @@ export default defineGatewayEventHandler((event) => {
   subAgentThreadStore.deleteForHost(id);
   gatewayEventStore.deleteForHost(id);
   threadBroker.closeHost(id);
-  terminalManager.closeHost(id);
+  terminalManager.closeHost(userId, id);
   sshConnections.syncHosts(hostStore.listWithSecret());
   hostRuntimeSupervisor.syncCurrentUserConfig();
   saveCurrentUserConfig(event);

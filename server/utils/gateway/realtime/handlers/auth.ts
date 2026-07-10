@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { RealtimeClientMessage } from "~~/shared/types";
 import { userStore } from "../../auth/users";
+import { sessionRevocationEvents } from "../../auth/session-events";
+import { hashToken } from "../../storage/crypto";
 import { subscribeTerminalEvents } from "./terminal";
 import { sendRealtimePeerMessage, stateFor, type RealtimePeer } from "../peer-state";
 
@@ -12,7 +14,8 @@ export function authenticatePeer(
   if (current.authenticated) {
     throw new Error("Realtime connection is already authenticated");
   }
-  const user = userStore.authenticateToken(String(request.token || ""));
+  const token = String(request.token || "");
+  const user = userStore.authenticateToken(token);
   if (!user) {
     throw new Error("Missing or invalid bearer token");
   }
@@ -23,6 +26,9 @@ export function authenticatePeer(
     authenticated: true,
     userId: user.id,
     threadUnsubscribers: new Map(),
+    sessionRevocationUnsubscribe: sessionRevocationEvents.subscribe(hashToken(token), () => {
+      peer.close(1008, "Session revoked");
+    }),
   };
   sendRealtimePeerMessage(peer, { type: "ready", connectionId: randomUUID() });
   subscribeTerminalEvents(peer);

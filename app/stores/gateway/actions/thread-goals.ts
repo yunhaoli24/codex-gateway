@@ -36,9 +36,11 @@ export function createThreadGoalActions(ctx: GatewayStoreContext) {
     clearThreadGoalState(hostId: number, threadId: string) {
       const key = pinnedKey(hostId, threadId);
       const { [key]: _goal, ...goals } = ctx.state.threadGoalsByKey;
-      const { [key]: _observedAt, ...observedAt } = ctx.state.threadGoalObservedAtByKey;
       ctx.state.threadGoalsByKey = goals;
-      ctx.state.threadGoalObservedAtByKey = observedAt;
+      ctx.state.threadGoalObservedAtByKey = {
+        ...ctx.state.threadGoalObservedAtByKey,
+        [key]: Date.now(),
+      };
     },
 
     async setSelectedThreadGoal(objective: string) {

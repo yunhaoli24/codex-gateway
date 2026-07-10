@@ -52,6 +52,8 @@ export function cleanupRealtimePeer(peer: RealtimePeer) {
   state.hostLifecycleUnsubscribe = undefined;
   state.terminalUnsubscribe?.();
   state.terminalUnsubscribe = undefined;
+  state.sessionRevocationUnsubscribe?.();
+  state.sessionRevocationUnsubscribe = undefined;
   for (const unsubscribe of state.threadUnsubscribers.values()) {
     unsubscribe();
   }

@@ -14,8 +14,11 @@ import { pageCursorState, pageToFullHistory } from "./thread-history-pages";
 import { runtimeLog } from "./runtime-log";
 import { threadRuntimeEvents } from "./thread-runtime-events";
 import type { ThreadOpenSnapshot } from "./types";
+import { currentGatewayUserId } from "../state/memory";
 
 export class ThreadOpenService {
+  private readonly pendingRefreshes = new Map<string, Promise<ReturnTypeResult>>();
+
   constructor(private readonly registry: ControllerRegistry) {}
 
   async openThread(
@@ -108,6 +111,25 @@ export class ThreadOpenService {
     projectId: number | null,
     limit = INITIAL_TURN_PAGE_LIMIT,
   ) {
+    const key = refreshKey(host.id, threadId);
+    let pending = this.pendingRefreshes.get(key);
+    if (!pending) {
+      pending = this.performThreadStateRefresh(host, threadId, projectId, limit).finally(() => {
+        if (this.pendingRefreshes.get(key) === pending) {
+          this.pendingRefreshes.delete(key);
+        }
+      });
+      this.pendingRefreshes.set(key, pending);
+    }
+    return pending;
+  }
+
+  private async performThreadStateRefresh(
+    host: HostRecord,
+    threadId: string,
+    projectId: number | null,
+    limit: number,
+  ) {
     const { snapshot, resolvedProjectId } = await this.loadRemoteOpenSnapshot(
       host,
       threadId,
@@ -194,6 +216,16 @@ export class ThreadOpenService {
     controller.setOpenSnapshot(snapshot);
     return { snapshot, resolvedProjectId };
   }
+}
+
+type ReturnTypeResult = Awaited<ReturnType<ThreadOpenService["performThreadStateRefresh"]>>;
+
+function refreshKey(hostId: number, threadId: string) {
+  const userId = currentGatewayUserId();
+  if (!userId) {
+    throw new Error("Thread refresh requires an authenticated user scope");
+  }
+  return `${userId}:${hostId}:${threadId}`;
 }
 
 function resolveProjectId(hostId: number, projectId: number | null, cwd: unknown) {

@@ -203,8 +203,7 @@ test("goal progress updates the composer status strip without flooding the agent
   await expect(strip.getByText(/持续 \*\*重构\*\* 输入框状态/).first()).toBeVisible();
   await expect(strip.getByText(/256 tokens/).first()).toBeVisible();
   const goalCards = page.getByTestId("thread-goal-item");
-  await expect(goalCards).toHaveCount(1);
-  await expect(goalCards.first().locator("strong").getByText("重构")).toBeVisible();
+  await expect(goalCards).toHaveCount(0);
   await expect(page.locator(".thread-user-message", { hasText: "/goal 持续" })).toHaveCount(0);
   await page.getByTestId("composer-goal-summary").click();
   const goalDialog = page.getByRole("dialog");
@@ -239,8 +238,7 @@ test("goal progress updates the composer status strip without flooding the agent
 
   await expect(page.getByTestId("composer-mode-strip")).toHaveCount(0);
   await expect(page.getByTestId("chat-scroll-area").getByText("目标已更新")).toHaveCount(0);
-  await expect(goalCards).toHaveCount(1);
-  await expect(goalCards.first().getByText("Complete")).toBeVisible();
+  await expect(goalCards).toHaveCount(0);
 });
 
 test("goal snapshot updates only the composer status strip without fabricating history", async ({

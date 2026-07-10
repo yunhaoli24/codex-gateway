@@ -11,13 +11,14 @@ import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
 
 export default defineGatewayEventHandler(async (event) => {
   const previousHosts = hostStore.listWithSecret();
+  const userId = event.context.auth!.user.id;
   const config = await readValidatedBody(event, parseGatewayConfig);
   runtimeConfigStore.replace(config);
   const nextHosts = hostStore.listWithSecret();
   const hostsToClose = changedOrDeletedHosts(previousHosts, nextHosts);
   for (const host of hostsToClose) {
     threadBroker.closeHost(host.id);
-    terminalManager.closeHost(Number(host.id));
+    terminalManager.closeHost(userId, Number(host.id));
   }
   if (hostRuntimeChanged(previousHosts, nextHosts)) {
     sshConnections.syncHosts(nextHosts);

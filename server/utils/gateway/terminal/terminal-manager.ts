@@ -91,9 +91,9 @@ export class TerminalManager {
     this.closeSession(session);
   }
 
-  closeHost(hostId: number) {
+  closeHost(userId: number, hostId: number) {
     for (const session of this.sessions.values()) {
-      if (session.hostId === hostId) {
+      if (session.userId === userId && session.hostId === hostId) {
         this.closeSession(session);
       }
     }

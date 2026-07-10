@@ -1,4 +1,5 @@
 import type { GatewayEvent } from "~~/shared/types";
+import { CLIENT_THREAD_CACHE_LIMIT } from "~~/shared/config";
 import { pinnedKey } from "../thread-utils/identity";
 import type { GatewayStoreContext, ThreadViewState } from "../types";
 
@@ -18,10 +19,29 @@ export function selectedThreadView(ctx: GatewayStoreContext) {
 }
 
 export function upsertThreadView(ctx: GatewayStoreContext, view: ThreadViewState) {
-  ctx.state.threadViews = {
-    ...ctx.state.threadViews,
-    [threadViewKey(view.hostId, view.threadId)]: view,
-  };
+  const key = threadViewKey(view.hostId, view.threadId);
+  const { [key]: _existing, ...threadViews } = ctx.state.threadViews;
+  ctx.state.threadViews = pruneThreadViews(ctx, { ...threadViews, [key]: view });
+}
+
+function pruneThreadViews(ctx: GatewayStoreContext, threadViews: Record<string, ThreadViewState>) {
+  const protectedKeys = new Set<string>();
+  const selectedKey = selectedThreadViewKey(ctx);
+  if (selectedKey) {
+    protectedKeys.add(selectedKey);
+  }
+  for (const panel of ctx.state.subAgentPanels) {
+    protectedKeys.add(threadViewKey(panel.hostId, panel.threadId));
+  }
+  const entries = Object.entries(threadViews);
+  while (entries.length > CLIENT_THREAD_CACHE_LIMIT) {
+    const index = entries.findIndex(([key]) => !protectedKeys.has(key));
+    if (index < 0) {
+      break;
+    }
+    entries.splice(index, 1);
+  }
+  return Object.fromEntries(entries);
 }
 
 export function patchThreadView(

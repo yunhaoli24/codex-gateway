@@ -410,10 +410,6 @@
         "title": "文件系统发生变化",
         "message": "{count} 个路径发生变化：{paths}"
       },
-      "reasoningSummaryPartAdded": {
-        "title": "新增推理摘要片段",
-        "message": "摘要片段索引：{index}"
-      },
       "threadCompacted": {
         "title": "上下文已压缩",
         "message": "app-server 已完成这个会话的上下文压缩。"

@@ -5,10 +5,9 @@ export const goalEventHandlers: GatewayEventHandlerRegistry = {
     if (!params.goal) {
       return;
     }
-    ctx.upsertThreadGoal(event.hostId, threadId, params.goal, {
-      showInTimeline: true,
-      turnId: params.turnId ? String(params.turnId) : null,
-    });
+    // Goal progress updates are status-strip state, not new timeline items.
+    // The explicit /goal submission inserts the single historical goal card.
+    ctx.upsertThreadGoal(event.hostId, threadId, params.goal);
   },
   "thread/goal/cleared": (ctx, event, _params, threadId) => {
     ctx.clearThreadGoalState(event.hostId, threadId);

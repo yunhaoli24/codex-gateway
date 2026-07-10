@@ -413,10 +413,6 @@
         "title": "Filesystem changed",
         "message": "{count} paths changed: {paths}"
       },
-      "reasoningSummaryPartAdded": {
-        "title": "Reasoning summary part added",
-        "message": "Summary part index: {index}"
-      },
       "threadCompacted": {
         "title": "Context compacted",
         "message": "The app-server compacted this thread context."

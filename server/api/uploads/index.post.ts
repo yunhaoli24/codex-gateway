@@ -1,43 +1,36 @@
-import { randomUUID } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, extname, join } from "node:path";
-import { getValidatedQuery, readMultipartFormData } from "h3";
+import { join } from "node:path";
+import { getValidatedQuery } from "h3";
 import type { UploadResult } from "~~/shared/types";
 import { remoteFiles } from "../../utils/gateway/infra/host-services";
 import { defineGatewayEventHandler } from "../../utils/gateway/http/errors";
 import { requireRecord } from "../../utils/gateway/http/validation/common";
 import { uploadQuerySchema } from "../../utils/gateway/http/validation/uploads";
+import { streamMultipartUploads } from "../../utils/gateway/http/multipart-uploads";
 import { hostStore } from "../../utils/gateway/state/hosts";
 
 export default defineGatewayEventHandler(async (event): Promise<UploadResult> => {
   const query = await getValidatedQuery(event, (body) => uploadQuerySchema.parse(body));
   const host = requireRecord(hostStore.getWithSecret(query.hostId), "Host not found");
-  const form = await readMultipartFormData(event);
-  const parts =
-    form?.filter((part) => part.name === "files" && part.filename && part.data.length) ?? [];
-  if (!parts.length) {
-    return { files: [] };
-  }
-  const remoteRoot = await remoteFiles.createUploadDirectory(host);
   const tempDir = await mkdtemp(join(tmpdir(), "codex-gateway-upload-"));
 
   try {
+    const parts = await streamMultipartUploads(event, tempDir);
+    if (!parts.length) {
+      return { files: [] };
+    }
+    const remoteRoot = await remoteFiles.createUploadDirectory(host);
     const files = [];
     for (const part of parts) {
-      const originalName = basename(part.filename || "upload.bin");
-      const extension = extname(originalName);
-      const safeName = `${randomUUID()}${extension}`;
-      const localPath = join(tempDir, safeName);
-      const remotePath = `${remoteRoot}/${safeName}`;
-      await writeFile(localPath, part.data);
-      await remoteFiles.uploadFile(host, localPath, remotePath);
+      const remotePath = `${remoteRoot}/${part.safeName}`;
+      await remoteFiles.uploadFile(host, part.localPath, remotePath);
       files.push({
-        name: originalName,
+        name: part.originalName,
         path: remotePath,
-        mimeType: part.type || null,
-        size: part.data.length,
-        isImage: Boolean(part.type?.startsWith("image/")),
+        mimeType: part.mimeType,
+        size: part.size,
+        isImage: Boolean(part.mimeType?.startsWith("image/")),
       });
     }
     return { files };

@@ -1,4 +1,5 @@
 import type { HostRecord } from "~~/shared/types";
+import type { Readable } from "node:stream";
 
 export type HostWithSecret = HostRecord;
 
@@ -24,7 +25,7 @@ export interface ReverseTcpForwardOptions {
 export interface RemoteFileResult {
   path: string;
   size: number;
-  data: Buffer;
+  stream: Readable;
 }
 
 export interface RemoteCodexVersionState {

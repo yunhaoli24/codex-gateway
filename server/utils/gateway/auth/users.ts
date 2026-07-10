@@ -9,6 +9,7 @@ import {
   hashToken,
   verifyPassword,
 } from "../storage/crypto";
+import { sessionRevocationEvents } from "./session-events";
 
 export interface AuthenticatedUser {
   id: number;
@@ -103,7 +104,28 @@ export const userStore = {
   },
 
   deleteToken(token: string) {
-    gatewayDatabase().prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
+    const tokenHash = hashToken(token);
+    const result = gatewayDatabase()
+      .prepare("DELETE FROM sessions WHERE token_hash = ?")
+      .run(tokenHash);
+    if (result.changes > 0) {
+      sessionRevocationEvents.emit(tokenHash);
+    }
+  },
+
+  deleteExpiredSessions() {
+    const now = new Date().toISOString();
+    const rows = gatewayDatabase()
+      .prepare("SELECT token_hash FROM sessions WHERE expires_at <= ?")
+      .all(now);
+    if (!rows.length) {
+      return 0;
+    }
+    const result = gatewayDatabase().prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
+    for (const row of rows) {
+      sessionRevocationEvents.emit(String(row.token_hash));
+    }
+    return Number(result.changes);
   },
 
   loadConfig(userId: number): GatewayConfig {

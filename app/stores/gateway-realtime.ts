@@ -2,6 +2,7 @@ import { useEventListener } from "@vueuse/core";
 import { defineStore } from "pinia";
 import { EventEmitter } from "@posva/event-emitter";
 import type { GatewayEvent, RealtimeClientMessage, RealtimeServerMessage } from "~~/shared/types";
+import { CLIENT_THREAD_CACHE_LIMIT } from "~~/shared/config";
 import { useAuthStore } from "@/stores/auth";
 import { useGatewayStore } from "@/stores/gateway";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
@@ -29,6 +30,10 @@ interface PendingRealtimeRequest<T = unknown> {
 }
 
 const RESUME_PING_TIMEOUT_MS = 4_000;
+const REALTIME_READY_TIMEOUT_MS = 15_000;
+// A request can include SSH reconnect and a remote Codex upgrade before the
+// app-server RPC starts. Keep the browser deadline beyond the backend's 30m cap.
+const REALTIME_REQUEST_TIMEOUT_MS = 31 * 60_000;
 
 export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
   const { t } = useI18n();
@@ -195,9 +200,9 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
 
   async function request<T>(
     buildMessage: (requestId: string) => RealtimeRequestMessage,
-    timeoutMs = 15_000,
+    timeoutMs = REALTIME_REQUEST_TIMEOUT_MS,
   ) {
-    await waitForReady(timeoutMs);
+    await waitForReady(REALTIME_READY_TIMEOUT_MS);
     const requestId = `gateway-ws-${crypto.randomUUID()}`;
     const requestMessage = buildMessage(requestId);
     return new Promise<T>((resolve, reject) => {
@@ -286,20 +291,40 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
         ? gateway.lastEventId
         : (gateway.threadViews[key]?.lastEventId ?? 0);
     const subscription = { hostId: resolvedHostId, threadId: resolvedThreadId, afterId };
-    state.threadSubscriptions = {
-      ...state.threadSubscriptions,
-      [key]: subscription,
-    };
+    rememberSubscription(key, subscription);
     connect();
     sendThreadSubscribe(subscription);
   }
 
   function rememberThreadSubscription(hostId: number, threadId: string, afterId: number) {
-    const key = pinnedKey(hostId, threadId);
-    state.threadSubscriptions = {
-      ...state.threadSubscriptions,
-      [key]: { hostId, threadId, afterId },
-    };
+    rememberSubscription(pinnedKey(hostId, threadId), { hostId, threadId, afterId });
+  }
+
+  function rememberSubscription(key: string, subscription: RealtimeThreadSubscription) {
+    const { [key]: _existing, ...subscriptions } = state.threadSubscriptions;
+    const entries = Object.entries({ ...subscriptions, [key]: subscription });
+    const protectedKeys = protectedThreadSubscriptionKeys();
+    while (entries.length > CLIENT_THREAD_CACHE_LIMIT) {
+      const index = entries.findIndex(([candidate]) => !protectedKeys.has(candidate));
+      if (index < 0) {
+        break;
+      }
+      const [, evicted] = entries.splice(index, 1)[0]!;
+      send({ type: "thread.unsubscribe", hostId: evicted.hostId, threadId: evicted.threadId });
+    }
+    state.threadSubscriptions = Object.fromEntries(entries);
+  }
+
+  function protectedThreadSubscriptionKeys() {
+    const gateway = useGatewayStore();
+    const keys = new Set<string>();
+    if (gateway.selectedHostId && gateway.selectedThreadId) {
+      keys.add(pinnedKey(gateway.selectedHostId, gateway.selectedThreadId));
+    }
+    for (const panel of gateway.visibleSubAgentPanels) {
+      keys.add(pinnedKey(panel.hostId, panel.threadId));
+    }
+    return keys;
   }
 
   function closeThreadEvents(hostId: number, threadId: string) {

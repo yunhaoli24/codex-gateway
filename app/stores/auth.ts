@@ -41,7 +41,23 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
-  function logout() {
+  async function logout() {
+    const currentToken = token.value;
+    if (currentToken) {
+      try {
+        await $fetch("/api/auth/logout", {
+          method: "POST",
+          headers: { authorization: `Bearer ${currentToken}` },
+        });
+      } finally {
+        clearSession();
+      }
+      return;
+    }
+    clearSession();
+  }
+
+  function clearSession() {
     token.value = "";
     username.value = "";
     initialized.value = true;

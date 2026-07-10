@@ -1,4 +1,5 @@
 import type { ThreadOpenSnapshot } from "../runtime/types";
+import { SERVER_THREAD_CACHE_LIMIT } from "~~/shared/config";
 import { gatewayMemoryState, nowIso } from "./memory";
 
 export const threadSnapshotStore = {
@@ -15,11 +16,14 @@ export const threadSnapshotStore = {
   },
 
   get(hostId: number, threadId: string): ThreadOpenSnapshot | null {
-    return (
-      (gatewayMemoryState.threadSnapshots.find(
-        (record) => record.hostId === hostId && record.threadId === threadId,
-      )?.snapshot as ThreadOpenSnapshot | undefined) ?? null
+    const record = gatewayMemoryState.threadSnapshots.find(
+      (candidate) => candidate.hostId === hostId && candidate.threadId === threadId,
     );
+    if (!record) {
+      return null;
+    }
+    record.updatedAt = nowIso();
+    return record.snapshot as ThreadOpenSnapshot;
   },
 
   listForHost(hostId: number) {
@@ -42,6 +46,7 @@ export const threadSnapshotStore = {
     } else {
       gatewayMemoryState.threadSnapshots.push(record);
     }
+    pruneOldestSnapshots();
   },
 
   update(
@@ -56,3 +61,19 @@ export const threadSnapshotStore = {
     return nextSnapshot;
   },
 };
+
+function pruneOldestSnapshots() {
+  const overflow = gatewayMemoryState.threadSnapshots.length - SERVER_THREAD_CACHE_LIMIT;
+  if (overflow <= 0) {
+    return;
+  }
+  const evicted = new Set(
+    [...gatewayMemoryState.threadSnapshots]
+      .sort((left, right) => Date.parse(left.updatedAt) - Date.parse(right.updatedAt))
+      .slice(0, overflow)
+      .map((record) => `${record.hostId}:${record.threadId}`),
+  );
+  gatewayMemoryState.threadSnapshots = gatewayMemoryState.threadSnapshots.filter(
+    (record) => !evicted.has(`${record.hostId}:${record.threadId}`),
+  );
+}

@@ -1,4 +1,5 @@
 import { toast } from "vue-sonner";
+import { klona } from "klona";
 import { gatewayApi } from "@/utils/gateway-api";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayConfig, GatewayNotificationSettings } from "~~/shared/types";
@@ -12,6 +13,9 @@ import {
 } from "../route-state";
 
 export function createCoreActions(ctx: GatewayStoreContext) {
+  let configSyncQueue: Promise<void> = Promise.resolve();
+  let configSyncGeneration = 0;
+
   return {
     hydrateConfig() {
       ctx.state.gatewayConfig = defaultGatewayConfig();
@@ -31,13 +35,23 @@ export function createCoreActions(ctx: GatewayStoreContext) {
 
     async syncConfigToServer() {
       ctx.persistConfig();
-      const syncedConfig = await gatewayApi<GatewayConfig>("/api/config/sync", {
-        method: "POST",
-        body: ctx.state.gatewayConfig,
-      });
-      ctx.state.gatewayConfig = { ...defaultGatewayConfig(), ...syncedConfig };
-      ctx.state.hosts = ctx.state.gatewayConfig.hosts;
-      ctx.state.projects = ctx.state.gatewayConfig.projects;
+      const config = klona(ctx.state.gatewayConfig);
+      const generation = ++configSyncGeneration;
+      const sync = async () => {
+        const syncedConfig = await gatewayApi<GatewayConfig>("/api/config/sync", {
+          method: "POST",
+          body: config,
+        });
+        if (generation !== configSyncGeneration) {
+          return;
+        }
+        ctx.state.gatewayConfig = { ...defaultGatewayConfig(), ...syncedConfig };
+        ctx.state.hosts = ctx.state.gatewayConfig.hosts;
+        ctx.state.projects = ctx.state.gatewayConfig.projects;
+      };
+      const result = configSyncQueue.then(sync, sync);
+      configSyncQueue = result.catch(() => {});
+      return result;
     },
 
     applyConfig(config: GatewayConfig) {

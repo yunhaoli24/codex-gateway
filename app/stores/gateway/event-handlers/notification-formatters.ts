@@ -4,7 +4,6 @@ import {
   count,
   itemSummary,
   list,
-  numberText,
   numeric,
   simpleNotification,
   text,
@@ -48,7 +47,6 @@ export const visibleNotificationMethods = [
   "externalAgentConfig/import/progress",
   "externalAgentConfig/import/completed",
   "fs/changed",
-  "item/reasoning/summaryPartAdded",
   "thread/compacted",
   "model/rerouted",
   "model/verification",
@@ -142,10 +140,6 @@ const formatters: Record<VisibleNotificationMethod, NotificationFormatter> = {
     simpleNotification(ctx, "fsChanged", "info", {
       count: count(params.changedPaths),
       paths: list(params.changedPaths, 3),
-    }),
-  "item/reasoning/summaryPartAdded": (ctx, params) =>
-    simpleNotification(ctx, "reasoningSummaryPartAdded", "info", {
-      index: numberText(params.summaryIndex),
     }),
   "thread/compacted": (ctx) => simpleNotification(ctx, "threadCompacted"),
   "model/rerouted": (ctx, params) =>

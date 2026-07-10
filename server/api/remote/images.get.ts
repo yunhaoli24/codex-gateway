@@ -1,5 +1,5 @@
 import { extname } from "node:path";
-import { createError, getValidatedQuery, setResponseHeader } from "h3";
+import { createError, getValidatedQuery, sendStream, setResponseHeader } from "h3";
 import { remoteFiles } from "../../utils/gateway/infra/host-services";
 import { defineGatewayEventHandler } from "../../utils/gateway/http/errors";
 import { requireRecord } from "../../utils/gateway/http/validation/common";
@@ -27,14 +27,14 @@ export default defineGatewayEventHandler(async (event) => {
   }
 
   try {
-    const file = await remoteFiles.readRemoteFile(host, query.path, {
+    const file = await remoteFiles.openRemoteFile(host, query.path, {
       maxSize: MAX_REMOTE_IMAGE_BYTES,
     });
     setResponseHeader(event, "content-type", mimeType);
     setResponseHeader(event, "content-length", file.size);
     setResponseHeader(event, "cache-control", "private, max-age=60");
     setResponseHeader(event, "x-content-type-options", "nosniff");
-    return file.data;
+    return sendStream(event, file.stream);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw createError({ statusCode: 404, statusMessage: message || "Remote image not found" });

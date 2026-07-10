@@ -48,6 +48,7 @@ export interface GatewayMemoryState {
   events: GatewayEvent[];
   nextEventId: number;
   deliveredNotificationKeys: string[];
+  pendingNotificationKeys: string[];
   configLoaded: boolean;
 }
 
@@ -63,6 +64,7 @@ function createGatewayMemoryState(): GatewayMemoryState {
     events: [],
     nextEventId: 1,
     deliveredNotificationKeys: [],
+    pendingNotificationKeys: [],
     configLoaded: false,
   };
 }
@@ -148,6 +150,7 @@ export const initialGatewayMemoryState: GatewayMemoryState = {
   events: [],
   nextEventId: 1,
   deliveredNotificationKeys: [],
+  pendingNotificationKeys: [],
   configLoaded: false,
 };
 
