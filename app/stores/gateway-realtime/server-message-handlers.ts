@@ -1,6 +1,7 @@
 import type { EventEmitter } from "@posva/event-emitter";
 import { toast } from "vue-sonner";
 import type { GatewayEvent, RealtimeServerMessage } from "~~/shared/types";
+import { STALE_THREAD_CURSOR_ERROR_CODE } from "~~/shared/gateway-errors";
 import { useGatewayStore } from "@/stores/gateway";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
 import { realtimeRequestErrorFromServer, type RealtimeRequestError } from "./request-errors";
@@ -37,6 +38,8 @@ const requestResponseMessageTypes = [
   "turn.interrupt.accepted",
   "serverRequest.respond.accepted",
 ] as const satisfies Array<keyof RealtimeServerMessageMap>;
+
+const locallyRecoveredRequestErrorCodes = new Set([STALE_THREAD_CURSOR_ERROR_CODE]);
 
 export function registerRealtimeServerMessageHandlers(
   emitter: EventEmitter<RealtimeServerMessageMap>,
@@ -182,6 +185,9 @@ function handleRealtimeError(
   );
   if (message.requestId) {
     ctx.rejectRequest(message.requestId, requestError);
+  }
+  if (message.code && locallyRecoveredRequestErrorCodes.has(message.code)) {
+    return;
   }
   useGatewayStore().setError(requestError.message, {
     hostId: message.request && "hostId" in message.request ? message.request.hostId : null,

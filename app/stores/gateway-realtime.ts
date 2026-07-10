@@ -207,6 +207,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
           new RealtimeRequestError(t("app.realtimeRequestTimedOut"), requestMessage, "timeout", {
             requestId,
             timeoutMs,
+            ...requestHostDetails(requestMessage),
           }),
         );
       }, timeoutMs);
@@ -221,6 +222,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
           requestId,
           new RealtimeRequestError(t("app.realtimeUnavailable"), requestMessage, "unavailable", {
             requestId,
+            ...requestHostDetails(requestMessage),
           }),
         );
       }
@@ -411,9 +413,20 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
     for (const [requestId, pending] of pendingRequests) {
       rejectRequest(
         requestId,
-        new RealtimeRequestError(error.message, pending.request, "disconnected", { requestId }),
+        new RealtimeRequestError(error.message, pending.request, "disconnected", {
+          requestId,
+          ...requestHostDetails(pending.request),
+        }),
       );
     }
+  }
+
+  function requestHostDetails(request: RealtimeRequestMessage) {
+    if (!("hostId" in request)) {
+      return {};
+    }
+    const hostName = useGatewayStore().hosts.find((host) => host.id === request.hostId)?.name;
+    return hostName ? { hostName } : {};
   }
 
   async function waitForReady(timeoutMs: number) {

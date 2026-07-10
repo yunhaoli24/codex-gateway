@@ -5,7 +5,8 @@ import {
 } from "~~/shared/gateway-errors";
 import { realtimeMessageDispatcher } from "./message-handlers";
 import { RealtimeAuthenticationRequiredError } from "./message-dispatcher";
-import { sendRealtimePeerMessage, stateFor, type RealtimePeer } from "./peer-state";
+import { hostStore } from "../state/hosts";
+import { runPeerScoped, sendRealtimePeerMessage, stateFor, type RealtimePeer } from "./peer-state";
 
 export function openRealtimePeer(peer: RealtimePeer) {
   const state = stateFor(peer);
@@ -36,7 +37,7 @@ export async function handleRealtimePeerMessage(peer: RealtimePeer, rawMessage: 
       requestId: request && "requestId" in request ? request.requestId : undefined,
       request,
       code: realtimeErrorCode(error),
-      details: realtimeErrorDetails(request, error),
+      details: realtimeErrorDetails(peer, request, error),
     });
   }
 }
@@ -74,12 +75,17 @@ function parseClientMessage(raw: string): RealtimeClientMessage {
   return parsed;
 }
 
-function realtimeErrorDetails(request: RealtimeClientMessage | undefined, error: any) {
+function realtimeErrorDetails(
+  peer: RealtimePeer,
+  request: RealtimeClientMessage | undefined,
+  error: any,
+) {
   const code = realtimeErrorCode(error);
   return {
     requestType: request?.type ?? null,
     requestId: request && "requestId" in request ? request.requestId : null,
     hostId: request && "hostId" in request ? request.hostId : null,
+    hostName: realtimeRequestHostName(peer, request),
     threadId: request && "threadId" in request ? request.threadId : null,
     sessionId: request && "sessionId" in request ? request.sessionId : null,
     serverRequestId: request && "serverRequestId" in request ? request.serverRequestId : null,
@@ -88,6 +94,13 @@ function realtimeErrorDetails(request: RealtimeClientMessage | undefined, error:
     statusCode: error?.statusCode ?? error?.cause?.statusCode ?? null,
     statusMessage: error?.statusMessage ?? error?.cause?.statusMessage ?? null,
   };
+}
+
+function realtimeRequestHostName(peer: RealtimePeer, request: RealtimeClientMessage | undefined) {
+  if (!request || !("hostId" in request) || !stateFor(peer).authenticated) {
+    return null;
+  }
+  return runPeerScoped(peer, () => hostStore.get(request.hostId)?.name ?? null);
 }
 
 function realtimeErrorCode(error: unknown) {

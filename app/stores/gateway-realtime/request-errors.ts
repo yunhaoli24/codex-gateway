@@ -30,6 +30,9 @@ function formatRealtimeRequestError(
   const lines = [message];
   const context = [
     request?.type ? `type=${request.type}` : null,
+    typeof details.hostName === "string" && details.hostName.trim()
+      ? `host=${details.hostName.trim()}`
+      : null,
     request && "hostId" in request ? `hostId=${request.hostId}` : null,
     request && "threadId" in request ? `threadId=${request.threadId}` : null,
     request?.requestId ? `requestId=${request.requestId}` : null,
