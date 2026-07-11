@@ -10,6 +10,7 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
     hosts,
     threads,
     projects,
+    projectDirectoryAvailability,
     pinnedThreads,
     openingPinnedThreadKey,
     unviewedCompletedThreadKeys,
@@ -21,6 +22,7 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
   } = storeToRefs(store);
   const expandedHostIds = ref<Set<number>>(new Set());
   const expandedProjectIds = ref<Set<number>>(new Set());
+  const expandedMissingProjectHostIds = ref<Set<number>>(new Set());
   const suppressTreeAutoExpand = ref(false);
 
   const projectThreads = computed(() =>
@@ -36,15 +38,21 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
         pinnedThreadId(thread) === String(selectedThreadId.value),
     );
   });
-  const projectsByHost = computed(() => {
+  const availableProjectsByHost = computed(() => groupProjectsByHost(false));
+  const missingProjectsByHost = computed(() => groupProjectsByHost(true));
+
+  function groupProjectsByHost(missing: boolean) {
     const byHost = new Map<number, typeof projects.value>();
     for (const project of projects.value) {
+      if ((projectDirectoryAvailability.value[project.id] === "missing") !== missing) {
+        continue;
+      }
       const group = byHost.get(project.hostId) ?? [];
       group.push(project);
       byHost.set(project.hostId, group);
     }
     return byHost;
-  });
+  }
 
   function openThread(
     threadId: string,
@@ -100,6 +108,13 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
     if (!isProjectListVisible) {
       void store.selectProject(projectId);
     }
+  }
+
+  function toggleMissingProjects(hostId: number) {
+    const next = new Set(expandedMissingProjectHostIds.value);
+    if (next.has(hostId)) next.delete(hostId);
+    else next.add(hostId);
+    expandedMissingProjectHostIds.value = next;
   }
 
   function startThreadInProject(project: any) {
@@ -162,6 +177,19 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
     expandedProjectIds.value = new Set();
   });
 
+  watch(
+    [selectedProjectId, projectDirectoryAvailability],
+    ([projectId]) => {
+      if (!projectId || projectDirectoryAvailability.value[projectId] !== "missing") return;
+      const project = projects.value.find((item) => item.id === projectId);
+      if (!project) return;
+      expandedMissingProjectHostIds.value = new Set(expandedMissingProjectHostIds.value).add(
+        project.hostId,
+      );
+    },
+    { immediate: true, deep: true },
+  );
+
   return {
     hosts,
     threads,
@@ -173,12 +201,15 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
     selectedThreadId,
     expandedHostIds,
     expandedProjectIds,
+    expandedMissingProjectHostIds,
     projectThreads,
-    projectsByHost,
+    availableProjectsByHost,
+    missingProjectsByHost,
     openThread,
     openPinnedThread,
     selectHost,
     selectProject,
+    toggleMissingProjects,
     startThreadInProject,
     threadRuntimeStatus,
     threadCompletionAttention,

@@ -19,6 +19,8 @@
     "pinned": "Pinned",
     "noThreads": "No threads",
     "noProjects": "No projects",
+    "missingProjects": "Missing directories",
+    "projectDirectoryMissing": "Remote directory does not exist",
     "refreshThreadsHint": "Click search or refresh to read real Codex threads",
     "projects": "Projects",
     "settings": "Settings",

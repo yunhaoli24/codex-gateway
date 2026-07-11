@@ -5,6 +5,7 @@ import type {
   ModelRecord,
   PinnedThreadRecord,
   ProjectRecord,
+  ProjectDirectoryAvailability,
   TerminalOpenTarget,
   TerminalSessionSnapshot,
   ThreadGoal,
@@ -33,6 +34,7 @@ export interface ThreadListResponse {
   nextCursor?: string | null;
   backwardsCursor?: string | null;
   projects?: ProjectRecord[];
+  projectDirectoryAvailability?: Record<number, ProjectDirectoryAvailability>;
 }
 
 export interface ThreadViewState {
@@ -88,6 +90,7 @@ export interface GatewayErrorState {
 export interface GatewayStoreState {
   hosts: HostRecord[];
   projects: ProjectRecord[];
+  projectDirectoryAvailability: Record<number, ProjectDirectoryAvailability>;
   threads: Array<any>;
   models: ModelRecord[];
   modelsHostId: number | null;
@@ -156,6 +159,7 @@ export interface GatewayStoreContext {
   loadConfigFromServer: () => Promise<void>;
   refresh: () => Promise<void>;
   connectAllHosts: () => Promise<void>;
+  refreshHostProjects: (hostId: number) => Promise<void>;
   listModels: () => Promise<void>;
   ensureSelectedHostModels: () => Promise<void>;
   listThreads: (searchTerm?: string) => Promise<void>;

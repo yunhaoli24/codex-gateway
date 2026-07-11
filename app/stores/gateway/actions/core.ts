@@ -101,6 +101,7 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         const routeSelection = readGatewayRouteSelection();
         useGatewayRealtimeStore().connectHostLifecycleEvents();
         ctx.state.projects = [];
+        ctx.state.projectDirectoryAvailability = {};
         ctx.state.threads = [];
         ctx.state.models = [];
         ctx.state.modelsHostId = null;

@@ -3,8 +3,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   FolderIcon,
-  FolderOpenIcon,
-  PlusIcon,
+  FolderXIcon,
   ServerIcon,
   Trash2Icon,
 } from "@lucide/vue";
@@ -19,14 +18,17 @@ import type { ThreadRuntimeStatus } from "@/stores/gateway";
 import { formatRelative, selectedRowClass } from "./sidebar-utils";
 import HostStatusIndicator from "./HostStatusIndicator.vue";
 import SidebarRowLabel from "./SidebarRowLabel.vue";
+import SidebarProjectRow from "./SidebarProjectRow.vue";
 import ThreadRow from "./ThreadRow.vue";
 
 const props = defineProps<{
   hosts: any[];
-  projectsByHost: Map<number, any[]>;
+  availableProjectsByHost: Map<number, any[]>;
+  missingProjectsByHost: Map<number, any[]>;
   projectThreads: any[];
   expandedHostIds: Set<number>;
   expandedProjectIds: Set<number>;
+  expandedMissingProjectHostIds: Set<number>;
   selectedHostId: number | null;
   selectedProjectId: number | null;
   selectedThreadId: string | null;
@@ -43,6 +45,7 @@ const emit = defineEmits<{
   addProject: [host: any];
   deleteHost: [hostId: number];
   selectProject: [projectId: number, event: MouseEvent];
+  toggleMissingProjects: [hostId: number];
   editProject: [project: any];
   deleteProject: [projectId: number];
   startThreadInProject: [project: any];
@@ -104,49 +107,20 @@ function hostConnectionStatus(hostId: number) {
 
         <div v-if="expandedHostIds.has(host.id)" class="mt-1 space-y-1 pl-5">
           <div
-            v-for="project in projectsByHost.get(host.id) ?? []"
+            v-for="project in availableProjectsByHost.get(host.id) ?? []"
             :key="project.id"
             class="space-y-1"
           >
-            <div @click.capture="emit('selectProject', project.id, $event)">
-              <ContextMenu>
-                <ContextMenuTrigger as-child>
-                  <Button
-                    :data-testid="`project-button-${project.id}`"
-                    v-bind="longPressHandlers"
-                    variant="ghost"
-                    class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-surface"
-                    :class="selectedRowClass(project.id === selectedProjectId)"
-                  >
-                    <ChevronDownIcon
-                      v-if="expandedProjectIds.has(project.id)"
-                      class="size-3.5 shrink-0 text-ink-muted"
-                    />
-                    <ChevronRightIcon v-else class="size-3.5 shrink-0 text-ink-muted" />
-                    <FolderIcon class="size-4 shrink-0" />
-                    <SidebarRowLabel :title="project.name" />
-                    <span class="ml-auto size-2 shrink-0 rounded-full bg-accent-green" />
-                  </Button>
-                </ContextMenuTrigger>
-                <ContextMenuContent :collision-padding="12" prioritize-position class="w-44">
-                  <ContextMenuItem @select="emit('editProject', project)">
-                    <FolderOpenIcon class="mr-2 size-4" />
-                    {{ $t("app.editProject") }}
-                  </ContextMenuItem>
-                  <ContextMenuItem @select="emit('startThreadInProject', project)">
-                    <PlusIcon class="mr-2 size-4" />
-                    {{ $t("app.newThread") }}
-                  </ContextMenuItem>
-                  <ContextMenuItem
-                    class="text-destructive focus:text-destructive"
-                    @select="emit('deleteProject', project.id)"
-                  >
-                    <Trash2Icon class="mr-2 size-4" />
-                    {{ $t("app.deleteProject") }}
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-            </div>
+            <SidebarProjectRow
+              :project="project"
+              :expanded="expandedProjectIds.has(project.id)"
+              :selected="project.id === selectedProjectId"
+              :long-press-handlers="longPressHandlers"
+              @select="emit('selectProject', project.id, $event)"
+              @edit="emit('editProject', project)"
+              @delete="emit('deleteProject', project.id)"
+              @start-thread="emit('startThreadInProject', project)"
+            />
 
             <div v-if="expandedProjectIds.has(project.id)" class="space-y-1 pl-7">
               <template v-if="project.id === selectedProjectId && projectThreads.length">
@@ -189,8 +163,44 @@ function hostConnectionStatus(hostId: number) {
             </div>
           </div>
 
+          <div v-if="(missingProjectsByHost.get(host.id) ?? []).length" class="space-y-1">
+            <Button
+              :data-testid="`missing-projects-toggle-${host.id}`"
+              variant="ghost"
+              class="h-9 w-full justify-start gap-2 rounded-lg px-3 text-xs font-normal text-ink-muted hover:bg-surface"
+              @click="emit('toggleMissingProjects', host.id)"
+            >
+              <ChevronDownIcon
+                v-if="expandedMissingProjectHostIds.has(host.id)"
+                class="size-3.5 shrink-0"
+              />
+              <ChevronRightIcon v-else class="size-3.5 shrink-0" />
+              <FolderXIcon class="size-4 shrink-0 text-destructive/70" />
+              <span class="min-w-0 flex-1 truncate text-left">{{ $t("app.missingProjects") }}</span>
+              <span class="shrink-0 tabular-nums">{{
+                missingProjectsByHost.get(host.id)?.length
+              }}</span>
+            </Button>
+            <div v-if="expandedMissingProjectHostIds.has(host.id)" class="space-y-1">
+              <SidebarProjectRow
+                v-for="project in missingProjectsByHost.get(host.id) ?? []"
+                :key="project.id"
+                :project="project"
+                :expanded="false"
+                :selected="project.id === selectedProjectId"
+                :missing="true"
+                :long-press-handlers="longPressHandlers"
+                @edit="emit('editProject', project)"
+                @delete="emit('deleteProject', project.id)"
+              />
+            </div>
+          </div>
+
           <div
-            v-if="!(projectsByHost.get(host.id) ?? []).length"
+            v-if="
+              !(availableProjectsByHost.get(host.id) ?? []).length &&
+              !(missingProjectsByHost.get(host.id) ?? []).length
+            "
             class="rounded-lg px-3 py-2 text-xs text-ink-muted"
           >
             {{ $t("app.noProjects") }}

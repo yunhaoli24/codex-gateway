@@ -72,10 +72,12 @@ function openEditProject(project: any) {
 
           <HostTree
             :hosts="sidebarTree.hosts.value"
-            :projects-by-host="sidebarTree.projectsByHost.value"
+            :available-projects-by-host="sidebarTree.availableProjectsByHost.value"
+            :missing-projects-by-host="sidebarTree.missingProjectsByHost.value"
             :project-threads="sidebarTree.projectThreads.value"
             :expanded-host-ids="sidebarTree.expandedHostIds.value"
             :expanded-project-ids="sidebarTree.expandedProjectIds.value"
+            :expanded-missing-project-host-ids="sidebarTree.expandedMissingProjectHostIds.value"
             :selected-host-id="sidebarTree.selectedHostId.value"
             :selected-project-id="sidebarTree.selectedProjectId.value"
             :selected-thread-id="sidebarTree.selectedThreadId.value"
@@ -89,6 +91,7 @@ function openEditProject(project: any) {
             @add-project="openAddProject"
             @delete-host="store.deleteHost"
             @select-project="sidebarTree.selectProject"
+            @toggle-missing-projects="sidebarTree.toggleMissingProjects"
             @edit-project="openEditProject"
             @delete-project="store.deleteProject"
             @start-thread-in-project="sidebarTree.startThreadInProject"

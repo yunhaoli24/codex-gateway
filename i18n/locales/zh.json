@@ -19,6 +19,8 @@
     "pinned": "已固定",
     "noThreads": "暂无会话",
     "noProjects": "暂无项目",
+    "missingProjects": "目录已删除",
+    "projectDirectoryMissing": "远端目录不存在",
     "refreshThreadsHint": "点击搜索或刷新，从 Codex 读取真实会话",
     "projects": "项目",
     "settings": "设置",

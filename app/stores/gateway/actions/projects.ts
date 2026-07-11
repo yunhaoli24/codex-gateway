@@ -142,7 +142,11 @@ export function createProjectActions(ctx: GatewayStoreContext) {
         item.id === projectId ? project : item,
       );
       upsertConfiguredProject(ctx, project);
+      const { [projectId]: _removed, ...remainingAvailability } =
+        ctx.state.projectDirectoryAvailability;
+      ctx.state.projectDirectoryAvailability = remainingAvailability;
       if (ctx.state.selectedProjectId !== projectId) {
+        await ctx.refreshHostProjects(project.hostId);
         return project;
       }
 
@@ -170,6 +174,9 @@ export function createProjectActions(ctx: GatewayStoreContext) {
       const project = ctx.state.projects.find((item) => item.id === projectId);
       await gatewayApi(`/api/projects/${projectId}`, { method: "DELETE" });
       ctx.state.projects = ctx.state.projects.filter((item) => item.id !== projectId);
+      const { [projectId]: _removed, ...remainingAvailability } =
+        ctx.state.projectDirectoryAvailability;
+      ctx.state.projectDirectoryAvailability = remainingAvailability;
       ctx.state.gatewayConfig.projects = ctx.state.gatewayConfig.projects.filter(
         (item) => item.id !== projectId,
       );

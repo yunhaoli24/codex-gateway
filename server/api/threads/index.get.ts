@@ -10,6 +10,7 @@ import { threadListSchema } from "../../utils/gateway/http/validation/threads";
 import { hostStore } from "../../utils/gateway/state/hosts";
 import { projectStore } from "../../utils/gateway/state/projects";
 import { threadMetadataStore } from "../../utils/gateway/state/thread-metadata";
+import { remoteFiles } from "../../utils/gateway/infra/host-services";
 import { withAllThreadSources } from "../../utils/gateway/protocol/thread-list";
 
 export default defineGatewayEventHandler(async (event) => {
@@ -48,12 +49,41 @@ export default defineGatewayEventHandler(async (event) => {
     }),
     query.searchTerm ?? null,
   );
+  const projects = projectStore.list(host.id);
+  const projectDirectoryAvailability = await inspectProjectAvailability(host, projects);
   return {
     ...(result as Record<string, unknown>),
     data: mergedThreads,
-    projects: projectStore.list(host.id),
+    projects,
+    projectDirectoryAvailability,
   };
 });
+
+async function inspectProjectAvailability(
+  host: any,
+  projects: Array<{ id: number; remotePath: string }>,
+) {
+  try {
+    const byPath = await remoteFiles.inspectProjectDirectories(
+      host,
+      projects.map((project) => project.remotePath),
+    );
+    return Object.fromEntries(
+      projects.flatMap((project) => {
+        const availability = byPath.get(project.remotePath.trim());
+        return availability ? [[project.id, availability]] : [];
+      }),
+    );
+  } catch (error) {
+    // Availability is advisory; an SFTP outage must not hide projects or fail thread listing.
+    console.warn("[gateway] project directory inspection failed", {
+      hostId: host.id,
+      hostName: host.name,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {};
+  }
+}
 
 function shouldDiscoverHostProjects(query: {
   projectId?: number | null;
