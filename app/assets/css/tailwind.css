@@ -246,7 +246,7 @@
 
 @layer components {
   .markdown-content {
-    @apply max-w-none text-[0.9375rem] leading-8 text-inherit;
+    @apply min-w-0 max-w-full text-[0.9375rem] leading-8 text-inherit;
   }
 
   .markdown-content > :first-child {
@@ -355,7 +355,7 @@
   }
 
   .markdown-content table {
-    @apply my-4 w-full border-collapse text-sm;
+    @apply my-4 block w-max max-w-full overflow-x-auto border-collapse text-sm;
   }
 
   .markdown-content th,

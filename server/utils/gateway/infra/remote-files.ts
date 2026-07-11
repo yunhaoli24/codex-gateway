@@ -49,6 +49,16 @@ export class RemoteFileService {
     return this.ssh.uploadFile(host, localPath, remotePath);
   }
 
+  async deleteFile(host: HostWithSecret, path: string) {
+    if (!path.startsWith("/")) {
+      throw new Error("Remote file path must be absolute");
+    }
+    const sftp = await this.ssh.sftp(host);
+    await new Promise<void>((resolve, reject) => {
+      sftp.unlink(path, (error) => (error ? reject(error) : resolve()));
+    });
+  }
+
   async statRemoteFile(
     host: HostWithSecret,
     remotePath: string,

@@ -1,9 +1,9 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayStoreContext } from "../types";
 import { messageFromError, pinnedKey } from "../thread-utils/identity";
-import { readGatewayLastOpenThreadSelection } from "../route-state";
 import { applyStartedThreadResult, applyThreadSnapshotResult } from "../thread-open/hydration";
 import { requestActivateThreadSnapshot, requestStartThread } from "../thread-open/transport";
 import {
@@ -218,7 +218,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
     },
 
     async restoreLastOpenThread() {
-      const last = readGatewayLastOpenThreadSelection();
+      const last = useGatewayNavigationStore().lastOpenThread;
       if (
         !last.hostId ||
         !last.threadId ||

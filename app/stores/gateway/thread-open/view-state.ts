@@ -1,4 +1,5 @@
-import { writeGatewayLastOpenThreadSelection, writeGatewayRouteSelection } from "../route-state";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { writeGatewayRouteSelection } from "../route-state";
 import type { GatewayStoreContext } from "../types";
 import {
   activateThreadViewFromCache,
@@ -36,7 +37,7 @@ export function rememberOpenThread(ctx: GatewayStoreContext, threadId: string) {
     projectId: ctx.state.selectedProjectId,
     threadId,
   };
-  writeGatewayLastOpenThreadSelection(nextLastOpenThread);
+  useGatewayNavigationStore().rememberOpenThread(nextLastOpenThread);
 }
 
 export function requestScrollToLatest(ctx: GatewayStoreContext) {

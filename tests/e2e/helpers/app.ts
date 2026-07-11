@@ -53,7 +53,7 @@ async function waitForHydratedApp(page: Page, options: { resetConfig?: boolean }
     resetPages.add(page);
     await resetGatewayConfig(page);
     await page.evaluate(() => {
-      localStorage.removeItem("codex-gateway-last-open-thread");
+      localStorage.removeItem("codex-gateway-navigation");
       window.history.replaceState(window.history.state, "", window.location.pathname);
     });
     await page.reload({ waitUntil: "domcontentloaded" });

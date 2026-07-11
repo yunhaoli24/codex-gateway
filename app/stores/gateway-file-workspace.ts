@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { reactive, shallowRef } from "vue";
 import type { FilePreviewDocument } from "~~/shared/types";
+import { deleteRemoteFile } from "@/utils/remote-file-transport";
 import {
   createFileDocument,
   disposeFileDocument,
@@ -197,6 +198,17 @@ export const useGatewayFileWorkspaceStore = defineStore(
       );
     }
 
+    async function deleteFile(hostId: number, threadId: string, path: string) {
+      await deleteRemoteFile(hostId, path);
+      closeFile(hostId, threadId, path);
+      const directoryPath = parentPath(path);
+      const directory = directoryFor(hostId, threadId, directoryPath);
+      if (directory) {
+        directory.stale = true;
+        await loadDirectory(hostId, threadId, directoryPath, true);
+      }
+    }
+
     function markRemoteFilesChanged(hostId: number, threadId: string, paths: string[]) {
       const scope = scopeFor(hostId, threadId);
       if (!scope) {
@@ -288,6 +300,7 @@ export const useGatewayFileWorkspaceStore = defineStore(
       directoryFor,
       setExpandedPaths,
       refreshExpandedDirectories,
+      deleteFile,
       markRemoteFilesChanged,
     };
   },
