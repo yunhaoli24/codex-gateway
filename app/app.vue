@@ -8,12 +8,14 @@ import { useGatewayStore } from "@/stores/gateway";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
+import { useGatewayWorkspaceLayoutStore } from "@/stores/gateway-workspace-layout";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
 const realtime = useGatewayRealtimeStore();
 const terminal = useGatewayTerminalStore();
 const threadTurns = useGatewayThreadTurnsStore();
+const workspaceLayout = useGatewayWorkspaceLayoutStore();
 const auth = useAuthStore();
 const device = useDevice();
 const { currentThread, selectedThreadId, initializing } = storeToRefs(store);
@@ -77,6 +79,7 @@ function resetClientSessionState() {
   store.resetState();
   terminal.resetState();
   threadTurns.resetState();
+  workspaceLayout.resetRuntimeState();
 }
 </script>
 

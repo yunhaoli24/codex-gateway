@@ -1,38 +1,19 @@
 import { computed, reactive, toRefs } from "vue";
 import { defineStore } from "pinia";
 import type { TerminalSessionSnapshot } from "~~/shared/types";
-import {
-  AGENT_WORKSPACE_TAB_ID,
-  terminalSessionIdFromTabId,
-  terminalWorkspaceTabId,
-} from "./gateway/workspace-tabs";
 import type { TerminalSessionState } from "./gateway/types";
 
 const MAX_TERMINAL_OUTPUT_CHUNKS = 200;
 const MAX_TERMINAL_OUTPUT_CHARS = 256 * 1024;
 
 interface GatewayTerminalState {
-  activeWorkspaceTabId: string;
   terminalSessions: Record<string, TerminalSessionState>;
 }
 
 export const useGatewayTerminalStore = defineStore("gateway-terminal", () => {
   const state = reactive<GatewayTerminalState>(createTerminalState());
 
-  const activeWorkspaceTab = computed(() => state.activeWorkspaceTabId);
   const terminalSessionSnapshots = computed(() => Object.values(state.terminalSessions));
-
-  function setActiveWorkspaceTab(tabId: string) {
-    state.activeWorkspaceTabId = tabId;
-  }
-
-  function activateAgentTab() {
-    state.activeWorkspaceTabId = AGENT_WORKSPACE_TAB_ID;
-  }
-
-  function activateTerminalTab(sessionId: string) {
-    state.activeWorkspaceTabId = terminalWorkspaceTabId(sessionId);
-  }
 
   function replaceTerminalSessions(sessions: TerminalSessionSnapshot[]) {
     const nextSessions: Record<string, TerminalSessionState> = {};
@@ -40,9 +21,6 @@ export const useGatewayTerminalStore = defineStore("gateway-terminal", () => {
       nextSessions[session.sessionId] = normalizeTerminalSession(session);
     }
     state.terminalSessions = nextSessions;
-    if (!isKnownWorkspaceTab(state.activeWorkspaceTabId, state.terminalSessions)) {
-      state.activeWorkspaceTabId = AGENT_WORKSPACE_TAB_ID;
-    }
   }
 
   function upsertTerminalSession(session: TerminalSessionSnapshot) {
@@ -86,10 +64,6 @@ export const useGatewayTerminalStore = defineStore("gateway-terminal", () => {
   function removeTerminalSession(sessionId: string) {
     const { [sessionId]: _removed, ...terminalSessions } = state.terminalSessions;
     state.terminalSessions = terminalSessions;
-    const tabId = terminalWorkspaceTabId(sessionId);
-    if (state.activeWorkspaceTabId === tabId) {
-      state.activeWorkspaceTabId = AGENT_WORKSPACE_TAB_ID;
-    }
   }
 
   function resetState() {
@@ -98,11 +72,7 @@ export const useGatewayTerminalStore = defineStore("gateway-terminal", () => {
 
   return {
     ...toRefs(state),
-    activeWorkspaceTab,
     terminalSessionSnapshots,
-    setActiveWorkspaceTab,
-    activateAgentTab,
-    activateTerminalTab,
     replaceTerminalSessions,
     upsertTerminalSession,
     appendTerminalOutput,
@@ -114,20 +84,8 @@ export const useGatewayTerminalStore = defineStore("gateway-terminal", () => {
 
 function createTerminalState(): GatewayTerminalState {
   return {
-    activeWorkspaceTabId: AGENT_WORKSPACE_TAB_ID,
     terminalSessions: {},
   };
-}
-
-function isKnownWorkspaceTab(tabId: string, sessions: Record<string, TerminalSessionState>) {
-  if (tabId === AGENT_WORKSPACE_TAB_ID) {
-    return true;
-  }
-  const sessionId = terminalSessionIdFromTabId(tabId);
-  if (!sessionId) {
-    return true;
-  }
-  return Boolean(sessions[sessionId]);
 }
 
 function normalizeTerminalSession(session: TerminalSessionSnapshot): TerminalSessionState {

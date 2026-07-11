@@ -161,7 +161,8 @@ test("browses the current thread file workspace from a mobile sheet", async ({ p
     status: "completed",
   });
 
-  await page.locator('[data-testid="workspace-tab"][data-tab-kind="files"]').click();
+  await page.locator('[data-testid="workspace-dock-tab"][data-panel-kind="files"]').click();
+  await expect(page.getByRole("button", { name: "向右分屏" })).toHaveCount(0);
   const panel = page.getByTestId("workspace-file-panel");
   await expect(panel).toBeVisible();
   await page.getByRole("button", { name: "文件树", exact: true }).click();

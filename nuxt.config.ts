@@ -38,6 +38,9 @@ export default defineNuxtConfig({
     plugins: [tailwindcss()],
   },
   nitro: {
+    rollupConfig: {
+      external: ["node:sqlite"],
+    },
     experimental: {
       websocket: true,
       tasks: true,

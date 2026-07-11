@@ -1,10 +1,17 @@
-<script setup lang="ts">
-import { computed } from "vue";
+import type { ComputedRef, Ref } from "vue";
 import type { ThreadRuntimeStatus } from "~~/shared/types";
 import type { SubAgentPanelState } from "@/stores/gateway/types";
-import WorkspaceDock from "./WorkspaceDock.vue";
 
-const props = defineProps<{
+export type WorkspacePanelKind = "agent" | "files" | "terminal" | "subagent";
+
+export interface WorkspaceDockPanelParams {
+  kind: WorkspacePanelKind;
+  sessionId?: string;
+  subAgentHostId?: number;
+  subAgentThreadId?: string;
+}
+
+export interface WorkspaceDockProps {
   layout: "desktop" | "mobile";
   threadTitle: string;
   initializing: boolean;
@@ -22,21 +29,11 @@ const props = defineProps<{
   visibleSubAgentPanels: SubAgentPanelState[];
   canOpenTerminal: boolean;
   selectedThreadViewReady: boolean;
-}>();
-const emit = defineEmits<{ loadOlder: []; openTerminal: [] }>();
-const scopeKey = computed(
-  () =>
-    `${props.selectedHostId ?? "host"}:${props.selectedProjectId ?? "project"}:${props.selectedThreadId ?? "thread"}`,
-);
-</script>
+}
 
-<template>
-  <WorkspaceDock
-    :key="scopeKey"
-    v-bind="props"
-    @load-older="emit('loadOlder')"
-    @open-terminal="emit('openTerminal')"
-  >
-    <template #mobile-header-start><slot name="mobile-header-start" /></template>
-  </WorkspaceDock>
-</template>
+export interface WorkspacePanelSelection {
+  selectedHostId: Ref<number | null> | ComputedRef<number | null>;
+  selectedProjectId: Ref<number | null> | ComputedRef<number | null>;
+  selectedThreadId: Ref<string | null> | ComputedRef<string | null>;
+  visibleSubAgentPanels: Ref<SubAgentPanelState[]> | ComputedRef<SubAgentPanelState[]>;
+}

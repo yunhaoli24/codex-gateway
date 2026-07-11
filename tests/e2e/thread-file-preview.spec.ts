@@ -123,6 +123,27 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   await page.getByRole("link", { name: "preview target" }).click();
   const panel = page.getByTestId("workspace-file-panel");
   await expect(panel).toBeVisible();
+  await page.getByRole("button", { name: "向右分屏" }).click();
+  await expect(page.getByTestId("chat-main-pane")).toBeVisible();
+  await expect(panel).toBeVisible();
+  const [agentDockBox, filesDockBox] = await Promise.all([
+    page.getByTestId("chat-main-pane").boundingBox(),
+    panel.boundingBox(),
+  ]);
+  const dockBoundary = (agentDockBox!.x + agentDockBox!.width + filesDockBox!.x) / 2;
+  await page.mouse.move(dockBoundary, agentDockBox!.y + agentDockBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dockBoundary - agentDockBox!.width * 0.1, agentDockBox!.y + 40);
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await page.getByTestId("chat-main-pane").boundingBox())!.width)
+    .toBeLessThan(agentDockBox!.width);
+  const [resizedAgentDockBox, resizedFilesDockBox] = await Promise.all([
+    page.getByTestId("chat-main-pane").boundingBox(),
+    panel.boundingBox(),
+  ]);
+  const dockWidthRatio =
+    resizedAgentDockBox!.width / (resizedAgentDockBox!.width + resizedFilesDockBox!.width);
   await expect(
     page
       .getByTestId("remote-file-tree")
@@ -235,7 +256,9 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   await page.getByRole("link", { name: "nested python" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(fileTab(page, nestedPythonPath)).toBeVisible();
-  await expect(page.locator('[data-testid="workspace-tab"][data-tab-kind="files"]')).toHaveCount(1);
+  await expect(
+    page.locator('[data-testid="workspace-dock-tab"][data-panel-kind="files"]'),
+  ).toHaveCount(1);
   await expect(page.getByTestId("file-workspace-tab")).toHaveCount(3);
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
   await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
@@ -263,7 +286,15 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
     history: latestHistory,
   });
   await expect(filesWorkspaceTab(page)).toBeVisible();
-  await filesWorkspaceTab(page).click();
+  await expect(page.getByTestId("chat-main-pane")).toBeVisible();
+  await expect(panel).toBeVisible();
+  const [restoredAgentDockBox, restoredFilesDockBox] = await Promise.all([
+    page.getByTestId("chat-main-pane").boundingBox(),
+    panel.boundingBox(),
+  ]);
+  const restoredDockRatio =
+    restoredAgentDockBox!.width / (restoredAgentDockBox!.width + restoredFilesDockBox!.width);
+  expect(Math.abs(restoredDockRatio - dockWidthRatio)).toBeLessThan(0.08);
   await expect(page.getByTestId("file-workspace-tab")).toHaveCount(5);
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
 
@@ -274,6 +305,40 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   await agentWorkspaceTab(page).click();
   await filesWorkspaceTab(page).click();
   await expect(panel.getByText("remote-file-refreshed")).toBeVisible();
+
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByTestId("dock-popout-group").last().click();
+  const popup = await popupPromise;
+  await popup.waitForLoadState("domcontentloaded");
+  await expect(popup.getByTestId("workspace-file-panel")).toBeVisible();
+
+  const alternateThreadId = `${threadId}-alternate`;
+  await seedGatewayThread(page, {
+    hostId: host.id,
+    projectId: project.id,
+    host: { ...host },
+    project: { ...project },
+    threadId: alternateThreadId,
+    currentThread: { id: alternateThreadId, name: "Alternate File Thread", cwd: projectPath },
+  });
+  await expect.poll(() => popup.isClosed()).toBe(true);
+  await expect(page.getByTestId("chat-main-pane")).toBeVisible();
+
+  let reopenedPopouts = 0;
+  page.on("popup", () => reopenedPopouts++);
+  await seedGatewayThread(page, {
+    hostId: host.id,
+    projectId: project.id,
+    host: { ...host },
+    project: { ...project },
+    threadId,
+    currentThread: { id: threadId, name: "File Preview Thread", cwd: projectPath },
+    history: latestHistory,
+  });
+  await expect(page.getByTestId("chat-main-pane")).toBeVisible();
+  await expect(panel).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(reopenedPopouts).toBe(0);
 });
 
 function shellQuote(value: string) {
@@ -281,11 +346,11 @@ function shellQuote(value: string) {
 }
 
 function agentWorkspaceTab(page: import("@playwright/test").Page) {
-  return page.locator('[data-testid="workspace-tab"][data-tab-kind="agent"]');
+  return page.locator('[data-testid="workspace-dock-tab"][data-panel-kind="agent"]');
 }
 
 function filesWorkspaceTab(page: import("@playwright/test").Page) {
-  return page.locator('[data-testid="workspace-tab"][data-tab-kind="files"]');
+  return page.locator('[data-testid="workspace-dock-tab"][data-panel-kind="files"]');
 }
 
 function fileTab(page: import("@playwright/test").Page, path: string) {

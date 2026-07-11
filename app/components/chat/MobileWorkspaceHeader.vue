@@ -1,17 +1,13 @@
 <script setup lang="ts">
 import { TerminalIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
-import type { WorkspaceTabState } from "@/stores/gateway/types";
-import WorkspaceTabBar from "./WorkspaceTabBar.vue";
 
 defineProps<{
-  tabs: WorkspaceTabState[];
   canOpenTerminal: boolean;
 }>();
 
 const emit = defineEmits<{
   openTerminal: [];
-  closeTab: [tab: WorkspaceTabState];
 }>();
 </script>
 
@@ -23,7 +19,6 @@ const emit = defineEmits<{
       <slot name="start" />
     </div>
     <div class="relative z-10 ml-auto flex min-w-0 flex-1 items-center justify-end gap-2">
-      <WorkspaceTabBar compact :tabs="tabs" @close-tab="emit('closeTab', $event)" />
       <Button
         data-testid="open-terminal-mobile-button"
         variant="ghost"
