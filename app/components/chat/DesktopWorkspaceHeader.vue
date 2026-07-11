@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { TerminalIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import type { WorkspaceTabState } from "@/stores/gateway/types";
 import WorkspaceTabBar from "./WorkspaceTabBar.vue";
+
+const { state: sidebarState } = useSidebar();
 
 defineProps<{
   tabs: WorkspaceTabState[];
@@ -18,6 +21,16 @@ const emit = defineEmits<{
 
 <template>
   <header class="flex h-12 shrink-0 items-stretch border-b border-hairline">
+    <div
+      v-if="sidebarState === 'collapsed'"
+      class="flex shrink-0 items-center border-r border-hairline px-2"
+    >
+      <SidebarTrigger
+        data-testid="desktop-sidebar-expand"
+        :title="$t('app.openSidebar')"
+        :aria-label="$t('app.openSidebar')"
+      />
+    </div>
     <div
       class="flex min-w-0 w-[10rem] shrink-0 items-center overflow-hidden border-r border-hairline px-[clamp(0.75rem,1.4vw,1rem)] xl:w-[12rem]"
     >

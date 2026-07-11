@@ -93,7 +93,10 @@ function fileTreeNode(value: unknown) {
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-1 flex-col bg-canvas-soft/45" data-testid="remote-file-tree">
+  <section
+    class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas-soft/45"
+    data-testid="remote-file-tree"
+  >
     <div class="flex h-10 shrink-0 items-center gap-2 border-b border-hairline px-3">
       <FolderIcon class="size-4 shrink-0 text-ink-muted" />
       <span class="min-w-0 flex-1 truncate text-sm font-semibold" :title="rootPath">
@@ -125,12 +128,13 @@ function fileTreeNode(value: unknown) {
     </div>
     <div v-else class="min-h-0 flex-1 overflow-hidden py-2">
       <TreeRoot
+        data-testid="remote-file-tree-scroll"
         v-model="selected"
         v-model:expanded="expanded"
         :items="tree"
         :get-key="(node: FileTreeNode) => node.path"
         :get-children="(node: FileTreeNode) => node.children"
-        class="relative h-full w-full min-w-0 list-none overflow-x-hidden overflow-y-auto outline-none"
+        class="relative h-full w-full min-w-0 list-none overflow-auto outline-none"
       >
         <TreeVirtualizer v-slot="{ item }" :estimate-size="30" :text-content="(node) => node.name">
           <RemoteFileTreeRow

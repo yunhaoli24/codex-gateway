@@ -26,6 +26,7 @@
     "settings": "设置",
     "sidebar": "侧边栏",
     "openSidebar": "打开侧边栏",
+    "hideSidebar": "收起侧边栏",
     "sidebarDescription": "选择主机、项目、会话和设置",
     "settingsDescription": "管理远端主机、项目目录，以及可导入导出的完整配置 JSON。",
     "close": "关闭",

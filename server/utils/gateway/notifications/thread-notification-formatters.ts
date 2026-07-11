@@ -19,6 +19,7 @@ export function threadTurnCompletedNotification(event: GatewayEvent): ServerNoti
     title: `${threadTitle(event.hostId, event.threadId)} · 回合已结束`,
     body: `${hostTitle(event.hostId)} 上的会话状态：${turnStatusLabel(status)}。可以继续输入下一步。`,
     group: "Codex Gateway",
+    target: notificationTarget(event),
   };
 }
 
@@ -36,11 +37,26 @@ export function threadGoalCompletedNotification(event: GatewayEvent): ServerNoti
       `推进 ${formatDuration(goal.timeUsedSeconds)}，使用 ${goal.tokensUsed.toLocaleString()} tokens。`,
     ].join(""),
     group: "Codex Gateway",
+    target: notificationTarget(event),
   };
 }
 
 export function isTerminalGoalStatus(status: ThreadGoalStatus) {
   return status !== "active" && status !== "paused";
+}
+
+function notificationTarget(event: GatewayEvent) {
+  const pinnedThread = gatewayMemoryState.pinnedThreads.find(
+    (thread) => thread.hostId === event.hostId && thread.threadId === event.threadId,
+  );
+  const metadata = gatewayMemoryState.threadMetadata.find(
+    (thread) => thread.hostId === event.hostId && thread.threadId === event.threadId,
+  );
+  return {
+    hostId: event.hostId,
+    projectId: pinnedThread?.projectId ?? metadata?.projectId ?? null,
+    threadId: event.threadId,
+  };
 }
 
 function threadTitle(hostId: number, threadId: string) {

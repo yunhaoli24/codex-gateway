@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { RealtimeClientMessage } from "~~/shared/types";
 import { userStore } from "../../auth/users";
+import { notificationRealtimeEvents } from "../../notifications/notification-realtime-events";
 import { sessionRevocationEvents } from "../../auth/session-events";
 import { hashToken } from "../../storage/crypto";
 import { subscribeTerminalEvents } from "./terminal";
@@ -28,6 +29,9 @@ export function authenticatePeer(
     threadUnsubscribers: new Map(),
     sessionRevocationUnsubscribe: sessionRevocationEvents.subscribe(hashToken(token), () => {
       peer.close(1008, "Session revoked");
+    }),
+    notificationUnsubscribe: notificationRealtimeEvents.subscribe(user.id, (notification) => {
+      sendRealtimePeerMessage(peer, { type: "notification.published", notification });
     }),
   };
   sendRealtimePeerMessage(peer, { type: "ready", connectionId: randomUUID() });

@@ -3,4 +3,9 @@ export interface ServerNotification {
   title: string;
   body: string;
   group?: string | null;
+  target: {
+    hostId: number;
+    projectId: number | null;
+    threadId: string;
+  };
 }

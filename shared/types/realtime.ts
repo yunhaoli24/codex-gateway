@@ -159,6 +159,20 @@ export type RealtimeServerMessage =
       connectionId: string;
     }
   | {
+      type: "notification.published";
+      notification: {
+        key: string;
+        title: string;
+        body: string;
+        group?: string | null;
+        target: {
+          hostId: number;
+          projectId: number | null;
+          threadId: string;
+        };
+      };
+    }
+  | {
       type: "host.lifecycle";
       event: {
         hostId: number;

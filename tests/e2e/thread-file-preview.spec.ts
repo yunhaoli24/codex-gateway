@@ -131,30 +131,57 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
       .getByTitle(projectPath, { exact: true }),
   ).toBeVisible();
   const tree = page.getByTestId("remote-file-tree");
+  const treeScroll = page.getByTestId("remote-file-tree-scroll");
   const longFileLabel = tree.getByTitle(longFilePath, { exact: true });
+  const longFileRow = longFileLabel.locator("xpath=..");
   await expect(longFileLabel).toBeVisible();
-  await expect(longFileLabel).toHaveCSS("text-overflow", "ellipsis");
-  const [treeBox, longFileLabelBox] = await Promise.all([
-    tree.boundingBox(),
-    longFileLabel.boundingBox(),
-  ]);
-  expect(longFileLabelBox!.x + longFileLabelBox!.width).toBeLessThanOrEqual(
-    treeBox!.x + treeBox!.width,
-  );
 
-  await longFileLabel.click();
+  const treePane = page.getByTestId("file-tree-pane");
+  const separator = page.getByTestId("file-workspace-separator");
+  const splitPane = treePane.locator("xpath=..");
+  const [initialTreePaneBox, separatorBox, splitPaneBox] = await Promise.all([
+    treePane.boundingBox(),
+    separator.boundingBox(),
+    splitPane.boundingBox(),
+  ]);
+  await page.mouse.move(separatorBox!.x + separatorBox!.width / 2, separatorBox!.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(splitPaneBox!.x + splitPaneBox!.width * 0.15, separatorBox!.y + 20);
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await treePane.boundingBox())!.width)
+    .toBeLessThan(initialTreePaneBox!.width);
+  const [resizedTreePaneBox, resizedSeparatorBox] = await Promise.all([
+    treePane.boundingBox(),
+    separator.boundingBox(),
+  ]);
+  expect(
+    Math.abs(resizedTreePaneBox!.x + resizedTreePaneBox!.width - resizedSeparatorBox!.x),
+  ).toBeLessThan(2);
+  await expect
+    .poll(() => treeScroll.evaluate((element) => element.scrollWidth > element.clientWidth))
+    .toBe(true);
+  await treeScroll.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+  });
+  await expect.poll(() => treeScroll.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await treeScroll.evaluate((element) => {
+    element.scrollLeft = 0;
+  });
+
+  await longFileRow.click({ position: { x: 20, y: 16 } });
   await expect(fileTab(page, longFilePath)).toBeVisible();
-  await longFileLabel.click({ button: "right" });
+  await longFileRow.click({ button: "right", position: { x: 20, y: 16 } });
   await page.getByRole("menuitem", { name: "复制绝对路径" }).click();
   await expect(page.getByText("已复制绝对路径")).toBeVisible();
 
-  await longFileLabel.click({ button: "right" });
+  await longFileRow.click({ button: "right", position: { x: 20, y: 16 } });
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("menuitem", { name: "下载文件" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe(longFilePath.split("/").pop());
 
-  await longFileLabel.click({ button: "right" });
+  await longFileRow.click({ button: "right", position: { x: 20, y: 16 } });
   await page.getByRole("menuitem", { name: "删除文件" }).click();
   await expect(page.getByRole("alertdialog")).toContainText(longFilePath);
   const deleteResponsePromise = page.waitForResponse(
