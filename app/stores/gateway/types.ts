@@ -64,15 +64,6 @@ export interface ComposerDraft {
   attachedFiles: Array<UploadedFileRecord & { id: string; dataUrl?: string }>;
 }
 
-export interface WorkspaceTabState {
-  id: string;
-  kind: "agent" | "terminal" | "subagent" | "files";
-  title: string;
-  subtitle?: string;
-  sessionId?: string;
-  subAgentKey?: string;
-}
-
 export interface TerminalSessionState extends TerminalSessionSnapshot {
   outputChunks: string[];
 }
@@ -118,7 +109,6 @@ export interface GatewayStoreState {
   composerDraftsByKey: Record<string, ComposerDraft>;
   threadViews: Record<string, ThreadViewState>;
   subAgentPanels: SubAgentPanelState[];
-  activeSubAgentPanelKey: string | null;
   selectedHostId: number | null;
   selectedProjectId: number | null;
   selectedThreadId: string | null;

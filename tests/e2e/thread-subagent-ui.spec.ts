@@ -102,7 +102,7 @@ test("sub-agent activity opens workspace tabs with sub-agent timelines", async (
 
   const mainPane = page.getByTestId("chat-main-pane");
   await page.getByTestId("open-subagent-panel").first().click();
-  const panel = page.getByTestId("workspace-subagent-panel");
+  const panel = page.locator('[data-testid="workspace-subagent-panel"]:visible');
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("workspace-panel-title")).toHaveText("agent-e2e");
   await expect(panel.getByText("Sub-agent finding from agent-e2e.")).toBeVisible();
@@ -224,12 +224,12 @@ test("sub-agent activity opens workspace tabs with sub-agent timelines", async (
 
 function subAgentTab(page: Page, title: string) {
   return page.locator(
-    `[data-testid="workspace-tab"][data-tab-kind="subagent"][data-tab-title="${title}"]`,
+    `[data-testid="workspace-dock-tab"][data-panel-kind="subagent"][data-panel-title="${title}"]`,
   );
 }
 
 function agentWorkspaceTab(page: Page) {
-  return page.locator('[data-testid="workspace-tab"][data-tab-kind="agent"]');
+  return page.locator('[data-testid="workspace-dock-tab"][data-panel-kind="agent"]');
 }
 
 async function closeWorkspaceTab(page: Page) {

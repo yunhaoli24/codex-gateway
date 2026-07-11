@@ -101,6 +101,9 @@ importers:
       codemirror:
         specifier: ^6.0.2
         version: 6.0.2
+      dockview-vue:
+        specifier: 7.0.2
+        version: 7.0.2(vue@3.5.39(typescript@6.0.3))
       embla-carousel-vue:
         specifier: ^8.6.0
         version: 8.6.0(vue@3.5.39(typescript@6.0.3))
@@ -3999,6 +4002,17 @@ packages:
 
   dingbat-to-unicode@1.0.1:
     resolution: {integrity: sha512-98l0sW87ZT58pU4i61wa2OHwxbiYSbuxsCBozaVnYX2iCnr3bLM3fIes1/ej7h1YdOKuKt/MLs706TVnALA65w==}
+
+  dockview-core@7.0.2:
+    resolution: {integrity: sha512-i666ndkUdT4U+Bo2Yu3d6KwCJNqe21VJ0oschdgcXucZ5TquzBFX94zcUBEfg4IewTv2BuiPJ7r/2JTGLLv6ig==}
+
+  dockview-vue@7.0.2:
+    resolution: {integrity: sha512-O1ta/OhISPSu6sF1VQBWdDLyRbmJC0I2onixqXH/ZSSk8/t9OUsB9X9VuXP3g3D+a3THI3eRJEJyDazTAxEF8g==}
+    peerDependencies:
+      vue: ^3.4.0
+
+  dockview@7.0.2:
+    resolution: {integrity: sha512-QhgbJ7RTFsWvrs1lQZKPGCLTGjKU7kI5ZWX5lwU03arM9lIoQlbfv1b/uQ7V5zTkRw7JDndEqjKMgEFw2I8Kow==}
 
   docx-preview@0.3.7:
     resolution: {integrity: sha512-Lav69CTA/IYZPJTsKH7oYeoZjyg96N0wEJMNslGJnZJ+dMUZK85Lt5ASC79yUlD48ecWjuv+rkcmFt6EVPV0Xg==}
@@ -10141,6 +10155,17 @@ snapshots:
   diff@8.0.4: {}
 
   dingbat-to-unicode@1.0.1: {}
+
+  dockview-core@7.0.2: {}
+
+  dockview-vue@7.0.2(vue@3.5.39(typescript@6.0.3)):
+    dependencies:
+      dockview: 7.0.2
+      vue: 3.5.39(typescript@6.0.3)
+
+  dockview@7.0.2:
+    dependencies:
+      dockview-core: 7.0.2
 
   docx-preview@0.3.7:
     dependencies:

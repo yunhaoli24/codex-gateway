@@ -4,7 +4,7 @@ import { EventEmitter } from "@posva/event-emitter";
 import type { ThreadSettingsState } from "~~/shared/types";
 import { createGatewayState } from "./gateway/state";
 import type { GatewayStoreContext } from "./gateway/types";
-import { errorMessageLabels, pinnedKey, selectedThreadKey } from "./gateway/thread-utils/identity";
+import { errorMessageLabels, selectedThreadKey } from "./gateway/thread-utils/identity";
 import { createCoreActions } from "./gateway/actions/core";
 import { createHostActions } from "./gateway/actions/hosts";
 import { createProjectActions } from "./gateway/actions/projects";
@@ -63,17 +63,6 @@ export const useGatewayStore = defineStore("gateway", () => {
     return key
       ? (state.composerDraftsByKey[key] ?? { text: "", attachedFiles: [] })
       : { text: "", attachedFiles: [] };
-  });
-  const activeSubAgentPanel = computed(() => {
-    const key = state.activeSubAgentPanelKey;
-    if (!key) {
-      return null;
-    }
-    return (
-      visibleSubAgentPanels.value.find(
-        (panel) => pinnedKey(panel.hostId, panel.threadId) === key,
-      ) ?? null
-    );
   });
   const visibleSubAgentPanels = computed(() => {
     if (!state.selectedHostId || !state.selectedThreadId) {
@@ -164,7 +153,6 @@ export const useGatewayStore = defineStore("gateway", () => {
     selectedThreadGoalObservedAt,
     selectedThreadTokenUsage,
     selectedComposerDraft,
-    activeSubAgentPanel,
     visibleSubAgentPanels,
     resetState,
     ...actions,

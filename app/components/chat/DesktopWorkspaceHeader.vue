@@ -2,25 +2,21 @@
 import { TerminalIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import type { WorkspaceTabState } from "@/stores/gateway/types";
-import WorkspaceTabBar from "./WorkspaceTabBar.vue";
 
 const { state: sidebarState } = useSidebar();
 
 defineProps<{
-  tabs: WorkspaceTabState[];
   threadTitle: string;
   canOpenTerminal: boolean;
 }>();
 
 const emit = defineEmits<{
   openTerminal: [];
-  closeTab: [tab: WorkspaceTabState];
 }>();
 </script>
 
 <template>
-  <header class="flex h-12 shrink-0 items-stretch border-b border-hairline">
+  <header class="flex h-10 shrink-0 items-stretch border-b border-hairline">
     <div
       v-if="sidebarState === 'collapsed'"
       class="flex shrink-0 items-center border-r border-hairline px-2"
@@ -52,8 +48,6 @@ const emit = defineEmits<{
         <span>{{ $t("app.openTerminal") }}</span>
       </Button>
     </div>
-    <div class="relative z-10 flex min-w-0 flex-1 justify-start px-3">
-      <WorkspaceTabBar :tabs="tabs" @close-tab="emit('closeTab', $event)" />
-    </div>
+    <div class="min-w-0 flex-1" />
   </header>
 </template>

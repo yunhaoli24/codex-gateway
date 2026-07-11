@@ -27,7 +27,6 @@ export function createGatewayState(): GatewayStoreState {
     composerDraftsByKey: {},
     threadViews: {},
     subAgentPanels: [],
-    activeSubAgentPanelKey: null,
     selectedHostId: null,
     selectedProjectId: null,
     selectedThreadId: null,

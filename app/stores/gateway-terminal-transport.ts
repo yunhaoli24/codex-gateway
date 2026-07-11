@@ -1,6 +1,8 @@
 import type { TerminalSessionSnapshot } from "~~/shared/types";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
+import { useGatewayWorkspaceLayoutStore } from "@/stores/gateway-workspace-layout";
+import { terminalWorkspacePanelId } from "./gateway/workspace-panels";
 import type { ErrorMessageLabels } from "./gateway/thread-utils/identity";
 import { messageFromError } from "./gateway/thread-utils/identity";
 import type { GatewayErrorContext } from "./gateway/errors";
@@ -29,7 +31,9 @@ export async function openTerminalSession(
       30_000,
     );
     terminalStore.upsertTerminalSession(response.session);
-    terminalStore.activateTerminalTab(response.session.sessionId);
+    useGatewayWorkspaceLayoutStore().requestPanelActivation(
+      terminalWorkspacePanelId(response.session.sessionId),
+    );
     return response.session;
   } catch (error: any) {
     ctx.setError(messageFromError(error, ctx.t("app.openTerminalFailed"), ctx.errorLabels), {

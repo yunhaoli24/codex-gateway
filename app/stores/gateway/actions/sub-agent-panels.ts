@@ -1,7 +1,9 @@
 import type { GatewayStoreContext, SubAgentPanelState } from "../types";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
+import { useGatewayWorkspaceLayoutStore } from "@/stores/gateway-workspace-layout";
 import { pinnedKey } from "../thread-utils/identity";
 import { removeThreadView } from "../thread-open/thread-view-cache";
+import { subAgentWorkspacePanelId } from "../workspace-panels";
 
 type SubAgentPanelInput = {
   hostId: number;
@@ -22,7 +24,7 @@ export function createSubAgentPanelActions(ctx: GatewayStoreContext) {
             panelKey(item) === key ? { ...item, title: panel.title } : item,
           )
         : [...ctx.state.subAgentPanels, panel];
-      ctx.state.activeSubAgentPanelKey = key;
+      useGatewayWorkspaceLayoutStore().requestPanelActivation(subAgentWorkspacePanelId(key));
 
       try {
         await ctx.openThreadPreview(panel.hostId, panel.threadId);
@@ -31,28 +33,10 @@ export function createSubAgentPanelActions(ctx: GatewayStoreContext) {
       }
     },
 
-    activateSubAgentPanel(input: { hostId: number; threadId: string }) {
+    closeSubAgentPanel(input: { hostId: number; threadId: string }) {
       const key = pinnedKey(input.hostId, input.threadId);
-      if (ctx.state.subAgentPanels.some((item) => panelKey(item) === key)) {
-        ctx.state.activeSubAgentPanelKey = key;
-      }
-    },
-
-    closeSubAgentPanel(input?: { hostId?: number; threadId?: string }) {
-      const key =
-        input?.hostId && input.threadId
-          ? pinnedKey(input.hostId, input.threadId)
-          : ctx.state.activeSubAgentPanelKey;
-      if (!key) {
-        return;
-      }
       const closingIndex = ctx.state.subAgentPanels.findIndex((item) => panelKey(item) === key);
-      if (closingIndex < 0) {
-        if (ctx.state.activeSubAgentPanelKey === key) {
-          ctx.state.activeSubAgentPanelKey = null;
-        }
-        return;
-      }
+      if (closingIndex < 0) return;
 
       const closing = ctx.state.subAgentPanels[closingIndex];
       if (!closing) {
@@ -61,12 +45,6 @@ export function createSubAgentPanelActions(ctx: GatewayStoreContext) {
       const nextPanels = ctx.state.subAgentPanels.filter((item) => panelKey(item) !== key);
       ctx.state.subAgentPanels = nextPanels;
       closeThreadPreview(ctx, closing.hostId, closing.threadId);
-
-      if (ctx.state.activeSubAgentPanelKey !== key) {
-        return;
-      }
-      const nextActive = nextPanels[Math.min(closingIndex, nextPanels.length - 1)] ?? null;
-      ctx.state.activeSubAgentPanelKey = nextActive ? panelKey(nextActive) : null;
     },
   };
 }
