@@ -26,6 +26,7 @@
     "settings": "Settings",
     "sidebar": "Sidebar",
     "openSidebar": "Open sidebar",
+    "hideSidebar": "Hide sidebar",
     "sidebarDescription": "Choose hosts, projects, threads, and settings",
     "settingsDescription": "Manage remote hosts, project directories, and the full import/export config JSON.",
     "close": "Close",

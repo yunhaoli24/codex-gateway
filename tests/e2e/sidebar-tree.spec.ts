@@ -2,6 +2,24 @@ import { expect, test } from "@playwright/test";
 import { openApp } from "./helpers/app";
 import { installRealtimeThreadSnapshotMock, seedGatewayThread } from "./helpers/gateway-store";
 
+test("collapses the desktop sidebar and restores the saved layout", async ({ page }) => {
+  await openApp(page);
+
+  const sidebarGap = page.locator('[data-slot="sidebar-gap"]');
+  await expect(page.locator('[data-slot="sidebar"][data-state="expanded"]')).toBeVisible();
+  await page.getByTestId("desktop-sidebar-collapse").click();
+  await expect.poll(() => sidebarGap.evaluate((element) => element.clientWidth)).toBe(0);
+  await expect(page.getByTestId("desktop-sidebar-expand")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByTestId("desktop-sidebar-expand")).toBeVisible();
+  await expect.poll(() => sidebarGap.evaluate((element) => element.clientWidth)).toBe(0);
+
+  await page.getByTestId("desktop-sidebar-expand").click();
+  await expect.poll(() => sidebarGap.evaluate((element) => element.clientWidth)).toBeGreaterThan(0);
+  await expect(page.getByTestId("desktop-sidebar-collapse")).toBeVisible();
+});
+
 test("toggles an expanded project closed from the desktop sidebar", async ({ page }) => {
   await openApp(page);
   await seedGatewayThread(page, {

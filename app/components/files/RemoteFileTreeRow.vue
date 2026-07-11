@@ -47,7 +47,7 @@ const { longPressContextMenuHandlers } = useLongPressContextMenu({ menuWidthEsti
         v-bind="node.type === 'file' ? longPressContextMenuHandlers : {}"
         :value="node"
         :level="level"
-        class="flex h-8 w-full min-w-0 cursor-default items-center gap-1.5 overflow-hidden rounded-md pr-2 text-sm text-ink-muted outline-none hover:bg-canvas-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary/35 data-selected:bg-primary/10 data-selected:text-ink"
+        class="flex h-8 w-max min-w-full cursor-default items-center gap-1.5 rounded-md pr-2 text-sm text-ink-muted outline-none hover:bg-canvas-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary/35 data-selected:bg-primary/10 data-selected:text-ink"
         :style="{ paddingInlineStart: `${Math.max(0, level - 1) * 1.125 + 0.5}rem` }"
       >
         <ChevronRightIcon
@@ -62,7 +62,7 @@ const { longPressContextMenuHandlers } = useLongPressContextMenu({ menuWidthEsti
         />
         <FolderIcon v-else-if="node.type === 'directory'" class="size-4 shrink-0 text-primary" />
         <FileIcon v-else class="size-4 shrink-0 text-ink-faint" />
-        <span class="w-0 flex-1 truncate" :title="node.path">{{ node.name }}</span>
+        <span class="whitespace-nowrap" :title="node.path">{{ node.name }}</span>
       </TreeItem>
     </ContextMenuTrigger>
     <ContextMenuContent

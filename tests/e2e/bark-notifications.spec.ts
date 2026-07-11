@@ -28,6 +28,10 @@ test("Bark sends ordinary turn notifications and only notifies when an app-serve
   });
   await expect.poll(async () => (await bark.readRequests()).length, { timeout: 30_000 }).toBe(1);
   expect((await bark.readRequests())[0]?.title).toContain("回合已结束");
+  const turnToast = page.locator("[data-sonner-toast]").filter({ hasText: "回合已结束" });
+  await expect(turnToast).toBeVisible();
+  await turnToast.getByRole("button", { name: "打开会话" }).click();
+  await expect(page).toHaveURL(new RegExp(`threadId=${threadId}`));
 
   await sendRealtimeRequest(page, {
     type: "thread.goal.set",
@@ -55,6 +59,7 @@ test("Bark sends ordinary turn notifications and only notifies when an app-serve
   expect(requests[1]?.title).toContain("目标已结束");
   expect(requests[1]?.body).toContain("推进");
   expect(requests[1]?.body).toContain("tokens");
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "目标已结束" })).toBeVisible();
 });
 
 async function configureBarkNotifications(page: Page, serverUrl: string) {

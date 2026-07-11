@@ -63,6 +63,7 @@ function installHandlers(
 function createServerMessageHandlers(ctx: RealtimeServerMessageHandlerContext) {
   return {
     ready: () => handleReady(ctx),
+    "notification.published": (message) => handlePublishedNotification(ctx, message),
     "host.lifecycle": (message) => handleHostLifecycle(ctx, message.event),
     "thread.event": (message) => handleThreadEvent(ctx, message.event),
     "thread.goal.updated": (message) => handleGoalUpdated(ctx, message),
@@ -80,6 +81,27 @@ function createServerMessageHandlers(ctx: RealtimeServerMessageHandlerContext) {
   } satisfies {
     [K in keyof RealtimeServerMessageMap]?: RealtimeMessageHandler<K>;
   };
+}
+
+function handlePublishedNotification(
+  ctx: RealtimeServerMessageHandlerContext,
+  message: RealtimeServerMessageMap["notification.published"],
+) {
+  toast.info(message.notification.title, {
+    id: message.notification.key,
+    description: message.notification.body,
+    duration: 10_000,
+    action: {
+      label: ctx.t("app.openThread"),
+      onClick: () => {
+        const target = message.notification.target;
+        void useGatewayStore().openThread(target.threadId, {
+          hostId: target.hostId,
+          projectId: target.projectId,
+        });
+      },
+    },
+  });
 }
 
 function handleReady(ctx: RealtimeServerMessageHandlerContext) {

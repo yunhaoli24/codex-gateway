@@ -38,11 +38,16 @@ function setTreePercent(value: number) {
 
 <template>
   <div ref="container" class="flex min-h-0 flex-1 overflow-hidden">
-    <div class="flex min-w-0 shrink-0" :style="treeStyle">
+    <div
+      data-testid="file-tree-pane"
+      class="flex min-w-0 shrink-0 overflow-hidden [contain:inline-size]"
+      :style="treeStyle"
+    >
       <slot name="tree" />
     </div>
     <div
       ref="handle"
+      data-testid="file-workspace-separator"
       role="separator"
       tabindex="0"
       aria-orientation="vertical"
@@ -56,7 +61,7 @@ function setTreePercent(value: number) {
         class="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-transparent transition-colors group-hover:bg-primary/45 group-focus-visible:bg-primary/60"
       />
     </div>
-    <div class="flex min-w-0 flex-1">
+    <div data-testid="file-preview-pane" class="flex min-w-0 flex-1 overflow-hidden">
       <slot name="preview" />
     </div>
   </div>

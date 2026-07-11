@@ -16,6 +16,7 @@ import AddProjectDialog from "./AddProjectDialog.vue";
 import HostTree from "./HostTree.vue";
 import PinnedThreadList from "./PinnedThreadList.vue";
 import SidebarScrollArea from "./SidebarScrollArea.vue";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useSidebarTree } from "./useSidebarTree";
 import { useThreadRename } from "./useThreadRename";
 
@@ -49,7 +50,15 @@ function openEditProject(project: any) {
     v-bind="$attrs"
     class="relative flex min-h-0 flex-col border-r border-hairline bg-canvas-soft"
   >
-    <div class="flex min-h-0 flex-1 overflow-hidden px-3 py-4">
+    <div class="flex h-12 shrink-0 items-center justify-end border-b border-hairline px-3">
+      <SidebarTrigger
+        data-testid="desktop-sidebar-collapse"
+        :title="$t('app.hideSidebar')"
+        :aria-label="$t('app.hideSidebar')"
+      />
+    </div>
+
+    <div class="flex min-h-0 flex-1 overflow-hidden px-3 py-3">
       <SidebarScrollArea>
         <div class="space-y-4 pr-1">
           <PinnedThreadList

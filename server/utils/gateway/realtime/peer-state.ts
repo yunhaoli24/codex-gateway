@@ -13,6 +13,7 @@ export interface RealtimePeerState {
   authTimer?: ReturnType<typeof setTimeout>;
   hostLifecycleUnsubscribe?: () => void;
   terminalUnsubscribe?: () => void;
+  notificationUnsubscribe?: () => void;
   sessionRevocationUnsubscribe?: () => void;
   threadUnsubscribers: Map<string, () => void>;
 }
