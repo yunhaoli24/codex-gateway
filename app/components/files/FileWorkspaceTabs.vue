@@ -27,13 +27,13 @@ const emit = defineEmits<{
       :data-file-path="document.path"
       role="tab"
       :aria-selected="document.path === activePath"
-      class="group flex min-w-0 max-w-[min(14rem,46vw)] shrink-0 items-center gap-2 border-r border-hairline px-3 text-sm text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+      class="group flex w-52 min-w-0 max-w-[min(14rem,46vw)] shrink-0 items-center gap-2 overflow-hidden border-r border-hairline px-3 text-sm text-ink-muted transition-colors hover:bg-surface hover:text-ink"
       :class="document.path === activePath ? 'bg-surface text-ink shadow-sm' : ''"
       :title="document.path"
       @click="emit('activate', document.path)"
     >
       <FileTextIcon class="size-3.5 shrink-0" />
-      <span class="min-w-0 truncate">{{ document.title }}</span>
+      <span class="min-w-0 flex-1 truncate">{{ document.title }}</span>
       <span
         v-if="document.stale"
         class="size-1.5 shrink-0 rounded-full bg-primary"

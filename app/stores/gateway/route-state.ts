@@ -4,8 +4,6 @@ export interface GatewayRouteSelection {
   threadId: string | null;
 }
 
-const LAST_OPEN_THREAD_STORAGE_KEY = "codex-gateway-last-open-thread";
-
 function numberFromQuery(value: string | null) {
   if (!value) {
     return null;
@@ -58,48 +56,10 @@ export function writeGatewayRouteSelection(
   window.history[method](window.history.state, "", nextUrl);
 }
 
-export function readGatewayLastOpenThreadSelection(): GatewayRouteSelection {
-  if (!import.meta.client) {
-    return { hostId: null, projectId: null, threadId: null };
-  }
-  try {
-    const parsed = JSON.parse(localStorage.getItem(LAST_OPEN_THREAD_STORAGE_KEY) || "null");
-    return {
-      hostId: positiveNumber(parsed?.hostId),
-      projectId: positiveNumber(parsed?.projectId),
-      threadId: nonEmptyString(parsed?.threadId),
-    };
-  } catch {
-    return { hostId: null, projectId: null, threadId: null };
-  }
-}
-
-export function writeGatewayLastOpenThreadSelection(selection: GatewayRouteSelection) {
-  if (!import.meta.client) {
-    return;
-  }
-  localStorage.setItem(
-    LAST_OPEN_THREAD_STORAGE_KEY,
-    JSON.stringify({
-      hostId: selection.hostId,
-      projectId: selection.projectId,
-      threadId: selection.threadId,
-    }),
-  );
-}
-
 function setRouteParam(url: URL, key: string, value: string | number | null | undefined) {
   if (value == null || value === "") {
     url.searchParams.delete(key);
     return;
   }
   url.searchParams.set(key, String(value));
-}
-
-function positiveNumber(value: unknown) {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
-}
-
-function nonEmptyString(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
 }

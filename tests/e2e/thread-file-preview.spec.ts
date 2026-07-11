@@ -16,6 +16,10 @@ test("the unified file workspace browses, restores, and refreshes real remote fi
   const nestedPythonPath = `${projectPath}/deep/prefix/model_${Date.now()}.py`;
   const unknownTextPath = `${projectPath}/codex-gateway-preview-${Date.now()}.customformat`;
   const binaryPath = `${projectPath}/codex-gateway-preview-${Date.now()}.bin`;
+  const longFilePath = `${projectPath}/${"very-long-file-name-".repeat(8)}preview.log`;
+  const wideTable = `| metric | sample-a | sample-b | sample-c |
+| --- | --- | --- | --- |
+| very-long-column | ${"unbroken-value-".repeat(12)}a | ${"unbroken-value-".repeat(12)}b | ${"unbroken-value-".repeat(12)}c |`;
   await execRemoteSsh(
     remote,
     `
@@ -40,6 +44,7 @@ feature_enabled=true
 unknown extensions still render as text
 EOF
 printf '\\000\\001\\002codex-gateway-binary' > ${shellQuote(binaryPath)}
+printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath)}
 `,
   );
 
@@ -79,7 +84,7 @@ printf '\\000\\001\\002codex-gateway-binary' > ${shellQuote(binaryPath)}
               id: "file-preview-md-message",
               type: "agentMessage",
               phase: "final_answer",
-              text: `Open [markdown target](${origin}${markdownPath}), [nested python](${origin}${nestedPythonPath}:2), [unknown text](${origin}${unknownTextPath}), and [binary target](${origin}${binaryPath}).`,
+              text: `Open [markdown target](${origin}${markdownPath}), [nested python](${origin}${nestedPythonPath}:2), [unknown text](${origin}${unknownTextPath}), and [binary target](${origin}${binaryPath}).\n\n${wideTable}`,
             },
           ],
         },
@@ -125,6 +130,43 @@ printf '\\000\\001\\002codex-gateway-binary' > ${shellQuote(binaryPath)}
       .first()
       .getByTitle(projectPath, { exact: true }),
   ).toBeVisible();
+  const tree = page.getByTestId("remote-file-tree");
+  const longFileLabel = tree.getByTitle(longFilePath, { exact: true });
+  await expect(longFileLabel).toBeVisible();
+  await expect(longFileLabel).toHaveCSS("text-overflow", "ellipsis");
+  const [treeBox, longFileLabelBox] = await Promise.all([
+    tree.boundingBox(),
+    longFileLabel.boundingBox(),
+  ]);
+  expect(longFileLabelBox!.x + longFileLabelBox!.width).toBeLessThanOrEqual(
+    treeBox!.x + treeBox!.width,
+  );
+
+  await longFileLabel.click();
+  await expect(fileTab(page, longFilePath)).toBeVisible();
+  await longFileLabel.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "复制绝对路径" }).click();
+  await expect(page.getByText("已复制绝对路径")).toBeVisible();
+
+  await longFileLabel.click({ button: "right" });
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "下载文件" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe(longFilePath.split("/").pop());
+
+  await longFileLabel.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "删除文件" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText(longFilePath);
+  const deleteResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/remote/files?") && response.request().method() === "DELETE",
+  );
+  await page.getByRole("button", { name: "永久删除" }).click();
+  const deleteResponse = await deleteResponsePromise;
+  expect(deleteResponse.ok(), await deleteResponse.text()).toBe(true);
+  await expect(longFileLabel).toBeHidden();
+  await expect(fileTab(page, longFilePath)).toBeHidden();
+
   await expect(fileTab(page, remotePath)).toBeVisible();
   await expect(panel.getByText("codex-gateway-file-preview")).toBeVisible();
   await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
@@ -147,6 +189,16 @@ printf '\\000\\001\\002codex-gateway-binary' > ${shellQuote(binaryPath)}
   });
 
   await agentWorkspaceTab(page).click();
+  const renderedTable = page.locator(".markdown-content table").filter({
+    hasText: "very-long-column",
+  });
+  await expect(renderedTable).toBeVisible();
+  await expect(renderedTable).toHaveCSS("overflow-x", "auto");
+  const [markdownBox, tableBox] = await Promise.all([
+    renderedTable.locator("xpath=..").boundingBox(),
+    renderedTable.boundingBox(),
+  ]);
+  expect(tableBox!.x + tableBox!.width).toBeLessThanOrEqual(markdownBox!.x + markdownBox!.width);
   await page.getByRole("link", { name: "markdown target" }).click();
   await expect(fileTab(page, markdownPath)).toBeVisible();
   await expect(panel.locator(".markdown-content h1")).toHaveText("Rendered Markdown Preview");

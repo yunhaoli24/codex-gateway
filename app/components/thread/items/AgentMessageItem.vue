@@ -29,7 +29,7 @@ async function copyText() {
 </script>
 
 <template>
-  <div class="group max-w-4xl text-[0.9375rem] leading-8 text-ink">
+  <div class="group min-w-0 max-w-full text-[0.9375rem] leading-8 text-ink lg:max-w-4xl">
     <MarkdownContent :content="text" />
     <div
       v-if="text"

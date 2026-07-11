@@ -19,6 +19,21 @@ export function listRemoteDirectory(hostId: number, path: string) {
   });
 }
 
+export function deleteRemoteFile(hostId: number, path: string) {
+  return gatewayApi<{ deleted: true }>("/api/remote/files", {
+    method: "DELETE",
+    query: { hostId, path },
+  });
+}
+
+export async function downloadRemoteFile(hostId: number, path: string) {
+  const response = await fetchRemoteFile(hostId, path, null);
+  if (!response.changed) {
+    throw new Error("Remote file download returned no content");
+  }
+  return response.blob;
+}
+
 export async function fetchRemoteFile(
   hostId: number,
   path: string,

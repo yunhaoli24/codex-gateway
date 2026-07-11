@@ -156,7 +156,9 @@ test("opening a thread stores browser-local last open selection", async ({ page 
 
   await expect
     .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem("codex-gateway-last-open-thread")!)),
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem("codex-gateway-navigation")!).lastOpenThread,
+      ),
     )
     .toEqual({ hostId: 1, projectId: 1, threadId });
 });
