@@ -37,9 +37,12 @@ function isSelectedPinnedThread(thread: any) {
 </script>
 
 <template>
-  <section v-if="threads.length" class="flex flex-col">
-    <div class="px-2 pb-2 text-sm text-ink-muted">{{ $t("app.pinned") }}</div>
-    <div class="space-y-1">
+  <section class="flex flex-col">
+    <div class="flex h-8 items-center justify-between gap-2 px-2 pb-2 text-sm text-ink-muted">
+      <span>{{ $t("app.pinned") }}</span>
+      <slot name="header-action" />
+    </div>
+    <div v-if="threads.length" class="space-y-1">
       <ThreadRow
         v-for="thread in threads"
         :key="pinnedThreadKey(thread)"
