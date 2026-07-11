@@ -5,6 +5,7 @@ export function createGatewayState(): GatewayStoreState {
   return {
     hosts: [],
     projects: [],
+    projectDirectoryAvailability: {},
     threads: [],
     models: [],
     modelsHostId: null,

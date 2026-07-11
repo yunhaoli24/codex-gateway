@@ -5,6 +5,7 @@ export type {
   HostUpdateInput,
   ProjectCreateInput,
   ProjectRecord,
+  ProjectDirectoryAvailability,
   ProjectUpdateInput,
   RpcEnvelope,
   GatewayEvent,

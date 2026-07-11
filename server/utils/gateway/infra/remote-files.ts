@@ -3,6 +3,7 @@ import { posix } from "node:path";
 import { remoteLoginShellCommand } from "./remote-command";
 import { shellQuote } from "./shell";
 import type { SshConnectionPool } from "./ssh-connection";
+import type { ProjectDirectoryAvailability } from "~~/shared/types";
 import type { HostWithSecret, RemoteFileMetadata, RemoteFileResult } from "./ssh-types";
 
 export class RemoteDirectoryNotFoundError extends Error {
@@ -57,6 +58,24 @@ export class RemoteFileService {
     await new Promise<void>((resolve, reject) => {
       sftp.unlink(path, (error) => (error ? reject(error) : resolve()));
     });
+  }
+
+  async inspectProjectDirectories(host: HostWithSecret, paths: string[]) {
+    const absolutePaths = [
+      ...new Set(paths.map((path) => path.trim()).filter((path) => path.startsWith("/"))),
+    ];
+    if (!absolutePaths.length) {
+      return new Map<string, ProjectDirectoryAvailability>();
+    }
+    const sftp = await this.ssh.sftp(host);
+    const entries = await Promise.all(
+      absolutePaths.map(async (path) => [path, await inspectDirectory(sftp, path)] as const),
+    );
+    return new Map(
+      entries.filter((entry): entry is readonly [string, ProjectDirectoryAvailability] =>
+        Boolean(entry[1]),
+      ),
+    );
   }
 
   async statRemoteFile(
@@ -169,6 +188,26 @@ pwd -P
     }
     return result.stdout.trim();
   }
+}
+
+async function inspectDirectory(
+  sftp: Awaited<ReturnType<SshConnectionPool["sftp"]>>,
+  path: string,
+) {
+  return new Promise<ProjectDirectoryAvailability | null>((resolve) => {
+    sftp.stat(path, (error, stats) => {
+      if (error) {
+        resolve(isMissingSftpPath(error) ? "missing" : null);
+        return;
+      }
+      resolve(stats.isDirectory() ? "available" : "missing");
+    });
+  });
+}
+
+function isMissingSftpPath(error: unknown) {
+  const code = (error as { code?: unknown })?.code;
+  return code === 2 || code === "ENOENT";
 }
 
 function directoryResult(path: string, source: FileEntryWithStats[]) {

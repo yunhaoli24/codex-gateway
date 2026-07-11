@@ -209,7 +209,8 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
 
   await page.getByTestId(`host-button-${host.id}`).click();
   await expect(page.getByTestId(`project-button-${project.id}`)).toBeVisible();
-  const updatedProjectPath = `${remote.projectPath}/nested-workdir-${Date.now()}`;
+  const updatedProjectPath = `/home/${remote.username}/nested-workdir-${Date.now()}`;
+  await execRemoteSsh(remote, `mkdir -p '${updatedProjectPath}'`);
   const editProjectResponsePromise = page.waitForResponse(
     (response) =>
       response.url().endsWith(`/api/projects/${project.id}`) &&
@@ -234,6 +235,64 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   const deleteProjectResponse = await deleteProjectResponsePromise;
   expect(deleteProjectResponse.ok(), await deleteProjectResponse.text()).toBe(true);
   await expect(page.getByTestId(`project-button-${project.id}`)).toBeHidden();
+});
+
+test("groups projects whose remote directories were deleted", async ({ page }) => {
+  const remote = await readRemoteEnv();
+  await openApp(page);
+
+  const host = await addRemoteHost(page, remote, `missing-project-host-${Date.now()}`);
+  const suffix = Date.now();
+  const availablePath = `/home/${remote.username}/available-project-${suffix}`;
+  const missingPath = `/home/${remote.username}/missing-project-${suffix}`;
+  const recoveredPath = `/home/${remote.username}/recovered-project-${suffix}`;
+  await execRemoteSsh(
+    remote,
+    `mkdir -p '${availablePath}' '${recoveredPath}'; rm -rf '${missingPath}'`,
+  );
+
+  const availableProject = await authenticatedFetch<any>(page, {
+    url: "/api/projects",
+    method: "POST",
+    body: { hostId: host.id, name: "Available Project", remotePath: availablePath },
+  });
+  const missingProject = await authenticatedFetch<any>(page, {
+    url: "/api/projects",
+    method: "POST",
+    body: { hostId: host.id, name: "Missing Project", remotePath: missingPath },
+  });
+
+  await reloadApp(page);
+  const missingToggle = page.getByTestId(`missing-projects-toggle-${host.id}`);
+  await expect(missingToggle).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId(`project-button-${availableProject.id}`)).toBeVisible();
+  await expect(page.getByTestId(`project-button-${missingProject.id}`)).toBeHidden();
+
+  await missingToggle.click();
+  const missingProjectButton = page.getByTestId(`project-button-${missingProject.id}`);
+  await expect(missingProjectButton).toBeVisible();
+  await expect(missingProjectButton).toHaveAttribute("data-project-missing", "true");
+  await missingProjectButton.click({ button: "right" });
+  const menu = page
+    .getByRole("menu")
+    .filter({ has: page.getByRole("menuitem", { name: /编辑项目/ }) });
+  await expect(menu.getByRole("menuitem", { name: /编辑项目/ })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: /删除项目/ })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: /新建/ })).toBeHidden();
+  await menu.getByRole("menuitem", { name: /编辑项目/ }).click();
+
+  const updateResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/projects/${missingProject.id}`) &&
+      response.request().method() === "PATCH",
+  );
+  await page.getByTestId("project-path-input").fill(recoveredPath);
+  await page.getByTestId("add-project-button").click();
+  expect((await updateResponse).ok()).toBe(true);
+
+  await expect(missingToggle).toBeHidden({ timeout: 30_000 });
+  await expect(missingProjectButton).toBeVisible();
+  await expect(missingProjectButton).toHaveAttribute("data-project-missing", "false");
 });
 
 async function verifyRemoteDirectoryBrowser(

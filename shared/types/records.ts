@@ -25,6 +25,8 @@ export interface ProjectRecord {
   updatedAt: string;
 }
 
+export type ProjectDirectoryAvailability = "available" | "missing";
+
 export interface HostCreateInput {
   name: string;
   sshHost: string;

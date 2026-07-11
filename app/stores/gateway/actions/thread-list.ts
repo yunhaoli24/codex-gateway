@@ -4,6 +4,17 @@ import { messageFromError, pinnedKey, sortThreads } from "../thread-utils/identi
 import { runtimeStatusFromAppThreadStatus } from "../thread-utils/status";
 
 export function createThreadListActions(ctx: GatewayStoreContext) {
+  async function loadHostOverview(hostId: number) {
+    const response = await gatewayApi<ThreadListResponse>("/api/threads", {
+      query: { hostId, limit: 50 },
+    });
+    if (response.projects) {
+      ctx.mergeProjects(response.projects);
+    }
+    applyProjectDirectoryAvailability(ctx, response);
+    syncThreadStatusesFromList(ctx, hostId, response.data ?? []);
+  }
+
   return {
     async connectAllHosts() {
       const hosts = [...ctx.state.hosts];
@@ -18,16 +29,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
             [host.id]: { status: "connecting", updatedAt: Date.now() },
           };
           try {
-            const response = await gatewayApi<ThreadListResponse>("/api/threads", {
-              query: {
-                hostId: host.id,
-                limit: 50,
-              },
-            });
-            if (response.projects) {
-              ctx.mergeProjects(response.projects);
-            }
-            syncThreadStatusesFromList(ctx, host.id, response.data ?? []);
+            await loadHostOverview(host.id);
             ctx.state.hostConnectionStatuses = {
               ...ctx.state.hostConnectionStatuses,
               [host.id]: { status: "connected", updatedAt: Date.now() },
@@ -45,6 +47,10 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
         }),
       );
       ctx.persistConfig();
+    },
+
+    async refreshHostProjects(hostId: number) {
+      await loadHostOverview(hostId);
     },
 
     async listThreads(searchTerm = "") {
@@ -78,6 +84,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
         if (response.projects) {
           ctx.mergeProjects(response.projects);
         }
+        applyProjectDirectoryAvailability(ctx, response);
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
           [hostId]: { status: "connected", updatedAt: Date.now() },
@@ -122,6 +129,16 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
           : false,
       }));
     },
+  };
+}
+
+function applyProjectDirectoryAvailability(ctx: GatewayStoreContext, response: ThreadListResponse) {
+  if (!response.projectDirectoryAvailability) {
+    return;
+  }
+  ctx.state.projectDirectoryAvailability = {
+    ...ctx.state.projectDirectoryAvailability,
+    ...response.projectDirectoryAvailability,
   };
 }
 

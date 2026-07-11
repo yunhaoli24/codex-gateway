@@ -45,7 +45,17 @@ export function createHostActions(ctx: GatewayStoreContext) {
       await gatewayApi(`/api/hosts/${hostId}`, { method: "DELETE" });
       useGatewayRealtimeStore().closeHostThreadEvents(hostId);
       ctx.state.hosts = ctx.state.hosts.filter((host) => host.id !== hostId);
+      const removedProjectIds = new Set(
+        ctx.state.projects
+          .filter((project) => project.hostId === hostId)
+          .map((project) => project.id),
+      );
       ctx.state.projects = ctx.state.projects.filter((project) => project.hostId !== hostId);
+      ctx.state.projectDirectoryAvailability = Object.fromEntries(
+        Object.entries(ctx.state.projectDirectoryAvailability).filter(
+          ([projectId]) => !removedProjectIds.has(Number(projectId)),
+        ),
+      );
       ctx.state.gatewayConfig.projects = ctx.state.gatewayConfig.projects.filter(
         (project) => project.hostId !== hostId,
       );
