@@ -5,6 +5,7 @@ import { notificationRealtimeEvents } from "../../notifications/notification-rea
 import { sessionRevocationEvents } from "../../auth/session-events";
 import { hashToken } from "../../storage/crypto";
 import { subscribeTerminalEvents } from "./terminal";
+import { subscribeBrowserPreviewEvents } from "./browser-preview";
 import { sendRealtimePeerMessage, stateFor, type RealtimePeer } from "../peer-state";
 
 export function authenticatePeer(
@@ -23,10 +24,12 @@ export function authenticatePeer(
   if (current.authTimer) {
     clearTimeout(current.authTimer);
   }
+  const connectionId = randomUUID();
   peer.context.realtime = {
     authenticated: true,
     userId: user.id,
     threadUnsubscribers: new Map(),
+    browserOwnerId: connectionId,
     sessionRevocationUnsubscribe: sessionRevocationEvents.subscribe(hashToken(token), () => {
       peer.close(1008, "Session revoked");
     }),
@@ -34,6 +37,7 @@ export function authenticatePeer(
       sendRealtimePeerMessage(peer, { type: "notification.published", notification });
     }),
   };
-  sendRealtimePeerMessage(peer, { type: "ready", connectionId: randomUUID() });
+  sendRealtimePeerMessage(peer, { type: "ready", connectionId });
   subscribeTerminalEvents(peer);
+  subscribeBrowserPreviewEvents(peer);
 }

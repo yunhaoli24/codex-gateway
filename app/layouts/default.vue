@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ChatWorkspace from "@/components/chat/ChatWorkspace.vue";
 import GatewaySidebar from "@/components/sidebar/GatewaySidebar.vue";
-import { Sidebar, SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Sidebar, SidebarInset, SidebarProvider, SidebarRail } from "@/components/ui/sidebar";
 </script>
 
 <template>
@@ -9,6 +9,11 @@ import { Sidebar, SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
     <SidebarProvider class="h-full min-h-0">
       <Sidebar collapsible="offcanvas">
         <GatewaySidebar />
+        <SidebarRail
+          data-testid="desktop-sidebar-expand"
+          :title="$t('app.openSidebar')"
+          :aria-label="$t('app.openSidebar')"
+        />
       </Sidebar>
       <SidebarInset class="h-full min-h-0 min-w-0 overflow-hidden">
         <ChatWorkspace />

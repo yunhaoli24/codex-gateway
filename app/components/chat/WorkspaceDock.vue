@@ -2,10 +2,11 @@
 import type { GetTabContextMenuItemsParams } from "dockview-vue";
 import { DockviewVue, themeDark, themeLight } from "dockview-vue";
 import { computed, provide, toRefs } from "vue";
+import BrowserOpenDialog from "@/components/browser/BrowserOpenDialog.vue";
 import { useTerminalTheme } from "@/composables/useTerminalTheme";
+import { useWorkspaceLaunchActions } from "@/composables/useWorkspaceLaunchActions";
 import { fileWorkspaceScopeKey } from "@/stores/gateway-file-workspace";
 import { workspaceLayoutScopeKey } from "@/stores/gateway-workspace-layout";
-import DesktopWorkspaceHeader from "./DesktopWorkspaceHeader.vue";
 import MobileWorkspaceHeader from "./MobileWorkspaceHeader.vue";
 import { createDockTabMenu } from "./workspace-dock-actions";
 import {
@@ -24,7 +25,7 @@ const emit = defineEmits<{ loadOlder: []; openTerminal: [] }>();
 const refs = toRefs(props);
 const { t } = useI18n();
 const { isDark } = useTerminalTheme();
-const { terminalPanels, subAgentPanels, fileWorkspaceRoot } = useWorkspacePanels({
+const { terminalPanels, subAgentPanels, browserPanels, fileWorkspaceRoot } = useWorkspacePanels({
   selectedHostId: refs.selectedHostId,
   selectedProjectId: refs.selectedProjectId,
   selectedThreadId: refs.selectedThreadId,
@@ -34,6 +35,7 @@ const panels = useWorkspaceDockPanels({
   selectedThreadId: refs.selectedThreadId,
   terminalPanels,
   subAgentPanels,
+  browserPanels,
 });
 const scopeKey = computed(() =>
   workspaceLayoutScopeKey(props.selectedHostId, props.selectedProjectId, props.selectedThreadId),
@@ -46,7 +48,10 @@ const fileRequestScopeKey = computed(() =>
 const panelIds = computed(() => [
   terminalPanels.value.map(({ id }) => id),
   subAgentPanels.value.map(({ id }) => id),
+  browserPanels.value.map(({ id }) => id),
 ]);
+const browserDialogOpen = ref(false);
+const workspaceActions = useWorkspaceLaunchActions();
 const lifecycle = useWorkspaceDockLifecycle({
   scopeKey,
   fileRequestScopeKey,
@@ -103,16 +108,11 @@ function tabContextMenu({ panel, api }: GetTabContextMenuItemsParams) {
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-    <DesktopWorkspaceHeader
-      v-if="layout === 'desktop'"
-      :thread-title="threadTitle"
-      :can-open-terminal="canOpenTerminal"
-      @open-terminal="emit('openTerminal')"
-    />
     <MobileWorkspaceHeader
-      v-else
+      v-if="layout === 'mobile'"
       :can-open-terminal="canOpenTerminal"
       @open-terminal="emit('openTerminal')"
+      @open-browser="browserDialogOpen = true"
     >
       <template #start><slot name="mobile-header-start" /></template>
     </MobileWorkspaceHeader>
@@ -128,6 +128,11 @@ function tabContextMenu({ panel, api }: GetTabContextMenuItemsParams) {
       :keyboard-navigation="true"
       :get-tab-context-menu-items="layout === 'desktop' ? tabContextMenu : undefined"
       @ready="lifecycle.ready"
+    />
+    <BrowserOpenDialog
+      v-if="layout === 'mobile'"
+      v-model:open="browserDialogOpen"
+      :open-target="workspaceActions.openBrowser"
     />
   </div>
 </template>

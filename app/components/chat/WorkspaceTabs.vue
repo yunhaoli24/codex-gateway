@@ -6,7 +6,6 @@ import WorkspaceDock from "./WorkspaceDock.vue";
 
 const props = defineProps<{
   layout: "desktop" | "mobile";
-  threadTitle: string;
   initializing: boolean;
   openingThread: boolean;
   selectedThreadId: string | null;

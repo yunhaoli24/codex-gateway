@@ -10,23 +10,29 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import SettingsPanel from "@/components/settings/SettingsPanel.vue";
+import BrowserOpenDialog from "@/components/browser/BrowserOpenDialog.vue";
 import { useLongPressContextMenu } from "@/composables/useLongPressContextMenu";
+import { useWorkspaceLaunchActions } from "@/composables/useWorkspaceLaunchActions";
 import { useGatewayStore } from "@/stores/gateway";
 import AddProjectDialog from "./AddProjectDialog.vue";
 import HostTree from "./HostTree.vue";
 import PinnedThreadList from "./PinnedThreadList.vue";
 import SidebarScrollArea from "./SidebarScrollArea.vue";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarFooter } from "@/components/ui/sidebar";
 import { useSidebarTree } from "./useSidebarTree";
 import { useThreadRename } from "./useThreadRename";
+import SidebarWorkspaceToolbar from "./SidebarWorkspaceToolbar.vue";
 
 const store = useGatewayStore();
+withDefaults(defineProps<{ workspaceToolbar?: boolean }>(), { workspaceToolbar: true });
 const { t } = useI18n();
 const showSettings = ref(false);
+const showBrowserDialog = ref(false);
 const projectEditor = ref<{ host: any; project: any | null } | null>(null);
 const { longPressTriggered, longPressContextMenuHandlers } = useLongPressContextMenu();
 const sidebarTree = useSidebarTree(store, longPressTriggered);
 const threadRename = useThreadRename(store);
+const workspaceActions = useWorkspaceLaunchActions();
 
 defineOptions({
   inheritAttrs: false,
@@ -48,8 +54,15 @@ function openEditProject(project: any) {
 <template>
   <aside
     v-bind="$attrs"
-    class="relative flex min-h-0 flex-col border-r border-hairline bg-canvas-soft"
+    class="relative flex h-full min-h-0 flex-col border-r border-hairline bg-canvas-soft"
   >
+    <SidebarWorkspaceToolbar
+      v-if="workspaceToolbar"
+      :title="workspaceActions.selectedHostTitle.value"
+      :can-launch="workspaceActions.canLaunch.value"
+      @open-terminal="workspaceActions.openTerminal"
+      @open-browser="showBrowserDialog = true"
+    />
     <div class="flex min-h-0 flex-1 overflow-hidden px-3 py-3">
       <SidebarScrollArea>
         <div class="space-y-4 pr-1">
@@ -69,16 +82,7 @@ function openEditProject(project: any) {
             @submit-rename="threadRename.submitRename"
             @rename-keydown="threadRename.handleRenameKeydown"
             @update:rename-value="threadRename.renameValue.value = $event"
-          >
-            <template #header-action>
-              <SidebarTrigger
-                data-testid="desktop-sidebar-collapse"
-                class="-mr-1 size-7"
-                :title="$t('app.hideSidebar')"
-                :aria-label="$t('app.hideSidebar')"
-              />
-            </template>
-          </PinnedThreadList>
+          />
 
           <HostTree
             :hosts="sidebarTree.hosts.value"
@@ -116,7 +120,7 @@ function openEditProject(project: any) {
       </SidebarScrollArea>
     </div>
 
-    <div class="shrink-0 border-t border-hairline p-3">
+    <SidebarFooter class="shrink-0 border-t border-hairline p-3">
       <Button
         data-testid="settings-toggle"
         variant="ghost"
@@ -126,7 +130,13 @@ function openEditProject(project: any) {
         <SettingsIcon class="size-4" />
         {{ t("app.settings") }}
       </Button>
-    </div>
+    </SidebarFooter>
+
+    <BrowserOpenDialog
+      v-if="workspaceToolbar"
+      v-model:open="showBrowserDialog"
+      :open-target="workspaceActions.openBrowser"
+    />
 
     <Dialog v-model:open="showSettings">
       <DialogContent

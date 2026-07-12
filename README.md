@@ -30,6 +30,7 @@ The goal is simple: open Codex sessions from many servers in a browser while kee
 - Share one gateway-side SSH/RPC lifecycle per host across browser tabs.
 - Recover thread state after browser reloads, app-server restarts, or temporary SSH disconnects.
 - Open a direct SSH terminal next to the agent loop when you need to inspect or fix the remote environment manually.
+- Preview remote web applications in an isolated Browser panel without publishing their ports.
 
 ## Architecture
 
@@ -41,6 +42,7 @@ Browser
         ├─ SSH connection pool
         ├─ one shared RPC client per host
         ├─ direct SSH PTY terminal sessions
+        ├─ HTTP/WebSocket preview proxy over SSH
         ├─ thread/event cache
         └─ remote official codex app-server
 ```
@@ -62,8 +64,10 @@ Core rules:
 - **Realtime turns**: start new turns, steer running turns, interrupt active turns, and answer app-server dynamic requests over WebSocket.
 - **Plan and goal modes**: slash commands expose Codex plan mode and goal progress, including token/time status in the composer.
 - **Agent loop UI**: reasoning, command execution, terminal waits, file edits, streaming diffs, images, context compaction, sleep, MCP/tool calls, notifications, and sub-agent side panels.
-- **Workspace tabs and file previews**: keep the agent loop, SSH terminals, sub-agents, and remote Markdown, code, PDF, and Office previews in one workspace.
+- **Dockable IDE workspace**: split, resize, float, or pop out Agent, Files, Terminal, Browser, and Sub-agent panels with per-thread layouts persisted locally.
+- **Remote file workspace**: browse the current project's file tree and preview Markdown, code, images, PDF, and Office files without downloading them first.
 - **Remote terminal tabs**: open independent SSH PTY terminals beside the agent loop with `@xterm/xterm`; terminal sessions are isolated per user and host.
+- **Remote browser tabs**: preview a Host's `localhost` HTTP/HTTPS application in Dockview through SSH, including WebSocket traffic, without exposing an additional Gateway port.
 - **Multi-client sync**: multiple browser tabs can subscribe to the same thread and receive the same gateway-side app-server event stream.
 - **State repair**: after SSH/app-server reconnect, Gateway refreshes running thread state; a Nitro scheduled task also checks stale running threads.
 - **Bark notifications**: server-side Bark push for completed main turns, de-duplicated per user and turn.
@@ -130,6 +134,10 @@ Environment variables:
 | `CODEX_GATEWAY_DB_PATH` | No | SQLite database path. Defaults to the app data path; Docker uses `/data/codex-gateway.db`. |
 | `HOST` | No | Nuxt listen host. Docker uses `0.0.0.0`. |
 | `PORT` | No | Nuxt listen port. Docker uses `3000`. |
+| `BROWSER_PREVIEW_DOMAIN` | Browser preview | Parent domain for isolated preview origins; configure wildcard DNS for `p-*.your-domain`. |
+| `BROWSER_PREVIEW_SECRET` | No | HMAC secret for stable per-user/Host/target preview origins. Defaults to `CODEX_GATEWAY_CONFIG_SECRET`. |
+| `BROWSER_PREVIEW_SCHEME` | No | Public preview scheme, `https` by default. Use `http` only for local E2E/development. |
+| `BROWSER_PREVIEW_PUBLIC_PORT` | No | Optional public port included in preview origins for local development. |
 
 Create an admin user:
 
@@ -146,7 +154,7 @@ pnpm user:create <username> <password>
 - SSH credentials and Codex tokens stay on the server side.
 - Browser clients authenticate to Gateway with a Bearer token.
 - Stored connection config is encrypted in SQLite with `CODEX_GATEWAY_CONFIG_SECRET`.
-- Direct terminal tabs are server-side SSH PTY channels; they do not expose SSH keys to the browser.
+- Direct terminal tabs and remote Browser proxy connections are server-side SSH channels; they do not expose SSH keys or remote ports to the browser.
 - Public deployments should run behind a trusted reverse proxy with HTTPS.
 
 ## Docker Deployment
@@ -157,6 +165,8 @@ docker compose up -d --build
 ```
 
 The compose service exposes container port `3000` only to Docker networks. Put it behind nginx, Caddy, Cloudflare Tunnel, or another trusted reverse proxy. SQLite data is stored at `/data/codex-gateway.db` and persisted through `./data:/data`.
+
+Remote Browser panels use isolated origins such as `p-<hmac>.example.com`. Configure wildcard DNS for `p-*.example.com` and route those hosts to the same Codex Gateway Nitro port (`3000`). The reverse proxy must preserve the Host header and WebSocket upgrades. No second listener or published container port is required. Upstream `Content-Security-Policy` and `X-Frame-Options` are preserved, so applications that prohibit embedding remain blocked by the browser.
 
 ## Testing
 

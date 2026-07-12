@@ -23,6 +23,11 @@ import {
   steerTurn,
 } from "./handlers/turns";
 import { RealtimeMessageDispatcher } from "./message-dispatcher";
+import {
+  allowInsecureBrowserPreviewTls,
+  closeBrowserPreview,
+  openBrowserPreview,
+} from "./handlers/browser-preview";
 
 export const realtimeMessageDispatcher = new RealtimeMessageDispatcher({
   "auth.authenticate": { auth: "public", handler: authenticatePeer },
@@ -45,5 +50,8 @@ export const realtimeMessageDispatcher = new RealtimeMessageDispatcher({
   "terminal.input": writeTerminalInput,
   "terminal.resize": resizeTerminal,
   "terminal.close": closeTerminal,
+  "browser.open": openBrowserPreview,
+  "browser.close": closeBrowserPreview,
+  "browser.allowInsecureTls": allowInsecureBrowserPreviewTls,
   ping,
 });

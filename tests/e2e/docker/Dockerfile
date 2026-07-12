@@ -10,7 +10,7 @@ RUN apt-get update \
 
 ENV E2E_NODE_DIR=/home/codex/.nvm/versions/node/v22.0.0
 
-RUN npm install -g --prefix /tmp/codex-node @openai/codex@${CODEX_CLI_VERSION}
+RUN npm install -g --prefix /tmp/codex-node @openai/codex@${CODEX_CLI_VERSION} ws@8.21.0
 
 RUN groupadd --gid ${E2E_GID} codex \
   && useradd --uid ${E2E_UID} --gid ${E2E_GID} --create-home --shell /bin/bash codex \
@@ -24,6 +24,7 @@ RUN groupadd --gid ${E2E_GID} codex \
   && rm -rf /tmp/codex-node
 
 COPY entrypoint.sh /usr/local/bin/codex-e2e-entrypoint
+COPY preview-server.mjs /usr/local/lib/codex-preview-server.mjs
 RUN chmod +x /usr/local/bin/codex-e2e-entrypoint
 
 EXPOSE 22

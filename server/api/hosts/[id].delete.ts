@@ -11,6 +11,7 @@ import { subAgentThreadStore } from "../../utils/gateway/state/sub-agent-threads
 import { threadMetadataStore } from "../../utils/gateway/state/thread-metadata";
 import { threadSnapshotStore } from "../../utils/gateway/state/thread-snapshots";
 import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
+import { browserPreviewManager } from "../../utils/gateway/browser-preview/browser-preview-manager";
 
 export default defineGatewayConfigMutationHandler((event) => {
   const id = Number(getRouterParam(event, "id"));
@@ -23,6 +24,7 @@ export default defineGatewayConfigMutationHandler((event) => {
   gatewayEventStore.deleteForHost(id);
   threadBroker.closeHost(id);
   terminalManager.closeHost(userId, id);
+  browserPreviewManager.closeHost(userId, id);
   sshConnections.syncHosts(hostStore.listWithSecret());
   hostRuntimeSupervisor.syncCurrentUserConfig();
   saveCurrentUserConfig(event);

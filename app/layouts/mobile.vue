@@ -55,7 +55,7 @@ watch([selectedHostId, selectedProjectId, selectedThreadId], () => {
               <SheetTitle>{{ $t("app.sidebar") }}</SheetTitle>
               <SheetDescription>{{ $t("app.sidebarDescription") }}</SheetDescription>
             </SheetHeader>
-            <GatewaySidebar class="h-full" />
+            <GatewaySidebar class="h-full" :workspace-toolbar="false" />
           </SheetContent>
         </Sheet>
         <div class="min-w-0 flex-1">

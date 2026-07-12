@@ -2,18 +2,18 @@ import type { ComputedRef, Ref } from "vue";
 import type { ThreadRuntimeStatus } from "~~/shared/types";
 import type { SubAgentPanelState } from "@/stores/gateway/types";
 
-export type WorkspacePanelKind = "agent" | "files" | "terminal" | "subagent";
+export type WorkspacePanelKind = "agent" | "files" | "terminal" | "subagent" | "browser";
 
 export interface WorkspaceDockPanelParams {
   kind: WorkspacePanelKind;
   sessionId?: string;
   subAgentHostId?: number;
   subAgentThreadId?: string;
+  browserPanelId?: string;
 }
 
 export interface WorkspaceDockProps {
   layout: "desktop" | "mobile";
-  threadTitle: string;
   initializing: boolean;
   openingThread: boolean;
   selectedThreadId: string | null;

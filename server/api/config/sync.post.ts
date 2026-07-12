@@ -9,6 +9,7 @@ import { hostStore } from "../../utils/gateway/state/hosts";
 import type { StoredHostRecord } from "../../utils/gateway/state/memory";
 import { runtimeConfigStore } from "../../utils/gateway/state/runtime-config";
 import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
+import { browserPreviewManager } from "../../utils/gateway/browser-preview/browser-preview-manager";
 
 export default defineGatewayConfigMutationHandler(async (event) => {
   const previousHosts = hostStore.listWithSecret();
@@ -20,6 +21,7 @@ export default defineGatewayConfigMutationHandler(async (event) => {
   for (const host of hostsToClose) {
     threadBroker.closeHost(host.id);
     terminalManager.closeHost(userId, Number(host.id));
+    browserPreviewManager.closeHost(userId, Number(host.id));
   }
   if (hostRuntimeChanged(previousHosts, nextHosts)) {
     sshConnections.syncHosts(nextHosts);

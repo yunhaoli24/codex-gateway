@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TerminalIcon } from "@lucide/vue";
+import { GlobeIcon, TerminalIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 
 defineProps<{
@@ -8,6 +8,7 @@ defineProps<{
 
 const emit = defineEmits<{
   openTerminal: [];
+  openBrowser: [];
 }>();
 </script>
 
@@ -19,6 +20,17 @@ const emit = defineEmits<{
       <slot name="start" />
     </div>
     <div class="relative z-10 ml-auto flex min-w-0 flex-1 items-center justify-end gap-2">
+      <Button
+        data-testid="open-browser-mobile-button"
+        variant="ghost"
+        size="sm"
+        class="h-8 shrink-0 rounded-md px-2 text-ink-muted hover:bg-canvas-soft hover:text-ink"
+        :disabled="!canOpenTerminal"
+        :aria-label="$t('app.openBrowser')"
+        @click="emit('openBrowser')"
+      >
+        <GlobeIcon class="size-4" />
+      </Button>
       <Button
         data-testid="open-terminal-mobile-button"
         variant="ghost"

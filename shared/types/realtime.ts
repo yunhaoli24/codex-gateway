@@ -8,6 +8,7 @@ import type {
 } from "./thread";
 import type { ApprovalPolicy, ReasoningEffort } from "./thread";
 import type { TerminalOpenTarget, TerminalSessionSnapshot } from "./terminal";
+import type { BrowserPreviewSessionSnapshot, BrowserPreviewTarget } from "./browser";
 
 export type RealtimeClientMessage =
   | {
@@ -147,6 +148,14 @@ export type RealtimeClientMessage =
       type: "terminal.close";
       requestId: string;
       sessionId: string;
+    }
+  | ({ type: "browser.open"; requestId: string } & BrowserPreviewTarget)
+  | { type: "browser.close"; requestId: string; sessionId: string }
+  | {
+      type: "browser.allowInsecureTls";
+      requestId: string;
+      sessionId: string;
+      allowInsecureTls: boolean;
     }
   | {
       type: "ping";
@@ -297,6 +306,15 @@ export type RealtimeServerMessage =
       sessionId?: string;
       message: string;
       requestId?: string;
+    }
+  | { type: "browser.opened"; requestId: string; session: BrowserPreviewSessionSnapshot }
+  | { type: "browser.closed"; requestId: string; sessionId: string }
+  | { type: "browser.error"; requestId?: string; sessionId?: string; message: string }
+  | {
+      type: "browser.framePolicyWarning";
+      sessionId: string;
+      policy: "x-frame-options" | "content-security-policy";
+      value: string;
     }
   | {
       type: "error";

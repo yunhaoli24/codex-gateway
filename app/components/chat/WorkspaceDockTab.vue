@@ -6,6 +6,7 @@ import {
   MonitorIcon,
   PanelRightOpenIcon,
   TerminalIcon,
+  GlobeIcon,
   XIcon,
 } from "@lucide/vue";
 import { computed, onBeforeUnmount, ref } from "vue";
@@ -25,6 +26,7 @@ const icon = computed(() => {
   if (kind.value === "agent") return MonitorIcon;
   if (kind.value === "files") return FilesIcon;
   if (kind.value === "terminal") return TerminalIcon;
+  if (kind.value === "browser") return GlobeIcon;
   return BotIcon;
 });
 
@@ -69,7 +71,7 @@ function toggleMaximize() {
       <PanelRightOpenIcon class="size-3.5" />
     </button>
     <button
-      v-if="kind === 'terminal' || kind === 'subagent'"
+      v-if="kind === 'terminal' || kind === 'subagent' || kind === 'browser'"
       type="button"
       class="ml-1 inline-flex size-5 items-center justify-center rounded text-ink-faint opacity-70 hover:bg-canvas-soft hover:text-ink"
       :aria-label="$t('app.closeTab')"
