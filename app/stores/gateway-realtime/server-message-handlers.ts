@@ -4,6 +4,7 @@ import type { GatewayEvent, RealtimeServerMessage } from "~~/shared/types";
 import { STALE_THREAD_CURSOR_ERROR_CODE } from "~~/shared/gateway-errors";
 import { useGatewayStore } from "@/stores/gateway";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
+import { useGatewayBrowserStore } from "@/stores/gateway-browser";
 import { realtimeRequestErrorFromServer, type RealtimeRequestError } from "./request-errors";
 
 export type RealtimeServerMessageMap = {
@@ -76,11 +77,40 @@ function createServerMessageHandlers(ctx: RealtimeServerMessageHandlerContext) {
     "terminal.output": (message) => handleTerminalOutput(message),
     "terminal.exited": (message) => handleTerminalExited(ctx, message),
     "terminal.error": (message) => handleTerminalError(ctx, message),
+    "browser.opened": (message) => handleBrowserOpened(ctx, message),
+    "browser.closed": (message) => handleBrowserClosed(ctx, message),
+    "browser.error": (message) => handleBrowserError(ctx, message),
+    "browser.framePolicyWarning": (message) =>
+      useGatewayBrowserStore().setFrameWarning(message.sessionId, message.value),
     error: (message) => handleRealtimeError(ctx, message),
     pong: (message) => ctx.acknowledgePong(message.nonce),
   } satisfies {
     [K in keyof RealtimeServerMessageMap]?: RealtimeMessageHandler<K>;
   };
+}
+
+function handleBrowserOpened(
+  ctx: RealtimeServerMessageHandlerContext,
+  message: RealtimeServerMessageMap["browser.opened"],
+) {
+  useGatewayBrowserStore().upsertSession(message.session);
+  ctx.resolveRequest(message);
+}
+
+function handleBrowserClosed(
+  ctx: RealtimeServerMessageHandlerContext,
+  message: RealtimeServerMessageMap["browser.closed"],
+) {
+  useGatewayBrowserStore().removeSession(message.sessionId);
+  ctx.resolveRequest(message);
+}
+
+function handleBrowserError(
+  ctx: RealtimeServerMessageHandlerContext,
+  message: RealtimeServerMessageMap["browser.error"],
+) {
+  if (message.requestId) ctx.rejectRequest(message.requestId, new Error(message.message));
+  useGatewayStore().setError(message.message);
 }
 
 function handlePublishedNotification(

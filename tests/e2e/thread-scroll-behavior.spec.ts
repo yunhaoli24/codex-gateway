@@ -600,8 +600,10 @@ async function installThreadTurnsLoadStub(page: Page, response: unknown, deferre
             resolve((window as any).__threadTurnsLoadResponse);
         });
       }
+      let requestSequence = 0;
       realtime.request = async (buildMessage: (requestId: string) => any, timeoutMs?: number) => {
-        const requestId = `e2e-thread-turns-${crypto.randomUUID()}`;
+        requestSequence += 1;
+        const requestId = `e2e-thread-turns-${requestSequence}`;
         const request = buildMessage(requestId);
         if (request?.type !== "thread.turns.load") {
           return original(buildMessage, timeoutMs);

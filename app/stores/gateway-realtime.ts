@@ -6,6 +6,8 @@ import { CLIENT_THREAD_CACHE_LIMIT } from "~~/shared/config";
 import { useAuthStore } from "@/stores/auth";
 import { useGatewayStore } from "@/stores/gateway";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
+import { useGatewayBrowserStore } from "@/stores/gateway-browser";
+import { createUuid } from "@/lib/uuid";
 import { pinnedKey } from "./gateway/thread-utils/identity";
 import { RealtimeRequestError } from "./gateway-realtime/request-errors";
 import {
@@ -203,7 +205,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
     timeoutMs = REALTIME_REQUEST_TIMEOUT_MS,
   ) {
     await waitForReady(REALTIME_READY_TIMEOUT_MS);
-    const requestId = `gateway-ws-${crypto.randomUUID()}`;
+    const requestId = `gateway-ws-${createUuid()}`;
     const requestMessage = buildMessage(requestId);
     return new Promise<T>((resolve, reject) => {
       const timer = window.setTimeout(() => {
@@ -257,7 +259,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
       return;
     }
 
-    const nonce = crypto.randomUUID();
+    const nonce = createUuid();
     clearHealthTimer();
     state.healthNonce = nonce;
     state.healthTimer = window.setTimeout(() => {
@@ -376,6 +378,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
     state.connected = true;
     state.reconnectAttempt = 0;
     state.readyCount += 1;
+    if (state.readyCount > 1) useGatewayBrowserStore().resetRuntime();
   }
 
   async function restoreTerminalSessions() {

@@ -3,6 +3,7 @@ import { connect as connectTcp } from "node:net";
 import { Client, type ClientChannel, type SFTPWrapper } from "ssh2";
 import type {
   CommandResult,
+  DirectTcpChannelOptions,
   HostWithSecret,
   ReverseTcpForwardOptions,
   ShellOptions,
@@ -112,6 +113,28 @@ export class SshConnectionPool {
           resolve(channel);
         },
       );
+    });
+  }
+
+  async openTcpChannel(
+    host: HostWithSecret,
+    target: DirectTcpChannelOptions,
+    retried = false,
+  ): Promise<ClientChannel> {
+    const client = await this.connect(host);
+    return new Promise((resolve, reject) => {
+      client.forwardOut("127.0.0.1", 0, target.host, target.port, (error, channel) => {
+        if (!error) {
+          resolve(channel);
+          return;
+        }
+        if (!retried && isConnectionLevelSshError(error)) {
+          this.disconnectHost(host);
+          void this.openTcpChannel(host, target, true).then(resolve, reject);
+          return;
+        }
+        reject(error);
+      });
     });
   }
 

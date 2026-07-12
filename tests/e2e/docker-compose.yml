@@ -42,6 +42,7 @@ services:
       E2E_CODEX_MODEL: ${E2E_CODEX_MODEL:-gpt-5.4-mini}
       E2E_BARK_SERVER_URL: http://bark-target:8080
       E2E_BARK_REQUEST_LOG: /bark-requests/requests.jsonl
+      PLAYWRIGHT_BASE_URL: http://codex.127.0.0.1.nip.io:3100
       HOME: /home/pwuser
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     volumes:

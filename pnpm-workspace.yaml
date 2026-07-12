@@ -8,4 +8,5 @@ allowBuilds:
   vue-demi: true
 
 overrides:
+  crossws: 0.4.7
   vite: 8.1.0

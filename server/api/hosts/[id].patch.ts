@@ -8,6 +8,7 @@ import { threadBroker } from "../../utils/gateway/runtime/broker";
 import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-supervisor";
 import { hostStore } from "../../utils/gateway/state/hosts";
 import { terminalManager } from "../../utils/gateway/terminal/terminal-manager";
+import { browserPreviewManager } from "../../utils/gateway/browser-preview/browser-preview-manager";
 
 export default defineGatewayConfigMutationHandler(async (event) => {
   const id = Number(getRouterParam(event, "id"));
@@ -16,6 +17,7 @@ export default defineGatewayConfigMutationHandler(async (event) => {
   const host = requireRecord(hostStore.update(id, input), "Host not found");
   threadBroker.closeHost(id);
   terminalManager.closeHost(userId, id);
+  browserPreviewManager.closeHost(userId, id);
   sshConnections.syncHosts(hostStore.listWithSecret());
   hostRuntimeSupervisor.syncCurrentUserConfig();
   saveCurrentUserConfig(event);

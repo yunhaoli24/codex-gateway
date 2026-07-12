@@ -3,6 +3,8 @@ import type { ComputedRef, Ref } from "vue";
 import { useGatewayTerminalTransport } from "@/composables/useGatewayTerminalTransport";
 import { useGatewayStore } from "@/stores/gateway";
 import { useGatewayWorkspaceLayoutStore } from "@/stores/gateway-workspace-layout";
+import { useGatewayBrowserStore } from "@/stores/gateway-browser";
+import { closeBrowserPreview } from "@/stores/gateway-browser-transport";
 import {
   AGENT_WORKSPACE_PANEL_ID,
   FILES_WORKSPACE_PANEL_ID,
@@ -22,11 +24,13 @@ export function useWorkspaceDockPanels(options: {
   subAgentPanels: ComputedRef<
     Array<{ id: string; hostId: number; threadId: string; title: string }>
   >;
+  browserPanels: ComputedRef<Array<{ id: string; panel: { panelId: string; title: string } }>>;
 }) {
   const { t } = useI18n();
   const gateway = useGatewayStore();
   const workspaceLayout = useGatewayWorkspaceLayoutStore();
   const terminalTransport = useGatewayTerminalTransport();
+  const browserStore = useGatewayBrowserStore();
 
   function definitions(): PanelDefinition[] {
     const panels: PanelDefinition[] = [
@@ -58,6 +62,12 @@ export function useWorkspaceDockPanels(options: {
         component: "WorkspaceDockSubAgentPanel",
         params: { kind: "subagent" as const, subAgentHostId: hostId, subAgentThreadId: threadId },
       })),
+      ...options.browserPanels.value.map(({ id, panel }) => ({
+        id,
+        title: panel.title,
+        component: "WorkspaceDockBrowserPanel",
+        params: { kind: "browser" as const, browserPanelId: panel.panelId },
+      })),
     );
     return panels;
   }
@@ -66,7 +76,14 @@ export function useWorkspaceDockPanels(options: {
     const desired = definitions();
     const desiredIds = new Set(desired.map(({ id }) => id));
     for (const panel of api.panels) {
-      if (!desiredIds.has(panel.id)) api.removePanel(panel);
+      if (!desiredIds.has(panel.id)) {
+        const params = panel.params as WorkspaceDockPanelParams;
+        if (params.kind === "browser" && params.browserPanelId) {
+          const session = browserStore.sessionForPanel(params.browserPanelId);
+          if (session) void closeBrowserPreview(session.sessionId);
+        }
+        api.removePanel(panel);
+      }
     }
     for (const definition of desired) {
       const existing = api.getPanel(definition.id);
@@ -98,6 +115,10 @@ export function useWorkspaceDockPanels(options: {
         threadId: params.subAgentThreadId,
       });
     }
+    if (params.kind === "browser" && params.browserPanelId) {
+      const removed = browserStore.removePanel(params.browserPanelId);
+      if (removed.sessionId) void closeBrowserPreview(removed.sessionId);
+    }
     if (nextPanelId) workspaceLayout.requestPanelActivation(nextPanelId);
   }
 
@@ -105,7 +126,7 @@ export function useWorkspaceDockPanels(options: {
     const remainingDynamic = closingPanel.api.group.panels.find((panel) => {
       if (panel.id === closingPanel.id) return false;
       const kind = (panel.params as WorkspaceDockPanelParams).kind;
-      return kind === "terminal" || kind === "subagent";
+      return kind === "terminal" || kind === "subagent" || kind === "browser";
     });
     const nextPanel =
       remainingDynamic ??

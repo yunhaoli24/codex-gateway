@@ -6,6 +6,7 @@ import {
 import { realtimeMessageDispatcher } from "./message-handlers";
 import { RealtimeAuthenticationRequiredError } from "./message-dispatcher";
 import { hostStore } from "../state/hosts";
+import { browserPreviewManager } from "../browser-preview/browser-preview-manager";
 import { runPeerScoped, sendRealtimePeerMessage, stateFor, type RealtimePeer } from "./peer-state";
 
 export function openRealtimePeer(peer: RealtimePeer) {
@@ -54,6 +55,9 @@ export function cleanupRealtimePeer(peer: RealtimePeer) {
   state.terminalUnsubscribe = undefined;
   state.notificationUnsubscribe?.();
   state.notificationUnsubscribe = undefined;
+  state.browserPreviewUnsubscribe?.();
+  state.browserPreviewUnsubscribe = undefined;
+  if (state.browserOwnerId) browserPreviewManager.closeOwner(state.browserOwnerId);
   state.sessionRevocationUnsubscribe?.();
   state.sessionRevocationUnsubscribe = undefined;
   for (const unsubscribe of state.threadUnsubscribers.values()) {

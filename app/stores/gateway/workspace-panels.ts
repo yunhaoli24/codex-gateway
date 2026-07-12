@@ -8,3 +8,7 @@ export function terminalWorkspacePanelId(sessionId: string) {
 export function subAgentWorkspacePanelId(key: string) {
   return `subagent:${key}`;
 }
+
+export function browserWorkspacePanelId(panelId: string) {
+  return `browser:${panelId}`;
+}

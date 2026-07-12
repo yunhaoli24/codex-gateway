@@ -15,6 +15,11 @@ export interface ShellOptions {
   rows: number;
 }
 
+export interface DirectTcpChannelOptions {
+  host: string;
+  port: number;
+}
+
 export interface ReverseTcpForwardOptions {
   remoteHost: string;
   remotePort: number;

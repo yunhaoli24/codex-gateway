@@ -1,8 +1,6 @@
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import type { useGatewayStore } from "@/stores/gateway";
-import { titleForThread } from "@/stores/gateway/thread-utils/identity";
-import type { useGatewayTerminalTransport } from "@/composables/useGatewayTerminalTransport";
 
 export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>) {
   const refs = storeToRefs(store);
@@ -13,13 +11,6 @@ export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>)
       history: refs.history.value,
     }),
   );
-  const threadTitle = computed(() => {
-    if (!refs.selectedThreadId.value && refs.selectedProject.value) {
-      return refs.selectedProject.value.name;
-    }
-    const thread = selectedThreadViewReady.value ? (refs.currentThread.value as any) : null;
-    return titleForThread(thread || { id: refs.selectedThreadId.value }) || "codex-gateway";
-  });
   const historyTurns = computed(() => turnsFromHistory(refs.history.value));
   const threadItems = computed(() => historyTurns.value.flatMap((turn: any) => turn.items || []));
   const openingThread = computed(
@@ -42,7 +33,6 @@ export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>)
 
   return {
     ...refs,
-    threadTitle,
     historyTurns,
     threadItems,
     openingThread,
@@ -51,43 +41,6 @@ export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>)
     followKey,
     canOpenTerminal: computed(() => Boolean(refs.selectedHostId.value)),
   };
-}
-
-export function openWorkspaceTerminal(
-  store: ReturnType<typeof useGatewayStore>,
-  terminal: ReturnType<typeof useGatewayTerminalTransport>,
-) {
-  const refs = storeToRefs(store);
-  if (!refs.selectedHostId.value || !refs.selectedHost.value) {
-    return;
-  }
-  if (refs.selectedThreadId.value) {
-    const thread = (refs.currentThread.value as any) || {};
-    void terminal.openTerminal({
-      scope: "thread",
-      hostId: refs.selectedHostId.value,
-      projectId: refs.selectedProjectId.value,
-      threadId: refs.selectedThreadId.value,
-      cwd: thread.cwd ?? refs.selectedProject.value?.remotePath ?? null,
-      title: titleForThread({ id: refs.selectedThreadId.value, ...thread }),
-    });
-    return;
-  }
-  if (refs.selectedProject.value) {
-    void terminal.openTerminal({
-      scope: "project",
-      hostId: refs.selectedProject.value.hostId,
-      projectId: refs.selectedProject.value.id,
-      cwd: refs.selectedProject.value.remotePath,
-      title: refs.selectedProject.value.name,
-    });
-    return;
-  }
-  void terminal.openTerminal({
-    scope: "host",
-    hostId: refs.selectedHostId.value,
-    title: refs.selectedHost.value.name,
-  });
 }
 
 function turnsFromHistory(history: unknown) {

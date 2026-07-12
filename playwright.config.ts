@@ -26,6 +26,9 @@ export default defineConfig({
       CODEX_GATEWAY_CONFIG_SECRET: process.env.CODEX_GATEWAY_CONFIG_SECRET || "e2e-config-secret",
       CODEX_GATEWAY_DB_PATH: process.env.CODEX_GATEWAY_DB_PATH || ".data-e2e/codex-gateway.db",
       NUXT_IGNORE_LOCK: "1",
+      BROWSER_PREVIEW_PUBLIC_PORT: "3100",
+      BROWSER_PREVIEW_DOMAIN: "127.0.0.1.nip.io",
+      BROWSER_PREVIEW_SCHEME: "http",
     },
   },
   projects: [
