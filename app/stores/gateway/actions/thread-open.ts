@@ -1,5 +1,6 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
+import { threadTurnsFromHistory } from "~~/shared/thread-history/shape";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import type { GatewayStoreContext } from "../types";
@@ -91,6 +92,10 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
       activatePendingThreadView(ctx, targetHostId, targetProjectId, threadId);
       void ctx.ensureSelectedHostModels();
       if (ctx.restoreThreadView(targetHostId, threadId)) {
+        const cachedTurnLimit = Math.max(
+          INITIAL_TURN_PAGE_LIMIT,
+          threadTurnsFromHistory(ctx.state.history).length,
+        );
         ctx.rememberOpenThread(threadId);
         ctx.syncSelectedRoute({ replace: context?.replaceRoute });
         useGatewayRealtimeStore().connectThreadEvents();
@@ -104,6 +109,7 @@ export function createThreadOpenActions(ctx: GatewayStoreContext) {
           replaceRoute: context?.replaceRoute,
           showLoading: false,
           scrollToLatest: false,
+          limit: cachedTurnLimit,
         });
         return;
       }
@@ -277,6 +283,7 @@ async function syncOpenThreadFromServer(
     replaceRoute?: boolean;
     showLoading: boolean;
     scrollToLatest?: boolean;
+    limit?: number;
   },
 ) {
   if (input.showLoading) {
@@ -288,6 +295,7 @@ async function syncOpenThreadFromServer(
       hostId: input.hostId,
       projectId: input.projectId,
       threadId: input.threadId,
+      limit: input.limit,
     });
     if (!ctx.isCurrentViewTransition(input.viewEpoch) || isOlderSnapshot(ctx, result.lastEventId)) {
       return;

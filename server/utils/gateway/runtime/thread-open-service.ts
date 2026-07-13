@@ -1,5 +1,6 @@
 import type { HostRecord } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
+import { threadTurnsFromHistory } from "~~/shared/thread-history/shape";
 import {
   runtimeStatusFromSnapshotState,
   runtimeStatusFromThreadState,
@@ -17,7 +18,10 @@ import type { ThreadOpenSnapshot } from "./types";
 import { currentGatewayUserId } from "../state/memory";
 
 export class ThreadOpenService {
-  private readonly pendingRefreshes = new Map<string, Promise<ReturnTypeResult>>();
+  private readonly pendingRefreshes = new Map<
+    string,
+    { limit: number; promise: Promise<ReturnTypeResult> }
+  >();
 
   constructor(private readonly registry: ControllerRegistry) {}
 
@@ -43,13 +47,25 @@ export class ThreadOpenService {
         });
         return this.refreshThreadState(host, threadId, projectId, limit);
       }
-      return this.snapshotResult(host, threadId, projectId, cachedSnapshot);
+      if (snapshotSatisfiesTurnLimit(cachedSnapshot, limit)) {
+        return this.snapshotResult(host, threadId, projectId, cachedSnapshot);
+      }
+      runtimeLog("thread cache depth refresh", {
+        hostId: host.id,
+        threadId,
+        cachedTurns: threadTurnsFromHistory(cachedSnapshot.history).length,
+        requestedTurns: limit,
+      });
+      return this.refreshThreadState(host, threadId, projectId, limit);
     }
 
     const controller = await this.registry.getController(host, threadId);
     const connectedSnapshot = controller.getOpenSnapshot();
     if (connectedSnapshot) {
-      return this.snapshotResult(host, threadId, projectId, connectedSnapshot);
+      if (snapshotSatisfiesTurnLimit(connectedSnapshot, limit)) {
+        return this.snapshotResult(host, threadId, projectId, connectedSnapshot);
+      }
+      return this.refreshThreadState(host, threadId, projectId, limit);
     }
 
     runtimeLog("thread cache miss", {
@@ -110,18 +126,28 @@ export class ThreadOpenService {
     threadId: string,
     projectId: number | null,
     limit = INITIAL_TURN_PAGE_LIMIT,
-  ) {
+  ): Promise<ReturnTypeResult> {
     const key = refreshKey(host.id, threadId);
-    let pending = this.pendingRefreshes.get(key);
-    if (!pending) {
-      pending = this.performThreadStateRefresh(host, threadId, projectId, limit).finally(() => {
-        if (this.pendingRefreshes.get(key) === pending) {
-          this.pendingRefreshes.delete(key);
-        }
-      });
-      this.pendingRefreshes.set(key, pending);
+    const pending = this.pendingRefreshes.get(key);
+    if (pending) {
+      // A wider resume may reuse an equal/wider in-flight request, but it must
+      // never inherit a narrower one. Wait for the narrow refresh to settle,
+      // then retry so the server cache monotonically expands to the requested
+      // page depth instead of racing two snapshots into the same store entry.
+      if (pending.limit >= limit) return pending.promise;
+      await pending.promise;
+      return this.refreshThreadState(host, threadId, projectId, limit);
     }
-    return pending;
+
+    const promise = this.performThreadStateRefresh(host, threadId, projectId, limit);
+    this.pendingRefreshes.set(key, { limit, promise });
+    try {
+      return await promise;
+    } finally {
+      if (this.pendingRefreshes.get(key)?.promise === promise) {
+        this.pendingRefreshes.delete(key);
+      }
+    }
   }
 
   private async performThreadStateRefresh(
@@ -219,6 +245,13 @@ export class ThreadOpenService {
 }
 
 type ReturnTypeResult = Awaited<ReturnType<ThreadOpenService["performThreadStateRefresh"]>>;
+
+function snapshotSatisfiesTurnLimit(snapshot: ThreadOpenSnapshot, limit: number) {
+  return (
+    threadTurnsFromHistory(snapshot.history).length >= limit ||
+    snapshot.turnsPage.nextCursor === null
+  );
+}
 
 function refreshKey(hostId: number, threadId: string) {
   const userId = currentGatewayUserId();

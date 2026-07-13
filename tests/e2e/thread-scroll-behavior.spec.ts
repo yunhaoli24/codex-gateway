@@ -5,7 +5,9 @@ import {
   appendCommandOutputLines,
   appendFileDiffLines,
   completeTurnWithFinalAgentMessage,
+  installRealtimeThreadSnapshotMock,
   seedGatewayThread,
+  threadActivateRequests,
 } from "./helpers/gateway-store";
 import {
   captureTextAnchor,
@@ -51,6 +53,7 @@ test("opened threads render two turns first and then top up to five turns", asyn
 
   await expect(page.getByText("background turn 004")).toBeVisible();
   await expect(page.getByText("background turn 005")).toBeVisible();
+  await expect(page.getByTestId("load-older-turns-button")).toHaveCount(0);
   await expect
     .poll(() => threadTurnsLoadRequests(page).then((requests) => requests.length))
     .toBe(1);
@@ -64,6 +67,62 @@ test("opened threads render two turns first and then top up to five turns", asyn
   expect(requests).toHaveLength(1);
   expect(requests[0]).toMatchObject({ type: "thread.turns.load", limit: 3 });
   expect(httpTurnsRequests()).toBe(0);
+});
+
+test("same-page thread switches retain the loaded history depth", async ({ page }) => {
+  await openApp(page);
+  const firstThreadId = "e2e-cached-depth-first";
+  const secondThreadId = "e2e-cached-depth-second";
+  const firstHistory = {
+    thread: { id: firstThreadId, turns: buildTextTurns(1, 5, "cached first turn") },
+  };
+  const secondHistory = {
+    thread: { id: secondThreadId, turns: buildTextTurns(1, 5, "cached second turn") },
+  };
+  await installRealtimeThreadSnapshotMock(page, {
+    responseDelayMs: 120,
+    snapshots: {
+      [firstThreadId]: {
+        thread: { id: firstThreadId, name: "Cached First" },
+        history: firstHistory,
+        projectId: 1,
+      },
+      [secondThreadId]: {
+        thread: { id: secondThreadId, name: "Cached Second" },
+        history: secondHistory,
+        projectId: 1,
+      },
+    },
+  });
+  await seedGatewayThread(page, {
+    projectId: 1,
+    threadId: firstThreadId,
+    currentThread: { id: firstThreadId, name: "Cached First" },
+    history: firstHistory,
+    threads: [
+      { id: firstThreadId, name: "Cached First", updatedAt: 2 },
+      { id: secondThreadId, name: "Cached Second", updatedAt: 1 },
+    ],
+    threadViews: {
+      [`1:${firstThreadId}`]: cachedThreadView(firstThreadId, firstHistory),
+      [`1:${secondThreadId}`]: cachedThreadView(secondThreadId, secondHistory),
+    },
+  });
+
+  await page.getByTestId(`thread-button-${secondThreadId}`).click();
+  await expect(page.getByText("cached second turn 005")).toBeVisible();
+  await page.getByTestId(`thread-button-${firstThreadId}`).click();
+  await expect(page.getByText("cached first turn 005")).toBeVisible();
+  await startTimelineRowCountTracking(page);
+
+  await expect.poll(() => threadActivateRequests(page).then((requests) => requests.length)).toBe(2);
+  await page.waitForTimeout(180);
+  const rowCounts = await stopTimelineRowCountTracking(page);
+  expect(Math.min(...rowCounts), JSON.stringify(rowCounts)).toBe(5);
+  expect(await threadActivateRequests(page)).toEqual([
+    expect.objectContaining({ type: "thread.activate", threadId: secondThreadId, limit: 5 }),
+    expect.objectContaining({ type: "thread.activate", threadId: firstThreadId, limit: 5 }),
+  ]);
 });
 
 test("streaming output stays pinned when the user is already at the latest content", async ({
@@ -256,6 +315,22 @@ function buildMeasuredTurns(threadId: string, lineCount: number) {
       ],
     },
   ];
+}
+
+function cachedThreadView(threadId: string, history: unknown) {
+  return {
+    hostId: 1,
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId },
+    history,
+    events: [],
+    olderTurnsCursor: null,
+    newerTurnsCursor: null,
+    lastEventId: 0,
+    loading: false,
+    error: null,
+  };
 }
 
 async function visibleTimelineRowsDoNotOverlap(page: Page) {
@@ -789,6 +864,24 @@ async function waitForAnimationFrames(page: Page, count: number) {
       }),
     count,
   );
+}
+
+async function startTimelineRowCountTracking(page: Page) {
+  await page.getByTestId("chat-scroll-area").evaluate((root) => {
+    const count = () => root.querySelectorAll('[data-row-key*=":turn-"]').length;
+    const samples = [count()];
+    const observer = new MutationObserver(() => samples.push(count()));
+    observer.observe(root, { childList: true, subtree: true });
+    (window as any).__timelineRowCountSamples = samples;
+    (window as any).__timelineRowCountObserver = observer;
+  });
+}
+
+async function stopTimelineRowCountTracking(page: Page) {
+  return page.evaluate(() => {
+    (window as any).__timelineRowCountObserver?.disconnect();
+    return ((window as any).__timelineRowCountSamples ?? []) as number[];
+  });
 }
 
 function frameSpread(samples: number[]) {

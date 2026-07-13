@@ -1,5 +1,15 @@
 import type { ThreadHistoryState, ThreadHistoryTurn } from "./types";
 
+export function threadTurnsFromHistory(history: unknown): ThreadHistoryTurn[] {
+  if (!history || typeof history !== "object") return [];
+  const record = history as Record<string, unknown>;
+  const thread =
+    record.thread && typeof record.thread === "object"
+      ? (record.thread as Record<string, unknown>)
+      : record;
+  return Array.isArray(thread.turns) ? (thread.turns as ThreadHistoryTurn[]) : [];
+}
+
 export function ensureHistoryThread(history: unknown, currentThread: unknown, threadId: string) {
   const historyRecord =
     history && typeof history === "object" ? (history as Record<string, unknown>) : null;

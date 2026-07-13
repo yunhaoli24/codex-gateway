@@ -80,8 +80,8 @@ watch(
     @reach-start="handleReachStart"
     @user-detached-change="handleUserDetachedChange"
   >
-    <template #overlay>
-      <div v-if="olderTurnsCursor" class="pointer-events-auto flex justify-center pt-2">
+    <template #overlay="{ visible }">
+      <div v-if="olderTurnsCursor && visible" class="pointer-events-auto flex justify-center pt-2">
         <Button
           data-testid="load-older-turns-button"
           variant="outline"
