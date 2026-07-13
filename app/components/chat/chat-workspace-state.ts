@@ -1,5 +1,6 @@
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
+import { threadTurnsFromHistory } from "~~/shared/thread-history/shape";
 import type { useGatewayStore } from "@/stores/gateway";
 
 export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>) {
@@ -11,7 +12,7 @@ export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>)
       history: refs.history.value,
     }),
   );
-  const historyTurns = computed(() => turnsFromHistory(refs.history.value));
+  const historyTurns = computed(() => threadTurnsFromHistory(refs.history.value));
   const threadItems = computed(() => historyTurns.value.flatMap((turn: any) => turn.items || []));
   const openingThread = computed(
     () =>
@@ -41,11 +42,6 @@ export function useChatWorkspaceState(store: ReturnType<typeof useGatewayStore>)
     followKey,
     canOpenTerminal: computed(() => Boolean(refs.selectedHostId.value)),
   };
-}
-
-function turnsFromHistory(history: unknown) {
-  const value = history as any;
-  return value?.thread?.turns || value?.turns || [];
 }
 
 function isSelectedThreadViewReady(input: {

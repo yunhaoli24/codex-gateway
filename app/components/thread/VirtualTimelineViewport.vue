@@ -22,6 +22,7 @@ const emit = defineEmits<{
 
 const scrollFrameRef = ref<InstanceType<typeof ChatVirtualScrollFrame> | null>(null);
 const threshold = 80;
+const startControlsVisible = ref(false);
 
 const chatVirtualizer = useChatVirtualizer({
   count: () => props.rows.length,
@@ -34,7 +35,9 @@ const chatVirtualizer = useChatVirtualizer({
     // A short chat is simultaneously at the top and bottom. Only interpret
     // top proximity as history intent after explicit upward input detached the
     // outer timeline; otherwise initial bottom alignment races background top-up.
-    if (chatVirtualizer.userDetached.value && viewport.scrollTop <= 80) {
+    const reachedStart = chatVirtualizer.userDetached.value && viewport.scrollTop <= threshold;
+    startControlsVisible.value = reachedStart;
+    if (reachedStart) {
       emit("reachStart");
     }
   },
@@ -96,6 +99,7 @@ watch(documentVisibility, (visibility, previous) => {
 watch(
   () => props.followKey,
   () => {
+    startControlsVisible.value = false;
     chatVirtualizer.followContentChange();
   },
   { flush: "post" },
@@ -104,6 +108,7 @@ watch(
 watch(
   () => chatVirtualizer.userDetached.value,
   (detached) => {
+    if (!detached) startControlsVisible.value = false;
     emit("userDetachedChange", detached);
   },
   { immediate: true },
@@ -134,7 +139,7 @@ defineExpose({ resetFollowLatest });
     @viewport-ready="handleViewportReady"
   >
     <div class="pointer-events-none sticky top-0 z-10 h-0">
-      <slot name="overlay" />
+      <slot name="overlay" :visible="startControlsVisible" />
     </div>
     <!--
       Keep vertical spacing inside measured rows. Padding around TanStack's

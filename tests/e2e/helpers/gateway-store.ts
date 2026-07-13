@@ -26,6 +26,7 @@ interface SeedGatewayThreadInput {
 
 interface MockThreadSnapshotInput {
   hostId?: number;
+  responseDelayMs?: number;
   snapshots: Record<
     string,
     {
@@ -105,6 +106,7 @@ export async function installRealtimeThreadSnapshotMock(
       throw new Error("Unable to locate gateway realtime Pinia store");
     }
     realtime.connected = true;
+    (window as any).__threadActivateRequests = [];
     realtime.socket = {
       readyState: WebSocket.OPEN,
       send(raw: string) {
@@ -112,6 +114,7 @@ export async function installRealtimeThreadSnapshotMock(
         if (message.type !== "thread.activate") {
           return;
         }
+        (window as any).__threadActivateRequests.push(message);
         const snapshot = input.snapshots[String(message.threadId)];
         if (!snapshot) {
           throw new Error(`Missing mocked thread snapshot for ${message.threadId}`);
@@ -133,10 +136,14 @@ export async function installRealtimeThreadSnapshotMock(
             recentEvents: snapshot.recentEvents ?? [],
             lastEventId: snapshot.lastEventId ?? 0,
           });
-        }, 0);
+        }, input.responseDelayMs ?? 0);
       },
     };
   }, input);
+}
+
+export async function threadActivateRequests(page: Page) {
+  return page.evaluate(() => (window as any).__threadActivateRequests ?? []);
 }
 
 export async function appendAgentStreamLines(
