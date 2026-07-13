@@ -27,7 +27,7 @@ test("opened threads render two turns first and then top up to five turns", asyn
   await openApp(page);
   const threadId = "e2e-background-turn-top-up-thread";
   const httpTurnsRequests = trackThreadTurnsHttpRequests(page);
-  await installImmediateThreadTurnsLoadStub(page, {
+  await installDeferredThreadTurnsLoadStub(page, {
     type: "thread.turns.page",
     requestId: "e2e-thread-turns-page",
     hostId: 1,
@@ -51,7 +51,15 @@ test("opened threads render two turns first and then top up to five turns", asyn
 
   await expect(page.getByText("background turn 004")).toBeVisible();
   await expect(page.getByText("background turn 005")).toBeVisible();
+  await expect
+    .poll(() => threadTurnsLoadRequests(page).then((requests) => requests.length))
+    .toBe(1);
+  await startElementTopTracking(page, "background turn 004");
+  await releaseDeferredThreadTurnsLoad(page);
   await expect.poll(() => threadTurnCount(page)).toBe(5);
+  await waitForAnimationFrames(page, 4);
+  const samples = await stopFrameTracking(page);
+  expect(frameSpread(samples), JSON.stringify(samples)).toBeLessThanOrEqual(2);
   const requests = await threadTurnsLoadRequests(page);
   expect(requests).toHaveLength(1);
   expect(requests[0]).toMatchObject({ type: "thread.turns.load", limit: 3 });
@@ -190,6 +198,41 @@ test("switching threads discards stale virtual row measurements", async ({ page 
   await expect.poll(() => visibleTimelineRowsDoNotOverlap(page)).toBe(true);
 });
 
+test("restoring the agent viewport reflows rows without moving a detached reader", async ({
+  page,
+}) => {
+  await openApp(page);
+  const threadId = "e2e-viewport-reflow-thread";
+  await seedGatewayThread(page, {
+    hostId: 1,
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId, name: "Viewport Reflow" },
+    history: {
+      thread: {
+        id: threadId,
+        turns: buildTextTurns(1, 18, "viewport reflow turn"),
+      },
+    },
+  });
+
+  await parkChatViewportInMiddle(page);
+  const anchor = await captureVisibleTextAnchor(page, "viewport reflow turn");
+  await page.locator('[data-testid="workspace-dock-tab"][data-panel-kind="files"]').click();
+  await page.locator('[data-testid="workspace-dock-tab"][data-panel-kind="agent"]').click();
+
+  await expect.poll(() => visibleTimelineRowsDoNotOverlap(page)).toBe(true);
+  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeGreaterThanOrEqual(anchor.top - 2);
+  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeLessThanOrEqual(anchor.top + 2);
+  await expect(page.getByTestId("chat-scroll-area")).toHaveAttribute("data-follow-latest", "false");
+
+  await setDocumentVisibility(page, "hidden");
+  await setDocumentVisibility(page, "visible");
+  await expect.poll(() => visibleTimelineRowsDoNotOverlap(page)).toBe(true);
+  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeGreaterThanOrEqual(anchor.top - 2);
+  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeLessThanOrEqual(anchor.top + 2);
+});
+
 function buildMeasuredTurns(threadId: string, lineCount: number) {
   return [
     {
@@ -226,6 +269,16 @@ async function visibleTimelineRowsDoNotOverlap(page: Page) {
       .sort((a, b) => a.top - b.top);
     return rows.every((box, index) => index === 0 || box.top >= rows[index - 1]!.bottom - 1);
   });
+}
+
+async function setDocumentVisibility(page: Page, visibility: "hidden" | "visible") {
+  await page.evaluate((value) => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, visibility);
 }
 
 test("streaming output does not force scroll when the user is reading earlier content", async ({
@@ -433,6 +486,58 @@ test("completed turns do not collapse intermediate steps while the user is detac
   await expect(page.getByTestId("intermediate-steps")).toBeHidden();
 });
 
+test("automatic intermediate collapse stays pinned without a transient jump", async ({ page }) => {
+  await openApp(page);
+  const threadId = "e2e-pinned-collapse-thread";
+  const agentLines = Array.from(
+    { length: 120 },
+    (_, index) => `pinned collapse line ${String(index + 1).padStart(3, "0")}`,
+  );
+  await seedGatewayThread(page, {
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId, name: "Pinned Collapse" },
+    status: "running",
+    history: {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "turn-pinned-collapse",
+            status: "running",
+            items: [
+              {
+                id: "user-pinned-collapse",
+                type: "userMessage",
+                content: [{ type: "text", text: "complete while pinned" }],
+              },
+              {
+                id: "agent-pinned-collapse",
+                type: "agentMessage",
+                status: "inProgress",
+                text: agentLines.join("\n\n"),
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  await expect(page.getByText("pinned collapse line 120")).toBeVisible();
+  await scrollChatViewportToBottom(page);
+  await startBottomDistanceTracking(page);
+  await completeTurnWithFinalAgentMessage(page, {
+    agentItemId: "agent-pinned-collapse",
+    finalItemId: "agent-pinned-collapse-final",
+    finalText: "final answer after pinned collapse",
+  });
+
+  await expect(page.getByTestId("intermediate-steps")).toBeHidden();
+  await waitForAnimationFrames(page, 4);
+  expect(Math.max(...(await stopFrameTracking(page)))).toBeLessThanOrEqual(2);
+});
+
 test("manually expanded completed intermediate steps stay open after returning to bottom", async ({
   page,
 }) => {
@@ -575,10 +680,6 @@ function trackThreadTurnsHttpRequests(page: Page) {
   return () => count;
 }
 
-async function installImmediateThreadTurnsLoadStub(page: Page, response: unknown) {
-  await installThreadTurnsLoadStub(page, response, false);
-}
-
 async function installDeferredThreadTurnsLoadStub(page: Page, response: unknown) {
   await installThreadTurnsLoadStub(page, response, true);
 }
@@ -628,4 +729,68 @@ async function releaseDeferredThreadTurnsLoad(page: Page) {
 
 async function threadTurnsLoadRequests(page: Page) {
   return await page.evaluate(() => (window as any).__threadTurnsLoadRequests ?? []);
+}
+
+async function startElementTopTracking(page: Page, text: string) {
+  await page.getByText(text, { exact: true }).evaluate((element) => {
+    const samples: number[] = [element.getBoundingClientRect().top];
+    const track = () => {
+      (window as any).__frameTrackerId = requestAnimationFrame(() => {
+        (window as any).__frameTrackerTimerId = window.setTimeout(() => {
+          samples.push(element.getBoundingClientRect().top);
+          track();
+        }, 0);
+      });
+    };
+    (window as any).__frameTrackerSamples = samples;
+    (window as any).__frameTrackerId = requestAnimationFrame(track);
+  });
+}
+
+async function startBottomDistanceTracking(page: Page) {
+  await page.getByTestId("chat-scroll-area").evaluate((root) => {
+    const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]');
+    if (!viewport) throw new Error("Missing chat viewport");
+    const distance = () => viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    const samples: number[] = [distance()];
+    const track = () => {
+      (window as any).__frameTrackerId = requestAnimationFrame(() => {
+        (window as any).__frameTrackerTimerId = window.setTimeout(() => {
+          samples.push(distance());
+          track();
+        }, 0);
+      });
+    };
+    (window as any).__frameTrackerSamples = samples;
+    (window as any).__frameTrackerId = requestAnimationFrame(track);
+  });
+}
+
+async function stopFrameTracking(page: Page) {
+  return await page.evaluate(() => {
+    cancelAnimationFrame((window as any).__frameTrackerId);
+    clearTimeout((window as any).__frameTrackerTimerId);
+    return ((window as any).__frameTrackerSamples ?? []) as number[];
+  });
+}
+
+async function waitForAnimationFrames(page: Page, count: number) {
+  await page.evaluate(
+    (frameCount) =>
+      new Promise<void>((resolve) => {
+        const wait = (remaining: number) => {
+          if (remaining <= 0) {
+            resolve();
+            return;
+          }
+          requestAnimationFrame(() => wait(remaining - 1));
+        };
+        wait(frameCount);
+      }),
+    count,
+  );
+}
+
+function frameSpread(samples: number[]) {
+  return Math.max(...samples) - Math.min(...samples);
 }

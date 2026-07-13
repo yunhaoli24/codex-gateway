@@ -35,7 +35,6 @@ const rows = computed(() =>
   buildThreadTimelineRows({
     threadId: props.threadId,
     turns: props.turns,
-    olderTurnsCursor: props.olderTurnsCursor,
   }),
 );
 
@@ -51,10 +50,6 @@ function handleUserDetachedChange(detached: boolean) {
 
 function estimateRowSize(row: unknown) {
   return estimateThreadTimelineRow(row as ThreadTimelineRow | undefined);
-}
-
-function isOlderRow(row: unknown) {
-  return (row as ThreadTimelineRow | undefined)?.type === "older";
 }
 
 function isTurnRow(row: unknown) {
@@ -85,23 +80,23 @@ watch(
     @reach-start="handleReachStart"
     @user-detached-change="handleUserDetachedChange"
   >
-    <template #default="{ row }">
-      <template v-if="isOlderRow(row)">
-        <div class="flex justify-center">
-          <Button
-            data-testid="load-older-turns-button"
-            variant="outline"
-            size="sm"
-            :disabled="loadingOlder"
-            @click="emit('loadOlder')"
-          >
-            {{ loadingOlder ? t("app.loadingOlder") : t("app.loadOlder") }}
-          </Button>
-        </div>
-      </template>
+    <template #overlay>
+      <div v-if="olderTurnsCursor" class="pointer-events-auto flex justify-center pt-2">
+        <Button
+          data-testid="load-older-turns-button"
+          variant="outline"
+          size="sm"
+          :disabled="loadingOlder"
+          @click="emit('loadOlder')"
+        >
+          {{ loadingOlder ? t("app.loadingOlder") : t("app.loadOlder") }}
+        </Button>
+      </div>
+    </template>
 
+    <template #default="{ row }">
       <ThreadTurnView
-        v-else-if="isTurnRow(row)"
+        v-if="isTurnRow(row)"
         :turn="turnForRow(row)"
         :host-id="hostId"
         :project-id="projectId ?? null"
