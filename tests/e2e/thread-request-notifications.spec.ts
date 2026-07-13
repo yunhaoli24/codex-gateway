@@ -71,9 +71,10 @@ test("dynamic tool response submits through the server request responder and sur
   });
 
   await page.getByTestId("dynamic-tool-submit").click();
+  await expect(page.getByText("pending app-server request was not found")).toBeVisible();
   await expect(
     page.getByTestId("chat-scroll-area").getByText("pending app-server request was not found"),
-  ).toBeVisible();
+  ).toHaveCount(0);
 
   await applyGatewayLiveEvent(page, {
     id: 43,
@@ -87,7 +88,9 @@ test("dynamic tool response submits through the server request responder and sur
   await expect(page.getByText("请求已处理")).toBeVisible();
 });
 
-test("app-server error notifications are visible in the active thread", async ({ page }) => {
+test("app-server error notifications use Sonner without entering the timeline", async ({
+  page,
+}) => {
   await openApp(page);
   const threadId = "e2e-app-server-error-thread";
   await seedGatewayThread(page, {
@@ -116,10 +119,10 @@ test("app-server error notifications are visible in the active thread", async ({
   });
 
   const chatScrollArea = page.getByTestId("chat-scroll-area");
-  await expect(chatScrollArea.getByText("对话：Error Notification")).toBeVisible();
-  await expect(chatScrollArea.getByText("remote provider disconnected")).toBeVisible();
-  await expect(chatScrollArea.getByText("错误类型：responseStreamDisconnected")).toBeVisible();
-  await expect(chatScrollArea.getByText("app-server 正在自动重试")).toBeVisible();
+  await expect(page.getByText(/remote provider disconnected/)).toBeVisible();
+  await expect(page.getByText(/错误类型：responseStreamDisconnected/)).toBeVisible();
+  await expect(page.getByText(/app-server 正在自动重试/)).toBeVisible();
+  await expect(chatScrollArea.getByText("remote provider disconnected")).toHaveCount(0);
 
   await applyGatewayLiveEvent(page, {
     id: 102,
@@ -138,8 +141,6 @@ test("app-server error notifications are visible in the active thread", async ({
   });
 
   await expect(chatScrollArea.getByText("retry recovered")).toBeVisible();
-  await expect(chatScrollArea.getByText("remote provider disconnected")).toHaveCount(0);
-  await expect(chatScrollArea.getByText("错误类型：responseStreamDisconnected")).toHaveCount(0);
 });
 
 test("app-server moderation notifications render a readable summary before raw details", async ({

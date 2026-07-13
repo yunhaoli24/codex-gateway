@@ -35,7 +35,14 @@ const emit = defineEmits<{
       <FileTextIcon class="size-3.5 shrink-0" />
       <span class="min-w-0 flex-1 truncate">{{ document.title }}</span>
       <span
-        v-if="document.stale"
+        v-if="document.saving"
+        class="size-3 shrink-0 animate-spin rounded-full border border-primary border-t-transparent"
+        :aria-label="$t('app.savingFile')"
+      />
+      <span v-else-if="document.conflict" class="size-2 shrink-0 rounded-full bg-destructive" />
+      <span v-else-if="document.dirty" class="size-2 shrink-0 rounded-full bg-accent-orange" />
+      <span
+        v-else-if="document.stale"
         class="size-1.5 shrink-0 rounded-full bg-primary"
         :aria-label="$t('app.remoteFileChanged')"
       />

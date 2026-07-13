@@ -20,7 +20,6 @@ const props = defineProps<{
   loading: boolean;
   loadingOlder: boolean;
   olderTurnsCursor: string | null;
-  visibleError: string | null;
   followKey: unknown;
 }>();
 
@@ -37,7 +36,6 @@ const rows = computed(() =>
     threadId: props.threadId,
     turns: props.turns,
     olderTurnsCursor: props.olderTurnsCursor,
-    visibleError: props.visibleError,
   }),
 );
 
@@ -63,16 +61,8 @@ function isTurnRow(row: unknown) {
   return (row as ThreadTimelineRow | undefined)?.type === "turn";
 }
 
-function isErrorRow(row: unknown) {
-  return (row as ThreadTimelineRow | undefined)?.type === "error";
-}
-
 function turnForRow(row: unknown) {
   return (row as Extract<ThreadTimelineRow, { type: "turn" }>).turn;
-}
-
-function messageForRow(row: unknown) {
-  return (row as Extract<ThreadTimelineRow, { type: "error" }>).message;
 }
 
 watch(
@@ -119,13 +109,6 @@ watch(
         :thread-runtime-status="threadStatus"
         :auto-collapse-intermediate="!userDetachedFromLatest"
       />
-
-      <div
-        v-else-if="isErrorRow(row)"
-        class="mx-auto max-w-3xl whitespace-pre-line rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-      >
-        {{ messageForRow(row) }}
-      </div>
     </template>
   </VirtualTimelineViewport>
 </template>

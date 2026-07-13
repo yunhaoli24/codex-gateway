@@ -36,6 +36,8 @@ export type {
 } from "./types/config";
 export type {
   FilePreviewDocument,
+  RemoteFileConflict,
+  RemoteFileWriteResult,
   RemoteDirectoryEntry,
   RemoteDirectoryResult,
   UploadedFileRecord,

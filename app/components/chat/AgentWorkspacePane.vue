@@ -59,7 +59,6 @@ const showThreadLoading = computed(
         :loading="loading"
         :loading-older="loadingOlderTurns"
         :older-turns-cursor="olderTurnsCursor"
-        :visible-error="visibleError"
         :follow-key="followKey"
         @load-older="emit('loadOlder')"
       />

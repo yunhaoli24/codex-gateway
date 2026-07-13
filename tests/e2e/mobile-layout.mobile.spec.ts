@@ -169,6 +169,8 @@ test("browses the current thread file workspace from a mobile sheet", async ({ p
   const tree = page.getByTestId("remote-file-tree");
   await expect(tree).toBeVisible();
   await tree.getByText(path.split("/").pop()!, { exact: true }).click();
+  await expect(panel.getByTestId("remote-file-editor")).toContainText("Mobile File Workspace");
+  await panel.getByRole("button", { name: "预览" }).click();
   await expect(panel.locator(".markdown-content h1")).toHaveText("Mobile File Workspace");
   const panelBox = await panel.boundingBox();
   const viewport = page.viewportSize();
