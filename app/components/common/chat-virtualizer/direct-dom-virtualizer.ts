@@ -4,11 +4,11 @@ import {
   observeElementOffset,
   observeElementRect,
   type PartialKeys,
+  type VirtualItem,
   type VirtualizerOptions,
 } from "@tanstack/virtual-core";
 import {
   computed,
-  nextTick,
   onScopeDispose,
   shallowRef,
   triggerRef,
@@ -32,11 +32,53 @@ type DirectDomVirtualizerOptions<
 
 type DirectDomState = {
   container: HTMLElement | null;
+  edgeKeys: { count: number; first: VirtualItem["key"] | null; last: VirtualItem["key"] | null };
   lastPositions: WeakMap<HTMLElement, number>;
   lastSize: number | null;
   mode: DirectDomMode;
+  pendingPrependAnchor: { key: VirtualItem["key"]; top: number } | null;
   prevRange: { startIndex: number; endIndex: number; isScrolling: boolean } | null;
 };
+
+// OpenClaw and nanobot preserve prepends with a post-commit DOM anchor. The
+// same fallback is needed around virtual-core only for the residual Vue/DOM
+// delta, especially when a short non-scrollable list first becomes scrollable.
+// It stores one stable key and screen coordinate, never row sizes or a second
+// scroll state machine; all dynamic measurement remains owned by virtual-core.
+function capturePrependAnchor<TScrollElement extends Element, TItemElement extends Element>(
+  instance: Virtualizer<TScrollElement, TItemElement>,
+  nextOptions: VirtualizerOptions<TScrollElement, TItemElement>,
+  previousEdges: DirectDomState["edgeKeys"],
+) {
+  const nextCount = nextOptions.count;
+  const getNextKey = nextOptions.getItemKey;
+  if (
+    previousEdges.count === 0 ||
+    nextCount <= previousEdges.count ||
+    !getNextKey ||
+    getNextKey(0) === previousEdges.first ||
+    getNextKey(nextCount - 1) !== previousEdges.last
+  ) {
+    return null;
+  }
+
+  const viewport = instance.scrollElement;
+  if (!(viewport instanceof HTMLElement)) return null;
+  // A scrollable viewport is already covered by virtual-core's keyed prepend
+  // anchor. Applying this DOM fallback there would compensate the same delta
+  // twice. It exists only for the underfilled list where scrollTop was clamped.
+  if (viewport.scrollHeight - viewport.clientHeight > 1) return null;
+  const viewportRect = viewport.getBoundingClientRect();
+  for (const item of instance.getVirtualItems()) {
+    const element = instance.elementsCache.get(item.key);
+    if (!(element instanceof HTMLElement)) continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.bottom > viewportRect.top + 1 && rect.top < viewportRect.bottom - 1) {
+      return { key: item.key, top: rect.top };
+    }
+  }
+  return null;
+}
 
 // Mirrors TanStack React adapter's directDomUpdates path for chat streams.
 // Vue's published adapter does not expose that flag yet, so this wraps the
@@ -50,9 +92,11 @@ export function useDirectDomVirtualizer<
 ) {
   const directState: DirectDomState = {
     container: null,
+    edgeKeys: { count: 0, first: null, last: null },
     lastPositions: new WeakMap<HTMLElement, number>(),
     lastSize: null,
     mode: directOptions.mode ?? "transform",
+    pendingPrependAnchor: null,
     prevRange: null,
   };
 
@@ -67,14 +111,32 @@ export function useDirectDomVirtualizer<
     wrapOptions(resolvedOptions.value),
   );
   const state = shallowRef(instance);
+  const commitVersion = shallowRef(0);
   const cleanup = instance._didMount();
+
+  function scheduleDomCommit() {
+    commitVersion.value += 1;
+  }
+
+  // A sync watcher can run before Vue has even queued the component patch, so
+  // nextTick from that watcher is not a reliable layout-effect equivalent.
+  // A post-flush watcher always sees committed keyed rows and still runs before
+  // the browser paints the frame.
+  watch(
+    commitVersion,
+    () => {
+      applyDirectStyles(instance);
+      instance._willUpdate();
+      applyDirectStyles(instance);
+      restorePendingPrependAnchor();
+    },
+    { flush: "post" },
+  );
 
   watch(
     () => resolvedOptions.value.getScrollElement(),
     (element) => {
-      if (element) {
-        instance._willUpdate();
-      }
+      if (element) scheduleDomCommit();
     },
     { flush: "sync", immediate: true },
   );
@@ -82,9 +144,19 @@ export function useDirectDomVirtualizer<
   watch(
     resolvedOptions,
     (nextOptions) => {
+      const anchor = capturePrependAnchor(instance, nextOptions, directState.edgeKeys);
+      // Reactive option updates can coalesce into one commit. Keep a captured
+      // prepend transaction until the post-flush watcher consumes it.
+      if (anchor) directState.pendingPrependAnchor = anchor;
       instance.setOptions(wrapOptions(nextOptions));
-      instance._willUpdate();
+      const count = instance.options.count;
+      directState.edgeKeys = {
+        count,
+        first: count ? instance.options.getItemKey(0) : null,
+        last: count ? instance.options.getItemKey(count - 1) : null,
+      };
       triggerRef(state);
+      scheduleDomCommit();
     },
     { flush: "sync", immediate: true },
   );
@@ -152,18 +224,43 @@ export function useDirectDomVirtualizer<
         continue;
       }
       const next = item.start - scrollMargin;
-      if (directState.lastPositions.get(element) === next) {
-        continue;
-      }
-      directState.lastPositions.set(element, next);
       if (useTransform) {
-        element.style.transform = horizontal
+        const transform = horizontal
           ? `translate3d(${next}px, 0, 0)`
           : `translate3d(0, ${next}px, 0)`;
+        if (
+          directState.lastPositions.get(element) === next &&
+          element.style.transform === transform
+        ) {
+          continue;
+        }
+        directState.lastPositions.set(element, next);
+        element.style.transform = transform;
       } else {
+        const position = `${next}px`;
+        if (
+          directState.lastPositions.get(element) === next &&
+          element.style[positionAxis] === position
+        ) {
+          continue;
+        }
+        directState.lastPositions.set(element, next);
         element.style[positionAxis] = `${next}px`;
       }
     }
+  }
+
+  function restorePendingPrependAnchor() {
+    const anchor = directState.pendingPrependAnchor;
+    directState.pendingPrependAnchor = null;
+    const viewport = instance.scrollElement;
+    const element = anchor ? instance.elementsCache.get(anchor.key) : null;
+    if (!(viewport instanceof HTMLElement) || !(element instanceof HTMLElement) || !anchor) return;
+
+    const delta = element.getBoundingClientRect().top - anchor.top;
+    // One correction after Vue's commit is deliberate. Repeated RAF settling
+    // would compete with streaming and inner diff/command scroll ownership.
+    if (Math.abs(delta) > 1) viewport.scrollTop += delta;
   }
 
   function containerRef(refValue: Element | ComponentPublicInstance | null) {
@@ -175,7 +272,7 @@ export function useDirectDomVirtualizer<
       directState.lastSize = totalSize;
       const sizeAxis = instance.options.horizontal ? "width" : "height";
       element.style[sizeAxis] = `${totalSize}px`;
-      void nextTick(() => applyDirectStyles());
+      scheduleDomCommit();
     }
   }
 
@@ -184,9 +281,17 @@ export function useDirectDomVirtualizer<
     applyDirectStyles();
   }
 
-  function refresh() {
+  function invalidateDirectStyles() {
+    directState.lastPositions = new WeakMap<HTMLElement, number>();
+    directState.lastSize = null;
+  }
+
+  function refresh(options: { forceStyles?: boolean; remeasure?: boolean } = {}) {
+    if (options.forceStyles) {
+      invalidateDirectStyles();
+    }
     instance._willUpdate();
-    instance.measure();
+    if (options.remeasure !== false) instance.measure();
     applyDirectStyles();
     triggerRef(state);
   }

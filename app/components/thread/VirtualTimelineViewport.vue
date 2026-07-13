@@ -1,16 +1,11 @@
 <script setup lang="ts">
 import type { VirtualItem } from "@tanstack/virtual-core";
+import { useDocumentVisibility, useElementVisibility, useResizeObserver } from "@vueuse/core";
 import type { ComponentPublicInstance } from "vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { ChatVirtualScrollFrame, useChatVirtualizer } from "@/components/common/chat-virtualizer";
-import {
-  capturePrependAnchor,
-  restorePrependAnchor,
-  type PrependAnchor,
-} from "@/components/common/chat-virtualizer/prepend-anchor";
 
 interface TimelineViewportRow {
-  canAnchorPrepend?: boolean;
   key: string;
 }
 
@@ -26,7 +21,6 @@ const emit = defineEmits<{
 }>();
 
 const scrollFrameRef = ref<InstanceType<typeof ChatVirtualScrollFrame> | null>(null);
-const rowElements = new Map<number, Element>();
 const threshold = 80;
 
 const chatVirtualizer = useChatVirtualizer({
@@ -35,11 +29,12 @@ const chatVirtualizer = useChatVirtualizer({
   getViewport: scrollViewport,
   getItemKey: (index: number) => props.rows[index]?.key ?? index,
   estimateSize: (index: number) => props.estimateSize(props.rows[index], index),
-  getItemElement: (index: number) => rowElements.get(index),
-  forgetItemElement: (index: number) => rowElements.delete(index),
   overscan: 6,
   onViewportScroll: (viewport) => {
-    if (viewport.scrollTop <= 80) {
+    // A short chat is simultaneously at the top and bottom. Only interpret
+    // top proximity as history intent after explicit upward input detached the
+    // outer timeline; otherwise initial bottom alignment races background top-up.
+    if (chatVirtualizer.userDetached.value && viewport.scrollTop <= 80) {
       emit("reachStart");
     }
   },
@@ -52,8 +47,9 @@ const chatVirtualizer = useChatVirtualizer({
 const virtualizer = chatVirtualizer.virtualizer;
 
 const virtualRows = chatVirtualizer.virtualItems;
-const rowKeys = computed(() => props.rows.map((row) => row.key));
-let pendingPrependAnchor: PrependAnchor | null = null;
+const viewportElement = computed(() => scrollViewport());
+const viewportVisible = useElementVisibility(viewportElement);
+const documentVisibility = useDocumentVisibility();
 
 function scrollViewport() {
   return scrollFrameRef.value?.getViewport() ?? null;
@@ -65,10 +61,7 @@ function setRowRef(refValue: Element | ComponentPublicInstance | null) {
     return;
   }
   const index = Number((element as HTMLElement).dataset.index);
-  if (Number.isFinite(index)) {
-    rowElements.set(index, element);
-  }
-  chatVirtualizer.measureElement(element);
+  if (Number.isFinite(index)) chatVirtualizer.measureElement(element);
   chatVirtualizer.bindInputListeners();
 }
 
@@ -86,42 +79,23 @@ function resetFollowLatest() {
   chatVirtualizer.reset();
 }
 
+function reflowPreservingViewport() {
+  void chatVirtualizer.reflow({ preserveViewport: true });
+}
+
+useResizeObserver(viewportElement, reflowPreservingViewport);
+
+watch(viewportVisible, (visible, previous) => {
+  if (visible && previous === false) reflowPreservingViewport();
+});
+
+watch(documentVisibility, (visibility, previous) => {
+  if (visibility === "visible" && previous !== "visible") reflowPreservingViewport();
+});
+
 watch(
   () => props.followKey,
   () => {
-    chatVirtualizer.followContentChange();
-  },
-  { flush: "post" },
-);
-
-watch(
-  rowKeys,
-  (nextKeys, previousKeys) => {
-    pendingPrependAnchor = capturePrependAnchor({
-      previousKeys,
-      nextKeys,
-      viewport: scrollViewport(),
-    });
-  },
-  { flush: "sync" },
-);
-
-watch(
-  rowKeys,
-  async () => {
-    const prependAnchor = pendingPrependAnchor;
-    pendingPrependAnchor = null;
-    rowElements.clear();
-    if (prependAnchor) {
-      await restorePrependAnchor({
-        anchor: prependAnchor,
-        getViewport: scrollViewport,
-        refresh: chatVirtualizer.refresh,
-        measureVisibleItems: chatVirtualizer.measureVisibleItems,
-        scrollToIndex: (index) => virtualizer.value.scrollToIndex(index, { align: "start" }),
-      });
-      return;
-    }
     chatVirtualizer.followContentChange();
   },
   { flush: "post" },
@@ -138,12 +112,14 @@ watch(
 onMounted(() => {
   chatVirtualizer.bindInputListeners();
   resetFollowLatest();
+  void chatVirtualizer.reflow({ preserveViewport: false });
 });
 
 function handleViewportReady() {
   chatVirtualizer.refresh();
   chatVirtualizer.bindInputListeners();
   resetFollowLatest();
+  void chatVirtualizer.reflow({ preserveViewport: false });
 }
 
 defineExpose({ resetFollowLatest });
@@ -157,20 +133,23 @@ defineExpose({ resetFollowLatest });
     class="h-full min-h-0 flex-1 overflow-hidden"
     @viewport-ready="handleViewportReady"
   >
-    <div
-      class="mx-auto min-h-[calc(100dvh-14rem)] w-full max-w-4xl px-[clamp(0.875rem,4vw,2rem)] py-4 md:min-h-[calc(100vh-16rem)] md:py-[clamp(2rem,6vh,3rem)]"
-    >
-      <div :ref="chatVirtualizer.containerRef" class="relative">
+    <div class="pointer-events-none sticky top-0 z-10 h-0">
+      <slot name="overlay" />
+    </div>
+    <!--
+      Keep vertical spacing inside measured rows. Padding around TanStack's
+      sizer is invisible to virtual-core and creates a false scroll range when
+      a short, bottom-aligned chat grows past one viewport during prepend.
+    -->
+    <div class="mx-auto flex min-h-full w-full max-w-4xl flex-col px-[clamp(0.875rem,4vw,2rem)]">
+      <div :ref="chatVirtualizer.containerRef" class="relative mt-auto shrink-0">
         <div
           v-for="virtualRow in virtualRows"
           :key="String(virtualRow.key)"
           :ref="setRowRef"
           :data-index="virtualRow.index"
           :data-row-key="rows[virtualRow.index]?.key"
-          :data-prepend-anchor="
-            rows[virtualRow.index]?.canAnchorPrepend === false ? 'false' : 'true'
-          "
-          class="pb-5 md:pb-8"
+          class="pb-5 first:pt-4 md:pb-8 md:first:pt-8"
           :style="rowStyle(virtualRow)"
         >
           <slot :row="rows[virtualRow.index]" :index="virtualRow.index" />
