@@ -4,8 +4,11 @@ import type { FilePreviewDocument } from "~~/shared/types";
 import { deleteRemoteFile } from "@/utils/remote-file-transport";
 import {
   createFileDocument,
+  discardFileDocumentDraft,
   disposeFileDocument,
   loadFileDocument,
+  saveFileDocument,
+  updateFileDocumentDraft,
 } from "./file-workspace/document-runtime";
 import { createDirectoryState, loadDirectoryState } from "./file-workspace/directory-runtime";
 import {
@@ -82,15 +85,17 @@ export const useGatewayFileWorkspaceStore = defineStore(
       }
     }
 
-    function activateFile(hostId: number, threadId: string, path: string) {
+    async function activateFile(hostId: number, threadId: string, path: string) {
       const scope = scopeFor(hostId, threadId);
       if (!scope?.openPaths.includes(path)) {
         return;
       }
+      const current = activeDocumentFor(hostId, threadId);
+      if (current?.dirty) await saveFileDocument(current);
       scope.activePath = path;
       const document = documentFor(hostId, threadId, path);
       if (document && (document.stale || !document.objectUrl) && !document.loading) {
-        void loadDocument(document);
+        await loadDocument(document);
       }
     }
 
@@ -147,7 +152,7 @@ export const useGatewayFileWorkspaceStore = defineStore(
         ensureDocument({ hostId, projectId: scope.projectId, threadId, path });
       }
       if (scope.activePath) {
-        activateFile(hostId, threadId, scope.activePath);
+        await activateFile(hostId, threadId, scope.activePath);
       }
       await refreshExpandedDirectories(hostId, threadId, false);
     }
@@ -220,7 +225,6 @@ export const useGatewayFileWorkspaceStore = defineStore(
         const document = documentFor(hostId, threadId, path);
         if (document) {
           document.stale = true;
-          document.etag = null;
         }
         for (const parent of parentPaths(path)) {
           const directory = directoryFor(hostId, threadId, parent);
@@ -302,6 +306,9 @@ export const useGatewayFileWorkspaceStore = defineStore(
       refreshExpandedDirectories,
       deleteFile,
       markRemoteFilesChanged,
+      updateDocumentDraft: updateFileDocumentDraft,
+      saveDocument: saveFileDocument,
+      discardDocumentDraft: discardFileDocumentDraft,
     };
   },
   {

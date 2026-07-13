@@ -1,4 +1,5 @@
 import type { FileEntryWithStats } from "ssh2";
+import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
 import { remoteLoginShellCommand } from "./remote-command";
 import { shellQuote } from "./shell";
@@ -58,6 +59,23 @@ export class RemoteFileService {
     await new Promise<void>((resolve, reject) => {
       sftp.unlink(path, (error) => (error ? reject(error) : resolve()));
     });
+  }
+
+  async writeTextFile(host: HostWithSecret, path: string, content: Buffer) {
+    if (!path.startsWith("/")) {
+      throw new Error("Remote file path must be absolute");
+    }
+    const sftp = await this.ssh.sftp(host);
+    const stats = await statFile(sftp, path);
+    const temporaryPath = `${path}.codex-gateway-${randomUUID()}.tmp`;
+    try {
+      await writeBuffer(sftp, temporaryPath, content, stats.mode & 0o7777);
+      await renameFile(sftp, temporaryPath, path);
+    } catch (error) {
+      await unlinkIfPresent(sftp, temporaryPath);
+      throw error;
+    }
+    return statFile(sftp, path);
   }
 
   async inspectProjectDirectories(host: HostWithSecret, paths: string[]) {
@@ -188,6 +206,44 @@ pwd -P
     }
     return result.stdout.trim();
   }
+}
+
+function statFile(sftp: Awaited<ReturnType<SshConnectionPool["sftp"]>>, path: string) {
+  return new Promise<{ size: number; modifiedAt: number; mode: number }>((resolve, reject) => {
+    sftp.stat(path, (error, stats) => {
+      if (error) return reject(error);
+      if (!stats.isFile()) return reject(new Error("Remote path is not a file"));
+      resolve({ size: stats.size, modifiedAt: stats.mtime * 1000, mode: stats.mode });
+    });
+  });
+}
+
+function writeBuffer(
+  sftp: Awaited<ReturnType<SshConnectionPool["sftp"]>>,
+  path: string,
+  content: Buffer,
+  mode: number,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const stream = sftp.createWriteStream(path, { flags: "wx", mode });
+    stream.once("error", reject);
+    stream.once("close", resolve);
+    stream.end(content);
+  });
+}
+
+function renameFile(
+  sftp: Awaited<ReturnType<SshConnectionPool["sftp"]>>,
+  source: string,
+  destination: string,
+) {
+  return new Promise<void>((resolve, reject) => {
+    sftp.ext_openssh_rename(source, destination, (error) => (error ? reject(error) : resolve()));
+  });
+}
+
+function unlinkIfPresent(sftp: Awaited<ReturnType<SshConnectionPool["sftp"]>>, path: string) {
+  return new Promise<void>((resolve) => sftp.unlink(path, () => resolve()));
 }
 
 async function inspectDirectory(

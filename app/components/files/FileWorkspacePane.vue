@@ -2,6 +2,7 @@
 import { FilesIcon } from "@lucide/vue";
 import { useEventListener } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
+import type { FilePreviewDocument } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -13,6 +14,8 @@ import {
 import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
 import { useAuthStore } from "@/stores/auth";
 import FilePreviewViewport from "./FilePreviewViewport.vue";
+import FileCloseDialog from "./FileCloseDialog.vue";
+import FileConflictDialog from "./FileConflictDialog.vue";
 import FileWorkspaceSplitPane from "./FileWorkspaceSplitPane.vue";
 import FileWorkspaceTabs from "./FileWorkspaceTabs.vue";
 import RemoteFileTree from "./RemoteFileTree.vue";
@@ -30,6 +33,8 @@ const fileWorkspace = useGatewayFileWorkspaceStore();
 const auth = useAuthStore();
 auth.hydrate();
 const mobileTreeOpen = ref(false);
+const pendingCloseDocument = ref<FilePreviewDocument | null>(null);
+const conflictDocument = ref<FilePreviewDocument | null>(null);
 const scope = computed(() => fileWorkspace.scopeFor(props.hostId, props.threadId));
 const documents = computed(() => fileWorkspace.documentsForScope(props.hostId, props.threadId));
 const activeDocument = computed(() =>
@@ -79,6 +84,44 @@ function openFile(path: string) {
   });
 }
 
+function requestClose(path: string) {
+  const document = documents.value.find((candidate) => candidate.path === path);
+  if (document?.dirty) {
+    pendingCloseDocument.value = document;
+    return;
+  }
+  fileWorkspace.closeFile(props.hostId, props.threadId, path);
+}
+
+async function saveAndClose() {
+  const document = pendingCloseDocument.value;
+  if (!document) return;
+  if (await fileWorkspace.saveDocument(document)) {
+    pendingCloseDocument.value = null;
+    fileWorkspace.closeFile(props.hostId, props.threadId, document.path);
+  }
+}
+
+function discardAndClose() {
+  const document = pendingCloseDocument.value;
+  if (!document) return;
+  pendingCloseDocument.value = null;
+  fileWorkspace.closeFile(props.hostId, props.threadId, document.path);
+}
+
+async function discardConflict() {
+  const document = conflictDocument.value;
+  if (!document) return;
+  conflictDocument.value = null;
+  await fileWorkspace.discardDocumentDraft(document);
+}
+
+async function overwriteConflict() {
+  const document = conflictDocument.value;
+  if (!document) return;
+  if (await fileWorkspace.saveDocument(document, true)) conflictDocument.value = null;
+}
+
 function revalidateWorkspace() {
   if (!auth.isAuthenticated) {
     return Promise.resolve([]);
@@ -107,9 +150,13 @@ function revalidateWorkspace() {
             :documents="documents"
             :active-path="scope?.activePath ?? null"
             @activate="fileWorkspace.activateFile(hostId, threadId, $event)"
-            @close="fileWorkspace.closeFile(hostId, threadId, $event)"
+            @close="requestClose"
           />
-          <FilePreviewViewport v-if="activeDocument" :document="activeDocument" />
+          <FilePreviewViewport
+            v-if="activeDocument"
+            :document="activeDocument"
+            @conflict="conflictDocument = activeDocument"
+          />
           <div
             v-else
             class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 bg-canvas text-center text-ink-muted"
@@ -141,10 +188,14 @@ function revalidateWorkspace() {
             :documents="documents"
             :active-path="scope?.activePath ?? null"
             @activate="fileWorkspace.activateFile(hostId, threadId, $event)"
-            @close="fileWorkspace.closeFile(hostId, threadId, $event)"
+            @close="requestClose"
           />
         </div>
-        <FilePreviewViewport v-if="activeDocument" :document="activeDocument" />
+        <FilePreviewViewport
+          v-if="activeDocument"
+          :document="activeDocument"
+          @conflict="conflictDocument = activeDocument"
+        />
         <div
           v-else
           class="flex flex-1 flex-col items-center justify-center gap-3 bg-canvas text-center text-ink-muted"
@@ -171,5 +222,17 @@ function revalidateWorkspace() {
         </SheetContent>
       </Sheet>
     </template>
+    <FileCloseDialog
+      :document="pendingCloseDocument"
+      @cancel="pendingCloseDocument = null"
+      @discard="discardAndClose"
+      @save="saveAndClose"
+    />
+    <FileConflictDialog
+      :document="conflictDocument"
+      @close="conflictDocument = null"
+      @discard="discardConflict"
+      @overwrite="overwriteConflict"
+    />
   </div>
 </template>

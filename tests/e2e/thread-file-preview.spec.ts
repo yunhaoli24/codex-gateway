@@ -217,13 +217,15 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
 
   await expect(fileTab(page, remotePath)).toBeVisible();
   await expect(panel.getByText("codex-gateway-file-preview")).toBeVisible();
-  await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
+  await expect(panel.getByTestId("remote-file-editor")).toBeVisible();
 
   await page
     .getByTestId("remote-file-tree")
     .getByText(markdownPath.split("/").pop()!, { exact: true })
     .click();
   await expect(fileTab(page, markdownPath)).toBeVisible();
+  await expect(panel.getByTestId("remote-file-editor")).toContainText("Rendered Markdown Preview");
+  await panel.getByRole("button", { name: "预览" }).click();
   await expect(panel.locator(".markdown-content h1")).toHaveText("Rendered Markdown Preview");
 
   await seedGatewayThread(page, {
@@ -249,6 +251,7 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   expect(tableBox!.x + tableBox!.width).toBeLessThanOrEqual(markdownBox!.x + markdownBox!.width);
   await page.getByRole("link", { name: "markdown target" }).click();
   await expect(fileTab(page, markdownPath)).toBeVisible();
+  await panel.getByRole("button", { name: "预览" }).click();
   await expect(panel.locator(".markdown-content h1")).toHaveText("Rendered Markdown Preview");
   await expect(panel.locator(".markdown-content strong")).toHaveText("markdown file");
 
@@ -261,12 +264,55 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   ).toHaveCount(1);
   await expect(page.getByTestId("file-workspace-tab")).toHaveCount(3);
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
-  await expect(panel.locator('[data-preview-line="2"]')).toHaveClass(/bg-primary/);
+  await expect(panel.getByTestId("remote-file-editor")).toBeVisible();
 
   await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "unknown text" }).click();
   await expect(fileTab(page, unknownTextPath)).toBeVisible();
   await expect(panel.getByText("unknown extensions still render as text")).toBeVisible();
+
+  const editor = panel.getByTestId("remote-file-editor").locator(".cm-content");
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type("feature_enabled=false\nsaved by tab switch");
+  const tabSaveResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/remote/files?") && response.request().method() === "PUT",
+  );
+  await fileTab(page, nestedPythonPath).click();
+  expect((await tabSaveResponse).ok()).toBe(true);
+  await expect
+    .poll(async () => (await execRemoteSsh(remote, `cat ${shellQuote(unknownTextPath)}`)).stdout)
+    .toContain("saved by tab switch");
+
+  await fileTab(page, unknownTextPath).click();
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type("local draft wins explicitly");
+  await execRemoteSsh(
+    remote,
+    `printf '%s' 'remote concurrent version' > ${shellQuote(unknownTextPath)}`,
+  );
+  const conflictResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/remote/files?") &&
+      response.request().method() === "PUT" &&
+      response.status() === 409,
+  );
+  await panel.getByRole("button", { name: "保存" }).click();
+  await conflictResponse;
+  await panel.getByRole("button", { name: /远端版本冲突/ }).click();
+  const conflictDialog = page.getByRole("dialog");
+  await expect(conflictDialog).toContainText("remote concurrent version");
+  const overwriteResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/remote/files?") && response.request().method() === "PUT",
+  );
+  await conflictDialog.getByRole("button", { name: "覆盖远端" }).click();
+  expect((await overwriteResponse).ok()).toBe(true);
+  await expect
+    .poll(async () => (await execRemoteSsh(remote, `cat ${shellQuote(unknownTextPath)}`)).stdout)
+    .toBe("local draft wins explicitly");
 
   await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "binary target" }).click();

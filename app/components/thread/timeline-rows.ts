@@ -1,7 +1,6 @@
 export type ThreadTimelineRow =
   | { canAnchorPrepend: boolean; key: string; type: "older" }
-  | { canAnchorPrepend: boolean; key: string; type: "turn"; turn: ThreadTimelineTurn }
-  | { canAnchorPrepend: boolean; key: string; type: "error"; message: string };
+  | { canAnchorPrepend: boolean; key: string; type: "turn"; turn: ThreadTimelineTurn };
 
 export type ThreadTimelineTurn = Record<string, any> & {
   id: string;
@@ -11,7 +10,6 @@ export function buildThreadTimelineRows(input: {
   threadId: string | null;
   turns: ThreadTimelineTurn[];
   olderTurnsCursor: string | null;
-  visibleError: string | null;
 }) {
   const rows: ThreadTimelineRow[] = [];
   if (input.threadId && input.olderTurnsCursor) {
@@ -25,14 +23,6 @@ export function buildThreadTimelineRows(input: {
       turn,
     });
   }
-  if (input.visibleError) {
-    rows.push({
-      canAnchorPrepend: true,
-      key: `${input.threadId}:error-${input.visibleError}`,
-      type: "error",
-      message: input.visibleError,
-    });
-  }
   return rows;
 }
 
@@ -42,9 +32,6 @@ export function estimateThreadTimelineRow(row: ThreadTimelineRow | undefined) {
   }
   if (row.type === "older") {
     return 56;
-  }
-  if (row.type === "error") {
-    return 96;
   }
   return 520;
 }

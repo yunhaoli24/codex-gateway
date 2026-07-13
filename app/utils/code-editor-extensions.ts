@@ -6,6 +6,12 @@ import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { vue } from "@codemirror/lang-vue";
+import { cpp } from "@codemirror/lang-cpp";
+import { java } from "@codemirror/lang-java";
+import { python } from "@codemirror/lang-python";
+import { rust } from "@codemirror/lang-rust";
+import { sql } from "@codemirror/lang-sql";
+import { yaml } from "@codemirror/lang-yaml";
 import { tags } from "@lezer/highlight";
 import { EditorView } from "@codemirror/view";
 
@@ -17,7 +23,13 @@ export type CodeEditorLanguage =
   | "html"
   | "css"
   | "markdown"
-  | "vue";
+  | "vue"
+  | "cpp"
+  | "java"
+  | "python"
+  | "rust"
+  | "sql"
+  | "yaml";
 
 export function languageExtension(language: CodeEditorLanguage): Extension {
   const extensions: Record<CodeEditorLanguage, Extension> = {
@@ -29,8 +41,53 @@ export function languageExtension(language: CodeEditorLanguage): Extension {
     css: css(),
     markdown: markdown(),
     vue: vue({ base: html() }),
+    cpp: cpp(),
+    java: java(),
+    python: python(),
+    rust: rust(),
+    sql: sql(),
+    yaml: yaml(),
   };
   return extensions[language];
+}
+
+const languageByExtension: Record<string, CodeEditorLanguage> = {
+  c: "cpp",
+  cc: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+  h: "cpp",
+  hpp: "cpp",
+  css: "css",
+  htm: "html",
+  html: "html",
+  java: "java",
+  js: "javascript",
+  cjs: "javascript",
+  mjs: "javascript",
+  json: "json",
+  jsonc: "json",
+  md: "markdown",
+  mdx: "markdown",
+  py: "python",
+  pyw: "python",
+  rs: "rust",
+  sql: "sql",
+  ts: "typescript",
+  mts: "typescript",
+  cts: "typescript",
+  tsx: "typescript",
+  jsx: "javascript",
+  vue: "vue",
+  yaml: "yaml",
+  yml: "yaml",
+};
+
+export function codeEditorLanguageForPath(path: string): CodeEditorLanguage {
+  const name = path.split("/").pop()?.toLowerCase() ?? "";
+  if (name === "dockerfile" || name === "makefile") return "text";
+  const extension = name.includes(".") ? name.split(".").pop()! : "";
+  return languageByExtension[extension] ?? "text";
 }
 
 export const gatewayCodeEditorTheme = [

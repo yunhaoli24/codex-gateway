@@ -37,7 +37,8 @@ test("goal slash input derives the goal tag and requires an objective before sub
   await expect(composer).toHaveValue("/goal ");
   await page.keyboard.press("Enter");
   await expect(composer).toHaveValue("/goal ");
-  await expect(page.getByTestId("chat-scroll-area").getByText("请输入目标内容")).toBeVisible();
+  await expect(page.getByText("请输入目标内容")).toBeVisible();
+  await expect(page.getByTestId("chat-scroll-area").getByText("请输入目标内容")).toHaveCount(0);
   await expect
     .poll(() => page.evaluate(() => (window as any).__submittedGoalObjective ?? null))
     .toBeNull();

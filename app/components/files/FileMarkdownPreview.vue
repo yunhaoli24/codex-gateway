@@ -7,6 +7,6 @@ defineProps<{ document: FilePreviewDocument }>();
 
 <template>
   <div class="h-full min-w-0 max-w-full overflow-auto bg-canvas px-4 py-4 text-ink">
-    <MarkdownContent :content="document.text" />
+    <MarkdownContent :content="document.draftText" />
   </div>
 </template>

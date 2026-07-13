@@ -37,6 +37,6 @@ export async function sendRemoteFile(
   return sendStream(event, file.stream);
 }
 
-function remoteFileEtag(size: number, modifiedAt: number) {
+export function remoteFileEtag(size: number, modifiedAt: number) {
   return `W/"${size.toString(16)}-${Math.trunc(modifiedAt).toString(16)}"`;
 }

@@ -3,7 +3,7 @@ import { basicSetup } from "codemirror";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { Compartment, EditorState } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
-import { EditorView, placeholder as placeholderExtension } from "@codemirror/view";
+import { EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
 import { cn } from "@/lib/utils";
 import {
   gatewayCodeEditorTheme,
@@ -18,13 +18,21 @@ const props = withDefaults(
     placeholder?: string;
     readOnly?: boolean;
     testId?: string;
+    extensions?: Extension[];
+    lineWrapping?: boolean;
+    revealLine?: number | null;
   }>(),
   {
     language: "text",
     placeholder: "",
     testId: "code-editor",
+    extensions: () => [],
+    lineWrapping: true,
+    revealLine: null,
   },
 );
+
+const emit = defineEmits<{ blur: []; save: [] }>();
 
 const model = defineModel<string>({ default: "" });
 const containerRef = ref<HTMLElement | null>(null);
@@ -48,6 +56,7 @@ onMounted(() => {
       extensions: editorExtensions(),
     }),
   });
+  revealRequestedLine();
 });
 
 onBeforeUnmount(() => {
@@ -73,6 +82,19 @@ watch(
     });
   },
 );
+
+watch(() => props.revealLine, revealRequestedLine);
+
+function revealRequestedLine() {
+  const view = editorView.value;
+  const lineNumber = props.revealLine;
+  if (!view || !lineNumber || lineNumber < 1) return;
+  const line = view.state.doc.line(Math.min(lineNumber, view.state.doc.lines));
+  view.dispatch({
+    selection: { anchor: line.from },
+    effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+  });
+}
 
 watch(
   () => props.readOnly,
@@ -101,7 +123,19 @@ function editorExtensions(): Extension[] {
     languageCompartment.of(languageExtension(props.language)),
     editableCompartment.of(EditorView.editable.of(!props.readOnly)),
     placeholderCompartment.of(props.placeholder ? placeholderExtension(props.placeholder) : []),
-    EditorView.lineWrapping,
+    ...(props.lineWrapping ? [EditorView.lineWrapping] : []),
+    ...props.extensions,
+    keymap.of([
+      {
+        key: "Mod-s",
+        preventDefault: true,
+        run: () => {
+          emit("save");
+          return true;
+        },
+      },
+    ]),
+    EditorView.domEventHandlers({ blur: () => emit("blur") }),
     EditorView.updateListener.of((update) => {
       if (!update.docChanged) {
         return;

@@ -11,17 +11,16 @@ import { OpenFileViewer } from "@open-file-viewer/vue";
 import "@open-file-viewer/core/style.css";
 import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { computed } from "vue";
-import { isMarkdownPreviewPath } from "~~/shared/file-preview";
 import type { FilePreviewDocument } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
-import FileCodePreview from "@/components/files/FileCodePreview.vue";
-import FileMarkdownPreview from "@/components/files/FileMarkdownPreview.vue";
+import FileTextEditor from "@/components/files/FileTextEditor.vue";
 import { useTerminalTheme } from "@/composables/useTerminalTheme";
 import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
 
 const props = defineProps<{
   document: FilePreviewDocument;
 }>();
+const emit = defineEmits<{ conflict: [] }>();
 
 const { t, locale } = useI18n();
 const fileWorkspace = useGatewayFileWorkspaceStore();
@@ -35,11 +34,6 @@ const plugins: PreviewPlugin[] = [
   officePlugin({ pdf: { workerSrc: pdfWorkerSrc } }),
   fallbackPlugin(),
 ];
-const isMarkdownPreview = computed(
-  () =>
-    props.document.previewKind === "text" &&
-    isMarkdownPreviewPath(props.document.path, props.document.contentType),
-);
 </script>
 
 <template>
@@ -73,8 +67,11 @@ const isMarkdownPreview = computed(
         {{ t("app.retry") }}
       </Button>
     </div>
-    <FileMarkdownPreview v-else-if="isMarkdownPreview" :document="document" />
-    <FileCodePreview v-else-if="document.previewKind === 'text'" :document="document" />
+    <FileTextEditor
+      v-else-if="document.previewKind === 'text'"
+      :document="document"
+      @conflict="emit('conflict')"
+    />
     <div
       v-else-if="document.previewKind === 'binary'"
       class="flex min-h-0 flex-1 items-center justify-center bg-canvas p-6"

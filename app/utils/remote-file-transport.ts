@@ -1,4 +1,4 @@
-import type { RemoteDirectoryResult } from "~~/shared/types";
+import type { RemoteDirectoryResult, RemoteFileWriteResult } from "~~/shared/types";
 import { useAuthStore } from "@/stores/auth";
 import { gatewayApi } from "@/utils/gateway-api";
 
@@ -65,6 +65,35 @@ export async function fetchRemoteFile(
   };
 }
 
+export class RemoteFileConflictError extends Error {
+  constructor() {
+    super("Remote file changed since it was opened");
+    this.name = "RemoteFileConflictError";
+  }
+}
+
+export async function writeRemoteTextFile(
+  hostId: number,
+  path: string,
+  text: string,
+  etag: string | null,
+  force = false,
+) {
+  const headers = authorizationHeaders();
+  headers.set("content-type", "text/plain; charset=utf-8");
+  if (etag) headers.set("if-match", etag);
+  if (force) headers.set("x-codex-force-overwrite", "true");
+  const query = new URLSearchParams({ hostId: String(hostId), path });
+  const response = await fetch(`/api/remote/files?${query.toString()}`, {
+    method: "PUT",
+    headers,
+    body: text,
+  });
+  if (response.status === 409) throw new RemoteFileConflictError();
+  if (!response.ok) throw new Error(await responseErrorMessage(response));
+  return (await response.json()) as RemoteFileWriteResult;
+}
+
 function responsePreviewKind(response: Response): "text" | "binary" | "document" {
   const value = response.headers.get("x-codex-file-preview-kind");
   if (value === "binary" || value === "document") {
@@ -86,5 +115,14 @@ function authorizationHeaders() {
 
 async function responseErrorMessage(response: Response) {
   const text = await response.text().catch(() => "");
+  if (text) {
+    try {
+      const body = JSON.parse(text) as { message?: unknown; statusMessage?: unknown };
+      const message = body.message ?? body.statusMessage;
+      if (typeof message === "string") return message;
+    } catch {
+      return text;
+    }
+  }
   return text || response.statusText || `HTTP ${response.status}`;
 }

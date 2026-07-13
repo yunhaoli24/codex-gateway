@@ -23,14 +23,7 @@ const threadStatus = computed(
 <template>
   <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <div
-      v-if="preview?.error"
-      class="m-3 whitespace-pre-line rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
-    >
-      {{ preview.error }}
-    </div>
-
-    <div
-      v-else-if="preview?.loading && !turns.length"
+      v-if="preview?.loading && !turns.length"
       class="flex flex-1 items-center justify-center text-sm text-ink-muted"
     >
       <Loader2Icon class="mr-2 size-4 animate-spin" />
@@ -48,7 +41,6 @@ const threadStatus = computed(
       :loading="Boolean(preview?.loading)"
       :loading-older="false"
       :older-turns-cursor="null"
-      :visible-error="preview?.error ?? null"
     />
 
     <div
