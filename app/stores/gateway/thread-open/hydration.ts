@@ -1,6 +1,7 @@
 import type { ThreadOpenResult } from "~~/shared/types";
 import { normalizeTokenUsage } from "~~/shared/token-usage";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
+import { useGatewayThreadActivityStore } from "@/stores/gateway-thread-activity";
 import { threadIdFromParams } from "../thread-utils/identity";
 import { runtimeStatusFromThreadState } from "../thread-utils/status";
 import type { GatewayStoreContext } from "../types";
@@ -70,16 +71,18 @@ function applyCommonThreadResult(
   result: ThreadOpenResult,
   options: { lastEventId?: number } = {},
 ) {
-  if (!ctx.state.selectedHostId) {
+  const hostId = result.hostId || ctx.state.selectedHostId;
+  if (!hostId) {
     return;
   }
+  useGatewayThreadActivityStore().upsertThread(hostId, result.thread, ctx.state.projects);
   ctx.state.events = result.recentEvents;
   ctx.state.olderTurnsCursor = result.turnsPage.nextCursor;
   ctx.state.newerTurnsCursor = result.turnsPage.backwardsCursor;
   ctx.state.lastEventId = options.lastEventId ?? result.recentEvents.at(-1)?.id ?? 0;
-  ctx.setThreadSettings(ctx.state.selectedHostId, threadId, result.threadSettings);
+  ctx.setThreadSettings(hostId, threadId, result.threadSettings);
   if (result.tokenUsage) {
-    ctx.setThreadTokenUsage(ctx.state.selectedHostId, threadId, result.tokenUsage);
+    ctx.setThreadTokenUsage(hostId, threadId, result.tokenUsage);
   } else {
     syncTokenUsageFromRecentEvents(ctx, result.recentEvents);
   }

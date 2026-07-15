@@ -17,6 +17,7 @@
     "plugins": "插件",
     "automations": "自动化",
     "pinned": "已固定",
+    "recentlyRunning": "最近运行",
     "noThreads": "暂无会话",
     "noProjects": "暂无项目",
     "missingProjects": "目录已删除",

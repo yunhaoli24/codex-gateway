@@ -17,8 +17,12 @@ import {
   clearActiveTerminalProcess,
 } from "./thread-turns/terminal-processes";
 import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
+import { useGatewayThreadActivityStore } from "@/stores/gateway-thread-activity";
 
 export function registerGatewayDomainSubscribers(ctx: GatewayStoreContext) {
+  ctx.events.on("thread-summary-detected", (event) => {
+    useGatewayThreadActivityStore().upsertThread(event.hostId, event.thread, ctx.state.projects);
+  });
   ctx.events.on("remote-files-changed", (event) => {
     useGatewayFileWorkspaceStore().markRemoteFilesChanged(
       event.hostId,

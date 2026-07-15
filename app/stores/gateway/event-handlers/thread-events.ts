@@ -4,6 +4,14 @@ import { runtimeStatusFromAppThreadStatus } from "../thread-utils/status";
 import type { GatewayEventHandlerRegistry } from "./types";
 
 export const threadEventHandlers: GatewayEventHandlerRegistry = {
+  "thread/started": (ctx, event, params) => {
+    if (params.thread?.id) {
+      ctx.events.emit("thread-summary-detected", {
+        hostId: event.hostId,
+        thread: params.thread,
+      });
+    }
+  },
   "thread/status/changed": (ctx, event, params) => {
     const threadId = threadIdFromParams(params);
     if (threadId) {

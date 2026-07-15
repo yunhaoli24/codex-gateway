@@ -33,7 +33,7 @@ const props = defineProps<{
   selectedProjectId: number | null;
   selectedThreadId: string | null;
   hostConnectionStatuses: Record<number, { status: string; message?: string | null }>;
-  renamingThreadId: string | null;
+  renamingThreadKey: string | null;
   renameValue: string;
   longPressHandlers?: Record<string, unknown>;
   threadRuntimeStatus: (hostId: number, threadId: string) => ThreadRuntimeStatus;
@@ -144,7 +144,7 @@ function hostConnectionStatus(hostId: number) {
                     threadCompletionAttention(project.hostId, String(thread.id))
                   "
                   :subtitle="formatRelative(thread.updatedAt)"
-                  :rename-active="renamingThreadId === String(thread.id)"
+                  :rename-active="renamingThreadKey === `${project.hostId}:${thread.id}`"
                   :rename-value="renameValue"
                   :pin-label="thread.pinned ? $t('app.unpinThread') : $t('app.pinThread')"
                   :long-press-handlers="longPressHandlers"
@@ -156,7 +156,7 @@ function hostConnectionStatus(hostId: number) {
                     })
                   "
                   @toggle-pin="emit('toggleThreadPin', String(thread.id), !thread.pinned)"
-                  @rename="emit('rename', thread)"
+                  @rename="emit('rename', { ...thread, hostId: project.hostId })"
                   @submit-rename="emit('submitRename')"
                   @rename-keydown="emit('renameKeydown', $event)"
                   @update:rename-value="emit('update:renameValue', $event)"

@@ -17,10 +17,12 @@ import { useGatewayStore } from "@/stores/gateway";
 import AddProjectDialog from "./AddProjectDialog.vue";
 import HostTree from "./HostTree.vue";
 import PinnedThreadList from "./PinnedThreadList.vue";
+import RecentThreadList from "./RecentThreadList.vue";
 import SidebarScrollArea from "./SidebarScrollArea.vue";
 import { SidebarFooter } from "@/components/ui/sidebar";
 import { useSidebarTree } from "./useSidebarTree";
 import { useThreadRename } from "./useThreadRename";
+import { useRecentThreadActivity } from "./useRecentThreadActivity";
 import SidebarWorkspaceToolbar from "./SidebarWorkspaceToolbar.vue";
 
 const store = useGatewayStore();
@@ -32,6 +34,7 @@ const projectEditor = ref<{ host: any; project: any | null } | null>(null);
 const { longPressTriggered, longPressContextMenuHandlers } = useLongPressContextMenu();
 const sidebarTree = useSidebarTree(store, longPressTriggered);
 const threadRename = useThreadRename(store);
+const recentActivity = useRecentThreadActivity(store);
 const workspaceActions = useWorkspaceLaunchActions();
 
 defineOptions({
@@ -71,13 +74,28 @@ function openEditProject(project: any) {
             :hosts="sidebarTree.hosts.value"
             :selected-host-id="sidebarTree.selectedHostId.value"
             :selected-thread-id="sidebarTree.selectedThreadId.value"
-            :renaming-thread-id="threadRename.renamingThreadId.value"
+            :renaming-thread-key="threadRename.renamingThreadKey.value"
             :rename-value="threadRename.renameValue.value"
             :long-press-handlers="longPressContextMenuHandlers"
             :runtime-status="sidebarTree.pinnedRuntimeStatus"
             :completion-attention="sidebarTree.pinnedCompletionAttention"
             @open="sidebarTree.openPinnedThread"
             @unpin="store.setPinnedThread($event, false)"
+            @rename="threadRename.startInlineRename"
+            @submit-rename="threadRename.submitRename"
+            @rename-keydown="threadRename.handleRenameKeydown"
+            @update:rename-value="threadRename.renameValue.value = $event"
+          />
+
+          <RecentThreadList
+            :threads="recentActivity.recentThreads.value"
+            :selected-host-id="sidebarTree.selectedHostId.value"
+            :selected-thread-id="sidebarTree.selectedThreadId.value"
+            :renaming-thread-key="threadRename.renamingThreadKey.value"
+            :rename-value="threadRename.renameValue.value"
+            :long-press-handlers="longPressContextMenuHandlers"
+            @open="recentActivity.openRecentThread"
+            @pin="recentActivity.pinRecentThread"
             @rename="threadRename.startInlineRename"
             @submit-rename="threadRename.submitRename"
             @rename-keydown="threadRename.handleRenameKeydown"
@@ -96,7 +114,7 @@ function openEditProject(project: any) {
             :selected-project-id="sidebarTree.selectedProjectId.value"
             :selected-thread-id="sidebarTree.selectedThreadId.value"
             :host-connection-statuses="sidebarTree.hostConnectionStatuses.value"
-            :renaming-thread-id="threadRename.renamingThreadId.value"
+            :renaming-thread-key="threadRename.renamingThreadKey.value"
             :rename-value="threadRename.renameValue.value"
             :long-press-handlers="longPressContextMenuHandlers"
             :thread-runtime-status="sidebarTree.threadRuntimeStatus"

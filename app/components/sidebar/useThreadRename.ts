@@ -1,5 +1,5 @@
 import { storeToRefs } from "pinia";
-import { nextTick, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import type { useGatewayStore } from "@/stores/gateway";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
@@ -7,8 +7,12 @@ type GatewayStore = ReturnType<typeof useGatewayStore>;
 
 export function useThreadRename(store: GatewayStore) {
   const { threads, pinnedThreads } = storeToRefs(store);
-  const renamingThreadId = ref<string | null>(null);
+  const renameTarget = ref<{ hostId: number; threadId: string } | null>(null);
   const renameValue = ref("");
+  const renamingThreadKey = computed(() => {
+    const target = renameTarget.value;
+    return target ? `${target.hostId}:${target.threadId}` : null;
+  });
   const renameKeyHandlers: Record<string, (event: KeyboardEvent) => void> = {
     Escape: (event) => {
       event.preventDefault();
@@ -17,7 +21,10 @@ export function useThreadRename(store: GatewayStore) {
   };
 
   function startInlineRename(thread: any) {
-    renamingThreadId.value = String(thread.threadId || thread.id);
+    const hostId = Number(thread.hostId);
+    const threadId = String(thread.threadId || thread.id || "");
+    if (!hostId || !threadId) return;
+    renameTarget.value = { hostId, threadId };
     renameValue.value = titleForThread(thread);
     void nextTick(() => {
       document.querySelector<HTMLInputElement>('[data-testid="rename-thread-input"]')?.focus();
@@ -25,26 +32,32 @@ export function useThreadRename(store: GatewayStore) {
   }
 
   async function submitRename() {
-    const threadId = renamingThreadId.value ?? "";
+    const target = renameTarget.value;
     const name = renameValue.value.trim();
-    if (!threadId || !name) {
+    if (!target || !name) {
       cancelRename();
       return;
     }
     const thread =
-      threads.value.find((candidate) => String(candidate.id) === threadId) ||
-      pinnedThreads.value.find((candidate) => String(candidate.threadId) === threadId);
+      threads.value.find(
+        (candidate) =>
+          store.selectedHostId === target.hostId && String(candidate.id) === target.threadId,
+      ) ||
+      pinnedThreads.value.find(
+        (candidate) =>
+          candidate.hostId === target.hostId && String(candidate.threadId) === target.threadId,
+      );
     if (thread && titleForThread(thread) === name) {
       cancelRename();
       return;
     }
-    await store.renameThread(threadId, name);
-    renamingThreadId.value = null;
+    await store.renameThread(target.hostId, target.threadId, name);
+    renameTarget.value = null;
     renameValue.value = "";
   }
 
   function cancelRename() {
-    renamingThreadId.value = null;
+    renameTarget.value = null;
     renameValue.value = "";
   }
 
@@ -53,7 +66,7 @@ export function useThreadRename(store: GatewayStore) {
   }
 
   return {
-    renamingThreadId,
+    renamingThreadKey,
     renameValue,
     startInlineRename,
     submitRename,
