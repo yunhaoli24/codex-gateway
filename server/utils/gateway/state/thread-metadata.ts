@@ -1,5 +1,5 @@
 import { gatewayMemoryState, toTimestamp } from "./memory";
-import { subAgentThreadStore } from "./sub-agent-threads";
+import { parentThreadIdFromMetadata, subAgentThreadStore } from "./sub-agent-threads";
 
 export const threadMetadataStore = {
   pruneToHosts(hostIds: Set<number>) {
@@ -30,6 +30,7 @@ export const threadMetadataStore = {
       hostId,
       projectId,
       threadId,
+      parentThreadId: parentThreadIdFromMetadata(thread),
       title: thread.title ?? thread.name ?? null,
       name: thread.name ?? null,
       preview: thread.preview ?? thread.name ?? null,
@@ -50,6 +51,7 @@ export const threadMetadataStore = {
         ...existing,
         ...metadata,
         projectId: projectId ?? existing.projectId,
+        parentThreadId: metadata.parentThreadId ?? existing.parentThreadId,
         cwd: metadata.cwd ?? existing.cwd,
         preview: metadata.preview ?? existing.preview,
         title: metadata.title ?? existing.title,
@@ -77,6 +79,8 @@ export const threadMetadataStore = {
       })
       .map((thread) => ({
         id: thread.threadId,
+        projectId: thread.projectId,
+        parentThreadId: thread.parentThreadId,
         title: thread.title,
         name: thread.name,
         preview: thread.preview,

@@ -14,6 +14,7 @@ export interface ThreadMetadataRecord {
   hostId: number;
   projectId: number | null;
   threadId: string;
+  parentThreadId: string | null;
   title: string | null;
   name: string | null;
   preview: string | null;

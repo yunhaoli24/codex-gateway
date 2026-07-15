@@ -17,6 +17,7 @@
     "plugins": "Plugins",
     "automations": "Automations",
     "pinned": "Pinned",
+    "recentlyRunning": "Recently running",
     "noThreads": "No threads",
     "noProjects": "No projects",
     "missingProjects": "Missing directories",

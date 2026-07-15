@@ -1,5 +1,6 @@
 import type { PinnedThreadRecord, ProjectRecord } from "~~/shared/types";
 import { gatewayApi } from "@/utils/gateway-api";
+import { useGatewayThreadActivityStore } from "@/stores/gateway-thread-activity";
 import type { GatewayStoreContext } from "../types";
 import { pinnedKey, sortThreads, titleForThread } from "../thread-utils/identity";
 
@@ -107,35 +108,38 @@ export function createThreadPinningActions(ctx: GatewayStoreContext) {
       });
     },
 
-    async renameThread(threadId: string, name: string) {
-      if (!ctx.state.selectedHostId) {
-        return;
-      }
+    async renameThread(hostId: number, threadId: string, name: string) {
       await gatewayApi("/api/threads/rename", {
         method: "POST",
         body: {
-          hostId: ctx.state.selectedHostId,
+          hostId,
           threadId,
           name,
         },
       });
-      ctx.state.threads = ctx.state.threads.map((thread) =>
-        String(thread.id) === threadId ? { ...thread, name } : thread,
-      );
-      const key = pinnedKey(ctx.state.selectedHostId, threadId);
+      if (hostId === ctx.state.selectedHostId) {
+        ctx.state.threads = ctx.state.threads.map((thread) =>
+          String(thread.id) === threadId ? { ...thread, name } : thread,
+        );
+      }
+      const key = pinnedKey(hostId, threadId);
       ctx.state.gatewayConfig.pinnedThreads = ctx.state.gatewayConfig.pinnedThreads.map((thread) =>
         pinnedKey(thread.hostId, thread.threadId) === key ? { ...thread, title: name } : thread,
       );
+      useGatewayThreadActivityStore().updateTitle(hostId, threadId, name);
       ctx.persistConfig();
       await ctx.syncConfigToServer();
       if (
+        hostId === ctx.state.selectedHostId &&
         ctx.state.selectedThreadId === threadId &&
         ctx.state.currentThread &&
         typeof ctx.state.currentThread === "object"
       ) {
         ctx.state.currentThread = { ...(ctx.state.currentThread as Record<string, unknown>), name };
       }
-      await ctx.listThreads();
+      if (hostId === ctx.state.selectedHostId) {
+        await ctx.listThreads();
+      }
     },
   };
 }

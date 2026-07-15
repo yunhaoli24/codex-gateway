@@ -111,6 +111,82 @@ test("marks completed threads as needing review until they are opened", async ({
   ).toBeHidden();
 });
 
+test("keeps non-pinned main threads in recent activity for the page session", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const gateway = pinia?._s?.get("gateway");
+    const activity = pinia?._s?.get("gateway-thread-activity");
+    if (!gateway || !activity) throw new Error("Unable to locate sidebar activity stores");
+
+    const host = {
+      id: 104,
+      name: "Activity Host",
+      sshHost: "activity.example.internal",
+      username: "codex",
+    };
+    const project = {
+      id: 204,
+      hostId: host.id,
+      name: "Activity Project",
+      remotePath: "/workspace/activity",
+    };
+    gateway.hosts = [host];
+    gateway.projects = [project];
+    gateway.gatewayConfig.pinnedThreads = [
+      {
+        hostId: host.id,
+        projectId: project.id,
+        threadId: "already-pinned",
+        title: "Already pinned",
+      },
+    ];
+    activity.ingestThreads(
+      host.id,
+      [
+        {
+          id: "recent-main",
+          title: "Recent main thread",
+          projectId: project.id,
+          cwd: project.remotePath,
+          updatedAt: 3,
+        },
+        {
+          id: "already-pinned",
+          title: "Already pinned",
+          projectId: project.id,
+          updatedAt: 2,
+        },
+        {
+          id: "spawned-child",
+          title: "Spawned child",
+          projectId: project.id,
+          parentThreadId: "recent-main",
+          updatedAt: 1,
+        },
+      ],
+      [project],
+    );
+    gateway.setThreadStatus(host.id, "recent-main", "running");
+    gateway.setThreadStatus(host.id, "already-pinned", "running");
+    gateway.setThreadStatus(host.id, "spawned-child", "running");
+    gateway.setThreadStatus(host.id, "recent-main", "completed");
+  });
+
+  await expect(page.getByText("最近运行", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("recent-thread-button-recent-main")).toBeVisible();
+  await expect(page.getByTestId("recent-thread-button-already-pinned")).toBeHidden();
+  await expect(page.getByTestId("recent-thread-button-spawned-child")).toBeHidden();
+
+  const sectionOrder = await page.getByTestId("sidebar-scroll-area").evaluate((root) => {
+    const text = root.textContent ?? "";
+    return [text.indexOf("已固定"), text.indexOf("最近运行"), text.indexOf("主机")];
+  });
+  expect(sectionOrder[0]).toBeLessThan(sectionOrder[1]!);
+  expect(sectionOrder[1]).toBeLessThan(sectionOrder[2]!);
+});
+
 test("long expanded tree labels truncate without displacing trailing statuses", async ({
   page,
 }) => {
@@ -167,25 +243,35 @@ test("long expanded tree labels truncate without displacing trailing statuses", 
   await expect(page.getByTestId(`host-button-${hostId}`).getByLabel("已连接")).toBeVisible();
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("运行中")).toBeVisible();
 
-  const metrics = await page.getByTestId("sidebar-scroll-area").evaluate((root, longTitle) => {
-    const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]');
-    const title = root.querySelector<HTMLElement>(`[title="${CSS.escape(longTitle)}"]`);
-    const statuses = Array.from(
-      root.querySelectorAll<HTMLElement>('[aria-label="已连接"], [aria-label="运行中"]'),
-    );
-    if (!viewport || !title || statuses.length !== 2)
-      throw new Error("Missing sidebar layout nodes");
-    const viewportRect = viewport.getBoundingClientRect();
-    return {
-      overflow: viewport.scrollWidth - viewport.clientWidth,
-      titleClipped: title.scrollWidth > title.clientWidth,
-      titleOverflow: getComputedStyle(title).textOverflow,
-      statusesInside: statuses.every((status) => {
-        const rect = status.getBoundingClientRect();
-        return rect.left >= viewportRect.left && rect.right <= viewportRect.right;
-      }),
-    };
-  }, longTitle);
+  const metrics = await page.getByTestId("sidebar-scroll-area").evaluate(
+    (root, { hostId, threadId, longTitle }) => {
+      const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]');
+      const threadButton = root.querySelector<HTMLElement>(
+        `[data-testid="thread-button-${CSS.escape(threadId)}"]`,
+      );
+      const title = threadButton?.querySelector<HTMLElement>(`[title="${CSS.escape(longTitle)}"]`);
+      const hostStatus = root.querySelector<HTMLElement>(
+        `[data-testid="host-button-${hostId}"] [aria-label="已连接"]`,
+      );
+      const threadStatus = threadButton?.querySelector<HTMLElement>('[aria-label="运行中"]');
+      const statuses = [hostStatus, threadStatus];
+      if (!viewport || !title || statuses.some((status) => !status)) {
+        throw new Error("Missing sidebar layout nodes");
+      }
+      const viewportRect = viewport.getBoundingClientRect();
+      return {
+        overflow: viewport.scrollWidth - viewport.clientWidth,
+        titleClipped: title.scrollWidth > title.clientWidth,
+        titleOverflow: getComputedStyle(title).textOverflow,
+        statusesInside: statuses.every((status) => {
+          if (!status) return false;
+          const rect = status.getBoundingClientRect();
+          return rect.left >= viewportRect.left && rect.right <= viewportRect.right;
+        }),
+      };
+    },
+    { hostId, threadId, longTitle },
+  );
   expect(metrics).toEqual({
     overflow: 0,
     titleClipped: true,

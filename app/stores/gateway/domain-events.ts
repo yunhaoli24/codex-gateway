@@ -2,6 +2,10 @@ import type { ThreadSettingsState, ThreadTokenUsageState } from "~~/shared/types
 import type { ThreadRuntimeStatus } from "./types";
 
 export type GatewayDomainEventMap = {
+  "thread-summary-detected": {
+    hostId: number;
+    thread: any;
+  };
   "thread-status-detected": {
     hostId: number;
     threadId: string;

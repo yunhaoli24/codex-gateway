@@ -7,7 +7,7 @@ const props = defineProps<{
   hosts: any[];
   selectedHostId: number | null;
   selectedThreadId: string | null;
-  renamingThreadId: string | null;
+  renamingThreadKey: string | null;
   renameValue: string;
   longPressHandlers?: Record<string, unknown>;
   runtimeStatus: (thread: any) => any;
@@ -52,7 +52,7 @@ function isSelectedPinnedThread(thread: any) {
         :status="runtimeStatus(thread)"
         :completion-attention="completionAttention(thread)"
         :subtitle="subtitleForPinnedThread(thread) || formatRelative(thread.updatedAt)"
-        :rename-active="renamingThreadId === pinnedThreadId(thread)"
+        :rename-active="renamingThreadKey === pinnedThreadKey(thread)"
         :rename-value="renameValue"
         :pin-label="$t('app.unpinThread')"
         :long-press-handlers="longPressHandlers"

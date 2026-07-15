@@ -1,5 +1,6 @@
 import type { GatewayStoreContext, ThreadListResponse } from "../types";
 import { gatewayApi } from "@/utils/gateway-api";
+import { useGatewayThreadActivityStore } from "@/stores/gateway-thread-activity";
 import { messageFromError, pinnedKey, sortThreads } from "../thread-utils/identity";
 import { runtimeStatusFromAppThreadStatus } from "../thread-utils/status";
 
@@ -12,6 +13,7 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
       ctx.mergeProjects(response.projects);
     }
     applyProjectDirectoryAvailability(ctx, response);
+    useGatewayThreadActivityStore().ingestThreads(hostId, response.data ?? [], ctx.state.projects);
     syncThreadStatusesFromList(ctx, hostId, response.data ?? []);
   }
 
@@ -85,6 +87,11 @@ export function createThreadListActions(ctx: GatewayStoreContext) {
           ctx.mergeProjects(response.projects);
         }
         applyProjectDirectoryAvailability(ctx, response);
+        useGatewayThreadActivityStore().ingestThreads(
+          hostId,
+          response.data ?? [],
+          ctx.state.projects,
+        );
         ctx.state.hostConnectionStatuses = {
           ...ctx.state.hostConnectionStatuses,
           [hostId]: { status: "connected", updatedAt: Date.now() },

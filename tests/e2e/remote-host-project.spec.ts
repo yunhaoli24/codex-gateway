@@ -132,12 +132,17 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
 
   const marker = `E2E 置顶恢复 ${Date.now()}`;
   await sendTextTurn(page, marker);
+  const recentThread = page.getByTestId(`recent-thread-button-${threadId}`);
+  await expect(recentThread).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("chat-scroll-area").getByText(marker)).toBeVisible({
     timeout: 120_000,
   });
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
     timeout: 120_000,
   });
+  // This list is page-session activity, not merely a projection of the current
+  // running keys. A completed thread remains discoverable until the page reloads.
+  await expect(recentThread).toBeVisible();
 
   const staleTurnsResponse = await sendRealtimeRawRequest(page, {
     type: "thread.turns.load",
@@ -155,6 +160,7 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   expect(staleTurnsResponse.code).toBe(STALE_THREAD_CURSOR_ERROR_CODE);
 
   await reloadApp(page);
+  await expect(page.getByTestId(`recent-thread-button-${threadId}`)).toBeHidden();
   await expect(page.getByTestId(`thread-button-${threadId}`)).toHaveAttribute(
     "data-selected",
     "true",

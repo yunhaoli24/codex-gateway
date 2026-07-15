@@ -1,4 +1,5 @@
 import type { ThreadRuntimeStatus } from "~~/shared/types";
+import { useGatewayThreadActivityStore } from "@/stores/gateway-thread-activity";
 import { activeRemoteTurnId } from "../thread-turns/active-turn";
 import { pinnedKey } from "../thread-utils/identity";
 import type { GatewayStoreContext, GatewayStoreState } from "../types";
@@ -90,6 +91,7 @@ export function applyThreadRuntimeStatus(
     ...ctx.state.threadStatuses,
     [key]: nextStatus,
   };
+  useGatewayThreadActivityStore().recordRuntimeStatus(hostId, threadId, nextStatus);
   syncThreadCompletionAttention(ctx, hostId, threadId, previousStatus, nextStatus);
 
   if (nextStatus === "running") {
