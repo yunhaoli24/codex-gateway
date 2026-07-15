@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import {
-  BellDotIcon,
-  CheckCircle2Icon,
-  CircleAlertIcon,
-  CirclePauseIcon,
-  Loader2Icon,
-  StarIcon,
-} from "@lucide/vue";
+import { StarIcon } from "@lucide/vue";
 import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,8 +11,9 @@ import {
 import { Input } from "@/components/ui/input";
 import type { ThreadRuntimeStatus } from "@/stores/gateway";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
-import { selectedRowClass, statusClass, statusLabelKey } from "./sidebar-utils";
+import { selectedRowClass } from "./sidebar-utils";
 import SidebarRowLabel from "./SidebarRowLabel.vue";
+import ThreadStatusIndicator from "./ThreadStatusIndicator.vue";
 
 const props = defineProps<{
   thread: any;
@@ -45,26 +39,6 @@ const emit = defineEmits<{
 }>();
 
 const pressHandlers = computed(() => props.longPressHandlers ?? {});
-const { t } = useI18n();
-
-const statusIconByStatus = {
-  running: Loader2Icon,
-  completedUnviewed: BellDotIcon,
-  completed: CheckCircle2Icon,
-  failed: CircleAlertIcon,
-  interrupted: CirclePauseIcon,
-} as const;
-
-const displayStatus = computed(() =>
-  props.completionAttention ? "completedUnviewed" : props.status,
-);
-const statusLabel = computed(() => t(statusLabelKey(displayStatus.value)));
-const statusIcon = computed(
-  () => statusIconByStatus[displayStatus.value as keyof typeof statusIconByStatus] ?? null,
-);
-const statusIconClass = computed(() => ({
-  "animate-spin": props.status === "running",
-}));
 </script>
 
 <template>
@@ -86,7 +60,7 @@ const statusIconClass = computed(() => ({
         v-bind="pressHandlers"
         :data-selected="selected ? 'true' : 'false'"
         variant="ghost"
-        class="h-auto min-h-9 w-full justify-between rounded-lg px-3 py-2 text-sm font-normal hover:bg-surface"
+        class="h-auto min-h-9 w-full min-w-0 justify-start overflow-hidden rounded-lg px-3 py-2 text-sm font-normal hover:bg-surface"
         :class="selectedRowClass(selected)"
         @click="emit('open')"
       >
@@ -97,15 +71,10 @@ const statusIconClass = computed(() => ({
               class="size-3.5 shrink-0 fill-current text-accent-orange"
             />
           </template>
+          <template #trailing>
+            <ThreadStatusIndicator :status="status" :completion-attention="completionAttention" />
+          </template>
         </SidebarRowLabel>
-        <span
-          class="ml-2 inline-flex size-4 shrink-0 items-center justify-center"
-          :class="statusClass(displayStatus)"
-          :aria-label="statusLabel"
-        >
-          <component :is="statusIcon" v-if="statusIcon" class="size-3.5" :class="statusIconClass" />
-          <span v-else class="size-2 rounded-full bg-current opacity-50" />
-        </span>
       </Button>
     </ContextMenuTrigger>
     <ContextMenuContent :collision-padding="12" prioritize-position class="w-40">
