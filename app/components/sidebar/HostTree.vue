@@ -63,17 +63,17 @@ function hostConnectionStatus(hostId: number) {
 </script>
 
 <template>
-  <section class="flex flex-col">
+  <section class="flex min-w-0 max-w-full flex-col overflow-hidden">
     <div class="px-2 pb-2 text-sm text-ink-muted">{{ $t("app.hosts") }}</div>
-    <div class="space-y-1">
-      <div v-for="host in hosts" :key="host.id" class="rounded-lg">
+    <div class="min-w-0 space-y-1 overflow-hidden">
+      <div v-for="host in hosts" :key="host.id" class="min-w-0 overflow-hidden rounded-lg">
         <ContextMenu>
           <ContextMenuTrigger as-child>
             <Button
               :data-testid="`host-button-${host.id}`"
               v-bind="longPressHandlers"
               variant="ghost"
-              class="h-11 w-full justify-start gap-2 rounded-lg px-3 text-left text-[0.9375rem] font-normal hover:bg-surface"
+              class="h-11 w-full min-w-0 justify-start gap-2 overflow-hidden rounded-lg px-3 text-left text-[0.9375rem] font-normal hover:bg-surface"
               :class="selectedRowClass(host.id === selectedHostId)"
               @click="emit('selectHost', host.id)"
             >
@@ -83,11 +83,14 @@ function hostConnectionStatus(hostId: number) {
               />
               <ChevronRightIcon v-else class="size-3.5 shrink-0 text-ink-muted" />
               <ServerIcon class="size-4 shrink-0" />
-              <SidebarRowLabel :title="host.name" :subtitle="host.sshHost" />
-              <HostStatusIndicator
-                :status="hostConnectionStatus(host.id).status"
-                :label="hostConnectionStatus(host.id).message"
-              />
+              <SidebarRowLabel :title="host.name" :subtitle="host.sshHost">
+                <template #trailing>
+                  <HostStatusIndicator
+                    :status="hostConnectionStatus(host.id).status"
+                    :label="hostConnectionStatus(host.id).message"
+                  />
+                </template>
+              </SidebarRowLabel>
             </Button>
           </ContextMenuTrigger>
           <ContextMenuContent :collision-padding="12" prioritize-position class="w-44">
@@ -105,11 +108,14 @@ function hostConnectionStatus(hostId: number) {
           </ContextMenuContent>
         </ContextMenu>
 
-        <div v-if="expandedHostIds.has(host.id)" class="mt-1 space-y-1 pl-5">
+        <div
+          v-if="expandedHostIds.has(host.id)"
+          class="mt-1 min-w-0 space-y-1 overflow-hidden pl-5"
+        >
           <div
             v-for="project in availableProjectsByHost.get(host.id) ?? []"
             :key="project.id"
-            class="space-y-1"
+            class="min-w-0 space-y-1 overflow-hidden"
           >
             <SidebarProjectRow
               :project="project"
@@ -122,7 +128,10 @@ function hostConnectionStatus(hostId: number) {
               @start-thread="emit('startThreadInProject', project)"
             />
 
-            <div v-if="expandedProjectIds.has(project.id)" class="space-y-1 pl-7">
+            <div
+              v-if="expandedProjectIds.has(project.id)"
+              class="min-w-0 space-y-1 overflow-hidden pl-7"
+            >
               <template v-if="project.id === selectedProjectId && projectThreads.length">
                 <ThreadRow
                   v-for="thread in projectThreads"

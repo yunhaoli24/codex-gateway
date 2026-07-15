@@ -27,7 +27,7 @@ const iconClass = computed(() => ({
 
 <template>
   <span
-    class="ml-auto inline-flex size-4 shrink-0 items-center justify-center"
+    class="inline-flex size-4 shrink-0 items-center justify-center"
     :class="hostConnectionClass(status)"
     :title="label"
     :aria-label="label"

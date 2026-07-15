@@ -110,3 +110,86 @@ test("marks completed threads as needing review until they are opened", async ({
     page.getByTestId("thread-button-review-thread").getByLabel("已完成，待查看", { exact: true }),
   ).toBeHidden();
 });
+
+test("long expanded tree labels truncate without displacing trailing statuses", async ({
+  page,
+}) => {
+  await openApp(page);
+  const hostId = 103;
+  const projectId = 203;
+  const threadId = "long-sidebar-thread";
+  const longTitle = `Long thread ${"unbroken-segment-".repeat(18)}`;
+  await seedGatewayThread(page, {
+    hostId,
+    projectId,
+    threadId: null,
+    host: {
+      id: hostId,
+      name: `Long host ${"host-segment-".repeat(12)}`,
+      sshHost: "very-long-hostname.example.internal",
+      sshUser: "codex",
+    },
+    project: {
+      id: projectId,
+      hostId,
+      name: `Long project ${"project-segment-".repeat(12)}`,
+      remotePath: "/workspace/sidebar-layout",
+    },
+    threads: [{ id: threadId, name: longTitle, pinned: false, updatedAt: 1 }],
+  });
+  await installRealtimeThreadSnapshotMock(page, {
+    hostId,
+    snapshots: {
+      [threadId]: {
+        thread: { id: threadId, name: longTitle },
+        history: { thread: { id: threadId, turns: [] } },
+        projectId,
+        runtimeStatus: "running",
+      },
+    },
+  });
+  await page.evaluate(
+    ({ hostId, threadId }) => {
+      const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
+      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
+      store.hostConnectionStatuses = { [hostId]: { status: "connected" } };
+      store.setThreadStatus(hostId, threadId, "running");
+    },
+    { hostId, threadId },
+  );
+
+  await expect(page.getByTestId(`thread-button-${threadId}`)).toBeVisible();
+  await page.getByTestId(`thread-button-${threadId}`).click();
+  await expect(page.getByTestId(`thread-button-${threadId}`)).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
+  await expect(page.getByTestId(`host-button-${hostId}`).getByLabel("已连接")).toBeVisible();
+  await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("运行中")).toBeVisible();
+
+  const metrics = await page.getByTestId("sidebar-scroll-area").evaluate((root, longTitle) => {
+    const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]');
+    const title = root.querySelector<HTMLElement>(`[title="${CSS.escape(longTitle)}"]`);
+    const statuses = Array.from(
+      root.querySelectorAll<HTMLElement>('[aria-label="已连接"], [aria-label="运行中"]'),
+    );
+    if (!viewport || !title || statuses.length !== 2)
+      throw new Error("Missing sidebar layout nodes");
+    const viewportRect = viewport.getBoundingClientRect();
+    return {
+      overflow: viewport.scrollWidth - viewport.clientWidth,
+      titleClipped: title.scrollWidth > title.clientWidth,
+      titleOverflow: getComputedStyle(title).textOverflow,
+      statusesInside: statuses.every((status) => {
+        const rect = status.getBoundingClientRect();
+        return rect.left >= viewportRect.left && rect.right <= viewportRect.right;
+      }),
+    };
+  }, longTitle);
+  expect(metrics).toEqual({
+    overflow: 0,
+    titleClipped: true,
+    titleOverflow: "ellipsis",
+    statusesInside: true,
+  });
+});

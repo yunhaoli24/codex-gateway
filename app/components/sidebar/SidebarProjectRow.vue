@@ -48,7 +48,7 @@ function selectProject(event: MouseEvent) {
         :data-testid="`project-button-${project.id}`"
         v-bind="longPressHandlers"
         variant="ghost"
-        class="h-10 w-full justify-start gap-2 rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-surface"
+        class="h-10 w-full min-w-0 justify-start gap-2 overflow-hidden rounded-lg px-3 text-[0.9375rem] font-normal hover:bg-surface"
         :class="[selectedRowClass(selected), missing ? 'text-ink-faint' : '']"
         :data-project-missing="missing ? 'true' : 'false'"
         @click="selectProject"
@@ -63,8 +63,11 @@ function selectProject(event: MouseEvent) {
         <SidebarRowLabel
           :title="project.name"
           :subtitle="missing ? $t('app.projectDirectoryMissing') : undefined"
-        />
-        <span v-if="!missing" class="ml-auto size-2 shrink-0 rounded-full bg-accent-green" />
+        >
+          <template v-if="!missing" #trailing>
+            <span class="size-2 shrink-0 rounded-full bg-accent-green" />
+          </template>
+        </SidebarRowLabel>
       </Button>
     </ContextMenuTrigger>
     <ContextMenuContent :collision-padding="12" prioritize-position class="w-44">

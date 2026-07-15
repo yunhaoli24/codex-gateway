@@ -3,8 +3,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 </script>
 
 <template>
-  <ScrollArea class="sidebar-scroll-area min-h-0 flex-1">
-    <slot />
+  <ScrollArea
+    data-testid="sidebar-scroll-area"
+    class="sidebar-scroll-area min-h-0 min-w-0 flex-1"
+    viewport-class="overflow-x-hidden"
+  >
+    <!--
+      Reka's viewport uses an intrinsic-size content wrapper. Keep a bounded
+      application wrapper inside it so an expanded tree's unbroken filename or
+      thread title cannot widen every row and push trailing statuses offscreen.
+    -->
+    <div class="w-full min-w-0 max-w-full overflow-hidden">
+      <slot />
+    </div>
   </ScrollArea>
 </template>
 

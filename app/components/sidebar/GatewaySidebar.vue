@@ -65,7 +65,7 @@ function openEditProject(project: any) {
     />
     <div class="flex min-h-0 flex-1 overflow-hidden px-3 py-3">
       <SidebarScrollArea>
-        <div class="space-y-4 pr-1">
+        <div class="min-w-0 max-w-full space-y-4 overflow-hidden pr-1">
           <PinnedThreadList
             :threads="sidebarTree.pinnedThreads.value"
             :hosts="sidebarTree.hosts.value"
