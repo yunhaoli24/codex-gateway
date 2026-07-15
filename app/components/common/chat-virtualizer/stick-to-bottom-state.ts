@@ -11,6 +11,7 @@ type StickToBottomStateOptions = {
 };
 
 const DETACH_FROM_BOTTOM_KEYS = new Set(["ArrowUp", "PageUp", "Home"]);
+const MOVE_TOWARD_BOTTOM_KEYS = new Set(["ArrowDown", "PageDown", "End"]);
 
 function resolveThreshold(source: ThresholdSource | undefined) {
   if (typeof source === "function") {
@@ -28,8 +29,8 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
   const userDetached = ref(false);
   let version = 0;
   let lastTouchY: number | null = null;
-  let lastScrollTop: number | null = null;
   let detachedByUser = false;
+  let userDirection: "backward" | "forward" | null = null;
 
   function bottomDistance(viewport = options.getViewport()) {
     if (!viewport) {
@@ -53,13 +54,10 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
     viewport.style.setProperty("overflow-anchor", "none");
   }
 
-  function markProgrammaticScroll(viewport: HTMLElement) {
-    lastScrollTop = viewport.scrollTop;
-  }
-
   function lockToBottom() {
     followLatest.value = true;
     detachedByUser = false;
+    userDirection = null;
     userDetached.value = false;
     disableNativeScrollAnchor();
     options.onLocked?.();
@@ -68,6 +66,7 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
   function detachFromBottom() {
     followLatest.value = false;
     detachedByUser = true;
+    userDirection = "backward";
     userDetached.value = true;
     disableNativeScrollAnchor();
     version += 1;
@@ -88,12 +87,13 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
     if (viewport !== options.getViewport()) {
       return false;
     }
-    const currentScrollTop = viewport.scrollTop;
-    const movedDown = lastScrollTop !== null && currentScrollTop > lastScrollTop;
-    if (isNearBottom(viewport) && (!detachedByUser || movedDown || bottomDistance(viewport) <= 2)) {
+    if (isNearBottom(viewport) && (!detachedByUser || userDirection === "forward")) {
+      // Virtual-core changes scrollTop while preserving a keyed prepend anchor.
+      // That programmatic movement can be downward, but it is not permission to
+      // resume following. Do not infer reader intent from scroll delta alone;
+      // only the wheel/touch/keyboard handlers below may mark forward intent.
       lockToBottom();
     }
-    lastScrollTop = currentScrollTop;
     options.onViewportScroll?.(viewport);
     return true;
   }
@@ -101,8 +101,9 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
   function handleWheel(event: WheelEvent) {
     if (event.deltaY < 0) {
       detachFromBottom();
-    } else if (event.deltaY > 0 && isNearBottom()) {
-      lockToBottom();
+    } else if (event.deltaY > 0) {
+      userDirection = "forward";
+      if (isNearBottom()) lockToBottom();
     }
   }
 
@@ -114,6 +115,9 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
     const nextY = event.touches[0]?.clientY ?? null;
     if (lastTouchY !== null && nextY !== null && nextY > lastTouchY) {
       detachFromBottom();
+    } else if (lastTouchY !== null && nextY !== null && nextY < lastTouchY) {
+      userDirection = "forward";
+      if (isNearBottom()) lockToBottom();
     }
     lastTouchY = nextY;
   }
@@ -121,12 +125,14 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
   function handleKeydown(event: KeyboardEvent) {
     if (DETACH_FROM_BOTTOM_KEYS.has(event.key) || (event.key === " " && event.shiftKey)) {
       detachFromBottom();
+    } else if (MOVE_TOWARD_BOTTOM_KEYS.has(event.key) || (event.key === " " && !event.shiftKey)) {
+      userDirection = "forward";
+      if (isNearBottom()) lockToBottom();
     }
   }
 
-  function setLastScrollTop(viewport: HTMLElement) {
+  function prepareViewport() {
     disableNativeScrollAnchor();
-    lastScrollTop = viewport.scrollTop;
   }
 
   return {
@@ -140,9 +146,8 @@ export function createStickToBottomState(options: StickToBottomStateOptions) {
     initialBottomAligned,
     isNearBottom,
     lockToBottom,
-    markProgrammaticScroll,
+    prepareViewport,
     reset,
-    setLastScrollTop,
     userDetached,
   };
 }

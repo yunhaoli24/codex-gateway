@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import type { VirtualItem } from "@tanstack/virtual-core";
-import { useDocumentVisibility, useElementVisibility, useResizeObserver } from "@vueuse/core";
+import {
+  useDocumentVisibility,
+  useElementVisibility,
+  useEventListener,
+  useResizeObserver,
+} from "@vueuse/core";
 import type { ComponentPublicInstance } from "vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { ChatVirtualScrollFrame, useChatVirtualizer } from "@/components/common/chat-virtualizer";
@@ -42,6 +47,13 @@ const chatVirtualizer = useChatVirtualizer({
     }
   },
   scrollToBottom: () => {
+    // Keep bottom alignment in TanStack's coordinate system. A history prepend
+    // first expands the DOM sizer with estimated rows and then replaces those
+    // estimates with mobile-width measurements. Writing viewport.scrollTop from
+    // the intermediate DOM scrollHeight loses the keyed end anchor and moves the
+    // previously visible latest row. Do not replace this with direct scrollHeight
+    // arithmetic; scrollToEnd lets virtual-core apply the prepend and measurement
+    // deltas as one end-anchored transaction.
     if (props.rows.length) {
       virtualizer.value.scrollToEnd({ behavior: "auto" });
     }
@@ -83,10 +95,53 @@ function resetFollowLatest() {
 }
 
 function reflowPreservingViewport() {
+  if (chatVirtualizer.followLatest.value) {
+    // Mobile browsers resize 100dvh as their toolbar settles. Waiting for the
+    // detached-reader two-frame reflow lets the new viewport paint off-bottom
+    // and then snap back. Pinned readers only need the synchronous chat follow
+    // path; detached readers still require the keyed anchor flow below.
+    chatVirtualizer.followContentChange();
+    return;
+  }
   void chatVirtualizer.reflow({ preserveViewport: true });
 }
 
 useResizeObserver(viewportElement, reflowPreservingViewport);
+useEventListener(
+  () => (import.meta.client ? window.visualViewport : null),
+  "resize",
+  reflowPreservingViewport,
+);
+// Do not also subscribe to window.resize. visualViewport reports mobile toolbar
+// geometry first, while the element observer owns the final layout; a third
+// duplicate source can follow an unrelated later content transaction.
+useResizeObserver(chatVirtualizer.containerElement, () => {
+  if (!chatVirtualizer.followLatest.value) return;
+
+  // TanStack updates the direct-DOM sizer only after estimated row heights
+  // become real measurements. Following that notification keeps pinned
+  // prepend/viewport reflow correction in the same pre-paint layout phase.
+  //
+  // Do not synchronously remeasure rows here: that bypasses virtual-core's
+  // keyed transaction. Detached intent is retained by the input state machine,
+  // so this callback can trust followLatest without a second transaction flag.
+  // Do not defer with RAF; the stale bottom would already have painted.
+  chatVirtualizer.followContentChange();
+});
+
+watch(
+  () => props.rows.map((row) => row.key).join("\0"),
+  () => {
+    if (chatVirtualizer.followLatest.value) {
+      // Prepending measured history is not an append, so followOnAppend does
+      // not own this transaction. Run one post-flush follow after Vue has
+      // mounted and measured the new rows; this prevents narrow mobile rows
+      // from painting at estimated offsets before TanStack's later correction.
+      chatVirtualizer.followContentChange();
+    }
+  },
+  { flush: "post" },
+);
 
 watch(viewportVisible, (visible, previous) => {
   if (visible && previous === false) reflowPreservingViewport();
@@ -142,9 +197,10 @@ defineExpose({ resetFollowLatest });
       <slot name="overlay" :visible="startControlsVisible" />
     </div>
     <!--
-      Keep vertical spacing inside measured rows. Padding around TanStack's
-      sizer is invisible to virtual-core and creates a false scroll range when
-      a short, bottom-aligned chat grows past one viewport during prepend.
+      Keep trailing spacing inside every measured row. Do not put top spacing
+      on `first:*`: after a prepend the old anchor row stops being first, so its
+      content moves inside an otherwise stable keyed row. Padding around the
+      sizer is also invisible to virtual-core and creates a false scroll range.
     -->
     <div class="mx-auto flex min-h-full w-full max-w-4xl flex-col px-[clamp(0.875rem,4vw,2rem)]">
       <div :ref="chatVirtualizer.containerRef" class="relative mt-auto shrink-0">
@@ -154,7 +210,7 @@ defineExpose({ resetFollowLatest });
           :ref="setRowRef"
           :data-index="virtualRow.index"
           :data-row-key="rows[virtualRow.index]?.key"
-          class="pb-5 first:pt-4 md:pb-8 md:first:pt-8"
+          class="pb-5 md:pb-8"
           :style="rowStyle(virtualRow)"
         >
           <slot :row="rows[virtualRow.index]" :index="virtualRow.index" />

@@ -22,7 +22,7 @@ export function useStickToBottom(options: StickToBottomOptions) {
   });
   const inputIntent = createViewportInputIntent({
     getViewport: options.getViewport,
-    onBound: state.setLastScrollTop,
+    onBound: state.prepareViewport,
     onKeydown: state.handleKeydown,
     onScroll: state.handleScroll,
     onTouchMove: state.handleTouchMove,
@@ -45,7 +45,6 @@ export function useStickToBottom(options: StickToBottomOptions) {
     const viewport = options.getViewport();
     if (viewport) {
       options.scrollToBottom(viewport);
-      state.markProgrammaticScroll(viewport);
     }
     state.lockToBottom();
     state.initialBottomAligned.value = true;
@@ -60,7 +59,6 @@ export function useStickToBottom(options: StickToBottomOptions) {
     const viewport = options.getViewport();
     if (viewport) {
       options.scrollToBottom(viewport);
-      state.markProgrammaticScroll(viewport);
     }
   }
 
@@ -92,7 +90,6 @@ export function useStickToBottom(options: StickToBottomOptions) {
         const viewport = options.getViewport();
         if (viewport) {
           options.scrollToBottom(viewport);
-          state.markProgrammaticScroll(viewport);
         }
       }
     }

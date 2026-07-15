@@ -2,6 +2,18 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { HostRecord, ProjectRecord } from "../../shared/types";
 import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
 import { seedGatewayThread } from "./helpers/gateway-store";
+import {
+  buildTextTurns,
+  frameSpread,
+  installDeferredThreadTurnsLoadStub,
+  releaseDeferredThreadTurnsLoad,
+  startBottomDistanceTracking,
+  startLocatorTopTracking,
+  stopFrameTracking,
+  threadTurnCount,
+  threadTurnsLoadRequests,
+  waitForAnimationFrames,
+} from "./helpers/history-top-up";
 import { execRemoteSsh, readRemoteEnv, waitForSelectedThreadId } from "./helpers/remote-codex";
 
 test("uses the mobile layout with hidden sidebar and usable composer shell", async ({ page }) => {
@@ -18,6 +30,85 @@ test("uses the mobile layout with hidden sidebar and usable composer shell", asy
 
   await expect(page.getByTestId("chat-scroll-area")).toBeVisible();
   await expect(page.getByText("先选择一个项目")).toBeVisible();
+});
+
+test("background history top-up keeps the mobile timeline visually stable", async ({ page }) => {
+  await openApp(page);
+  const threadId = "mobile-background-turn-top-up";
+  await installDeferredThreadTurnsLoadStub(page, {
+    type: "thread.turns.page",
+    requestId: "mobile-thread-turns-page",
+    hostId: 1,
+    threadId,
+    history: {
+      thread: { id: threadId, turns: buildTextTurns(1, 3, "mobile top-up turn", 14) },
+    },
+    turnsPage: { nextCursor: null, backwardsCursor: null },
+  });
+  await seedGatewayThread(page, {
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId, name: "Mobile Top Up" },
+    olderTurnsCursor: JSON.stringify({ turnId: "turn-004", includeAnchor: false }),
+    history: {
+      thread: { id: threadId, turns: buildTextTurns(4, 5, "mobile top-up turn", 14) },
+    },
+  });
+
+  const latestRow = page.locator('[data-row-key$=":turn-turn-005"]');
+  await expect(latestRow).toBeVisible();
+  await expect
+    .poll(() => threadTurnsLoadRequests(page).then((requests) => requests.length))
+    .toBe(1);
+  await startLocatorTopTracking(latestRow);
+  await releaseDeferredThreadTurnsLoad(page);
+  await expect.poll(() => threadTurnCount(page)).toBe(5);
+  await waitForAnimationFrames(page, 8);
+  const samples = await stopFrameTracking(page);
+  expect(frameSpread(samples), JSON.stringify(samples)).toBeLessThanOrEqual(2);
+});
+
+test("mobile viewport resize during history top-up stays bottom pinned", async ({ page }) => {
+  await openApp(page);
+  const threadId = "mobile-resizing-turn-top-up";
+  await installDeferredThreadTurnsLoadStub(page, {
+    type: "thread.turns.page",
+    requestId: "mobile-resizing-turns-page",
+    hostId: 1,
+    threadId,
+    history: {
+      thread: { id: threadId, turns: buildTextTurns(1, 3, "mobile resize turn", 14) },
+    },
+    turnsPage: { nextCursor: null, backwardsCursor: null },
+  });
+  await seedGatewayThread(page, {
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId, name: "Mobile Resize Top Up" },
+    olderTurnsCursor: JSON.stringify({ turnId: "turn-004", includeAnchor: false }),
+    history: {
+      thread: { id: threadId, turns: buildTextTurns(4, 5, "mobile resize turn", 14) },
+    },
+  });
+
+  await expect
+    .poll(() => threadTurnsLoadRequests(page).then((requests) => requests.length))
+    .toBe(1);
+  await startBottomDistanceTracking(page);
+  await releaseDeferredThreadTurnsLoad(page);
+  await page.setViewportSize({ width: 393, height: 820 });
+  await expect.poll(() => threadTurnCount(page)).toBe(5);
+  await waitForAnimationFrames(page, 8);
+  const samples = await stopFrameTracking(page);
+  // Chromium can expose one frame of the new external viewport geometry before
+  // visualViewport/ResizeObserver callbacks run. The application contract is
+  // that this does not become a multi-frame correction cascade and remains
+  // pinned after that unavoidable browser-owned frame.
+  expect(
+    samples.filter((distance) => distance > 2).length,
+    JSON.stringify(samples),
+  ).toBeLessThanOrEqual(1);
+  expect(Math.max(...samples.slice(-4)), JSON.stringify(samples)).toBeLessThanOrEqual(2);
 });
 
 test("opens sidebar context actions with long press on mobile", async ({ page }) => {
