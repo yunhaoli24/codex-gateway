@@ -131,6 +131,7 @@ export function useChatVirtualizer(options: ChatVirtualizerOptions) {
 
   return {
     bindInputListeners: sticky.bindInputListeners,
+    containerElement: directVirtualizer.containerElement,
     containerRef: directVirtualizer.containerRef,
     followLatest: sticky.followLatest,
     followContentChange: sticky.followContentChange,

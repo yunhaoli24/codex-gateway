@@ -111,6 +111,7 @@ export function useDirectDomVirtualizer<
     wrapOptions(resolvedOptions.value),
   );
   const state = shallowRef(instance);
+  const containerElement = shallowRef<HTMLElement | null>(null);
   const commitVersion = shallowRef(0);
   const cleanup = instance._didMount();
 
@@ -265,6 +266,7 @@ export function useDirectDomVirtualizer<
 
   function containerRef(refValue: Element | ComponentPublicInstance | null) {
     const element = refValue instanceof HTMLElement ? refValue : null;
+    containerElement.value = element;
     directState.container = element;
     directState.lastSize = null;
     if (element) {
@@ -298,6 +300,7 @@ export function useDirectDomVirtualizer<
 
   return {
     applyDirectStyles,
+    containerElement,
     containerRef,
     measureElement,
     refresh,

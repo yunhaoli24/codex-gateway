@@ -110,6 +110,10 @@ export async function scrollChatViewportToBottom(page: Page) {
   await page.getByTestId(chatScrollAreaTestId).evaluate((root: HTMLElement) => {
     const viewport = root.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
     if (!viewport) throw new Error("Missing chat viewport");
+    // Production intentionally ignores programmatic scroll deltas when deciding
+    // whether a detached reader returned to the latest content. Model the real
+    // downward user intent before moving the test viewport to the bottom.
+    viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 240 }));
     viewport.scrollTop = viewport.scrollHeight;
     viewport.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
