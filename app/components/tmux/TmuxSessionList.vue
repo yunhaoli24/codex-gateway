@@ -69,9 +69,18 @@ function paneKey(pane: TmuxPaneSnapshot) {
               </div>
             </div>
           </button>
-          <Badge v-if="monitoredPaneKeys.has(paneKey(pane))" variant="secondary">
-            {{ $t("app.tmuxActiveMonitors") }}
-          </Badge>
+          <button
+            v-if="monitoredPaneKeys.has(paneKey(pane))"
+            type="button"
+            class="shrink-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            :aria-label="$t('app.tmuxViewPaneOutput', { session: session.name })"
+            :data-testid="`view-monitored-tmux-pane-${session.name}-${pane.windowIndex}-${pane.paneIndex}`"
+            @click="emit('preview', pane)"
+          >
+            <Badge variant="secondary" class="cursor-pointer">
+              {{ $t("app.tmuxActiveMonitors") }}
+            </Badge>
+          </button>
           <Button
             v-else
             size="sm"
