@@ -224,9 +224,9 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
     .getByText(markdownPath.split("/").pop()!, { exact: true })
     .click();
   await expect(fileTab(page, markdownPath)).toBeVisible();
-  await expect(panel.getByTestId("remote-file-editor")).toContainText("Rendered Markdown Preview");
-  await panel.getByRole("button", { name: "预览" }).click();
   await expect(panel.locator(".markdown-content h1")).toHaveText("Rendered Markdown Preview");
+  await panel.getByRole("button", { name: "源码" }).click();
+  await expect(panel.getByTestId("remote-file-editor")).toContainText("Rendered Markdown Preview");
 
   await seedGatewayThread(page, {
     hostId: host.id,
