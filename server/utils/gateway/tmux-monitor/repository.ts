@@ -3,6 +3,7 @@ import type {
   TmuxMonitorCompletionReason,
   TmuxMonitorListResult,
   TmuxPaneSnapshot,
+  TmuxMonitorThreadBinding,
 } from "~~/shared/types";
 import { gatewayDatabase } from "../storage/database";
 import type { StoredTmuxMonitor, TmuxMonitorHostGroup } from "./types";
@@ -26,19 +27,28 @@ export class TmuxMonitorRepository {
     };
   }
 
-  create(userId: number, hostId: number, pane: TmuxPaneSnapshot): StoredTmuxMonitor {
+  create(
+    userId: number,
+    hostId: number,
+    pane: TmuxPaneSnapshot,
+    thread: TmuxMonitorThreadBinding | null,
+  ): StoredTmuxMonitor {
     const now = new Date().toISOString();
     const result = gatewayDatabase()
       .prepare(
         `INSERT INTO tmux_monitors (
-          user_id, host_id, session_name, session_id, session_created,
+          user_id, host_id, project_id, thread_id, thread_title,
+          session_name, session_id, session_created,
           window_index, window_name, pane_index, pane_id, pane_pid,
           initial_command, last_command, status, created_at, last_checked_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
       )
       .run(
         userId,
         hostId,
+        thread?.projectId ?? null,
+        thread?.threadId ?? null,
+        thread?.threadTitle ?? null,
         pane.sessionName,
         pane.sessionId,
         pane.sessionCreated,
@@ -198,6 +208,9 @@ function mapMonitor(row: Record<string, unknown>): StoredTmuxMonitor {
     id: Number(row.id),
     userId: Number(row.user_id),
     hostId: Number(row.host_id),
+    projectId: optionalInteger(row.project_id),
+    threadId: optionalText(row.thread_id),
+    threadTitle: optionalText(row.thread_title),
     sessionName: String(row.session_name),
     sessionId: String(row.session_id),
     sessionCreated: Number(row.session_created),
@@ -221,4 +234,8 @@ function mapMonitor(row: Record<string, unknown>): StoredTmuxMonitor {
 
 function optionalText(value: unknown) {
   return typeof value === "string" && value ? value : null;
+}
+
+function optionalInteger(value: unknown) {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
 }

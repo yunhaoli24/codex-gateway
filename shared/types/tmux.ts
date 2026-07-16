@@ -27,9 +27,23 @@ export interface TmuxSessionSnapshot {
   panes: TmuxPaneSnapshot[];
 }
 
+export interface TmuxPaneOutput {
+  output: string;
+  capturedAt: string;
+}
+
+export interface TmuxMonitorThreadBinding {
+  projectId: number | null;
+  threadId: string;
+  threadTitle: string;
+}
+
 export interface TmuxMonitor {
   id: number;
   hostId: number;
+  projectId: number | null;
+  threadId: string | null;
+  threadTitle: string | null;
   sessionName: string;
   sessionId: string;
   sessionCreated: number;

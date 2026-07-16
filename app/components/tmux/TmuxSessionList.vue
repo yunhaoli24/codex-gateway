@@ -8,7 +8,10 @@ defineProps<{
   sessions: TmuxSessionSnapshot[];
   monitoredPaneKeys: Set<string>;
 }>();
-const emit = defineEmits<{ monitor: [pane: TmuxPaneSnapshot] }>();
+const emit = defineEmits<{
+  monitor: [pane: TmuxPaneSnapshot];
+  preview: [pane: TmuxPaneSnapshot];
+}>();
 
 function paneKey(pane: TmuxPaneSnapshot) {
   return `${pane.sessionId}:${pane.paneId}`;
@@ -39,26 +42,33 @@ function paneKey(pane: TmuxPaneSnapshot) {
           :data-testid="`tmux-pane-${session.name}-${pane.windowIndex}-${pane.paneIndex}`"
           class="flex min-w-0 items-center gap-3 px-3 py-2.5"
         >
-          <ActivityIcon
-            class="size-4 shrink-0"
-            :class="pane.running ? 'text-accent-green' : 'text-ink-faint'"
-          />
-          <div class="min-w-0 flex-1">
-            <div class="flex min-w-0 items-center gap-2 text-sm">
-              <span class="shrink-0 font-mono text-xs text-ink-muted">
-                {{ pane.windowIndex }}.{{ pane.paneIndex }}
-              </span>
-              <span class="truncate font-medium" :title="pane.windowName">
-                {{ pane.windowName || pane.paneId }}
-              </span>
+          <button
+            type="button"
+            class="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+            :aria-label="$t('app.tmuxViewPaneOutput', { session: session.name })"
+            @click="emit('preview', pane)"
+          >
+            <ActivityIcon
+              class="size-4 shrink-0"
+              :class="pane.running ? 'text-accent-green' : 'text-ink-faint'"
+            />
+            <div class="min-w-0 flex-1">
+              <div class="flex min-w-0 items-center gap-2 text-sm">
+                <span class="shrink-0 font-mono text-xs text-ink-muted">
+                  {{ pane.windowIndex }}.{{ pane.paneIndex }}
+                </span>
+                <span class="truncate font-medium" :title="pane.windowName">
+                  {{ pane.windowName || pane.paneId }}
+                </span>
+              </div>
+              <div
+                class="mt-0.5 truncate font-mono text-xs text-ink-muted"
+                :title="pane.currentCommand"
+              >
+                {{ pane.currentCommand }}
+              </div>
             </div>
-            <div
-              class="mt-0.5 truncate font-mono text-xs text-ink-muted"
-              :title="pane.currentCommand"
-            >
-              {{ pane.currentCommand }}
-            </div>
-          </div>
+          </button>
           <Badge v-if="monitoredPaneKeys.has(paneKey(pane))" variant="secondary">
             {{ $t("app.tmuxActiveMonitors") }}
           </Badge>

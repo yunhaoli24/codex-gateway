@@ -33,7 +33,9 @@ export type {
   TmuxMonitorListResult,
   TmuxMonitorStatus,
   TmuxPaneSnapshot,
+  TmuxPaneOutput,
   TmuxSessionSnapshot,
+  TmuxMonitorThreadBinding,
 } from "./types/tmux";
 export type { RealtimeClientMessage, RealtimeServerMessage } from "./types/realtime";
 export type { ServerNotification, ServerNotificationTarget } from "./types/notifications";

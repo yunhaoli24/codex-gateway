@@ -59,6 +59,9 @@ function reasonKey(monitor: TmuxMonitor) {
           <div class="mt-1 truncate font-mono text-xs text-ink-muted" :title="monitor.lastCommand">
             {{ monitor.lastCommand }}
           </div>
+          <div v-if="monitor.threadId" class="mt-1 truncate text-xs text-ink-muted">
+            {{ $t("app.tmuxBoundThread", { title: monitor.threadTitle || monitor.threadId }) }}
+          </div>
           <div class="mt-1.5 text-xs text-ink-faint">
             {{
               mode === "active"

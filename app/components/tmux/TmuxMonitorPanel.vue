@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ActivityIcon, LoaderCircleIcon, RefreshCwIcon } from "@lucide/vue";
 import { toast } from "vue-sonner";
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type { TmuxMonitor, TmuxPaneSnapshot } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
 import { useGatewayStore } from "@/stores/gateway";
@@ -9,6 +9,7 @@ import { useGatewayTmuxStore } from "@/stores/gateway-tmux";
 import { gatewayErrorMessage } from "@/utils/gateway-error";
 import TmuxMonitorList from "./TmuxMonitorList.vue";
 import TmuxSessionList from "./TmuxSessionList.vue";
+import TmuxPaneOutputDialog from "./TmuxPaneOutputDialog.vue";
 
 const props = defineProps<{ hostId: number }>();
 const gateway = useGatewayStore();
@@ -21,6 +22,7 @@ const hostTitle = computed(
 const monitoredPaneKeys = computed(
   () => new Set(state.value.active.map((monitor) => `${monitor.sessionId}:${monitor.paneId}`)),
 );
+const previewPane = ref<TmuxPaneSnapshot | null>(null);
 
 watch(
   () => props.hostId,
@@ -126,6 +128,7 @@ async function monitorAgain(monitor: TmuxMonitor) {
             :sessions="state.sessions"
             :monitored-pane-keys="monitoredPaneKeys"
             @monitor="addMonitor"
+            @preview="previewPane = $event"
           />
         </section>
 
@@ -142,5 +145,12 @@ async function monitorAgain(monitor: TmuxMonitor) {
         </section>
       </div>
     </div>
+    <TmuxPaneOutputDialog
+      :open="Boolean(previewPane)"
+      :host-id="hostId"
+      :host-title="hostTitle"
+      :pane="previewPane"
+      @update:open="(open) => !open && (previewPane = null)"
+    />
   </section>
 </template>
