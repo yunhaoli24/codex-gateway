@@ -25,7 +25,7 @@ test("monitors a real tmux pane, persists it, and notifies once when it returns 
     `
 tmux kill-server >/dev/null 2>&1 || true
 tmux new-session -d -s ${shellQuote(sessionName)} -n model
-tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} ${shellQuote(`printf '${outputMarker}\\n'; sleep 300`)} Enter
+tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} ${shellQuote(`for i in $(seq 1 200); do printf 'training-line-%s\\n' "$i"; done; printf '${outputMarker}\\n'; sleep 300`)} Enter
 tmux new-session -d -s ${shellQuote(idleSessionName)} -n shell
 for i in $(seq 1 50); do
   [ "$(tmux display-message -p -t ${shellQuote(`${sessionName}:0.0`)} '#{pane_current_command}')" = sleep ] && break
@@ -49,12 +49,23 @@ done
   await expect(idlePane.getByRole("button", { name: "已回到 Shell" })).toBeDisabled();
 
   await runningPane.getByRole("button", { name: `查看 ${sessionName} Pane 输出` }).click();
-  await expect(page.getByTestId("tmux-pane-output")).toContainText(outputMarker);
+  const paneOutput = page.getByTestId("tmux-pane-output");
+  await expect(paneOutput).toContainText(outputMarker);
+  await expect
+    .poll(() =>
+      paneOutput.evaluate(
+        (element) => element.scrollHeight - element.scrollTop - element.clientHeight,
+      ),
+    )
+    .toBeLessThanOrEqual(1);
   await page.keyboard.press("Escape");
 
   await runningPane.getByRole("button", { name: "加入监控" }).click();
   await expect(panel.getByText("监控中 · 1")).toBeVisible();
   await expect(page.getByTestId("open-tmux-button")).toContainText("1");
+  await runningPane.getByTestId(`view-monitored-tmux-pane-${sessionName}-0-0`).click();
+  await expect(page.getByTestId("tmux-pane-output")).toContainText(outputMarker);
+  await page.keyboard.press("Escape");
 
   await reloadApp(page);
   await expect(page.getByTestId("tmux-monitor-panel")).toBeVisible();

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RefreshCwIcon } from "@lucide/vue";
 import { useAsyncState } from "@vueuse/core";
-import { computed, watch } from "vue";
+import { computed, nextTick, useTemplateRef, watch } from "vue";
 import type { TmuxPaneSnapshot } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ "update:open": [open: boolean] }>();
 const { t } = useI18n();
+const outputViewport = useTemplateRef<HTMLPreElement>("outputViewport");
 
 const request = useAsyncState(
   async () => {
@@ -40,6 +41,16 @@ const errorMessage = computed(() =>
 watch([() => props.open, () => props.hostId, () => props.pane?.paneId], ([open]) => {
   if (open && props.pane) void request.execute();
 });
+
+watch(
+  () => request.state.value?.capturedAt,
+  async (capturedAt) => {
+    if (!capturedAt) return;
+    await nextTick();
+    const viewport = outputViewport.value;
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
+  },
+);
 </script>
 
 <template>
@@ -89,6 +100,7 @@ watch([() => props.open, () => props.hostId, () => props.pane?.paneId], ([open])
         </div>
         <pre
           v-else
+          ref="outputViewport"
           data-testid="tmux-pane-output"
           class="h-full overflow-auto rounded-lg border border-hairline bg-canvas-soft p-4 font-mono text-xs leading-relaxed text-ink"
         ><code>{{ request.state.value?.output || $t("app.tmuxEmptyPaneOutput") }}</code></pre>
