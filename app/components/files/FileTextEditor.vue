@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { EyeIcon, FileCodeIcon, Loader2Icon, SaveIcon } from "@lucide/vue";
 import type { FilePreviewDocument } from "~~/shared/types";
 import { isMarkdownPreviewPath } from "~~/shared/file-preview";
@@ -11,19 +11,32 @@ import { fileEditorExtensions } from "@/utils/file-editor-extensions";
 import FileMarkdownPreview from "./FileMarkdownPreview.vue";
 
 const MAX_EDITABLE_FILE_BYTES = 5 * 1024 * 1024;
+type MarkdownMode = "source" | "preview";
+
 const props = defineProps<{ document: FilePreviewDocument }>();
 const emit = defineEmits<{ conflict: [] }>();
 const fileWorkspace = useGatewayFileWorkspaceStore();
-const markdownMode = ref<"source" | "preview">("source");
 const editable = computed(() => (props.document.size ?? 0) <= MAX_EDITABLE_FILE_BYTES);
 const markdown = computed(() =>
   isMarkdownPreviewPath(props.document.path, props.document.contentType),
 );
+const markdownMode = ref<MarkdownMode>(defaultMode(props.document));
 const language = computed(() => codeEditorLanguageForPath(props.document.path));
 const draft = computed({
   get: () => props.document.draftText,
   set: (value) => fileWorkspace.updateDocumentDraft(props.document, value),
 });
+
+// Dockview keeps this editor mounted while file tabs change. Reset only when the
+// displayed document changes so Markdown opens rendered, while a user's explicit
+// source/preview choice remains stable for the current document.
+watch([() => props.document.path, () => props.document.contentType], () => {
+  markdownMode.value = defaultMode(props.document);
+});
+
+function defaultMode(document: FilePreviewDocument): MarkdownMode {
+  return isMarkdownPreviewPath(document.path, document.contentType) ? "preview" : "source";
+}
 
 function save() {
   if (editable.value) void fileWorkspace.saveDocument(props.document);
