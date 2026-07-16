@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import type { ThreadRuntimeStatus } from "~~/shared/types";
 import type { SubAgentPanelState } from "@/stores/gateway/types";
-import WorkspaceDock from "./WorkspaceDock.vue";
+import WorkspaceDock from "./workspace-dock/WorkspaceDock.vue";
 
 const props = defineProps<{
   layout: "desktop" | "mobile";

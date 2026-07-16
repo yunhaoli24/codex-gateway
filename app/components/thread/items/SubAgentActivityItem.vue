@@ -3,14 +3,16 @@ import { GitBranchIcon } from "@lucide/vue";
 import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 
 const props = defineProps<{
   item: Record<string, any>;
   hostId: number | null;
 }>();
 const { t } = useI18n();
-const store = useGatewayStore();
+const navigation = useGatewayNavigationStore();
+const threadView = useGatewayThreadViewStore();
 
 const title = computed(
   () => props.item.agentPath || props.item.agentThreadId || t("app.subAgentActivity"),
@@ -20,12 +22,12 @@ function openSubAgent() {
   if (!props.hostId || !props.item.agentThreadId) {
     return;
   }
-  void store.openSubAgentPanel({
+  void threadView.openSubAgentPanel({
     hostId: props.hostId,
     threadId: String(props.item.agentThreadId),
     title: title.value,
-    parentHostId: store.selectedHostId,
-    parentThreadId: store.selectedThreadId,
+    parentHostId: navigation.selectedHostId,
+    parentThreadId: navigation.selectedThreadId,
   });
 }
 </script>

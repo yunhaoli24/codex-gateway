@@ -1,4 +1,5 @@
-import type { GatewayStoreContext } from "../../types";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { pinnedKey } from "../../thread-utils/identity";
 import {
   simpleNotification,
@@ -6,70 +7,55 @@ import {
   truncate,
   type FormattedNotification,
   type NotificationFormatContext,
+  type TranslationFunction,
 } from "./common";
 
 export function terminalInteractionNotification(
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   params: Record<string, any>,
   context?: NotificationFormatContext,
 ): FormattedNotification {
   const stdin = text(params.stdin);
-  if (!stdin) {
-    return simpleNotification(ctx, "terminalWait", "info", {
-      command: commandForTerminalInteraction(ctx, params, context),
-      processId: text(params.processId),
-    });
-  }
-  return simpleNotification(ctx, "terminalInteraction", "info", {
-    command: commandForTerminalInteraction(ctx, params, context),
-    processId: text(params.processId),
-    stdin: truncate(stdin, 120),
-  });
+  const command = commandForTerminalInteraction(t, params, context);
+  return stdin
+    ? simpleNotification(t, "terminalInteraction", "info", {
+        command,
+        processId: text(params.processId),
+        stdin: truncate(stdin, 120),
+      })
+    : simpleNotification(t, "terminalWait", "info", {
+        command,
+        processId: text(params.processId),
+      });
 }
 
 function commandForTerminalInteraction(
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   params: Record<string, any>,
   context?: NotificationFormatContext,
 ) {
+  const navigation = useGatewayNavigationStore();
+  const views = useGatewayThreadViewStore();
   const processId = text(params.processId);
-  const lookupContext = context ?? {
-    hostId: ctx.state.selectedHostId ?? 0,
-    threadId: text(params.threadId) || ctx.state.selectedThreadId || "",
+  const lookup = context ?? {
+    hostId: navigation.selectedHostId ?? 0,
+    threadId: text(params.threadId) || navigation.selectedThreadId || "",
   };
-  const command = findCommandItem(
-    ctx,
-    lookupContext.hostId,
-    lookupContext.threadId,
-    text(params.itemId),
-    processId,
-  )?.command;
+  const histories = [
+    lookup.hostId === navigation.selectedHostId && lookup.threadId === navigation.selectedThreadId
+      ? views.history
+      : null,
+    views.threadViews[pinnedKey(lookup.hostId, lookup.threadId)]?.history,
+  ];
+  let command: unknown;
+  for (const history of histories) {
+    command = findCommandItemInHistory(history, text(params.itemId), processId)?.command;
+    if (command) break;
+  }
   return truncate(
-    text(command) || ctx.t("app.notifications.terminalProcessFallback", { processId }),
+    text(command) || t("app.notifications.terminalProcessFallback", { processId }),
     140,
   );
-}
-
-function findCommandItem(
-  ctx: GatewayStoreContext,
-  hostId: number,
-  threadId: string,
-  itemId: string,
-  processId: string,
-) {
-  const histories = [
-    hostId === ctx.state.selectedHostId && threadId === ctx.state.selectedThreadId
-      ? ctx.state.history
-      : null,
-    ctx.state.threadViews[pinnedKey(hostId, threadId)]?.history,
-  ];
-  for (const history of histories) {
-    const item = findCommandItemInHistory(history, itemId, processId);
-    if (item) {
-      return item;
-    }
-  }
-  return null;
 }
 
 function findCommandItemInHistory(history: unknown, itemId: string, processId: string) {
@@ -80,9 +66,8 @@ function findCommandItemInHistory(history: unknown, itemId: string, processId: s
         item?.type === "commandExecution" &&
         ((itemId && String(item.id) === itemId) ||
           (processId && String(item.processId) === processId))
-      ) {
+      )
         return item;
-      }
     }
   }
   return null;

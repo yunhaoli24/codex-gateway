@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import HighlightedCode from "@/components/common/HighlightedCode.vue";
 import { ChatStickToBottomScrollArea } from "@/components/common/chat-virtualizer";
-import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
+import { useServerRequestResponder } from "@/composables/thread/useServerRequestResponder";
 
 const props = defineProps<{
   item: Record<string, any>;

@@ -1,5 +1,6 @@
 import type { ThreadSettingsState, ThreadTokenUsageState } from "~~/shared/types";
 import type { ThreadRuntimeStatus } from "./types";
+import { EventEmitter } from "@posva/event-emitter";
 
 export type GatewayDomainEventMap = {
   "thread-summary-detected": {
@@ -60,3 +61,5 @@ export type GatewayDomainEventMap = {
   "history-turn-appended": { hostId: number; threadId: string; turn: any };
   "history-turn-synced": { hostId: number; threadId: string; turn: any };
 };
+
+export const gatewayDomainEvents = new EventEmitter<GatewayDomainEventMap>();

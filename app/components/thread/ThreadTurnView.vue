@@ -5,8 +5,8 @@ import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ThreadItemView from "@/components/thread/ThreadItemView.vue";
-import { provideFilePreviewContext } from "@/composables/useFilePreviewContext";
-import { useGatewayStore } from "@/stores/gateway";
+import { provideFilePreviewContext } from "@/composables/files/useFilePreviewContext";
+import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import {
   buildThreadTurnSections,
   itemKey,
@@ -29,7 +29,7 @@ const props = withDefaults(
 );
 
 const { t } = useI18n();
-const store = useGatewayStore();
+const composer = useGatewayComposerStore();
 const projectId = computed(() => props.projectId ?? null);
 provideFilePreviewContext({
   hostId: toRef(props, "hostId"),
@@ -61,7 +61,7 @@ function selectedThreadMode() {
   if (!props.hostId || !props.threadId) {
     return "default";
   }
-  return store.threadCollaborationModesByKey[`${props.hostId}:${props.threadId}`] ?? "default";
+  return composer.threadCollaborationModesByKey[`${props.hostId}:${props.threadId}`] ?? "default";
 }
 
 function userMessageVariant(item: any) {

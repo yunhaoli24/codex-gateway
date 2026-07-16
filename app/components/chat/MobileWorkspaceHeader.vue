@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { GlobeIcon, TerminalIcon } from "@lucide/vue";
+import { ActivityIcon, GlobeIcon, TerminalIcon } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 
 defineProps<{
   canOpenTerminal: boolean;
+  tmuxActiveCount: number;
 }>();
 
 const emit = defineEmits<{
   openTerminal: [];
   openBrowser: [];
+  openTmux: [];
 }>();
 </script>
 
@@ -20,6 +22,23 @@ const emit = defineEmits<{
       <slot name="start" />
     </div>
     <div class="relative z-10 ml-auto flex min-w-0 flex-1 items-center justify-end gap-2">
+      <Button
+        data-testid="open-tmux-mobile-button"
+        variant="ghost"
+        size="sm"
+        class="relative h-8 shrink-0 rounded-md px-2 text-ink-muted hover:bg-canvas-soft hover:text-ink"
+        :disabled="!canOpenTerminal"
+        :aria-label="$t('app.openTmuxMonitor')"
+        @click="emit('openTmux')"
+      >
+        <ActivityIcon class="size-4" />
+        <span
+          v-if="tmuxActiveCount"
+          class="absolute -right-1 -top-1 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[0.625rem] font-semibold leading-4 text-primary-foreground"
+        >
+          {{ tmuxActiveCount }}
+        </span>
+      </Button>
       <Button
         data-testid="open-browser-mobile-button"
         variant="ghost"

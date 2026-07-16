@@ -1,4 +1,5 @@
 import type { AppServerTurnDisplayError } from "@/stores/gateway/errors";
+import { gatewayErrorMessage } from "@/utils/gateway-error";
 import { MAX_SERVER_OVERLOADED_RETRIES, type Translate } from "./types";
 import type { SubmittedTurnRequestState } from "@/stores/gateway-thread-turns";
 
@@ -22,13 +23,12 @@ export function buildRetryExhaustedMessage(
 export function messageFromRetryFailure(
   t: Translate,
   request: SubmittedTurnRequestState,
-  error: any,
+  error: unknown,
 ) {
-  const message =
-    error?.data?.message ||
-    error?.response?._data?.message ||
-    error?.message ||
-    (request.kind === "steer" ? t("app.sendSteerFailed") : t("app.sendMessageFailed"));
+  const message = gatewayErrorMessage(
+    error,
+    request.kind === "steer" ? t("app.sendSteerFailed") : t("app.sendMessageFailed"),
+  );
   if (request.retryCount < MAX_SERVER_OVERLOADED_RETRIES) {
     return message;
   }

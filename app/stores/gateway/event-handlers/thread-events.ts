@@ -1,31 +1,32 @@
 import { normalizeTokenUsage } from "~~/shared/token-usage";
+import { gatewayDomainEvents } from "../domain-events";
 import { threadIdFromParams } from "../thread-utils/identity";
 import { runtimeStatusFromAppThreadStatus } from "../thread-utils/status";
 import type { GatewayEventHandlerRegistry } from "./types";
 
 export const threadEventHandlers: GatewayEventHandlerRegistry = {
-  "thread/started": (ctx, event, params) => {
+  "thread/started": (event, params) => {
     if (params.thread?.id) {
-      ctx.events.emit("thread-summary-detected", {
+      gatewayDomainEvents.emit("thread-summary-detected", {
         hostId: event.hostId,
         thread: params.thread,
       });
     }
   },
-  "thread/status/changed": (ctx, event, params) => {
+  "thread/status/changed": (event, params) => {
     const threadId = threadIdFromParams(params);
     if (threadId) {
-      ctx.events.emit("thread-status-detected", {
+      gatewayDomainEvents.emit("thread-status-detected", {
         hostId: event.hostId,
         threadId: String(threadId),
         status: runtimeStatusFromAppThreadStatus(params.status),
       });
     }
   },
-  "thread/settings/updated": (ctx, event, params) => {
+  "thread/settings/updated": (event, params) => {
     const threadId = threadIdFromParams(params);
     if (threadId) {
-      ctx.events.emit("thread-settings-detected", {
+      gatewayDomainEvents.emit("thread-settings-detected", {
         hostId: event.hostId,
         threadId: String(threadId),
         settings: {
@@ -36,11 +37,11 @@ export const threadEventHandlers: GatewayEventHandlerRegistry = {
       });
     }
   },
-  "thread/tokenUsage/updated": (ctx, event, params) => {
+  "thread/tokenUsage/updated": (event, params) => {
     const threadId = threadIdFromParams(params);
     const tokenUsage = normalizeTokenUsage(params.tokenUsage);
     if (threadId && tokenUsage) {
-      ctx.events.emit("thread-token-usage-detected", {
+      gatewayDomainEvents.emit("thread-token-usage-detected", {
         hostId: event.hostId,
         threadId: String(threadId),
         tokenUsage,

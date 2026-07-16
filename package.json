@@ -55,6 +55,7 @@
     "klona": "^2.0.6",
     "markdown-it": "^14.3.0",
     "nuxt": "^4.4.8",
+    "p-limit": "^7.3.0",
     "pdfjs-dist": "6.1.200",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",

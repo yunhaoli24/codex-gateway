@@ -11,7 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
+import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
 import { useAuthStore } from "@/stores/auth";
 import FilePreviewViewport from "./FilePreviewViewport.vue";
 import FileCloseDialog from "./FileCloseDialog.vue";

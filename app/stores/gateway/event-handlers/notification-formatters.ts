@@ -1,4 +1,3 @@
-import type { GatewayStoreContext } from "../types";
 import {
   configRange,
   count,
@@ -11,6 +10,7 @@ import {
   withDetails,
   type NotificationFormatContext,
   type NotificationFormatter,
+  type TranslationFunction,
 } from "./notification-formatters/common";
 import {
   externalAgentConfigImportNotification,
@@ -212,19 +212,19 @@ const formatters: Record<VisibleNotificationMethod, NotificationFormatter> = {
 };
 
 export function formatNotification(
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   method: VisibleNotificationMethod,
   params: Record<string, any>,
   context?: NotificationFormatContext,
 ) {
-  const formatted = formatters[method](ctx, params, context);
+  const formatted = formatters[method](t, params, context);
   return {
     ...formatted,
     level: formatted.level ?? (warningMethods.has(method) ? "warning" : "info"),
   };
 }
 
-function accountAuthModeLabel(ctx: GatewayStoreContext, value: unknown) {
+function accountAuthModeLabel(t: TranslationFunction, value: unknown) {
   const mode = text(value);
   if (!mode) {
     return "";
@@ -239,5 +239,5 @@ function accountAuthModeLabel(ctx: GatewayStoreContext, value: unknown) {
     bedrockApiKey: "app.accountAuthModeBedrockApiKey",
   };
   const key = keyByMode[mode];
-  return key ? ctx.t(key) : mode;
+  return key ? t(key) : mode;
 }

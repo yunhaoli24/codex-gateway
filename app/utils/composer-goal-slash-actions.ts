@@ -1,5 +1,5 @@
 import type { ThreadGoal, ThreadGoalStatus } from "~~/shared/types";
-import type { SlashMenuItem } from "@/composables/useSlashCommands";
+import type { SlashMenuItem } from "@/composables/composer/useSlashCommands";
 
 export type GoalSlashActionId = Extract<
   SlashMenuItem["id"],

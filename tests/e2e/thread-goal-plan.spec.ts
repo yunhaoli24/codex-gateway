@@ -256,11 +256,11 @@ test("goal snapshot updates only the composer status strip without fabricating h
   await page.evaluate(
     (input) => {
       const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-      if (!store) {
-        throw new Error("Unable to locate gateway Pinia store");
+      const composer = app?.config?.globalProperties?.$pinia?._s?.get("gateway-composer");
+      if (!composer) {
+        throw new Error("Unable to locate gateway composer Pinia store");
       }
-      store.upsertThreadGoal(input.hostId, input.threadId, {
+      composer.upsertThreadGoal(input.hostId, input.threadId, {
         threadId: input.threadId,
         objective: "从 app-server 快照恢复当前目标",
         status: "active",

@@ -1,20 +1,25 @@
 import { storeToRefs } from "pinia";
 import { computed } from "vue";
 import type { PinnedThreadRecord } from "~~/shared/types";
-import type { useGatewayStore } from "@/stores/gateway";
+import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadRuntimeStore } from "@/stores/gateway-thread-runtime";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import {
   type ThreadActivitySummary,
   useGatewayThreadActivityStore,
 } from "@/stores/gateway-thread-activity";
 import { pinnedKey } from "@/stores/gateway/thread-utils/identity";
 
-type GatewayStore = ReturnType<typeof useGatewayStore>;
-
-export function useRecentThreadActivity(gateway: GatewayStore) {
+export function useRecentThreadActivity() {
+  const gateway = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  const runtime = useGatewayThreadRuntimeStore();
+  const threadView = useGatewayThreadViewStore();
   const activity = useGatewayThreadActivityStore();
   const { summariesByKey, observedRunningThreadKeys } = storeToRefs(activity);
-  const { hosts, pinnedThreads, threadStatuses, unviewedCompletedThreadKeys } =
-    storeToRefs(gateway);
+  const { hosts, pinnedThreads } = storeToRefs(gateway);
+  const { threadStatuses, unviewedCompletedThreadKeys } = storeToRefs(runtime);
 
   const recentThreads = computed(() => {
     const pinnedKeys = new Set(
@@ -43,14 +48,14 @@ export function useRecentThreadActivity(gateway: GatewayStore) {
   });
 
   function openRecentThread(thread: ThreadActivitySummary) {
-    void gateway.openThread(thread.threadId, {
+    void threadView.openThread(thread.threadId, {
       hostId: thread.hostId,
       projectId: thread.projectId,
     });
   }
 
   function pinRecentThread(thread: ThreadActivitySummary) {
-    void gateway.setPinnedThread(toPinnedThread(thread), true);
+    void navigation.setPinnedThread(toPinnedThread(thread), true);
   }
 
   return {

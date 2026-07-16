@@ -1,7 +1,7 @@
 import { useClipboard } from "@vueuse/core";
 import { ref, toValue, type MaybeRefOrGetter } from "vue";
 import { toast } from "vue-sonner";
-import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
+import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
 import { downloadRemoteFile } from "@/utils/remote-file-transport";
 
 export function useRemoteFileTreeActions(options: {

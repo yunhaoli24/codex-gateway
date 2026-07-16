@@ -1,5 +1,5 @@
 import { jsonPreview } from "@/utils/thread-items";
-import type { GatewayStoreContext } from "../../types";
+export type TranslationFunction = (key: string, values?: Record<string, unknown>) => string;
 
 export interface FormattedNotification {
   title: string;
@@ -14,20 +14,20 @@ export interface NotificationFormatContext {
 }
 
 export type NotificationFormatter = (
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   params: Record<string, any>,
   context?: NotificationFormatContext,
 ) => FormattedNotification;
 
 export function simpleNotification(
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   key: string,
   level: "info" | "warning" = "info",
   values: Record<string, unknown> = {},
 ): FormattedNotification {
   return {
-    title: ctx.t(`app.notifications.${key}.title`, values),
-    message: ctx.t(`app.notifications.${key}.message`, values),
+    title: t(`app.notifications.${key}.title`, values),
+    message: t(`app.notifications.${key}.message`, values),
     level,
   };
 }

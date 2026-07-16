@@ -9,6 +9,7 @@ import type {
 import type { ApprovalPolicy, ReasoningEffort } from "./thread";
 import type { TerminalOpenTarget, TerminalSessionSnapshot } from "./terminal";
 import type { BrowserPreviewSessionSnapshot, BrowserPreviewTarget } from "./browser";
+import type { ServerNotification } from "./notifications";
 
 export type RealtimeClientMessage =
   | {
@@ -169,17 +170,7 @@ export type RealtimeServerMessage =
     }
   | {
       type: "notification.published";
-      notification: {
-        key: string;
-        title: string;
-        body: string;
-        group?: string | null;
-        target: {
-          hostId: number;
-          projectId: number | null;
-          threadId: string;
-        };
-      };
+      notification: ServerNotification;
     }
   | {
       type: "host.lifecycle";

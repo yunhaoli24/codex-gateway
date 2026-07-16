@@ -1,4 +1,5 @@
 import type { ComposerTurnOptions, ThreadTurnsPageResult } from "~~/shared/types";
+import type { ThreadHistoryTurn } from "~~/shared/thread-history/types";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 
 export function requestTurnStart(input: {
@@ -9,23 +10,24 @@ export function requestTurnStart(input: {
   cwd: string | null;
   options: ComposerTurnOptions;
 }) {
-  return useGatewayRealtimeStore().request<{ type: "turn.start.accepted"; turn?: any }>(
-    (requestId) => ({
-      type: "turn.start",
-      requestId,
-      hostId: input.hostId,
-      threadId: input.threadId,
-      text: input.text,
-      clientUserMessageId: input.clientUserMessageId,
-      cwd: input.cwd ?? undefined,
-      model: input.options.model || undefined,
-      effort: input.options.effort || undefined,
-      approvalPolicy: input.options.approvalPolicy || undefined,
-      collaborationMode: input.options.collaborationMode || undefined,
-      images: input.options.images ?? [],
-      files: input.options.files ?? [],
-    }),
-  );
+  return useGatewayRealtimeStore().request<{
+    type: "turn.start.accepted";
+    turn?: ThreadHistoryTurn;
+  }>((requestId) => ({
+    type: "turn.start",
+    requestId,
+    hostId: input.hostId,
+    threadId: input.threadId,
+    text: input.text,
+    clientUserMessageId: input.clientUserMessageId,
+    cwd: input.cwd ?? undefined,
+    model: input.options.model || undefined,
+    effort: input.options.effort || undefined,
+    approvalPolicy: input.options.approvalPolicy || undefined,
+    collaborationMode: input.options.collaborationMode || undefined,
+    images: input.options.images ?? [],
+    files: input.options.files ?? [],
+  }));
 }
 
 export function requestTurnSteer(input: {

@@ -1,5 +1,5 @@
 import { currentGatewayUserId } from "../state/memory";
-import type { ServerNotification } from "./types";
+import type { ServerNotification } from "~~/shared/types";
 
 type NotificationSubscriber = (notification: ServerNotification) => void;
 
@@ -12,7 +12,12 @@ class NotificationRealtimeEvents {
       throw new Error("Realtime notifications require an authenticated user scope");
     }
     for (const subscriber of this.subscribersByUser.get(userId) ?? []) {
-      subscriber(notification);
+      try {
+        subscriber(notification);
+      } catch (error) {
+        // A stale browser peer must not prevent delivery to the user's other peers.
+        console.warn("[notifications] realtime subscriber rejected notification", error);
+      }
     }
   }
 

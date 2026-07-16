@@ -4,7 +4,7 @@ import { TreeRoot, TreeVirtualizer } from "reka-ui";
 import { computed, ref, watch } from "vue";
 import type { RemoteDirectoryEntry } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
-import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
+import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
 import RemoteFileDeleteDialog from "./RemoteFileDeleteDialog.vue";
 import RemoteFileTreeRow from "./RemoteFileTreeRow.vue";
 import { useRemoteFileTreeActions } from "./useRemoteFileTreeActions";
@@ -134,9 +134,15 @@ function fileTreeNode(value: unknown) {
         :items="tree"
         :get-key="(node: FileTreeNode) => node.path"
         :get-children="(node: FileTreeNode) => node.children"
-        class="relative h-full w-full min-w-0 list-none overflow-auto outline-none"
+        class="relative h-full w-full min-w-0 list-none overflow-x-scroll overflow-y-auto outline-none"
       >
-        <TreeVirtualizer v-slot="{ item }" :estimate-size="30" :text-content="(node) => node.name">
+        <!--
+          Reka virtualizes rows, so scrollWidth only reflects the currently rendered names.
+          Keep the horizontal scrollbar geometry allocated: auto overflow can otherwise toggle
+          when a long row enters/leaves the virtual range, changing clientHeight and feeding back
+          into the vertical virtualizer. The estimate must also match the h-8 row height exactly.
+        -->
+        <TreeVirtualizer v-slot="{ item }" :estimate-size="32" :text-content="(node) => node.name">
           <RemoteFileTreeRow
             :node="fileTreeNode(item.value)"
             :level="item.level"

@@ -265,8 +265,8 @@ async function currentRouteThreadId(page: Page) {
 async function currentSelectedThreadId(page: Page) {
   const storeThreadId = await page.evaluate(() => {
     const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-    return store?.selectedThreadId ? String(store.selectedThreadId) : null;
+    const navigation = app?.config?.globalProperties?.$pinia?._s?.get("gateway-navigation");
+    return navigation?.selectedThreadId ? String(navigation.selectedThreadId) : null;
   });
   return storeThreadId ?? (await currentRouteThreadId(page));
 }
@@ -363,8 +363,11 @@ async function waitForRealtimeClientMessage(page: Page, type: string, offset: nu
 async function activeRemoteTurnId(page: Page) {
   return page.evaluate(() => {
     const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-    const turns = store?.history?.thread?.turns ?? [];
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const navigation = pinia?._s?.get("gateway-navigation");
+    const runtime = pinia?._s?.get("gateway-thread-runtime");
+    const views = pinia?._s?.get("gateway-thread-view");
+    const turns = views?.history?.thread?.turns ?? [];
     const latest = [...turns].reverse().find((turn: any) => {
       const status = typeof turn?.status === "string" ? turn.status : turn?.status?.type;
       return status === "inProgress" || status === "running" || status === "active";
@@ -373,9 +376,9 @@ async function activeRemoteTurnId(page: Page) {
       return String(latest.id);
     }
     const key =
-      store?.selectedHostId && store?.selectedThreadId
-        ? `${store.selectedHostId}:${store.selectedThreadId}`
+      navigation?.selectedHostId && navigation?.selectedThreadId
+        ? `${navigation.selectedHostId}:${navigation.selectedThreadId}`
         : "";
-    return String(store?.activeTerminalProcessByThreadKey?.[key]?.turnId || "");
+    return String(runtime?.activeTerminalProcessByThreadKey?.[key]?.turnId || "");
   });
 }

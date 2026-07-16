@@ -1,242 +1,186 @@
 import type { ModelListResult, ProjectRecord, RemoteDirectoryEntry } from "~~/shared/types";
 import { gatewayApi } from "@/utils/gateway-api";
-import type { GatewayStoreContext } from "../types";
+import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { writeGatewayRouteSelection } from "../route-state";
+import { cacheSelectedThreadView, beginViewTransition } from "../thread-open/view-state";
 import { messageFromError } from "../thread-utils/identity";
 
-export function createProjectActions(ctx: GatewayStoreContext) {
+export function createProjectActions() {
   let pendingModelRequest: { hostId: number; promise: Promise<void> } | null = null;
 
+  function clearThreadSelection() {
+    const navigation = useGatewayNavigationStore();
+    cacheSelectedThreadView();
+    beginViewTransition();
+    navigation.selectedThreadId = null;
+    useGatewayThreadViewStore().resetCurrentView();
+    useGatewayStore().clearError();
+  }
+
   async function loadModels(hostId: number) {
-    ctx.state.loadingModels = true;
-    const projectId = ctx.state.selectedProjectId;
-    const threadId = ctx.state.selectedThreadId;
+    const gateway = useGatewayStore();
+    const navigation = useGatewayNavigationStore();
+    gateway.loadingModels = true;
+    const projectId = navigation.selectedProjectId;
+    const threadId = navigation.selectedThreadId;
     try {
       const response = await gatewayApi<ModelListResult>("/api/models", {
-        query: {
-          hostId,
-          includeHidden: false,
-          limit: 50,
-        },
+        query: { hostId, includeHidden: false, limit: 50 },
       });
-      if (ctx.state.selectedHostId !== hostId) {
-        return;
-      }
-      ctx.state.models = response.data ?? [];
-      ctx.state.modelsHostId = hostId;
+      if (navigation.selectedHostId !== hostId) return;
+      gateway.models = response.data ?? [];
+      gateway.modelsHostId = hostId;
     } catch (error: any) {
-      ctx.setError(messageFromError(error, ctx.t("app.listModelsFailed"), ctx.errorLabels), {
-        hostId,
-        projectId,
-        threadId,
-      });
+      gateway.setError(
+        messageFromError(error, gateway.t("app.listModelsFailed"), gateway.errorLabels),
+        { hostId, projectId, threadId },
+      );
     } finally {
-      if (ctx.state.selectedHostId === hostId) {
-        ctx.state.loadingModels = false;
-      }
+      if (navigation.selectedHostId === hostId) gateway.loadingModels = false;
     }
   }
 
   return {
     async selectProject(projectId: number) {
-      ctx.cacheSelectedThreadView();
-      ctx.beginViewTransition();
-      ctx.state.selectedProjectId = projectId;
-      ctx.state.selectedThreadId = null;
-      ctx.state.currentThread = null;
-      ctx.state.history = null;
-      ctx.state.events = [];
-      ctx.clearError();
-      ctx.state.olderTurnsCursor = null;
-      ctx.state.newerTurnsCursor = null;
-      ctx.state.lastEventId = 0;
-      writeGatewayRouteSelection({
-        hostId: ctx.state.selectedHostId,
-        projectId,
-        threadId: null,
-      });
-      await ctx.listThreads();
+      const navigation = useGatewayNavigationStore();
+      clearThreadSelection();
+      navigation.selectedProjectId = projectId;
+      writeGatewayRouteSelection({ hostId: navigation.selectedHostId, projectId, threadId: null });
+      await navigation.listThreads();
     },
 
-    async listRemoteDirectories(path = "~", hostId = ctx.state.selectedHostId) {
-      if (!hostId) {
-        return { path, entries: [] as RemoteDirectoryEntry[] };
-      }
-
+    async listRemoteDirectories(path = "~", hostId = useGatewayNavigationStore().selectedHostId) {
+      if (!hostId) return { path, entries: [] as RemoteDirectoryEntry[] };
       return gatewayApi<{ path: string; entries: RemoteDirectoryEntry[] }>(
         "/api/remote/directories",
-        {
-          query: {
-            hostId,
-            path,
-          },
-        },
+        { query: { hostId, path } },
       );
     },
 
     async listModels() {
-      if (!ctx.state.selectedHostId) {
-        ctx.state.models = [];
-        ctx.state.modelsHostId = null;
+      const gateway = useGatewayStore();
+      const hostId = useGatewayNavigationStore().selectedHostId;
+      if (!hostId) {
+        gateway.models = [];
+        gateway.modelsHostId = null;
         return;
       }
-
-      const hostId = ctx.state.selectedHostId;
-      if (pendingModelRequest?.hostId === hostId) {
-        return pendingModelRequest.promise;
-      }
-
+      if (pendingModelRequest?.hostId === hostId) return pendingModelRequest.promise;
       const promise = loadModels(hostId).finally(() => {
-        if (pendingModelRequest?.promise === promise) {
-          pendingModelRequest = null;
-        }
+        if (pendingModelRequest?.promise === promise) pendingModelRequest = null;
       });
       pendingModelRequest = { hostId, promise };
       return promise;
     },
 
     async ensureSelectedHostModels() {
-      if (!ctx.state.selectedHostId || ctx.state.modelsHostId === ctx.state.selectedHostId) {
-        return;
-      }
-      await ctx.listModels();
+      const gateway = useGatewayStore();
+      const hostId = useGatewayNavigationStore().selectedHostId;
+      if (!hostId || gateway.modelsHostId === hostId) return;
+      await gateway.listModels();
     },
 
     async createProject(input: Record<string, unknown>) {
+      const gateway = useGatewayStore();
+      const navigation = useGatewayNavigationStore();
       const project = await gatewayApi<ProjectRecord>("/api/projects", {
         method: "POST",
         body: input,
       });
-      const index = ctx.state.projects.findIndex((item) => item.id === project.id);
-      if (index >= 0) {
-        ctx.state.projects[index] = project;
-      } else {
-        ctx.state.projects.push(project);
-      }
-      upsertConfiguredProject(ctx, project);
-      ctx.persistConfig();
-      ctx.cacheSelectedThreadView();
-      ctx.beginViewTransition();
-      ctx.state.selectedHostId = project.hostId;
-      ctx.state.selectedProjectId = project.id;
-      ctx.state.selectedThreadId = null;
-      ctx.state.currentThread = null;
-      ctx.state.history = null;
-      ctx.state.events = [];
-      ctx.clearError();
-      writeGatewayRouteSelection({
-        hostId: project.hostId,
-        projectId: project.id,
-        threadId: null,
-      });
-      await ctx.listThreads();
+      gateway.mergeProjects([project]);
+      upsertConfiguredProject(project);
+      gateway.persistConfig();
+      clearThreadSelection();
+      navigation.selectedHostId = project.hostId;
+      navigation.selectedProjectId = project.id;
+      writeGatewayRouteSelection({ hostId: project.hostId, projectId: project.id, threadId: null });
+      await navigation.listThreads();
       return project;
     },
 
     async updateProject(projectId: number, input: Record<string, unknown>) {
+      const gateway = useGatewayStore();
+      const navigation = useGatewayNavigationStore();
       const project = await gatewayApi<ProjectRecord>(`/api/projects/${projectId}`, {
         method: "PATCH",
         body: input,
       });
-      ctx.state.projects = ctx.state.projects.map((item) =>
-        item.id === projectId ? project : item,
+      gateway.projects = gateway.projects.map((item) => (item.id === projectId ? project : item));
+      upsertConfiguredProject(project);
+      gateway.projectDirectoryAvailability = omitKey(
+        gateway.projectDirectoryAvailability,
+        projectId,
       );
-      upsertConfiguredProject(ctx, project);
-      const { [projectId]: _removed, ...remainingAvailability } =
-        ctx.state.projectDirectoryAvailability;
-      ctx.state.projectDirectoryAvailability = remainingAvailability;
-      if (ctx.state.selectedProjectId !== projectId) {
-        await ctx.refreshHostProjects(project.hostId);
+      if (navigation.selectedProjectId !== projectId) {
+        await navigation.refreshHostProjects(project.hostId);
         return project;
       }
-
-      ctx.cacheSelectedThreadView();
-      ctx.beginViewTransition();
-      ctx.state.selectedHostId = project.hostId;
-      ctx.state.selectedThreadId = null;
-      ctx.state.currentThread = null;
-      ctx.state.history = null;
-      ctx.state.events = [];
-      ctx.clearError();
-      ctx.state.olderTurnsCursor = null;
-      ctx.state.newerTurnsCursor = null;
-      ctx.state.lastEventId = 0;
-      writeGatewayRouteSelection({
-        hostId: project.hostId,
-        projectId: project.id,
-        threadId: null,
-      });
-      await ctx.listThreads();
+      clearThreadSelection();
+      navigation.selectedHostId = project.hostId;
+      writeGatewayRouteSelection({ hostId: project.hostId, projectId, threadId: null });
+      await navigation.listThreads();
       return project;
     },
 
     async deleteProject(projectId: number) {
-      const project = ctx.state.projects.find((item) => item.id === projectId);
+      const gateway = useGatewayStore();
+      const navigation = useGatewayNavigationStore();
+      const project = gateway.projects.find((item) => item.id === projectId);
       await gatewayApi(`/api/projects/${projectId}`, { method: "DELETE" });
-      ctx.state.projects = ctx.state.projects.filter((item) => item.id !== projectId);
-      const { [projectId]: _removed, ...remainingAvailability } =
-        ctx.state.projectDirectoryAvailability;
-      ctx.state.projectDirectoryAvailability = remainingAvailability;
-      ctx.state.gatewayConfig.projects = ctx.state.gatewayConfig.projects.filter(
+      gateway.projects = gateway.projects.filter((item) => item.id !== projectId);
+      gateway.projectDirectoryAvailability = omitKey(
+        gateway.projectDirectoryAvailability,
+        projectId,
+      );
+      gateway.gatewayConfig.projects = gateway.gatewayConfig.projects.filter(
         (item) => item.id !== projectId,
       );
-
-      if (ctx.state.selectedProjectId !== projectId) {
-        return;
-      }
-
+      if (navigation.selectedProjectId !== projectId) return;
       const nextProject =
-        ctx.state.projects.find((item) => item.hostId === project?.hostId) ??
-        ctx.state.projects.find((item) => item.hostId === ctx.state.selectedHostId) ??
+        gateway.projects.find((item) => item.hostId === project?.hostId) ??
+        gateway.projects.find((item) => item.hostId === navigation.selectedHostId) ??
         null;
-
-      ctx.cacheSelectedThreadView();
-      ctx.beginViewTransition();
-      ctx.state.selectedHostId = project?.hostId ?? ctx.state.selectedHostId;
-      ctx.state.selectedProjectId = nextProject?.id ?? null;
-      ctx.state.selectedThreadId = null;
-      ctx.state.currentThread = null;
-      ctx.state.history = null;
-      ctx.state.events = [];
-      ctx.clearError();
-      ctx.state.olderTurnsCursor = null;
-      ctx.state.newerTurnsCursor = null;
-      ctx.state.lastEventId = 0;
+      clearThreadSelection();
+      navigation.selectedHostId = project?.hostId ?? navigation.selectedHostId;
+      navigation.selectedProjectId = nextProject?.id ?? null;
       writeGatewayRouteSelection({
-        hostId: ctx.state.selectedHostId,
-        projectId: ctx.state.selectedProjectId,
+        hostId: navigation.selectedHostId,
+        projectId: navigation.selectedProjectId,
         threadId: null,
       });
-      await ctx.listThreads();
+      await navigation.listThreads();
     },
 
     mergeProjects(projects: ProjectRecord[]) {
+      const gateway = useGatewayStore();
       for (const project of projects) {
-        const index = ctx.state.projects.findIndex((item) => item.id === project.id);
-        if (index >= 0) {
-          ctx.state.projects[index] = project;
-        } else {
-          ctx.state.projects.push(project);
-        }
+        const index = gateway.projects.findIndex((item) => item.id === project.id);
+        if (index >= 0) gateway.projects[index] = project;
+        else gateway.projects.push(project);
       }
     },
 
     ensureSelectedProject() {
-      if (!ctx.state.selectedHostId || ctx.state.selectedProjectId) {
-        return;
-      }
-      ctx.state.selectedProjectId =
-        ctx.state.projects.find((project) => project.hostId === ctx.state.selectedHostId)?.id ??
+      const gateway = useGatewayStore();
+      const navigation = useGatewayNavigationStore();
+      if (!navigation.selectedHostId || navigation.selectedProjectId) return;
+      navigation.selectedProjectId =
+        gateway.projects.find((project) => project.hostId === navigation.selectedHostId)?.id ??
         null;
     },
   };
 }
 
-function upsertConfiguredProject(ctx: GatewayStoreContext, project: ProjectRecord) {
-  const index = ctx.state.gatewayConfig.projects.findIndex((item) => item.id === project.id);
-  if (index >= 0) {
-    ctx.state.gatewayConfig.projects[index] = project;
-  } else {
-    ctx.state.gatewayConfig.projects.push(project);
-  }
+function upsertConfiguredProject(project: ProjectRecord) {
+  const gateway = useGatewayStore();
+  const index = gateway.gatewayConfig.projects.findIndex((item) => item.id === project.id);
+  if (index >= 0) gateway.gatewayConfig.projects[index] = project;
+  else gateway.gatewayConfig.projects.push(project);
+}
+
+function omitKey<T>(record: Record<number, T>, key: number) {
+  const { [key]: _removed, ...remaining } = record;
+  return remaining;
 }

@@ -1,4 +1,4 @@
-import type { GatewayStoreContext } from "../types";
+import { gatewayDomainEvents } from "../domain-events";
 
 export interface NotificationItemInput {
   id: string;
@@ -12,24 +12,19 @@ export interface NotificationItemInput {
 }
 
 export function emitNotificationItem(
-  ctx: GatewayStoreContext,
   hostId: number,
   threadId: string,
   input: NotificationItemInput,
 ) {
-  ctx.events.emit("history-item-upsert", {
+  gatewayDomainEvents.emit("history-item-upsert", {
     hostId,
     threadId,
     item: {
       type: "appNotification",
-      id: input.id,
-      turnId: input.turnId,
-      method: input.method,
-      title: input.title,
+      ...input,
       level: input.level ?? "info",
       message: input.message ?? "",
       details: input.details ?? "",
-      params: input.params,
       status: "completed",
     },
   });

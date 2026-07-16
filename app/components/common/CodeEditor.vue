@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vu
 import { Compartment, EditorState } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import { EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
+import { useEventListener } from "@vueuse/core";
 import { cn } from "@/lib/utils";
 import {
   gatewayCodeEditorTheme,
@@ -21,6 +22,7 @@ const props = withDefaults(
     extensions?: Extension[];
     lineWrapping?: boolean;
     revealLine?: number | null;
+    initialScrollPosition?: { left: number; top: number };
   }>(),
   {
     language: "text",
@@ -29,10 +31,15 @@ const props = withDefaults(
     extensions: () => [],
     lineWrapping: true,
     revealLine: null,
+    initialScrollPosition: () => ({ left: 0, top: 0 }),
   },
 );
 
-const emit = defineEmits<{ blur: []; save: [] }>();
+const emit = defineEmits<{
+  blur: [];
+  save: [];
+  scrollPosition: [position: { left: number; top: number }];
+}>();
 
 const model = defineModel<string>({ default: "" });
 const containerRef = ref<HTMLElement | null>(null);
@@ -56,8 +63,24 @@ onMounted(() => {
       extensions: editorExtensions(),
     }),
   });
-  revealRequestedLine();
+  editorView.value.scrollDOM.scrollTo({
+    left: props.initialScrollPosition.left,
+    top: props.initialScrollPosition.top,
+  });
+  if (!props.initialScrollPosition.left && !props.initialScrollPosition.top) {
+    revealRequestedLine();
+  }
 });
+
+useEventListener(
+  computed(() => editorView.value?.scrollDOM ?? null),
+  "scroll",
+  (event) => {
+    const element = event.currentTarget as HTMLElement;
+    emit("scrollPosition", { left: element.scrollLeft, top: element.scrollTop });
+  },
+  { passive: true },
+);
 
 onBeforeUnmount(() => {
   editorView.value?.destroy();

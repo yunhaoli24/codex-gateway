@@ -31,6 +31,25 @@ test("defaults to Chinese and can switch to English", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Appearance" })).toBeVisible();
 });
 
+test("can revoke the current session from appearance settings", async ({ page }) => {
+  await openApp(page);
+  const token = await page.evaluate(() => localStorage.getItem("codex-gateway-auth-token"));
+  expect(token).toBeTruthy();
+
+  await page.getByTestId("settings-toggle").click();
+  await page.getByRole("tab", { name: "外观" }).click();
+  await page.getByRole("button", { name: "退出登录" }).click();
+
+  await expect(page.getByRole("heading", { name: "登录 Codex Gateway" })).toBeVisible();
+  const revokedStatus = await page.evaluate(async (authorization) => {
+    const response = await fetch("/api/config/export", {
+      headers: { authorization: `Bearer ${authorization}` },
+    });
+    return response.status;
+  }, token!);
+  expect(revokedStatus).toBe(401);
+});
+
 test("config JSON editor shows current config by default and scrolls", async ({ page }) => {
   await openApp(page);
   await page.getByTestId("settings-toggle").click();

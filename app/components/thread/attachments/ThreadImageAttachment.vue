@@ -4,7 +4,7 @@ import { computed, ref, toRef } from "vue";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ImageViewer from "@/components/common/ImageViewer.vue";
-import { useAuthorizedObjectUrl } from "@/composables/useAuthorizedObjectUrl";
+import { useAuthorizedObjectUrl } from "@/composables/files/useAuthorizedObjectUrl";
 
 const props = defineProps<{
   source: string;

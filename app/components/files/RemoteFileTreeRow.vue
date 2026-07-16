@@ -16,7 +16,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { useLongPressContextMenu } from "@/composables/useLongPressContextMenu";
+import { useLongPressContextMenu } from "@/composables/interactions/useLongPressContextMenu";
 
 interface FileTreeNode {
   name: string;

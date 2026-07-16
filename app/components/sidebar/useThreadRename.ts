@@ -1,12 +1,14 @@
 import { storeToRefs } from "pinia";
 import { computed, nextTick, ref } from "vue";
-import type { useGatewayStore } from "@/stores/gateway";
+import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
-type GatewayStore = ReturnType<typeof useGatewayStore>;
-
-export function useThreadRename(store: GatewayStore) {
-  const { threads, pinnedThreads } = storeToRefs(store);
+export function useThreadRename() {
+  const store = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  const { pinnedThreads } = storeToRefs(store);
+  const { threads } = storeToRefs(navigation);
   const renameTarget = ref<{ hostId: number; threadId: string } | null>(null);
   const renameValue = ref("");
   const renamingThreadKey = computed(() => {
@@ -41,7 +43,7 @@ export function useThreadRename(store: GatewayStore) {
     const thread =
       threads.value.find(
         (candidate) =>
-          store.selectedHostId === target.hostId && String(candidate.id) === target.threadId,
+          navigation.selectedHostId === target.hostId && String(candidate.id) === target.threadId,
       ) ||
       pinnedThreads.value.find(
         (candidate) =>
@@ -51,7 +53,7 @@ export function useThreadRename(store: GatewayStore) {
       cancelRename();
       return;
     }
-    await store.renameThread(target.hostId, target.threadId, name);
+    await navigation.renameThread(target.hostId, target.threadId, name);
     renameTarget.value = null;
     renameValue.value = "";
   }

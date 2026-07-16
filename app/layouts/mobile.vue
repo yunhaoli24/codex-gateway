@@ -13,11 +13,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
-const { currentThread, selectedProject, selectedThreadId, selectedHostId, selectedProjectId } =
-  storeToRefs(store);
+const navigation = useGatewayNavigationStore();
+const { selectedProject } = storeToRefs(store);
+const { selectedThreadId, selectedHostId, selectedProjectId } = storeToRefs(navigation);
+const { currentThread } = storeToRefs(useGatewayThreadViewStore());
 const sidebarOpen = ref(false);
 const mobileTitle = computed(() => {
   if (selectedThreadId.value && currentThread.value) {

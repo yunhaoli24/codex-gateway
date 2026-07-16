@@ -133,6 +133,7 @@ test("opens sidebar context actions with long press on mobile", async ({ page })
   await page.getByTestId("mobile-sidebar-toggle").click();
   await page.getByTestId(`project-button-${project.id}`).click();
   await expect(page.getByTestId("project-thread-list")).toBeVisible();
+  await expect(page.getByTestId("open-tmux-mobile-button")).toBeVisible();
   await page.getByTestId("open-terminal-mobile-button").click();
   await expect(page.getByTestId("terminal-panel")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("tab", { name: /Agent/ }).click();
@@ -151,17 +152,19 @@ test("opens and closes the subagent side panel on mobile", async ({ page }) => {
   await page.evaluate(() => {
     const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
     const pinia = app?.config?.globalProperties?.$pinia;
-    const store = pinia?._s?.get("gateway");
-    if (!store) {
-      throw new Error("Unable to locate gateway Pinia store");
+    const gateway = pinia?._s?.get("gateway");
+    const navigation = pinia?._s?.get("gateway-navigation");
+    const views = pinia?._s?.get("gateway-thread-view");
+    if (!gateway || !navigation || !views) {
+      throw new Error("Unable to locate gateway domain stores");
     }
     const threadId = "mobile-parent-thread";
     const subThreadId = "mobile-subagent-thread";
-    store.hosts = [{ id: 1, name: "Mobile Host", sshHost: "localhost", sshUser: "codex" }];
-    store.selectedHostId = 1;
-    store.selectedThreadId = threadId;
-    store.currentThread = { id: threadId, name: "Mobile Parent" };
-    store.history = {
+    gateway.hosts = [{ id: 1, name: "Mobile Host", sshHost: "localhost", sshUser: "codex" }];
+    navigation.selectedHostId = 1;
+    navigation.selectedThreadId = threadId;
+    views.currentThread = { id: threadId, name: "Mobile Parent" };
+    views.history = {
       thread: {
         id: threadId,
         turns: [
@@ -181,7 +184,7 @@ test("opens and closes the subagent side panel on mobile", async ({ page }) => {
         ],
       },
     };
-    store.threadViews = {
+    views.threadViews = {
       "1:mobile-subagent-thread": {
         hostId: 1,
         projectId: null,
@@ -214,8 +217,8 @@ test("opens and closes the subagent side panel on mobile", async ({ page }) => {
         error: null,
       },
     };
-    store.initializing = false;
-    store.loading = false;
+    gateway.initializing = false;
+    views.loading = false;
   });
 
   await openIntermediateSteps(page);
@@ -260,9 +263,9 @@ test("browses the current thread file workspace from a mobile sheet", async ({ p
   const tree = page.getByTestId("remote-file-tree");
   await expect(tree).toBeVisible();
   await tree.getByText(path.split("/").pop()!, { exact: true }).click();
-  await expect(panel.getByTestId("remote-file-editor")).toContainText("Mobile File Workspace");
-  await panel.getByRole("button", { name: "预览" }).click();
   await expect(panel.locator(".markdown-content h1")).toHaveText("Mobile File Workspace");
+  await panel.getByRole("button", { name: "源码" }).click();
+  await expect(panel.getByTestId("remote-file-editor")).toContainText("Mobile File Workspace");
   const panelBox = await panel.boundingBox();
   const viewport = page.viewportSize();
   expect(panelBox?.width).toBeLessThanOrEqual(viewport?.width ?? 0);

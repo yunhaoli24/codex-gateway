@@ -3,13 +3,13 @@ import {
   type AppServerTurnDisplayError,
 } from "@/stores/gateway/errors";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayThreadRuntimeStore } from "@/stores/gateway-thread-runtime";
 import type {
   SubmittedTurnRequestInput,
   SubmittedTurnRequestState,
 } from "@/stores/gateway-thread-turns";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { createClientUserMessageId } from "@/stores/gateway/thread-turns/turn-content";
-import { pinnedKey } from "@/stores/gateway/thread-utils/identity";
 import { requestTurnStart, requestTurnSteer } from "./transport";
 import { MAX_SERVER_OVERLOADED_RETRIES, type Translate } from "./types";
 import {
@@ -75,9 +75,9 @@ export function retryAfterFailedTurn(
   t: Translate,
   hostId: number,
   threadId: string,
-  turn: Record<string, any>,
+  turn: Record<string, unknown>,
 ) {
-  const turnId = typeof turn?.id === "string" ? turn.id : String(turn?.id ?? "");
+  const turnId = typeof turn.id === "string" || typeof turn.id === "number" ? String(turn.id) : "";
   if (!turnId) {
     return;
   }
@@ -101,7 +101,7 @@ export function retryAfterFailedTurn(
 async function handleImmediateOverloadRetry<T>(
   t: Translate,
   request: SubmittedTurnRequestInput,
-  error: any,
+  error: unknown,
   execute: () => Promise<T>,
 ) {
   if (!isServerOverloadedRequestError(error)) {
@@ -146,8 +146,7 @@ async function retryStoredTurnRequest(t: Translate, hostId: number, threadId: st
     retryTimer: null,
     pendingRetryTurnId: null,
   });
-  const gateway = useGatewayStore();
-  gateway.setThreadStatus(hostId, threadId, "running");
+  useGatewayThreadRuntimeStore().setThreadStatus(hostId, threadId, "running");
   clearThreadScopedError(hostId, threadId);
   try {
     await executeStoredTurnRequest(t, request);
@@ -168,9 +167,10 @@ async function executeStoredTurnRequest(t: Translate, request: SubmittedTurnRequ
     });
     return;
   }
-  const gateway = useGatewayStore();
-  const activeTurnId =
-    gateway.activeTurnIdsByThreadKey[pinnedKey(request.hostId, request.threadId)];
+  const activeTurnId = useGatewayThreadRuntimeStore().threadRuntimeProjection(
+    request.hostId,
+    request.threadId,
+  ).activeTurnId;
   if (!activeTurnId) {
     throw new Error(t("app.sendSteerFailed"));
   }
@@ -184,7 +184,7 @@ async function executeStoredTurnRequest(t: Translate, request: SubmittedTurnRequ
   });
 }
 
-function handleRetryFailure(t: Translate, request: SubmittedTurnRequestState, error: any) {
+function handleRetryFailure(t: Translate, request: SubmittedTurnRequestState, error: unknown) {
   if (isServerOverloadedRequestError(error) && request.retryCount < MAX_SERVER_OVERLOADED_RETRIES) {
     setThreadRetryError(t, request, request.retryCount + 1);
     scheduleStoredTurnRetry(t, { ...request, retryTimer: null });

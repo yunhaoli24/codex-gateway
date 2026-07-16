@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { isThreadPlanItemCompleted } from "@/utils/thread-plan";
 
@@ -12,6 +13,7 @@ const props = defineProps<{
 }>();
 
 const store = useGatewayStore();
+const composer = useGatewayComposerStore();
 const threadTurns = useGatewayThreadTurnsStore();
 const applying = ref(false);
 
@@ -20,14 +22,14 @@ const threadMode = computed(() => {
   if (!props.hostId || !props.threadId) {
     return "default";
   }
-  return store.threadCollaborationModesByKey[`${props.hostId}:${props.threadId}`] ?? "default";
+  return composer.threadCollaborationModesByKey[`${props.hostId}:${props.threadId}`] ?? "default";
 });
 const dismissed = computed(() => {
   if (!props.hostId || !props.threadId || !planItemId.value) {
     return true;
   }
   return Boolean(
-    store.dismissedPlanPromptIdsByKey[`${props.hostId}:${props.threadId}`]?.[planItemId.value],
+    composer.dismissedPlanPromptIdsByKey[`${props.hostId}:${props.threadId}`]?.[planItemId.value],
   );
 });
 const itemCompleted = computed(() => isThreadPlanItemCompleted(props.item));
@@ -48,7 +50,7 @@ async function implementPlan() {
   }
   applying.value = true;
   try {
-    store.setThreadCollaborationMode(props.hostId, props.threadId, "default");
+    composer.setThreadCollaborationMode(props.hostId, props.threadId, "default");
     await threadTurns.sendTurn("Implement the plan.", {
       collaborationMode: defaultCollaborationMode(),
     });
@@ -61,12 +63,12 @@ function continuePlanning() {
   if (!props.hostId || !props.threadId || !planItemId.value) {
     return;
   }
-  store.dismissPlanImplementationPrompt(props.hostId, props.threadId, planItemId.value);
+  composer.dismissPlanImplementationPrompt(props.hostId, props.threadId, planItemId.value);
 }
 
 function defaultCollaborationMode() {
   const model =
-    store.selectedThreadSettings.model || store.defaultModel?.model || store.defaultModel?.id;
+    composer.selectedThreadSettings.model || store.defaultModel?.model || store.defaultModel?.id;
   if (!model) {
     return undefined;
   }
@@ -74,7 +76,7 @@ function defaultCollaborationMode() {
     mode: "default" as const,
     settings: {
       model,
-      reasoningEffort: store.selectedThreadSettings.effort ?? null,
+      reasoningEffort: composer.selectedThreadSettings.effort ?? null,
       developerInstructions: null,
     },
   };

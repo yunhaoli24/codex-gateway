@@ -1,6 +1,10 @@
 import { OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
+import { threadTurnsFromHistory } from "~~/shared/thread-history/shape";
 import { mergeThreadTurns } from "~~/shared/thread-history/turns";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
+import { cacheSelectedThreadView } from "@/stores/gateway/thread-open/view-state";
 import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
 import { isStaleThreadCursorError } from "./stale-cursor";
 import { requestThreadTurnsPage } from "./transport";
@@ -8,47 +12,49 @@ import type { Translate } from "./types";
 
 export async function loadOlderTurns(t: Translate, options: { limit?: number } = {}) {
   const gateway = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  const views = useGatewayThreadViewStore();
   if (
-    !gateway.selectedHostId ||
-    !gateway.selectedThreadId ||
-    !gateway.olderTurnsCursor ||
-    gateway.loadingOlderTurns
+    !navigation.selectedHostId ||
+    !navigation.selectedThreadId ||
+    !views.olderTurnsCursor ||
+    views.loadingOlderTurns
   ) {
     return;
   }
 
-  const hostId = gateway.selectedHostId;
-  const projectId = gateway.selectedProjectId;
-  const threadId = gateway.selectedThreadId;
-  gateway.loadingOlderTurns = true;
+  const hostId = navigation.selectedHostId;
+  const projectId = navigation.selectedProjectId;
+  const threadId = navigation.selectedThreadId;
+  views.loadingOlderTurns = true;
   try {
     const result = await requestThreadTurnsPage({
       hostId,
       threadId,
-      cursor: gateway.olderTurnsCursor,
+      cursor: views.olderTurnsCursor,
       limit: options.limit ?? OLDER_TURN_PAGE_LIMIT,
       sortDirection: "desc",
     });
-    const turns = (result.history as any)?.thread?.turns ?? [];
-    gateway.history = mergeThreadTurns(
-      gateway.history,
-      gateway.currentThread,
+    const turns = threadTurnsFromHistory(result.history);
+    views.history = mergeThreadTurns(
+      views.history,
+      views.currentThread,
       threadId,
       turns,
       "prepend",
     );
-    gateway.olderTurnsCursor = result.turnsPage.nextCursor;
-    gateway.newerTurnsCursor = result.turnsPage.backwardsCursor ?? gateway.newerTurnsCursor;
-    gateway.cacheSelectedThreadView();
-  } catch (error: any) {
+    views.olderTurnsCursor = result.turnsPage.nextCursor;
+    views.newerTurnsCursor = result.turnsPage.backwardsCursor ?? views.newerTurnsCursor;
+    cacheSelectedThreadView();
+  } catch (error: unknown) {
     if (isStaleThreadCursorError(error)) {
-      if (gateway.selectedHostId !== hostId || gateway.selectedThreadId !== threadId) {
+      if (navigation.selectedHostId !== hostId || navigation.selectedThreadId !== threadId) {
         return;
       }
-      gateway.olderTurnsCursor = null;
-      gateway.newerTurnsCursor = null;
-      gateway.cacheSelectedThreadView();
-      await gateway.refreshSelectedThreadSnapshot({ showLoading: false, scrollToLatest: false });
+      views.olderTurnsCursor = null;
+      views.newerTurnsCursor = null;
+      cacheSelectedThreadView();
+      await views.refreshSelectedThreadSnapshot({ showLoading: false, scrollToLatest: false });
       return;
     }
     gateway.setError(
@@ -56,6 +62,6 @@ export async function loadOlderTurns(t: Translate, options: { limit?: number } =
       { hostId, projectId, threadId },
     );
   } finally {
-    gateway.loadingOlderTurns = false;
+    views.loadingOlderTurns = false;
   }
 }
