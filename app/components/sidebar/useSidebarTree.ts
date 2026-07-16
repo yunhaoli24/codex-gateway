@@ -1,25 +1,21 @@
 import { storeToRefs } from "pinia";
 import { computed, nextTick, ref, watch, type Ref } from "vue";
-import type { useGatewayStore } from "@/stores/gateway";
+import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadRuntimeStore } from "@/stores/gateway-thread-runtime";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { pinnedThreadId, pinnedThreadKey, threadKey } from "./sidebar-utils";
 
-type GatewayStore = ReturnType<typeof useGatewayStore>;
-
-export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<boolean>) {
-  const {
-    hosts,
-    threads,
-    projects,
-    projectDirectoryAvailability,
-    pinnedThreads,
-    openingPinnedThreadKey,
-    unviewedCompletedThreadKeys,
-    threadStatuses,
-    hostConnectionStatuses,
-    selectedHostId,
-    selectedProjectId,
-    selectedThreadId,
-  } = storeToRefs(store);
+export function useSidebarTree(longPressTriggered: Ref<boolean>) {
+  const store = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  const runtime = useGatewayThreadRuntimeStore();
+  const threadView = useGatewayThreadViewStore();
+  const { hosts, projects, projectDirectoryAvailability, pinnedThreads, hostConnectionStatuses } =
+    storeToRefs(store);
+  const { threads, openingPinnedThreadKey, selectedHostId, selectedProjectId, selectedThreadId } =
+    storeToRefs(navigation);
+  const { unviewedCompletedThreadKeys, threadStatuses } = storeToRefs(runtime);
   const expandedHostIds = ref<Set<number>>(new Set());
   const expandedProjectIds = ref<Set<number>>(new Set());
   const expandedMissingProjectHostIds = ref<Set<number>>(new Set());
@@ -61,7 +57,7 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
     if (longPressTriggered.value) {
       return;
     }
-    void store.openThread(threadId, context);
+    void threadView.openThread(threadId, context);
   }
 
   function openPinnedThread(thread: any) {
@@ -69,7 +65,7 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
       return;
     }
     suppressTreeAutoExpand.value = true;
-    void store.openPinnedThread(thread).finally(async () => {
+    void navigation.openPinnedThread(thread).finally(async () => {
       await nextTick();
       expandedHostIds.value = new Set();
       expandedProjectIds.value = new Set();
@@ -118,7 +114,7 @@ export function useSidebarTree(store: GatewayStore, longPressTriggered: Ref<bool
   }
 
   function startThreadInProject(project: any) {
-    void store.startThread(
+    void threadView.startThread(
       {
         model: store.defaultModel?.model || store.defaultModel?.id || undefined,
       },

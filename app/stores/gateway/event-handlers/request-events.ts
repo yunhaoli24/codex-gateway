@@ -1,4 +1,5 @@
 import { itemTypeForServerRequest, SERVER_REQUEST_ITEM_TYPES } from "~~/shared/server-requests";
+import { gatewayDomainEvents } from "../domain-events";
 import type { GatewayEventHandlerRegistry } from "./types";
 
 const pendingServerRequestHandlers = Object.fromEntries(
@@ -7,8 +8,8 @@ const pendingServerRequestHandlers = Object.fromEntries(
 
 export const requestEventHandlers: GatewayEventHandlerRegistry = {
   ...pendingServerRequestHandlers,
-  "serverRequest/resolved": (ctx, event, params, threadId) => {
-    ctx.events.emit("history-server-request-resolved", {
+  "serverRequest/resolved": (event, params, threadId) => {
+    gatewayDomainEvents.emit("history-server-request-resolved", {
       hostId: event.hostId,
       threadId,
       requestId: params.requestId,
@@ -20,12 +21,11 @@ export const requestEventHandlers: GatewayEventHandlerRegistry = {
 };
 
 function upsertPendingServerRequest(
-  ctx: Parameters<GatewayEventHandlerRegistry[string]>[0],
-  event: Parameters<GatewayEventHandlerRegistry[string]>[1],
+  event: Parameters<GatewayEventHandlerRegistry[string]>[0],
   params: Record<string, any>,
   threadId: string,
 ) {
-  ctx.events.emit("history-item-upsert", {
+  gatewayDomainEvents.emit("history-item-upsert", {
     hostId: event.hostId,
     threadId,
     item: {

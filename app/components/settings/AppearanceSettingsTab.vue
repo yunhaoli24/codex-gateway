@@ -1,5 +1,23 @@
 <script setup lang="ts">
+import { LogOutIcon } from "@lucide/vue";
 import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
+import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/stores/auth";
+
+const emit = defineEmits<{ close: [] }>();
+const auth = useAuthStore();
+const loggingOut = ref(false);
+
+async function logout() {
+  if (loggingOut.value) return;
+  loggingOut.value = true;
+  try {
+    await auth.logout();
+    emit("close");
+  } finally {
+    loggingOut.value = false;
+  }
+}
 </script>
 
 <template>
@@ -21,6 +39,19 @@ import LanguageSwitcher from "@/components/common/LanguageSwitcher.vue";
         </div>
         <LanguageSwitcher />
       </div>
+    </div>
+
+    <div class="space-y-3 rounded-xl border border-danger/30 bg-danger/5 p-4">
+      <div class="space-y-1">
+        <div class="text-sm font-medium">{{ $t("app.accountSession") }}</div>
+        <p class="text-sm text-ink-secondary">
+          {{ $t("app.logoutDescription") }}
+        </p>
+      </div>
+      <Button variant="destructive" :disabled="loggingOut" @click="logout">
+        <LogOutIcon class="size-4" />
+        {{ loggingOut ? $t("app.loggingOut") : $t("app.logout") }}
+      </Button>
     </div>
   </div>
 </template>

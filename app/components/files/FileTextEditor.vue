@@ -5,7 +5,7 @@ import type { FilePreviewDocument } from "~~/shared/types";
 import { isMarkdownPreviewPath } from "~~/shared/file-preview";
 import CodeEditor from "@/components/common/CodeEditor.vue";
 import { Button } from "@/components/ui/button";
-import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
+import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
 import { codeEditorLanguageForPath } from "@/utils/code-editor-extensions";
 import { fileEditorExtensions } from "@/utils/file-editor-extensions";
 import FileMarkdownPreview from "./FileMarkdownPreview.vue";
@@ -119,8 +119,10 @@ function save() {
       :read-only="!editable"
       :line-wrapping="false"
       :reveal-line="document.line"
+      :initial-scroll-position="fileWorkspace.viewPositionFor(document.key, 'source')"
       @blur="save"
       @save="save"
+      @scroll-position="fileWorkspace.rememberViewPosition(document.key, 'source', $event)"
     />
   </div>
 </template>

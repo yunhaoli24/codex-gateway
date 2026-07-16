@@ -7,7 +7,7 @@ import type {
 import { terminalTurnStatus } from "~~/shared/thread-runtime-status";
 import { gatewayMemoryState } from "../state/memory";
 import { hostStore } from "../state/hosts";
-import type { ServerNotification } from "./types";
+import type { ServerNotification } from "~~/shared/types";
 
 export function threadTurnCompletedNotification(event: GatewayEvent): ServerNotification | null {
   const params = (event.payload as any)?.params ?? {};
@@ -53,6 +53,7 @@ function notificationTarget(event: GatewayEvent) {
     (thread) => thread.hostId === event.hostId && thread.threadId === event.threadId,
   );
   return {
+    kind: "thread" as const,
     hostId: event.hostId,
     projectId: pinnedThread?.projectId ?? metadata?.projectId ?? null,
     threadId: event.threadId,

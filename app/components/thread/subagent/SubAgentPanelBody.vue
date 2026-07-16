@@ -4,7 +4,7 @@ import { computed } from "vue";
 import type { SubAgentPanelState, ThreadViewState } from "@/stores/gateway/types";
 import ThreadVirtualTimeline from "@/components/thread/ThreadVirtualTimeline.vue";
 import type { ThreadTimelineTurn } from "@/components/thread/timeline-rows";
-import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayThreadRuntimeStore } from "@/stores/gateway-thread-runtime";
 
 const props = defineProps<{
   panel: SubAgentPanelState;
@@ -14,9 +14,9 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
-const store = useGatewayStore();
+const runtime = useGatewayThreadRuntimeStore();
 const threadStatus = computed(
-  () => store.threadRuntimeProjection(props.panel.hostId, props.panel.threadId).status,
+  () => runtime.threadRuntimeProjection(props.panel.hostId, props.panel.threadId).status,
 );
 </script>
 

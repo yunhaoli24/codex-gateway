@@ -1,5 +1,4 @@
 import { jsonPreview } from "@/utils/thread-items";
-import type { GatewayStoreContext } from "../../types";
 import {
   count,
   list,
@@ -7,16 +6,13 @@ import {
   text,
   withDetails,
   type FormattedNotification,
+  type TranslationFunction,
 } from "./common";
 
-export function hookNotification(
-  ctx: GatewayStoreContext,
-  params: Record<string, any>,
-  key: string,
-) {
+export function hookNotification(t: TranslationFunction, params: Record<string, any>, key: string) {
   const run = params.run || {};
   return withDetails(
-    simpleNotification(ctx, key, run.status === "failed" ? "warning" : "info", {
+    simpleNotification(t, key, run.status === "failed" ? "warning" : "info", {
       event: text(run.eventName),
       status: text(run.status),
       message: text(run.statusMessage),
@@ -26,14 +22,14 @@ export function hookNotification(
 }
 
 export function guardianReviewNotification(
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   params: Record<string, any>,
   phase: "started" | "completed",
 ) {
   const review = params.review || {};
   return withDetails(
     simpleNotification(
-      ctx,
+      t,
       phase === "started" ? "guardianReviewStarted" : "guardianReviewCompleted",
       "info",
       {
@@ -52,14 +48,11 @@ export function guardianReviewNotification(
   );
 }
 
-export function rateLimitsUpdatedNotification(
-  ctx: GatewayStoreContext,
-  params: Record<string, any>,
-) {
+export function rateLimitsUpdatedNotification(t: TranslationFunction, params: Record<string, any>) {
   const limits = params.rateLimits || {};
   return withDetails(
     simpleNotification(
-      ctx,
+      t,
       "accountRateLimitsUpdated",
       limits.rateLimitReachedType ? "warning" : "info",
       {
@@ -73,7 +66,7 @@ export function rateLimitsUpdatedNotification(
 }
 
 export function externalAgentConfigImportNotification(
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   params: Record<string, any>,
   key: string,
 ) {
@@ -81,30 +74,30 @@ export function externalAgentConfigImportNotification(
   const successes = results.reduce((total, result) => total + count(result.successes), 0);
   const failures = results.reduce((total, result) => total + count(result.failures), 0);
   return withDetails(
-    simpleNotification(ctx, key, failures ? "warning" : "info", { successes, failures }),
+    simpleNotification(t, key, failures ? "warning" : "info", { successes, failures }),
     jsonPreview(results),
   );
 }
 
 export function moderationMetadataNotification(
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   params: Record<string, any>,
 ): FormattedNotification {
   const metadata = params.metadata;
   const summary = moderationSummary(metadata);
   return withDetails(
-    simpleNotification(ctx, "turnModerationMetadata", "info", { summary }),
+    simpleNotification(t, "turnModerationMetadata", "info", { summary }),
     jsonPreview(metadata),
   );
 }
 
 export function modelSafetyBufferingNotification(
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   params: Record<string, any>,
 ) {
   return withDetails(
     simpleNotification(
-      ctx,
+      t,
       params.showBufferingUi ? "modelSafetyBufferingEnabled" : "modelSafetyBufferingDisabled",
       "info",
       {
@@ -123,11 +116,11 @@ export function modelSafetyBufferingNotification(
 }
 
 export function warningNotification(
-  ctx: GatewayStoreContext,
+  t: TranslationFunction,
   key: string,
   params: Record<string, any>,
 ) {
-  return simpleNotification(ctx, key, "warning", { message: text(params.message) });
+  return simpleNotification(t, key, "warning", { message: text(params.message) });
 }
 
 function moderationSummary(metadata: unknown) {

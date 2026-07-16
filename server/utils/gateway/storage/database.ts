@@ -81,7 +81,36 @@ function migrate(db: DatabaseSync) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS tmux_monitors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      host_id INTEGER NOT NULL,
+      session_name TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      session_created INTEGER NOT NULL,
+      window_index INTEGER NOT NULL,
+      window_name TEXT NOT NULL,
+      pane_index INTEGER NOT NULL,
+      pane_id TEXT NOT NULL,
+      pane_pid INTEGER NOT NULL,
+      initial_command TEXT NOT NULL,
+      last_command TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'cancelled')),
+      completion_reason TEXT,
+      created_at TEXT NOT NULL,
+      last_checked_at TEXT,
+      completed_at TEXT,
+      last_error TEXT,
+      last_error_at TEXT,
+      notification_sent_at TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_tmux_monitors_host
+      ON tmux_monitors(user_id, host_id, status, created_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tmux_monitors_active_pane
+      ON tmux_monitors(user_id, host_id, session_id, pane_id)
+      WHERE status = 'active';
   `);
 }

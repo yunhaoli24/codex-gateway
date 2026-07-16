@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { hostConnectionClass, hostConnectionLabelKey } from "@/components/sidebar/sidebar-utils";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 
 const store = useGatewayStore();
-const { hosts, hostConnectionStatuses, selectedHostId } = storeToRefs(store);
+const navigation = useGatewayNavigationStore();
+const { hosts, hostConnectionStatuses } = storeToRefs(store);
+const { selectedHostId } = storeToRefs(navigation);
 const { t } = useI18n();
 
 async function selectHost(hostId: number) {

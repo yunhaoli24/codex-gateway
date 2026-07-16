@@ -1,4 +1,5 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
+import type { ThreadHistoryTurn } from "~~/shared/thread-history/types";
 import type { AppServerTurnDisplayError } from "@/stores/gateway/errors";
 import { interruptActiveTurn, interruptThreadTurn } from "./interrupt";
 import { loadOlderTurns } from "./older-turns";
@@ -21,7 +22,7 @@ export function createGatewayThreadTurnActions() {
       turnId: string,
       error: AppServerTurnDisplayError,
     ) => maybeQueueServerOverloadedRetry(t, hostId, threadId, turnId, error),
-    maybeRetryAfterTurnFailure: (hostId: number, threadId: string, turn: Record<string, any>) =>
+    maybeRetryAfterTurnFailure: (hostId: number, threadId: string, turn: ThreadHistoryTurn) =>
       maybeRetryAfterTurnFailure(t, hostId, threadId, turn),
   };
 }

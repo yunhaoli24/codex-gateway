@@ -154,11 +154,11 @@ export async function startRemoteThreadFromProjectMenu(page: Page, projectId: nu
     await page.evaluate(async (model) => {
       const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
       const pinia = app?.config?.globalProperties?.$pinia;
-      const store = pinia?._s?.get("gateway");
-      if (!store) {
-        throw new Error("Unable to locate gateway Pinia store");
+      const composer = pinia?._s?.get("gateway-composer");
+      if (!composer) {
+        throw new Error("Unable to locate gateway composer Pinia store");
       }
-      await store.saveSelectedThreadSettings({ model });
+      await composer.saveSelectedThreadSettings({ model });
     }, remote.testModel);
   }
   return threadId;

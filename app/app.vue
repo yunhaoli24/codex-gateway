@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/sonner";
 import LoginScreen from "@/components/auth/LoginScreen.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
@@ -13,6 +15,8 @@ import { useGatewayWorkspaceLayoutStore } from "@/stores/gateway-workspace-layou
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
+const navigation = useGatewayNavigationStore();
+const threadView = useGatewayThreadViewStore();
 const realtime = useGatewayRealtimeStore();
 const terminal = useGatewayTerminalStore();
 const threadTurns = useGatewayThreadTurnsStore();
@@ -20,7 +24,9 @@ const threadActivity = useGatewayThreadActivityStore();
 const workspaceLayout = useGatewayWorkspaceLayoutStore();
 const auth = useAuthStore();
 const device = useDevice();
-const { currentThread, selectedThreadId, initializing } = storeToRefs(store);
+const { initializing } = storeToRefs(store);
+const { selectedThreadId } = storeToRefs(navigation);
+const { currentThread } = storeToRefs(threadView);
 const { initialized, isAuthenticated, token } = storeToRefs(auth);
 const mounted = ref(false);
 let activeSessionToken = "";

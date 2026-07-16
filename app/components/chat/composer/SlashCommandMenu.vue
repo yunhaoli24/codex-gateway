@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SlashMenuItem } from "@/composables/useSlashCommands";
+import type { SlashMenuItem } from "@/composables/composer/useSlashCommands";
 import { Button } from "@/components/ui/button";
 
 defineProps<{

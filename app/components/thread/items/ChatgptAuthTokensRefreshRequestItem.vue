@@ -4,7 +4,7 @@ import { computed, ref } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
+import { useServerRequestResponder } from "@/composables/thread/useServerRequestResponder";
 
 const props = defineProps<{
   item: Record<string, any>;

@@ -16,21 +16,19 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { useLongPressContextMenu } from "@/composables/useLongPressContextMenu";
+import { useLongPressContextMenu } from "@/composables/interactions/useLongPressContextMenu";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
 const store = useGatewayStore();
+const navigation = useGatewayNavigationStore();
+const threadView = useGatewayThreadViewStore();
 const { t } = useI18n();
-const {
-  loading,
-  selectedHostId,
-  selectedProjectId,
-  selectedProject,
-  selectedThreadId,
-  currentThread,
-  threads,
-} = storeToRefs(store);
+const { selectedProject } = storeToRefs(store);
+const { selectedHostId, selectedProjectId, selectedThreadId, threads } = storeToRefs(navigation);
+const { currentThread, loading } = storeToRefs(threadView);
 const { longPressTriggered, longPressContextMenuHandlers } = useLongPressContextMenu();
 
 const sortedThreads = computed(() => {
@@ -60,7 +58,7 @@ function openThread(threadId: string) {
   if (longPressTriggered.value) {
     return;
   }
-  void store.openThread(threadId, {
+  void threadView.openThread(threadId, {
     hostId: selectedHostId.value ?? undefined,
     projectId: selectedProjectId.value,
   });
@@ -82,11 +80,16 @@ function openThread(threadId: string) {
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-2">
-        <Button variant="secondary" size="sm" :disabled="loading" @click="store.listThreads('')">
+        <Button
+          variant="secondary"
+          size="sm"
+          :disabled="loading"
+          @click="navigation.listThreads('')"
+        >
           <RefreshCwIcon class="size-4" />
           {{ t("app.refresh") }}
         </Button>
-        <Button size="sm" @click="store.startThread()">
+        <Button size="sm" @click="threadView.startThread()">
           <PlusIcon class="size-4" />
           {{ t("app.newThread") }}
         </Button>
@@ -121,7 +124,7 @@ function openThread(threadId: string) {
           </Button>
         </ContextMenuTrigger>
         <ContextMenuContent class="w-40">
-          <ContextMenuItem @select="store.setThreadPinned(String(thread.id), !thread.pinned)">
+          <ContextMenuItem @select="navigation.setThreadPinned(String(thread.id), !thread.pinned)">
             {{ thread.pinned ? t("app.unpinThread") : t("app.pinThread") }}
           </ContextMenuItem>
         </ContextMenuContent>

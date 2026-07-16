@@ -4,8 +4,8 @@ import { useEventListener } from "@vueuse/core";
 import { ref, watch } from "vue";
 import { parseRemoteFileLink } from "@/utils/file-preview-links";
 import { escapeHtml, highlightCode, normalizeLanguage } from "@/utils/code-highlight";
-import { useFilePreviewContext } from "@/composables/useFilePreviewContext";
-import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
+import { useFilePreviewContext } from "@/composables/files/useFilePreviewContext";
+import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
 
 const props = withDefaults(
   defineProps<{

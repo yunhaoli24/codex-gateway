@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import ComposerShell from "@/components/chat/composer/ComposerShell.vue";
-import { useComposerController } from "@/composables/useComposerController";
+import { useComposerController } from "@/composables/composer/useComposerController";
 
 const {
   activeEffortCompactLabel,

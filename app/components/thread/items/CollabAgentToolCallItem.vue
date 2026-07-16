@@ -4,14 +4,16 @@ import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { isItemInProgress } from "@/utils/thread-items";
-import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 
 const props = defineProps<{
   item: Record<string, any>;
   hostId: number | null;
 }>();
 const { t } = useI18n();
-const store = useGatewayStore();
+const navigation = useGatewayNavigationStore();
+const threadView = useGatewayThreadViewStore();
 
 const title = computed(() => props.item.tool || t("app.collabAgentToolCall"));
 const agentRows = computed(() => {
@@ -47,12 +49,12 @@ function openReceiverThread(threadId: string) {
   if (!props.hostId || !threadId) {
     return;
   }
-  void store.openSubAgentPanel({
+  void threadView.openSubAgentPanel({
     hostId: props.hostId,
     threadId,
     title: `agent-${threadId.slice(0, 8)}`,
-    parentHostId: store.selectedHostId,
-    parentThreadId: store.selectedThreadId,
+    parentHostId: navigation.selectedHostId,
+    parentThreadId: navigation.selectedThreadId,
   });
 }
 </script>
@@ -64,6 +66,13 @@ function openReceiverThread(threadId: string) {
       <span class="min-w-0 truncate">{{ title }}</span>
       <Badge variant="secondary">{{ item.status }}</Badge>
       <Badge v-if="isItemInProgress(item)" variant="outline">{{ t("app.running") }}</Badge>
+    </div>
+    <div
+      v-if="item.tool === 'sendInput' && item.prompt"
+      class="mt-2 whitespace-pre-wrap rounded-lg border border-hairline bg-canvas-soft px-3 py-2 text-sm leading-6 text-ink"
+    >
+      <div class="mb-1 text-xs font-medium text-ink-muted">{{ t("app.subAgentInput") }}</div>
+      {{ item.prompt }}
     </div>
     <div v-if="agentRows.length" class="mt-2 flex flex-col gap-1.5">
       <Button

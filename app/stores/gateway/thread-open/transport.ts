@@ -1,7 +1,8 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
+import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
-import type { GatewayStoreContext } from "../types";
 
 export type ThreadSnapshotMessage = Extract<
   import("~~/shared/types").RealtimeServerMessage,
@@ -13,15 +14,12 @@ export type ThreadStartedMessage = Extract<
   { type: "thread.started" }
 >;
 
-export function requestActivateThreadSnapshot(
-  ctx: GatewayStoreContext,
-  input: {
-    hostId: number;
-    projectId: number | null;
-    threadId: string;
-    limit?: number;
-  },
-) {
+export function requestActivateThreadSnapshot(input: {
+  hostId: number;
+  projectId: number | null;
+  threadId: string;
+  limit?: number;
+}) {
   return useGatewayRealtimeStore().request<ThreadSnapshotMessage>(
     (requestId) => ({
       type: "thread.activate",
@@ -35,18 +33,17 @@ export function requestActivateThreadSnapshot(
   );
 }
 
-export function requestStartThread(ctx: GatewayStoreContext, options: ComposerTurnOptions) {
-  const hostId = ctx.state.selectedHostId;
-  if (!hostId) {
-    throw new Error("Host is required to start a thread");
-  }
+export function requestStartThread(options: ComposerTurnOptions) {
+  const gateway = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  if (!navigation.selectedHostId) throw new Error("Host is required to start a thread");
   return useGatewayRealtimeStore().request<ThreadStartedMessage>(
     (requestId) => ({
       type: "thread.start",
       requestId,
-      hostId,
-      projectId: ctx.state.selectedProjectId,
-      cwd: ctx.selectedProject?.remotePath,
+      hostId: navigation.selectedHostId!,
+      projectId: navigation.selectedProjectId,
+      cwd: gateway.selectedProject?.remotePath,
       model: options.model || undefined,
       effort: options.effort || undefined,
       approvalPolicy: options.approvalPolicy || undefined,

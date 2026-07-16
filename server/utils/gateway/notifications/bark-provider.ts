@@ -1,5 +1,5 @@
 import type { BarkNotificationSettings } from "~~/shared/types";
-import type { ServerNotification } from "./types";
+import type { ServerNotification } from "~~/shared/types";
 
 const BARK_REQUEST_TIMEOUT_MS = 10_000;
 const BARK_RETRY_DELAYS_MS = [1_000, 3_000] as const;

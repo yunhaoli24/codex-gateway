@@ -1,6 +1,6 @@
 import { deliverBarkNotification } from "./bark-delivery";
 import { notificationRealtimeEvents } from "./notification-realtime-events";
-import type { ServerNotification } from "./types";
+import type { ServerNotification } from "~~/shared/types";
 
 export const notificationCenter = {
   publish(notification: ServerNotification) {

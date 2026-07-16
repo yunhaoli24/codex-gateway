@@ -1,10 +1,12 @@
 import { toast } from "vue-sonner";
 import { klona } from "klona";
 import { gatewayApi } from "@/utils/gateway-api";
+import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import type { GatewayConfig, GatewayNotificationSettings } from "~~/shared/types";
 import { defaultGatewayConfig, normalizeNotificationSettings } from "../config";
-import type { GatewayStoreContext } from "../types";
 import { messageFromError } from "../thread-utils/identity";
 import {
   hasGatewayRouteSelection,
@@ -12,140 +14,127 @@ import {
   writeGatewayRouteSelection,
 } from "../route-state";
 
-export function createCoreActions(ctx: GatewayStoreContext) {
+export function createCoreActions() {
   let configSyncQueue: Promise<void> = Promise.resolve();
   let configSyncGeneration = 0;
 
+  function persistConfig() {
+    const gateway = useGatewayStore();
+    gateway.gatewayConfig = {
+      version: 1,
+      hosts: gateway.hosts,
+      projects: gateway.gatewayConfig.projects,
+      pinnedThreads: gateway.gatewayConfig.pinnedThreads,
+      notifications: normalizeNotificationSettings(gateway.gatewayConfig.notifications),
+    };
+  }
+
+  function applyConfig(config: GatewayConfig) {
+    const gateway = useGatewayStore();
+    gateway.gatewayConfig = { ...defaultGatewayConfig(), ...config };
+    gateway.hosts = gateway.gatewayConfig.hosts;
+    gateway.projects = gateway.gatewayConfig.projects;
+  }
+
+  async function syncConfigToServer() {
+    persistConfig();
+    const gateway = useGatewayStore();
+    const config = klona(gateway.gatewayConfig);
+    const generation = ++configSyncGeneration;
+    const sync = async () => {
+      const syncedConfig = await syncGatewayConfig(config);
+      if (generation === configSyncGeneration) applyConfig(syncedConfig);
+    };
+    const result = configSyncQueue.then(sync, sync);
+    configSyncQueue = result.catch(() => {});
+    return result;
+  }
+
   return {
     hydrateConfig() {
-      ctx.state.gatewayConfig = defaultGatewayConfig();
-      ctx.state.hosts = [];
-      ctx.state.projects = [];
+      const gateway = useGatewayStore();
+      gateway.gatewayConfig = defaultGatewayConfig();
+      gateway.hosts = [];
+      gateway.projects = [];
     },
-
-    persistConfig() {
-      ctx.state.gatewayConfig = {
-        version: 1,
-        hosts: ctx.state.hosts,
-        projects: ctx.state.gatewayConfig.projects,
-        pinnedThreads: ctx.state.gatewayConfig.pinnedThreads,
-        notifications: normalizeNotificationSettings(ctx.state.gatewayConfig.notifications),
-      };
-    },
-
-    async syncConfigToServer() {
-      ctx.persistConfig();
-      const config = klona(ctx.state.gatewayConfig);
-      const generation = ++configSyncGeneration;
-      const sync = async () => {
-        const syncedConfig = await syncGatewayConfig(config);
-        if (generation !== configSyncGeneration) {
-          return;
-        }
-        ctx.state.gatewayConfig = { ...defaultGatewayConfig(), ...syncedConfig };
-        ctx.state.hosts = ctx.state.gatewayConfig.hosts;
-        ctx.state.projects = ctx.state.gatewayConfig.projects;
-      };
-      const result = configSyncQueue.then(sync, sync);
-      configSyncQueue = result.catch(() => {});
-      return result;
-    },
-
-    applyConfig(config: GatewayConfig) {
-      ctx.state.gatewayConfig = {
-        ...defaultGatewayConfig(),
-        ...config,
-      };
-      ctx.state.hosts = ctx.state.gatewayConfig.hosts;
-      ctx.state.projects = ctx.state.gatewayConfig.projects;
-    },
-
+    persistConfig,
+    syncConfigToServer,
+    applyConfig,
     async loadConfigFromServer() {
-      const config = await gatewayApi<GatewayConfig>("/api/config/export");
-      ctx.applyConfig(config);
-      ctx.persistConfig();
+      applyConfig(await gatewayApi<GatewayConfig>("/api/config/export"));
+      persistConfig();
     },
-
     exportConfigText() {
-      ctx.persistConfig();
-      return JSON.stringify(ctx.state.gatewayConfig, null, 2);
+      persistConfig();
+      return JSON.stringify(useGatewayStore().gatewayConfig, null, 2);
     },
-
     async importConfigText(text: string) {
-      const config = JSON.parse(text) as GatewayConfig;
-      const syncedConfig = await syncGatewayConfig({
-        ...defaultGatewayConfig(),
-        ...config,
-      });
-      ctx.state.gatewayConfig = { ...defaultGatewayConfig(), ...syncedConfig };
-      ctx.state.hosts = ctx.state.gatewayConfig.hosts;
-      ctx.state.projects = ctx.state.gatewayConfig.projects;
-      ctx.persistConfig();
-      await ctx.refresh();
+      applyConfig(
+        await syncGatewayConfig({
+          ...defaultGatewayConfig(),
+          ...(JSON.parse(text) as GatewayConfig),
+        }),
+      );
+      persistConfig();
+      await useGatewayStore().refresh();
     },
-
     async saveNotificationSettings(notifications: GatewayNotificationSettings) {
-      ctx.state.gatewayConfig.notifications = normalizeNotificationSettings(notifications);
-      await ctx.syncConfigToServer();
-      if (import.meta.client) {
-        toast.success(ctx.t("app.notificationSettingsSaved"));
-      }
+      const gateway = useGatewayStore();
+      gateway.gatewayConfig.notifications = normalizeNotificationSettings(notifications);
+      await syncConfigToServer();
+      if (import.meta.client) toast.success(gateway.t("app.notificationSettingsSaved"));
     },
-
     async refresh() {
-      const refreshViewEpoch = ctx.state.viewEpoch;
-      ctx.state.initializing = true;
-      ctx.state.loading = true;
-      ctx.clearError();
+      const gateway = useGatewayStore();
+      const navigation = useGatewayNavigationStore();
+      const views = useGatewayThreadViewStore();
+      const refreshViewEpoch = views.viewEpoch;
+      gateway.initializing = true;
+      views.loading = true;
+      gateway.clearError();
       try {
         const routeSelection = readGatewayRouteSelection();
         useGatewayRealtimeStore().connectHostLifecycleEvents();
-        ctx.state.projects = [];
-        ctx.state.projectDirectoryAvailability = {};
-        ctx.state.threads = [];
-        ctx.state.models = [];
-        ctx.state.modelsHostId = null;
-        await ctx.loadConfigFromServer();
+        gateway.projects = [];
+        gateway.projectDirectoryAvailability = {};
+        navigation.threads = [];
+        gateway.models = [];
+        gateway.modelsHostId = null;
+        await gateway.loadConfigFromServer();
 
         const routeHostExists = routeSelection.hostId
-          ? ctx.state.hosts.some((host) => host.id === routeSelection.hostId)
+          ? gateway.hosts.some((host) => host.id === routeSelection.hostId)
           : false;
-        if (routeHostExists) {
-          ctx.state.selectedHostId = routeSelection.hostId;
-        } else if (!ctx.state.selectedHostId) {
-          ctx.state.selectedHostId = ctx.state.hosts[0]?.id ?? null;
-        }
-        ctx.state.selectedProjectId = routeHostExists ? routeSelection.projectId : null;
-        ctx.state.selectedThreadId = routeHostExists ? routeSelection.threadId : null;
-        ctx.state.currentThread = null;
-        ctx.state.history = null;
-        ctx.state.events = [];
-        ctx.state.olderTurnsCursor = null;
-        ctx.state.newerTurnsCursor = null;
+        if (routeHostExists) navigation.selectedHostId = routeSelection.hostId;
+        else if (!navigation.selectedHostId)
+          navigation.selectedHostId = gateway.hosts[0]?.id ?? null;
+        navigation.selectedProjectId = routeHostExists ? routeSelection.projectId : null;
+        navigation.selectedThreadId = routeHostExists ? routeSelection.threadId : null;
+        views.resetCurrentView();
 
-        const viewUnchangedDuringRefresh = () => ctx.state.viewEpoch === refreshViewEpoch;
-        if (routeHostExists && routeSelection.threadId && viewUnchangedDuringRefresh()) {
-          ctx.state.initializing = false;
-          ctx.state.loading = false;
-          await ctx.openThread(routeSelection.threadId, {
-            hostId: routeSelection.hostId,
+        const viewUnchanged = () => views.viewEpoch === refreshViewEpoch;
+        if (routeHostExists && routeSelection.threadId && viewUnchanged()) {
+          gateway.initializing = false;
+          views.loading = false;
+          await views.openThread(routeSelection.threadId, {
+            hostId: routeSelection.hostId!,
             projectId: routeSelection.projectId,
             replaceRoute: true,
           });
-          hydrateNavigationDataInBackground(ctx);
+          hydrateNavigationDataInBackground();
         } else {
-          await hydrateNavigationData(ctx);
+          await hydrateNavigationData();
           if (
             !hasGatewayRouteSelection(routeSelection) &&
-            viewUnchangedDuringRefresh() &&
-            (await ctx.restoreLastOpenThread())
+            viewUnchanged() &&
+            (await views.restoreLastOpenThread())
           ) {
-            // Restored the last browser-local UI selection.
-          } else if (viewUnchangedDuringRefresh()) {
+            // Restored browser-local route selection.
+          } else if (viewUnchanged()) {
             writeGatewayRouteSelection(
               {
-                hostId: ctx.state.selectedHostId,
-                projectId: ctx.state.selectedProjectId,
+                hostId: navigation.selectedHostId,
+                projectId: navigation.selectedProjectId,
                 threadId: null,
               },
               { replace: true },
@@ -153,21 +142,22 @@ export function createCoreActions(ctx: GatewayStoreContext) {
           }
         }
       } catch (error: any) {
-        ctx.setError(messageFromError(error, ctx.t("app.bootstrapFailed"), ctx.errorLabels), {
-          hostId: ctx.state.selectedHostId,
-          projectId: ctx.state.selectedProjectId,
-          threadId: ctx.state.selectedThreadId,
-        });
+        gateway.setError(
+          messageFromError(error, gateway.t("app.bootstrapFailed"), gateway.errorLabels),
+          {
+            hostId: navigation.selectedHostId,
+            projectId: navigation.selectedProjectId,
+            threadId: navigation.selectedThreadId,
+          },
+        );
       } finally {
-        ctx.state.loading = false;
-        ctx.state.initializing = false;
+        views.loading = false;
+        gateway.initializing = false;
       }
     },
-
     clearError() {
-      ctx.state.error = null;
+      useGatewayStore().error = null;
     },
-
     setError(
       message: string,
       context: {
@@ -178,81 +168,69 @@ export function createCoreActions(ctx: GatewayStoreContext) {
         transient?: boolean;
       } = {},
     ) {
-      ctx.state.error = {
+      const gateway = useGatewayStore();
+      const navigation = useGatewayNavigationStore();
+      gateway.error = {
         message,
-        hostId: "hostId" in context ? (context.hostId ?? null) : ctx.state.selectedHostId,
+        hostId: "hostId" in context ? (context.hostId ?? null) : navigation.selectedHostId,
         projectId:
-          "projectId" in context ? (context.projectId ?? null) : ctx.state.selectedProjectId,
-        threadId: "threadId" in context ? (context.threadId ?? null) : ctx.state.selectedThreadId,
+          "projectId" in context ? (context.projectId ?? null) : navigation.selectedProjectId,
+        threadId: "threadId" in context ? (context.threadId ?? null) : navigation.selectedThreadId,
         turnId: "turnId" in context ? (context.turnId ?? null) : null,
         transient: context.transient === true,
         updatedAt: Date.now(),
       };
-      if (import.meta.client) {
-        toast.error(message);
-      }
+      if (import.meta.client) toast.error(message);
     },
   };
 }
 
 async function syncGatewayConfig(config: GatewayConfig) {
-  return await gatewayApi<GatewayConfig>("/api/config/sync", {
-    method: "POST",
-    body: config,
+  return gatewayApi<GatewayConfig>("/api/config/sync", { method: "POST", body: config });
+}
+
+async function hydrateNavigationData() {
+  const gateway = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  const anchor = navigationHydrationAnchor();
+  await navigation.connectAllHosts();
+  if (!canContinueNavigationHydration(anchor)) return;
+  await gateway.listModels();
+  if (!canContinueNavigationHydration(anchor)) return;
+  await navigation.listThreads();
+  if (!canContinueNavigationHydration(anchor)) return;
+  if (!navigation.selectedProjectId) gateway.ensureSelectedProject();
+  if (canContinueNavigationHydration(anchor) && navigation.selectedProjectId) {
+    await navigation.listThreads();
+  }
+}
+
+function hydrateNavigationDataInBackground() {
+  void hydrateNavigationData().catch((error: unknown) => {
+    const gateway = useGatewayStore();
+    const navigation = useGatewayNavigationStore();
+    gateway.setError(
+      messageFromError(error, gateway.t("app.bootstrapFailed"), gateway.errorLabels),
+      {
+        hostId: navigation.selectedHostId,
+        projectId: navigation.selectedProjectId,
+        threadId: navigation.selectedThreadId,
+      },
+    );
   });
 }
 
-async function hydrateNavigationData(ctx: GatewayStoreContext) {
-  const anchor = navigationHydrationAnchor(ctx);
-  await ctx.connectAllHosts();
-  if (!canContinueNavigationHydration(ctx, anchor)) {
-    return;
-  }
-  await ctx.listModels();
-  if (!canContinueNavigationHydration(ctx, anchor)) {
-    return;
-  }
-  await ctx.listThreads();
-  if (!canContinueNavigationHydration(ctx, anchor)) {
-    return;
-  }
-  if (!ctx.state.selectedProjectId) {
-    ctx.ensureSelectedProject();
-  }
-  if (!canContinueNavigationHydration(ctx, anchor)) {
-    return;
-  }
-  if (ctx.state.selectedProjectId) {
-    await ctx.listThreads();
-  }
+function navigationHydrationAnchor() {
+  const navigation = useGatewayNavigationStore();
+  return { hostId: navigation.selectedHostId, threadId: navigation.selectedThreadId };
 }
 
-function hydrateNavigationDataInBackground(ctx: GatewayStoreContext) {
-  void hydrateNavigationData(ctx).catch((error: unknown) => {
-    ctx.setError(messageFromError(error, ctx.t("app.bootstrapFailed"), ctx.errorLabels), {
-      hostId: ctx.state.selectedHostId,
-      projectId: ctx.state.selectedProjectId,
-      threadId: ctx.state.selectedThreadId,
-    });
-  });
-}
-
-function navigationHydrationAnchor(ctx: GatewayStoreContext) {
-  return {
-    hostId: ctx.state.selectedHostId,
-    threadId: ctx.state.selectedThreadId,
-  };
-}
-
-function canContinueNavigationHydration(
-  ctx: GatewayStoreContext,
-  anchor: ReturnType<typeof navigationHydrationAnchor>,
-) {
-  if (
-    ctx.state.selectedHostId !== anchor.hostId ||
-    ctx.state.selectedThreadId !== anchor.threadId
-  ) {
-    return false;
-  }
-  return !anchor.hostId || ctx.state.hosts.some((host) => host.id === anchor.hostId);
+function canContinueNavigationHydration(anchor: ReturnType<typeof navigationHydrationAnchor>) {
+  const gateway = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  return (
+    navigation.selectedHostId === anchor.hostId &&
+    navigation.selectedThreadId === anchor.threadId &&
+    (!anchor.hostId || gateway.hosts.some((host) => host.id === anchor.hostId))
+  );
 }

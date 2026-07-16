@@ -4,8 +4,8 @@ import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";
 import { useGatewayBrowserStore } from "@/stores/gateway-browser";
-import { openBrowserPreview } from "@/stores/gateway-browser-transport";
-import { setBrowserPreviewInsecureTls } from "@/stores/gateway-browser-transport";
+import { openBrowserPreview } from "@/stores/gateway-browser/transport";
+import { setBrowserPreviewInsecureTls } from "@/stores/gateway-browser/transport";
 
 const props = defineProps<{ panelId: string }>();
 const browser = useGatewayBrowserStore();

@@ -3,6 +3,7 @@ import {
   type AppServerTurnDisplayError,
 } from "@/stores/gateway/errors";
 import type { SubmittedTurnRequestInput } from "@/stores/gateway-thread-turns";
+import type { ThreadHistoryTurn } from "~~/shared/thread-history/types";
 import type { Translate } from "./types";
 import {
   queueServerOverloadedRetryNotice,
@@ -35,7 +36,7 @@ export function maybeRetryAfterTurnFailure(
   t: Translate,
   hostId: number,
   threadId: string,
-  turn: Record<string, any>,
+  turn: ThreadHistoryTurn,
 ) {
   retryAfterFailedTurn(t, hostId, threadId, turn);
 }

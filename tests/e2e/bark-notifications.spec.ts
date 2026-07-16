@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { openApp } from "./helpers/app";
-import { useBarkReceiver } from "./helpers/bark";
+import { configureBarkNotifications, useBarkReceiver } from "./helpers/bark";
 import {
   addRemoteHost,
   addRemoteProject,
@@ -61,17 +61,3 @@ test("Bark sends ordinary turn notifications and only notifies when an app-serve
   expect(requests[1]?.body).toContain("tokens");
   await expect(page.locator("[data-sonner-toast]").filter({ hasText: "目标已结束" })).toBeVisible();
 });
-
-async function configureBarkNotifications(page: Page, serverUrl: string) {
-  await page.getByTestId("settings-toggle").click();
-  await page.getByRole("tab", { name: "通知" }).click();
-  const barkSwitch = page.getByRole("switch", { name: "启用 Bark" });
-  if ((await barkSwitch.getAttribute("aria-checked")) !== "true") {
-    await barkSwitch.click();
-  }
-  await page.getByLabel("Bark 服务地址").fill(serverUrl);
-  await page.getByLabel("Bark 设备 Key").fill("e2e-device-key");
-  await page.getByLabel("Bark 分组").fill("E2E Group");
-  await page.getByRole("button", { name: "保存通知设置" }).click();
-  await expect(page.getByText("通知设置已保存")).toBeVisible();
-}

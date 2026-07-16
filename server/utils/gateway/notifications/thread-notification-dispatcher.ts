@@ -6,7 +6,7 @@ import {
   threadTurnCompletedNotification,
 } from "./thread-notification-formatters";
 import { shouldNotifyMainThread } from "./thread-notification-scope";
-import type { ServerNotification } from "./types";
+import type { ServerNotification } from "~~/shared/types";
 import type { ThreadGoalResolver, ThreadMetadataResolver } from "../runtime/thread-runtime-events";
 
 type ThreadNotificationEventMap = {

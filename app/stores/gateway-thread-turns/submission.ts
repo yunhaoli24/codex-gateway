@@ -1,8 +1,11 @@
 import type { ComposerTurnOptions } from "~~/shared/types";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayComposerStore } from "@/stores/gateway-composer";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadRuntimeStore } from "@/stores/gateway-thread-runtime";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { errorMessageLabels, messageFromError } from "@/stores/gateway/thread-utils/identity";
-import { projectThreadRuntimeFromState } from "@/stores/gateway/thread-runtime/projector";
 import {
   createClientUserMessageId,
   optimisticUserContent,
@@ -19,18 +22,22 @@ import type { Translate, TurnRequestResult } from "./types";
 
 export async function sendTurn(t: Translate, text: string, options: ComposerTurnOptions = {}) {
   const gateway = useGatewayStore();
-  const hostId = gateway.selectedHostId;
-  const threadId = gateway.selectedThreadId;
+  const composer = useGatewayComposerStore();
+  const navigation = useGatewayNavigationStore();
+  const runtimeStore = useGatewayThreadRuntimeStore();
+  const views = useGatewayThreadViewStore();
+  const hostId = navigation.selectedHostId;
+  const threadId = navigation.selectedThreadId;
   if (!hostId || !threadId) {
     return;
   }
 
-  const runtime = projectThreadRuntimeFromState(gateway, hostId, threadId);
+  const runtime = runtimeStore.threadRuntimeProjection(hostId, threadId);
   const steerTurnId = runtime.canSteer ? runtime.activeTurnId : null;
   const shouldSteerActiveTurn = Boolean(steerTurnId);
   const clientUserMessageId = createClientUserMessageId(shouldSteerActiveTurn ? "steer" : "turn");
   if (!shouldSteerActiveTurn) {
-    gateway.setThreadRunning(hostId, threadId, true);
+    runtimeStore.setThreadRunning(hostId, threadId, true);
   }
 
   const optimisticContent = optimisticUserContent(text, options);
@@ -40,8 +47,8 @@ export async function sendTurn(t: Translate, text: string, options: ComposerTurn
     insertOptimisticNewTurnMessage(threadId, clientUserMessageId, optimisticContent);
   }
 
-  const projectId = gateway.selectedProjectId;
-  const cwd = gateway.selectedProject?.remotePath ?? null;
+  const projectId = navigation.selectedProjectId;
+  const cwd = gateway.projects.find((project) => project.id === projectId)?.remotePath ?? null;
   const requestKind = shouldSteerActiveTurn ? "steer" : "start";
   const executeTurnRequest = steerTurnId
     ? () =>
@@ -55,7 +62,7 @@ export async function sendTurn(t: Translate, text: string, options: ComposerTurn
         })
     : () => requestTurnStart({ hostId, threadId, text, clientUserMessageId, cwd, options });
 
-  gateway.loading = true;
+  views.loading = true;
   gateway.clearError();
   try {
     const result = await runTurnRequestWithAutoRetry<TurnRequestResult>(
@@ -65,13 +72,13 @@ export async function sendTurn(t: Translate, text: string, options: ComposerTurn
     );
     applyAcceptedTurnResult(hostId, threadId, result, clientUserMessageId, optimisticContent);
     if (!shouldSteerActiveTurn) {
-      gateway.updateSelectedThreadSettings({
+      composer.updateSelectedThreadSettings({
         ...(options.model !== undefined ? { model: options.model } : {}),
         ...(options.effort !== undefined ? { effort: options.effort } : {}),
         ...(options.approvalPolicy !== undefined ? { approvalPolicy: options.approvalPolicy } : {}),
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     useGatewayThreadTurnsStore().clearRequest(hostId, threadId);
     gateway.setError(messageFromError(error, t("app.sendMessageFailed"), errorMessageLabels(t)), {
       hostId,
@@ -79,10 +86,10 @@ export async function sendTurn(t: Translate, text: string, options: ComposerTurn
       threadId,
     });
     if (!shouldSteerActiveTurn) {
-      gateway.setThreadStatus(hostId, threadId, "completed");
+      runtimeStore.setThreadStatus(hostId, threadId, "completed");
     }
   } finally {
-    gateway.loading = false;
+    views.loading = false;
   }
 }
 
@@ -91,13 +98,13 @@ function applyAcceptedTurnResult(
   threadId: string,
   result: TurnRequestResult | undefined,
   clientUserMessageId: string,
-  optimisticContent: any[],
+  optimisticContent: unknown[],
 ) {
-  const gateway = useGatewayStore();
+  const runtime = useGatewayThreadRuntimeStore();
   if (result?.type === "turn.start.accepted" && result.turn) {
     const startedTurnId = result.turn?.id ? String(result.turn.id) : "";
     if (startedTurnId && !startedTurnId.startsWith("client-")) {
-      gateway.setThreadStatus(hostId, threadId, "running", { turnId: startedTurnId });
+      runtime.setThreadStatus(hostId, threadId, "running", { turnId: startedTurnId });
     }
     mergeStartedTurn(threadId, result.turn);
   }

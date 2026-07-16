@@ -1,7 +1,7 @@
 import { normalizeNotificationSettings } from "~~/shared/config";
 import { gatewayMemoryState } from "../state/memory";
 import { sendBarkNotification } from "./bark-provider";
-import type { ServerNotification } from "./types";
+import type { ServerNotification } from "~~/shared/types";
 
 const MAX_DELIVERED_NOTIFICATION_KEYS = 1_000;
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { useServerRequestResponder } from "@/composables/useServerRequestResponder";
+import { useServerRequestResponder } from "@/composables/thread/useServerRequestResponder";
 import { jsonPreview } from "@/utils/thread-items";
 
 const props = defineProps<{

@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { useWorkspaceLaunchActions } from "@/composables/useWorkspaceLaunchActions";
-import { useGatewayStore } from "@/stores/gateway";
+import { useWorkspaceLaunchActions } from "@/composables/workspace/useWorkspaceLaunchActions";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import WorkspaceTabs from "./WorkspaceTabs.vue";
 import { useChatWorkspaceState } from "./chat-workspace-state";
@@ -15,7 +14,6 @@ withDefaults(
   },
 );
 
-const store = useGatewayStore();
 const threadTurns = useGatewayThreadTurnsStore();
 const workspaceActions = useWorkspaceLaunchActions();
 const {
@@ -34,7 +32,7 @@ const {
   visibleError,
   followKey,
   canOpenTerminal,
-} = useChatWorkspaceState(store);
+} = useChatWorkspaceState();
 
 function loadOlderTurns() {
   void threadTurns.loadOlderTurns();

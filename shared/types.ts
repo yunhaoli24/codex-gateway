@@ -27,7 +27,16 @@ export type {
 export type { ModelListResult, ModelRecord } from "./types/models";
 export type { TerminalOpenTarget, TerminalScope, TerminalSessionSnapshot } from "./types/terminal";
 export type { BrowserPreviewSessionSnapshot, BrowserPreviewTarget } from "./types/browser";
+export type {
+  TmuxMonitor,
+  TmuxMonitorCompletionReason,
+  TmuxMonitorListResult,
+  TmuxMonitorStatus,
+  TmuxPaneSnapshot,
+  TmuxSessionSnapshot,
+} from "./types/tmux";
 export type { RealtimeClientMessage, RealtimeServerMessage } from "./types/realtime";
+export type { ServerNotification, ServerNotificationTarget } from "./types/notifications";
 export type {
   BarkNotificationSettings,
   GatewayConfig,

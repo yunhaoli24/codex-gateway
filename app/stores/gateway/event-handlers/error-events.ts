@@ -1,12 +1,15 @@
+import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { appServerTurnErrorFromNotification } from "../errors";
 import { pinnedKey, titleForThread } from "../thread-utils/identity";
-import type { GatewayStoreContext } from "../types";
 import type { GatewayEventHandlerRegistry } from "./types";
-import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 
 export const errorEventHandlers: GatewayEventHandlerRegistry = {
-  error: (ctx, event, params, threadId) => {
-    const error = appServerTurnErrorFromNotification(params, ctx.t);
+  error: (event, params, threadId) => {
+    const gateway = useGatewayStore();
+    const error = appServerTurnErrorFromNotification(params, gateway.t);
     const turnId = typeof params.turnId === "string" ? params.turnId : String(params.turnId ?? "");
     if (
       turnId &&
@@ -16,55 +19,50 @@ export const errorEventHandlers: GatewayEventHandlerRegistry = {
         turnId,
         error,
       )
-    ) {
+    )
       return;
-    }
-    ctx.setError(threadScopedErrorMessage(ctx, event.hostId, threadId, error.toDisplayMessage()), {
+    gateway.setError(threadScopedErrorMessage(event.hostId, threadId, error.toDisplayMessage()), {
       hostId: event.hostId,
       threadId,
       turnId: turnId || null,
       transient: error.willRetry,
     });
   },
-  "thread/realtime/error": (ctx, event, params, threadId) => {
-    ctx.setError(
+  "thread/realtime/error": (event, params, threadId) => {
+    const gateway = useGatewayStore();
+    gateway.setError(
       threadScopedErrorMessage(
-        ctx,
         event.hostId,
         threadId,
-        params.message || ctx.t("app.appServerError"),
+        params.message || gateway.t("app.appServerError"),
       ),
-      {
-        hostId: event.hostId,
-        threadId,
-      },
+      { hostId: event.hostId, threadId },
     );
   },
 };
 
-function threadScopedErrorMessage(
-  ctx: GatewayStoreContext,
-  hostId: number,
-  threadId: string,
-  message: string,
-) {
+function threadScopedErrorMessage(hostId: number, threadId: string, message: string) {
+  const gateway = useGatewayStore();
   return [
-    ctx.t("app.threadErrorContext", { title: threadErrorTitle(ctx, hostId, threadId) }),
+    gateway.t("app.threadErrorContext", { title: threadErrorTitle(hostId, threadId) }),
     message,
   ]
     .filter(Boolean)
     .join("\n");
 }
 
-function threadErrorTitle(ctx: GatewayStoreContext, hostId: number, threadId: string) {
+function threadErrorTitle(hostId: number, threadId: string) {
+  const gateway = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  const views = useGatewayThreadViewStore();
   const key = pinnedKey(hostId, threadId);
   const selected =
-    ctx.state.selectedHostId === hostId && ctx.state.selectedThreadId === threadId
-      ? ctx.state.currentThread
+    navigation.selectedHostId === hostId && navigation.selectedThreadId === threadId
+      ? views.currentThread
       : null;
-  const view = ctx.state.threadViews[key]?.currentThread;
-  const listed = ctx.state.threads.find((thread: any) => String(thread?.id) === threadId);
-  const pinned = ctx.state.gatewayConfig.pinnedThreads.find(
+  const view = views.threadViews[key]?.currentThread;
+  const listed = navigation.threads.find((thread: any) => String(thread?.id) === threadId);
+  const pinned = gateway.gatewayConfig.pinnedThreads.find(
     (thread) => thread.hostId === hostId && thread.threadId === threadId,
   );
   return titleForThread(selected || view || listed || pinned || { id: threadId });

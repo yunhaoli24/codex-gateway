@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import SettingsPanel from "@/components/settings/SettingsPanel.vue";
 import BrowserOpenDialog from "@/components/browser/BrowserOpenDialog.vue";
-import { useLongPressContextMenu } from "@/composables/useLongPressContextMenu";
-import { useWorkspaceLaunchActions } from "@/composables/useWorkspaceLaunchActions";
+import { useLongPressContextMenu } from "@/composables/interactions/useLongPressContextMenu";
+import { useWorkspaceLaunchActions } from "@/composables/workspace/useWorkspaceLaunchActions";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import AddProjectDialog from "./AddProjectDialog.vue";
 import HostTree from "./HostTree.vue";
 import PinnedThreadList from "./PinnedThreadList.vue";
@@ -24,18 +25,21 @@ import { useSidebarTree } from "./useSidebarTree";
 import { useThreadRename } from "./useThreadRename";
 import { useRecentThreadActivity } from "./useRecentThreadActivity";
 import SidebarWorkspaceToolbar from "./SidebarWorkspaceToolbar.vue";
+import { useTmuxMonitorLauncher } from "@/composables/workspace/useTmuxMonitorLauncher";
 
 const store = useGatewayStore();
+const navigation = useGatewayNavigationStore();
 withDefaults(defineProps<{ workspaceToolbar?: boolean }>(), { workspaceToolbar: true });
 const { t } = useI18n();
 const showSettings = ref(false);
 const showBrowserDialog = ref(false);
 const projectEditor = ref<{ host: any; project: any | null } | null>(null);
 const { longPressTriggered, longPressContextMenuHandlers } = useLongPressContextMenu();
-const sidebarTree = useSidebarTree(store, longPressTriggered);
-const threadRename = useThreadRename(store);
-const recentActivity = useRecentThreadActivity(store);
+const sidebarTree = useSidebarTree(longPressTriggered);
+const threadRename = useThreadRename();
+const recentActivity = useRecentThreadActivity();
 const workspaceActions = useWorkspaceLaunchActions();
+const tmuxLauncher = useTmuxMonitorLauncher();
 
 defineOptions({
   inheritAttrs: false,
@@ -63,6 +67,8 @@ function openEditProject(project: any) {
       v-if="workspaceToolbar"
       :title="workspaceActions.selectedHostTitle.value"
       :can-launch="workspaceActions.canLaunch.value"
+      :tmux-active-count="tmuxLauncher.activeCount.value"
+      @open-tmux="tmuxLauncher.open"
       @open-terminal="workspaceActions.openTerminal"
       @open-browser="showBrowserDialog = true"
     />
@@ -80,7 +86,7 @@ function openEditProject(project: any) {
             :runtime-status="sidebarTree.pinnedRuntimeStatus"
             :completion-attention="sidebarTree.pinnedCompletionAttention"
             @open="sidebarTree.openPinnedThread"
-            @unpin="store.setPinnedThread($event, false)"
+            @unpin="navigation.setPinnedThread($event, false)"
             @rename="threadRename.startInlineRename"
             @submit-rename="threadRename.submitRename"
             @rename-keydown="threadRename.handleRenameKeydown"
@@ -128,7 +134,7 @@ function openEditProject(project: any) {
             @delete-project="store.deleteProject"
             @start-thread-in-project="sidebarTree.startThreadInProject"
             @open-thread="sidebarTree.openThread"
-            @toggle-thread-pin="store.setThreadPinned"
+            @toggle-thread-pin="navigation.setThreadPinned"
             @rename="threadRename.startInlineRename"
             @submit-rename="threadRename.submitRename"
             @rename-keydown="threadRename.handleRenameKeydown"
@@ -166,7 +172,7 @@ function openEditProject(project: any) {
           <DialogTitle class="text-lg">{{ t("app.settings") }}</DialogTitle>
           <DialogDescription>{{ t("app.settingsDescription") }}</DialogDescription>
         </DialogHeader>
-        <div class="flex min-h-0 flex-1 overflow-hidden px-6 py-5">
+        <div class="flex min-h-0 flex-1 overflow-hidden">
           <SettingsPanel @close="showSettings = false" />
         </div>
       </DialogContent>

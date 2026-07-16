@@ -1,0 +1,106 @@
+import { expect, test } from "@playwright/test";
+import { configureBarkNotifications, useBarkReceiver } from "./helpers/bark";
+import { openApp, reloadApp } from "./helpers/app";
+import { addRemoteHost, execRemoteSsh, readRemoteEnv } from "./helpers/remote-codex";
+
+test("monitors a real tmux pane, persists it, and notifies once when it returns to shell", async ({
+  page,
+}) => {
+  const remote = await readRemoteEnv();
+  const bark = await useBarkReceiver();
+  const suffix = Date.now();
+  const sessionName = `train-${suffix}`;
+  const idleSessionName = `idle-${suffix}`;
+
+  await execRemoteSsh(
+    remote,
+    `
+tmux kill-server >/dev/null 2>&1 || true
+tmux new-session -d -s ${shellQuote(sessionName)} -n model
+tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} ${shellQuote("sleep 300")} Enter
+tmux new-session -d -s ${shellQuote(idleSessionName)} -n shell
+for i in $(seq 1 50); do
+  [ "$(tmux display-message -p -t ${shellQuote(`${sessionName}:0.0`)} '#{pane_current_command}')" = sleep ] && break
+  sleep 0.1
+done
+`,
+  );
+
+  await openApp(page);
+  await configureBarkNotifications(page, bark.url);
+  await addRemoteHost(page, remote, `tmux-monitor-host-${suffix}`);
+
+  await page.getByTestId("open-tmux-button").click();
+  const panel = page.getByTestId("tmux-monitor-panel");
+  await expect(panel).toBeVisible();
+  const runningPane = panel.getByTestId(`tmux-pane-${sessionName}-0-0`);
+  const idlePane = panel.getByTestId(`tmux-pane-${idleSessionName}-0-0`);
+  await expect(runningPane).toContainText("sleep");
+  await expect(idlePane.getByRole("button", { name: "已回到 Shell" })).toBeDisabled();
+
+  await runningPane.getByRole("button", { name: "加入监控" }).click();
+  await expect(panel.getByText("监控中 · 1")).toBeVisible();
+  await expect(page.getByTestId("open-tmux-button")).toContainText("1");
+
+  await reloadApp(page);
+  await expect(page.getByTestId("tmux-monitor-panel")).toBeVisible();
+  await expect(page.getByTestId("tmux-monitor-panel").getByText("监控中 · 1")).toBeVisible();
+
+  await execRemoteSsh(remote, `tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} C-c`);
+  await expect
+    .poll(
+      async () =>
+        (
+          await execRemoteSsh(
+            remote,
+            `tmux display-message -p -t ${shellQuote(`${sessionName}:0.0`)} '#{pane_current_command}'`,
+          )
+        ).stdout.trim(),
+      { timeout: 10_000 },
+    )
+    .toMatch(/bash|zsh|sh/);
+
+  await page.getByRole("button", { name: "立即检查" }).click();
+  await expect(page.getByTestId("tmux-monitor-panel").getByText("已返回 Shell")).toBeVisible();
+  const toast = page.locator("[data-sonner-toast]").filter({ hasText: "Tmux 任务已结束" });
+  await expect(toast).toBeVisible();
+  await expect.poll(async () => (await bark.readRequests()).length, { timeout: 30_000 }).toBe(1);
+  expect((await bark.readRequests())[0]?.body).toContain(sessionName);
+
+  await page.waitForTimeout(1_000);
+  expect(await bark.readRequests()).toHaveLength(1);
+
+  await execRemoteSsh(
+    remote,
+    `tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} ${shellQuote("sleep 300")} Enter`,
+  );
+  await panel.getByRole("button", { name: "重新监控" }).click();
+  await expect(panel.getByText("监控中 · 1")).toBeVisible();
+  await panel.getByRole("button", { name: "取消监控" }).click();
+  await expect(panel.getByText("已取消")).toBeVisible();
+
+  const exitSessionName = `exit-${suffix}`;
+  await execRemoteSsh(
+    remote,
+    `tmux new-session -d -s ${shellQuote(exitSessionName)} -n model
+tmux send-keys -t ${shellQuote(`${exitSessionName}:0.0`)} ${shellQuote("sleep 300")} Enter
+for i in $(seq 1 50); do
+  [ "$(tmux display-message -p -t ${shellQuote(`${exitSessionName}:0.0`)} '#{pane_current_command}')" = sleep ] && break
+  sleep 0.1
+done`,
+  );
+  await page.getByRole("button", { name: "刷新 Pane" }).click();
+  const exitPane = panel.getByTestId(`tmux-pane-${exitSessionName}-0-0`);
+  await expect(exitPane).toContainText("sleep");
+  await exitPane.getByRole("button", { name: "加入监控" }).click();
+  await execRemoteSsh(remote, `tmux kill-session -t ${shellQuote(exitSessionName)}`);
+  await page.getByRole("button", { name: "立即检查" }).click();
+  await expect(panel.getByText("Session 已退出")).toBeVisible();
+  await expect.poll(async () => (await bark.readRequests()).length, { timeout: 30_000 }).toBe(2);
+
+  await execRemoteSsh(remote, "tmux kill-server >/dev/null 2>&1 || true");
+});
+
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}

@@ -32,9 +32,9 @@ export function buildTextTurns(start: number, end: number, prefix: string, lineC
 export async function threadTurnCount(page: Page) {
   return await page.evaluate(() => {
     const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-    if (!store) throw new Error("Unable to locate gateway Pinia store");
-    return store.history?.thread?.turns?.length ?? 0;
+    const views = app?.config?.globalProperties?.$pinia?._s?.get("gateway-thread-view");
+    if (!views) throw new Error("Unable to locate gateway thread-view Pinia store");
+    return views.history?.thread?.turns?.length ?? 0;
   });
 }
 

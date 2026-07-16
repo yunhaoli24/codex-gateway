@@ -38,10 +38,12 @@ test("toggles an expanded project closed from the desktop sidebar", async ({ pag
   });
   await page.evaluate(() => {
     const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-    store.selectProject = async (projectId: number) => {
-      store.selectedProjectId = projectId;
-      store.selectedThreadId = null;
+    const pinia = app?.config?.globalProperties?.$pinia;
+    const gateway = pinia?._s?.get("gateway");
+    const navigation = pinia?._s?.get("gateway-navigation");
+    gateway.selectProject = async (projectId: number) => {
+      navigation.selectedProjectId = projectId;
+      navigation.selectedThreadId = null;
     };
   });
 
@@ -92,9 +94,9 @@ test("marks completed threads as needing review until they are opened", async ({
   });
   await page.evaluate(() => {
     const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-    const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-    store.setThreadStatus(102, "review-thread", "running");
-    store.setThreadStatus(102, "review-thread", "completed");
+    const runtime = app?.config?.globalProperties?.$pinia?._s?.get("gateway-thread-runtime");
+    runtime.setThreadStatus(102, "review-thread", "running");
+    runtime.setThreadStatus(102, "review-thread", "completed");
   });
 
   await expect(page.getByTestId("thread-button-review-thread")).toBeVisible();
@@ -118,7 +120,10 @@ test("keeps non-pinned main threads in recent activity for the page session", as
     const pinia = app?.config?.globalProperties?.$pinia;
     const gateway = pinia?._s?.get("gateway");
     const activity = pinia?._s?.get("gateway-thread-activity");
-    if (!gateway || !activity) throw new Error("Unable to locate sidebar activity stores");
+    const runtime = pinia?._s?.get("gateway-thread-runtime");
+    if (!gateway || !activity || !runtime) {
+      throw new Error("Unable to locate sidebar activity stores");
+    }
 
     const host = {
       id: 104,
@@ -168,10 +173,10 @@ test("keeps non-pinned main threads in recent activity for the page session", as
       ],
       [project],
     );
-    gateway.setThreadStatus(host.id, "recent-main", "running");
-    gateway.setThreadStatus(host.id, "already-pinned", "running");
-    gateway.setThreadStatus(host.id, "spawned-child", "running");
-    gateway.setThreadStatus(host.id, "recent-main", "completed");
+    runtime.setThreadStatus(host.id, "recent-main", "running");
+    runtime.setThreadStatus(host.id, "already-pinned", "running");
+    runtime.setThreadStatus(host.id, "spawned-child", "running");
+    runtime.setThreadStatus(host.id, "recent-main", "completed");
   });
 
   await expect(page.getByText("最近运行", { exact: true })).toBeVisible();
@@ -227,9 +232,11 @@ test("long expanded tree labels truncate without displacing trailing statuses", 
   await page.evaluate(
     ({ hostId, threadId }) => {
       const app = (document.querySelector("#__nuxt") as any)?.__vue_app__;
-      const store = app?.config?.globalProperties?.$pinia?._s?.get("gateway");
-      store.hostConnectionStatuses = { [hostId]: { status: "connected" } };
-      store.setThreadStatus(hostId, threadId, "running");
+      const pinia = app?.config?.globalProperties?.$pinia;
+      const gateway = pinia?._s?.get("gateway");
+      const runtime = pinia?._s?.get("gateway-thread-runtime");
+      gateway.hostConnectionStatuses = { [hostId]: { status: "connected" } };
+      runtime.setThreadStatus(hostId, threadId, "running");
     },
     { hostId, threadId },
   );

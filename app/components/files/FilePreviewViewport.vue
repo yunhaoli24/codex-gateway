@@ -14,8 +14,8 @@ import { computed } from "vue";
 import type { FilePreviewDocument } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
 import FileTextEditor from "@/components/files/FileTextEditor.vue";
-import { useTerminalTheme } from "@/composables/useTerminalTheme";
-import { useGatewayFileWorkspaceStore } from "@/stores/gateway-file-workspace";
+import { useTerminalTheme } from "@/composables/terminal/useTerminalTheme";
+import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
 
 const props = defineProps<{
   document: FilePreviewDocument;
@@ -69,6 +69,7 @@ const plugins: PreviewPlugin[] = [
     </div>
     <FileTextEditor
       v-else-if="document.previewKind === 'text'"
+      :key="document.key"
       :document="document"
       @conflict="emit('conflict')"
     />

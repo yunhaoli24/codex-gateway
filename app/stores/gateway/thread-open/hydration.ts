@@ -1,96 +1,87 @@
 import type { ThreadOpenResult } from "~~/shared/types";
 import { normalizeTokenUsage } from "~~/shared/token-usage";
+import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayComposerStore } from "@/stores/gateway-composer";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { useGatewayThreadActivityStore } from "@/stores/gateway-thread-activity";
+import { useGatewayThreadRuntimeStore } from "@/stores/gateway-thread-runtime";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { threadIdFromParams } from "../thread-utils/identity";
 import { runtimeStatusFromThreadState } from "../thread-utils/status";
-import type { GatewayStoreContext } from "../types";
 import type { ThreadSnapshotMessage } from "./transport";
 
-export function applyOpenedThreadResult(
-  ctx: GatewayStoreContext,
-  threadId: string,
-  result: ThreadOpenResult,
-) {
-  ctx.state.currentThread = result.thread;
-  ctx.state.history = result.history;
-  if (result.projectId) {
-    ctx.state.selectedProjectId = result.projectId;
-  }
-  ctx.state.selectedThreadId = threadId;
+export function applyOpenedThreadResult(threadId: string, result: ThreadOpenResult) {
+  const gateway = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  const views = useGatewayThreadViewStore();
+  views.currentThread = result.thread;
+  views.history = result.history;
+  if (result.projectId) navigation.selectedProjectId = result.projectId;
+  navigation.selectedThreadId = threadId;
   useGatewayRealtimeStore().rememberThreadSubscription(result.hostId, threadId, result.lastEventId);
-  if (result.project) {
-    ctx.mergeProjects([result.project]);
-  }
-  applyCommonThreadResult(ctx, threadId, result);
-  for (const event of result.recentEvents) {
-    ctx.applyLiveEvent(event);
-  }
-  syncRuntimeStatusFromResult(ctx, threadId, result, {
-    thread: ctx.state.currentThread,
-    history: ctx.state.history,
+  if (result.project) gateway.mergeProjects([result.project]);
+  applyCommonThreadResult(threadId, result);
+  for (const event of result.recentEvents) views.applyLiveEvent(event);
+  syncRuntimeStatusFromResult(threadId, result, {
+    thread: views.currentThread,
+    history: views.history,
   });
-  ctx.upsertPinnedMetadataFromThread(result.thread as any);
+  navigation.upsertPinnedMetadataFromThread(result.thread as any);
 }
 
-export function applyThreadSnapshotResult(
-  ctx: GatewayStoreContext,
-  threadId: string,
-  result: ThreadSnapshotMessage,
-) {
-  ctx.state.currentThread = result.thread;
-  ctx.state.history = result.history;
-  if (result.projectId) {
-    ctx.state.selectedProjectId = result.projectId;
-  }
-  ctx.state.selectedThreadId = threadId;
-  if (result.project) {
-    ctx.mergeProjects([result.project]);
-  }
-  applyCommonThreadResult(ctx, threadId, result, { lastEventId: result.lastEventId });
-  syncRuntimeStatusFromResult(ctx, threadId, result, {
-    thread: ctx.state.currentThread,
-    history: ctx.state.history,
+export function applyThreadSnapshotResult(threadId: string, result: ThreadSnapshotMessage) {
+  const gateway = useGatewayStore();
+  const navigation = useGatewayNavigationStore();
+  const views = useGatewayThreadViewStore();
+  views.currentThread = result.thread;
+  views.history = result.history;
+  if (result.projectId) navigation.selectedProjectId = result.projectId;
+  navigation.selectedThreadId = threadId;
+  if (result.project) gateway.mergeProjects([result.project]);
+  applyCommonThreadResult(threadId, result, result.lastEventId);
+  syncRuntimeStatusFromResult(threadId, result, {
+    thread: views.currentThread,
+    history: views.history,
   });
-  ctx.upsertPinnedMetadataFromThread(result.thread as any);
+  navigation.upsertPinnedMetadataFromThread(result.thread as any);
 }
 
-export function applyStartedThreadResult(ctx: GatewayStoreContext, result: ThreadOpenResult) {
-  const thread = result.thread as any;
-  const threadId = String(thread.id);
-  ctx.state.currentThread = result.thread;
-  ctx.state.history = result.history;
-  ctx.state.selectedThreadId = threadId;
-  applyCommonThreadResult(ctx, threadId, result);
+export function applyStartedThreadResult(result: ThreadOpenResult) {
+  const navigation = useGatewayNavigationStore();
+  const views = useGatewayThreadViewStore();
+  const threadId = String((result.thread as any).id);
+  views.currentThread = result.thread;
+  views.history = result.history;
+  navigation.selectedThreadId = threadId;
+  applyCommonThreadResult(threadId, result);
   return threadId;
 }
 
 function applyCommonThreadResult(
-  ctx: GatewayStoreContext,
   threadId: string,
   result: ThreadOpenResult,
-  options: { lastEventId?: number } = {},
+  explicitLastEventId?: number,
 ) {
-  const hostId = result.hostId || ctx.state.selectedHostId;
-  if (!hostId) {
-    return;
-  }
-  useGatewayThreadActivityStore().upsertThread(hostId, result.thread, ctx.state.projects);
-  ctx.state.events = result.recentEvents;
-  ctx.state.olderTurnsCursor = result.turnsPage.nextCursor;
-  ctx.state.newerTurnsCursor = result.turnsPage.backwardsCursor;
-  ctx.state.lastEventId = options.lastEventId ?? result.recentEvents.at(-1)?.id ?? 0;
-  ctx.setThreadSettings(hostId, threadId, result.threadSettings);
-  if (result.tokenUsage) {
-    ctx.setThreadTokenUsage(hostId, threadId, result.tokenUsage);
-  } else {
-    syncTokenUsageFromRecentEvents(ctx, result.recentEvents);
-  }
-  syncRuntimeStatusFromResult(ctx, threadId, result);
+  const gateway = useGatewayStore();
+  const composer = useGatewayComposerStore();
+  const navigation = useGatewayNavigationStore();
+  const runtime = useGatewayThreadRuntimeStore();
+  const views = useGatewayThreadViewStore();
+  const hostId = result.hostId || navigation.selectedHostId;
+  if (!hostId) return;
+  useGatewayThreadActivityStore().upsertThread(hostId, result.thread, gateway.projects);
+  views.events = result.recentEvents;
+  views.olderTurnsCursor = result.turnsPage.nextCursor;
+  views.newerTurnsCursor = result.turnsPage.backwardsCursor;
+  views.lastEventId = explicitLastEventId ?? result.recentEvents.at(-1)?.id ?? 0;
+  composer.setThreadSettings(hostId, threadId, result.threadSettings);
+  if (result.tokenUsage) runtime.setThreadTokenUsage(hostId, threadId, result.tokenUsage);
+  else syncTokenUsageFromRecentEvents(result.recentEvents);
+  syncRuntimeStatusFromResult(threadId, result);
 }
 
 function syncRuntimeStatusFromResult(
-  ctx: GatewayStoreContext,
   threadId: string,
   result: ThreadOpenResult,
   fallbackState: { thread: unknown; history: unknown } = {
@@ -98,31 +89,23 @@ function syncRuntimeStatusFromResult(
     history: result.history,
   },
 ) {
-  const hostId = ctx.state.selectedHostId;
-  if (!hostId || !threadId) {
-    return;
-  }
+  const hostId = useGatewayNavigationStore().selectedHostId;
+  if (!hostId || !threadId) return;
   const status =
     result.runtimeStatus ??
     runtimeStatusFromThreadState(fallbackState.thread, fallbackState.history);
-  if (status) {
-    ctx.setThreadStatus(hostId, threadId, status);
-  }
+  if (status) useGatewayThreadRuntimeStore().setThreadStatus(hostId, threadId, status);
 }
 
-function syncTokenUsageFromRecentEvents(
-  ctx: GatewayStoreContext,
-  events: ThreadOpenResult["recentEvents"],
-) {
+function syncTokenUsageFromRecentEvents(events: ThreadOpenResult["recentEvents"]) {
+  const runtime = useGatewayThreadRuntimeStore();
   for (const event of events) {
-    if (event.method !== "thread/tokenUsage/updated") {
-      continue;
-    }
+    if (event.method !== "thread/tokenUsage/updated") continue;
     const params = (event.payload as any)?.params || {};
     const threadId = threadIdFromParams(params);
     const tokenUsage = normalizeTokenUsage(params.tokenUsage);
     if (threadId && event.hostId && tokenUsage) {
-      ctx.setThreadTokenUsage(event.hostId, String(threadId), tokenUsage);
+      runtime.setThreadTokenUsage(event.hostId, String(threadId), tokenUsage);
     }
   }
 }

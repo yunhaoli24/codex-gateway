@@ -6,6 +6,7 @@ import ChatComposer from "@/components/chat/ChatComposer.vue";
 import ChatPanelScrollArea from "@/components/chat/ChatPanelScrollArea.vue";
 import ProjectThreadList from "@/components/chat/ProjectThreadList.vue";
 import ThreadVirtualTimeline from "@/components/thread/ThreadVirtualTimeline.vue";
+import ActiveSubAgentsBar from "@/components/thread/subagent/ActiveSubAgentsBar.vue";
 
 const props = defineProps<{
   initializing: boolean;
@@ -39,6 +40,12 @@ const showThreadLoading = computed(
 <template>
   <div class="relative flex min-h-0 flex-1 overflow-hidden">
     <div data-testid="chat-main-pane" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <ActiveSubAgentsBar
+        v-if="selectedThreadId"
+        :turns="historyTurns"
+        :host-id="selectedHostId"
+        :parent-thread-id="selectedThreadId"
+      />
       <ChatPanelScrollArea
         v-if="showThreadLoading"
         class="flex items-center justify-center text-[0.9375rem] text-ink-muted"

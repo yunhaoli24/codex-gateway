@@ -39,6 +39,7 @@ cat > ${shellQuote(nestedPythonPath)} <<'EOF'
 def nested_preview_marker():
     return "codex-gateway-nested-python"
 EOF
+for line in $(seq 1 120); do printf '# source line %s\n' "$line" >> ${shellQuote(nestedPythonPath)}; done
 cat > ${shellQuote(unknownTextPath)} <<'EOF'
 feature_enabled=true
 unknown extensions still render as text
@@ -156,6 +157,19 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   const longFileLabel = tree.getByTitle(longFilePath, { exact: true });
   const longFileRow = longFileLabel.locator("xpath=..");
   await expect(longFileLabel).toBeVisible();
+  await tree.getByText("deep", { exact: true }).click();
+  await tree.getByText("prefix", { exact: true }).click();
+  await expect(tree.getByText(nestedPythonPath.split("/").pop()!, { exact: true })).toBeVisible();
+  const treeGeometry = await treeScroll.evaluate(async (element) => {
+    const samples: Array<[number, number]> = [];
+    for (let index = 0; index < 20; index += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      samples.push([element.clientHeight, element.scrollHeight]);
+    }
+    return samples;
+  });
+  expect(new Set(treeGeometry.map(([height]) => height)).size).toBe(1);
+  expect(new Set(treeGeometry.map(([, height]) => height)).size).toBe(1);
 
   const treePane = page.getByTestId("file-tree-pane");
   const separator = page.getByTestId("file-workspace-separator");
@@ -216,6 +230,7 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   await expect(fileTab(page, longFilePath)).toBeHidden();
 
   await expect(fileTab(page, remotePath)).toBeVisible();
+  const initialFileTabHeight = (await fileTab(page, remotePath).boundingBox())!.height;
   await expect(panel.getByText("codex-gateway-file-preview")).toBeVisible();
   await expect(panel.getByTestId("remote-file-editor")).toBeVisible();
 
@@ -265,11 +280,22 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   await expect(page.getByTestId("file-workspace-tab")).toHaveCount(3);
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
   await expect(panel.getByTestId("remote-file-editor")).toBeVisible();
+  const nestedSourceScroller = panel.getByTestId("remote-file-editor").locator(".cm-scroller");
+  await nestedSourceScroller.evaluate((element) => element.scrollTo({ top: 320, left: 0 }));
+  await expect
+    .poll(() => nestedSourceScroller.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(250);
 
   await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "unknown text" }).click();
   await expect(fileTab(page, unknownTextPath)).toBeVisible();
   await expect(panel.getByText("unknown extensions still render as text")).toBeVisible();
+
+  await fileTab(page, nestedPythonPath).click();
+  await expect
+    .poll(() => nestedSourceScroller.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(250);
+  await fileTab(page, unknownTextPath).click();
 
   const editor = panel.getByTestId("remote-file-editor").locator(".cm-content");
   await editor.click();
@@ -318,6 +344,10 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   await page.getByRole("link", { name: "binary target" }).click();
   await expect(fileTab(page, binaryPath)).toBeVisible();
   await expect(panel.getByText("无法以文本方式显示此文件")).toBeVisible();
+  expect((await fileTab(page, remotePath).boundingBox())!.height).toBeCloseTo(
+    initialFileTabHeight,
+    0,
+  );
 
   await fileTab(page, nestedPythonPath).click();
 

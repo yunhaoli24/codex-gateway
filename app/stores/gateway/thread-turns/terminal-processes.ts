@@ -2,40 +2,22 @@ import {
   clearThreadTerminalProcess,
   rememberThreadTerminalProcess,
 } from "../thread-runtime/projector";
-import type { GatewayStoreContext } from "../types";
 
-interface ActiveTerminalProcessInput {
+export function rememberActiveTerminalProcess(input: {
   hostId: number;
   threadId: string;
   turnId: string;
   itemId: string;
   processId: string;
+}) {
+  rememberThreadTerminalProcess(input.hostId, input.threadId, input);
 }
 
-interface CompletedTerminalProcessInput {
+export function clearActiveTerminalProcess(input: {
   hostId: number;
   threadId: string;
   turnId: string;
   itemId: string;
-}
-
-export function rememberActiveTerminalProcess(
-  ctx: GatewayStoreContext,
-  input: ActiveTerminalProcessInput,
-) {
-  rememberThreadTerminalProcess(ctx, input.hostId, input.threadId, {
-    turnId: input.turnId,
-    itemId: input.itemId,
-    processId: input.processId,
-  });
-}
-
-export function clearActiveTerminalProcess(
-  ctx: GatewayStoreContext,
-  input: CompletedTerminalProcessInput,
-) {
-  clearThreadTerminalProcess(ctx, input.hostId, input.threadId, {
-    turnId: input.turnId,
-    itemId: input.itemId,
-  });
+}) {
+  clearThreadTerminalProcess(input.hostId, input.threadId, input);
 }

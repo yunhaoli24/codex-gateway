@@ -1,10 +1,13 @@
 import type { EventEmitter } from "@posva/event-emitter";
 import { toast } from "vue-sonner";
+import { notificationAction, projectPublishedNotification } from "./notification-actions";
 import type { GatewayEvent, RealtimeServerMessage } from "~~/shared/types";
 import { STALE_THREAD_CURSOR_ERROR_CODE } from "~~/shared/gateway-errors";
 import { useGatewayStore } from "@/stores/gateway";
+import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
 import { useGatewayBrowserStore } from "@/stores/gateway-browser";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { realtimeRequestErrorFromServer, type RealtimeRequestError } from "./request-errors";
 
 export type RealtimeServerMessageMap = {
@@ -117,19 +120,15 @@ function handlePublishedNotification(
   ctx: RealtimeServerMessageHandlerContext,
   message: RealtimeServerMessageMap["notification.published"],
 ) {
+  projectPublishedNotification(message.notification);
+  const action = notificationAction(message.notification);
   toast.info(message.notification.title, {
     id: message.notification.key,
     description: message.notification.body,
     duration: 10_000,
     action: {
-      label: ctx.t("app.openThread"),
-      onClick: () => {
-        const target = message.notification.target;
-        void useGatewayStore().openThread(target.threadId, {
-          hostId: target.hostId,
-          projectId: target.projectId,
-        });
-      },
+      label: ctx.t(action.labelKey),
+      onClick: action.run,
     },
   });
 }
@@ -148,7 +147,7 @@ function handleGoalUpdated(
   ctx: RealtimeServerMessageHandlerContext,
   message: RealtimeServerMessageMap["thread.goal.updated"],
 ) {
-  useGatewayStore().upsertThreadGoal(message.hostId, message.threadId, message.goal);
+  useGatewayComposerStore().upsertThreadGoal(message.hostId, message.threadId, message.goal);
   ctx.resolveRequest(message);
 }
 
@@ -156,7 +155,7 @@ function handleGoalCleared(
   ctx: RealtimeServerMessageHandlerContext,
   message: RealtimeServerMessageMap["thread.goal.cleared"],
 ) {
-  useGatewayStore().clearThreadGoalState(message.hostId, message.threadId);
+  useGatewayComposerStore().clearThreadGoalState(message.hostId, message.threadId);
   ctx.resolveRequest(message);
 }
 
@@ -164,11 +163,11 @@ function handleGoalSnapshot(
   ctx: RealtimeServerMessageHandlerContext,
   message: RealtimeServerMessageMap["thread.goal.snapshot"],
 ) {
-  const gateway = useGatewayStore();
+  const composer = useGatewayComposerStore();
   if (message.goal) {
-    gateway.upsertThreadGoal(message.hostId, message.threadId, message.goal);
+    composer.upsertThreadGoal(message.hostId, message.threadId, message.goal);
   } else {
-    gateway.clearThreadGoalState(message.hostId, message.threadId);
+    composer.clearThreadGoalState(message.hostId, message.threadId);
   }
   ctx.resolveRequest(message);
 }
@@ -248,14 +247,14 @@ function handleRealtimeError(
 }
 
 function handleThreadEvent(ctx: RealtimeServerMessageHandlerContext, event: GatewayEvent) {
-  const gateway = useGatewayStore();
-  const lastAppliedEventId = gateway.lastAppliedThreadEventId(event.hostId, event.threadId);
+  const views = useGatewayThreadViewStore();
+  const lastAppliedEventId = views.lastAppliedThreadEventId(event.hostId, event.threadId);
   if (event.id <= lastAppliedEventId) {
     return;
   }
-  gateway.appendSelectedThreadEvent(event);
-  gateway.recordThreadEvent(event);
-  gateway.applyLiveEvent(event);
+  views.appendSelectedThreadEvent(event);
+  views.recordThreadEvent(event);
+  views.applyLiveEvent(event);
   ctx.advanceThreadSubscriptionCursor(event);
 }
 

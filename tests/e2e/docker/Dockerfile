@@ -5,7 +5,7 @@ ARG E2E_UID=1000
 ARG E2E_GID=1000
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssh-server git ca-certificates sudo \
+  && apt-get install -y --no-install-recommends openssh-server git ca-certificates sudo tmux \
   && rm -rf /var/lib/apt/lists/*
 
 ENV E2E_NODE_DIR=/home/codex/.nvm/versions/node/v22.0.0

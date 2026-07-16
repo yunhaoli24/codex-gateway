@@ -8,8 +8,8 @@ import type {
   ThreadRuntimeStatus,
   ThreadTokenUsageState,
 } from "~~/shared/types";
-import type { ComposerAttachment } from "@/composables/useComposerDraft";
-import type { SlashMenuItem } from "@/composables/useSlashCommands";
+import type { ComposerAttachment } from "@/composables/composer/useComposerDraft";
+import type { SlashMenuItem } from "@/composables/composer/useSlashCommands";
 import AttachmentChips from "@/components/chat/composer/AttachmentChips.vue";
 import ComposerModeStrip from "@/components/chat/composer/ComposerModeStrip.vue";
 import ComposerToolbar from "@/components/chat/composer/ComposerToolbar.vue";

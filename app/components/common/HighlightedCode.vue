@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useCodeHighlighter } from "@/composables/useCodeHighlighter";
+import { useCodeHighlighter } from "@/composables/files/useCodeHighlighter";
 
 const props = withDefaults(
   defineProps<{

@@ -12,3 +12,7 @@ export function subAgentWorkspacePanelId(key: string) {
 export function browserWorkspacePanelId(panelId: string) {
   return `browser:${panelId}`;
 }
+
+export function tmuxWorkspacePanelId(hostId: number) {
+  return `tmux:${hostId}`;
+}
