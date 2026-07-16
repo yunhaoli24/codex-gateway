@@ -2,7 +2,9 @@ import type {
   TmuxMonitor,
   TmuxMonitorListResult,
   TmuxPaneSnapshot,
+  TmuxPaneOutput,
   TmuxSessionSnapshot,
+  TmuxMonitorThreadBinding,
 } from "~~/shared/types";
 import { gatewayApi } from "@/utils/gateway-api";
 
@@ -16,10 +18,20 @@ export function fetchTmuxSessions(hostId: number) {
   return gatewayApi<{ sessions: TmuxSessionSnapshot[] }>(`${tmuxApiRoot(hostId)}/sessions`);
 }
 
-export function createTmuxMonitor(hostId: number, pane: TmuxPaneSnapshot) {
+export function fetchTmuxPaneOutput(hostId: number, pane: TmuxPaneSnapshot) {
+  return gatewayApi<TmuxPaneOutput>(`${tmuxApiRoot(hostId)}/panes/output`, {
+    query: { sessionId: pane.sessionId, paneId: pane.paneId },
+  });
+}
+
+export function createTmuxMonitor(
+  hostId: number,
+  pane: TmuxPaneSnapshot,
+  thread: TmuxMonitorThreadBinding | null,
+) {
   return gatewayApi<TmuxMonitor>(`${tmuxApiRoot(hostId)}/monitors`, {
     method: "POST",
-    body: { sessionId: pane.sessionId, paneId: pane.paneId },
+    body: { sessionId: pane.sessionId, paneId: pane.paneId, thread },
   });
 }
 

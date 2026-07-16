@@ -40,7 +40,12 @@ export function projectPublishedNotification(notification: ServerNotification) {
 }
 
 async function openTmuxMonitor(target: TargetFor<"tmuxMonitor">) {
-  if (useGatewayNavigationStore().selectedHostId !== target.hostId) {
+  if (target.threadId) {
+    await useGatewayThreadViewStore().openThread(target.threadId, {
+      hostId: target.hostId,
+      projectId: target.projectId,
+    });
+  } else if (useGatewayNavigationStore().selectedHostId !== target.hostId) {
     await useGatewayStore().selectHost(target.hostId);
   }
   useGatewayTmuxStore().openPanel(target.hostId, target.monitorId);

@@ -9,6 +9,8 @@ export type ServerNotificationTarget =
       kind: "tmuxMonitor";
       hostId: number;
       monitorId: number;
+      projectId: number | null;
+      threadId: string | null;
     };
 
 export interface ServerNotification {

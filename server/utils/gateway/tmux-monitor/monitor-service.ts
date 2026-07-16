@@ -1,10 +1,16 @@
 import { createError } from "h3";
-import type { TmuxMonitorListResult, TmuxSessionSnapshot } from "~~/shared/types";
+import type {
+  TmuxMonitorListResult,
+  TmuxMonitorThreadBinding,
+  TmuxPaneOutput,
+  TmuxSessionSnapshot,
+} from "~~/shared/types";
 import type { HostWithSecret } from "../infra/ssh-types";
 import { TmuxMonitorNotifier } from "./monitor-notifier";
 import { RemoteTmuxScanner } from "./remote-scanner";
 import { TmuxMonitorRepository } from "./repository";
 import type { StoredTmuxMonitor } from "./types";
+import { resolveTmuxThreadBinding } from "./thread-binding";
 
 export class TmuxMonitorService {
   readonly repository = new TmuxMonitorRepository();
@@ -19,10 +25,21 @@ export class TmuxMonitorService {
     return this.scanner.scan(host);
   }
 
+  capturePane(
+    host: HostWithSecret,
+    target: { sessionId: string; paneId: string },
+  ): Promise<TmuxPaneOutput> {
+    return this.scanner.capturePane(host, target);
+  }
+
   async create(
     userId: number,
     host: HostWithSecret,
-    target: { sessionId: string; paneId: string },
+    target: {
+      sessionId: string;
+      paneId: string;
+      thread?: TmuxMonitorThreadBinding | null;
+    },
   ) {
     const sessions = await this.scanner.scan(host);
     const pane = sessions
@@ -41,7 +58,12 @@ export class TmuxMonitorService {
       });
     }
     try {
-      return this.repository.create(userId, host.id, pane);
+      return this.repository.create(
+        userId,
+        host.id,
+        pane,
+        resolveTmuxThreadBinding(host.id, target.thread),
+      );
     } catch (error) {
       if (
         /UNIQUE constraint failed/i.test(error instanceof Error ? error.message : String(error))

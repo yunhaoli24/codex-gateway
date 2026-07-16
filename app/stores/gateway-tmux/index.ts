@@ -10,6 +10,7 @@ import {
 } from "./transport";
 import { useGatewayWorkspaceLayoutStore } from "@/stores/gateway-workspace-layout";
 import { tmuxWorkspacePanelId } from "@/stores/gateway/workspace-panels";
+import { currentTmuxThreadBinding } from "./monitor-context";
 
 interface TmuxHostState extends TmuxMonitorListResult {
   sessions: TmuxSessionSnapshot[];
@@ -91,7 +92,7 @@ export const useGatewayTmuxStore = defineStore(
     }
 
     async function addMonitor(hostId: number, pane: TmuxPaneSnapshot) {
-      const monitor = await createTmuxMonitor(hostId, pane);
+      const monitor = await createTmuxMonitor(hostId, pane, currentTmuxThreadBinding(hostId));
       await loadHost(hostId, { force: true });
       return monitor;
     }

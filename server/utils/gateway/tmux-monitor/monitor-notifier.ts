@@ -11,15 +11,27 @@ export class TmuxMonitorNotifier {
     notificationCenter.publish({
       key: `tmux-monitor:${monitor.userId}:${monitor.id}:completed`,
       title: `Tmux 任务已结束 · ${host.name || host.sshHost}`,
-      body: `${monitor.sessionName} · ${monitor.windowIndex}.${monitor.paneIndex} · ${reasonLabel(monitor)}`,
+      body: [
+        `Host：${host.name || host.sshHost}`,
+        `Thread：${threadLabel(monitor)}`,
+        `Tmux：${monitor.sessionName} · ${monitor.windowIndex}.${monitor.paneIndex} · ${reasonLabel(monitor)}`,
+      ].join("\n"),
       group: "tmux-monitor",
       target: {
         kind: "tmuxMonitor",
         hostId: monitor.hostId,
         monitorId: monitor.id,
+        projectId: monitor.projectId,
+        threadId: monitor.threadId,
       },
     });
   }
+}
+
+function threadLabel(monitor: StoredTmuxMonitor) {
+  if (!monitor.threadId) return "主机级监控";
+  const shortId = monitor.threadId.slice(0, 8);
+  return `${monitor.threadTitle || monitor.threadId} (${shortId})`;
 }
 
 function reasonLabel(monitor: StoredTmuxMonitor) {

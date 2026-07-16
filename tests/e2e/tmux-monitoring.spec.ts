@@ -1,7 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { configureBarkNotifications, useBarkReceiver } from "./helpers/bark";
 import { openApp, reloadApp } from "./helpers/app";
-import { addRemoteHost, execRemoteSsh, readRemoteEnv } from "./helpers/remote-codex";
+import {
+  addRemoteHost,
+  addRemoteProject,
+  execRemoteSsh,
+  readRemoteEnv,
+  startRemoteThreadFromProjectMenu,
+} from "./helpers/remote-codex";
 
 test("monitors a real tmux pane, persists it, and notifies once when it returns to shell", async ({
   page,
@@ -11,13 +17,15 @@ test("monitors a real tmux pane, persists it, and notifies once when it returns 
   const suffix = Date.now();
   const sessionName = `train-${suffix}`;
   const idleSessionName = `idle-${suffix}`;
+  const outputMarker = `tmux-preview-${suffix}`;
+  const hostName = `tmux-monitor-host-${suffix}`;
 
   await execRemoteSsh(
     remote,
     `
 tmux kill-server >/dev/null 2>&1 || true
 tmux new-session -d -s ${shellQuote(sessionName)} -n model
-tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} ${shellQuote("sleep 300")} Enter
+tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} ${shellQuote(`printf '${outputMarker}\\n'; sleep 300`)} Enter
 tmux new-session -d -s ${shellQuote(idleSessionName)} -n shell
 for i in $(seq 1 50); do
   [ "$(tmux display-message -p -t ${shellQuote(`${sessionName}:0.0`)} '#{pane_current_command}')" = sleep ] && break
@@ -28,7 +36,9 @@ done
 
   await openApp(page);
   await configureBarkNotifications(page, bark.url);
-  await addRemoteHost(page, remote, `tmux-monitor-host-${suffix}`);
+  const host = await addRemoteHost(page, remote, hostName);
+  const project = await addRemoteProject(page, remote, host.id);
+  const threadId = await startRemoteThreadFromProjectMenu(page, project.id);
 
   await page.getByTestId("open-tmux-button").click();
   const panel = page.getByTestId("tmux-monitor-panel");
@@ -37,6 +47,10 @@ done
   const idlePane = panel.getByTestId(`tmux-pane-${idleSessionName}-0-0`);
   await expect(runningPane).toContainText("sleep");
   await expect(idlePane.getByRole("button", { name: "已回到 Shell" })).toBeDisabled();
+
+  await runningPane.getByRole("button", { name: `查看 ${sessionName} Pane 输出` }).click();
+  await expect(page.getByTestId("tmux-pane-output")).toContainText(outputMarker);
+  await page.keyboard.press("Escape");
 
   await runningPane.getByRole("button", { name: "加入监控" }).click();
   await expect(panel.getByText("监控中 · 1")).toBeVisible();
@@ -65,7 +79,10 @@ done
   const toast = page.locator("[data-sonner-toast]").filter({ hasText: "Tmux 任务已结束" });
   await expect(toast).toBeVisible();
   await expect.poll(async () => (await bark.readRequests()).length, { timeout: 30_000 }).toBe(1);
-  expect((await bark.readRequests())[0]?.body).toContain(sessionName);
+  const completionNotification = (await bark.readRequests())[0];
+  expect(completionNotification?.body).toContain(hostName);
+  expect(completionNotification?.body).toContain(threadId.slice(0, 8));
+  expect(completionNotification?.body).toContain(sessionName);
 
   await page.waitForTimeout(1_000);
   expect(await bark.readRequests()).toHaveLength(1);

@@ -1,6 +1,7 @@
-import type { TmuxPaneSnapshot, TmuxSessionSnapshot } from "~~/shared/types";
+import type { TmuxPaneOutput, TmuxPaneSnapshot, TmuxSessionSnapshot } from "~~/shared/types";
 import { remoteLoginShellCommand } from "../infra/remote-command";
 import { sshConnections } from "../infra/host-services";
+import { shellQuote } from "../infra/shell";
 import type { HostWithSecret } from "../infra/ssh-types";
 
 const FIELD_SEPARATOR = "|";
@@ -24,6 +25,42 @@ export class RemoteTmuxScanner {
     }
     return groupSessions(parsePanes(result.stdout));
   }
+
+  async capturePane(
+    host: HostWithSecret,
+    target: { sessionId: string; paneId: string },
+  ): Promise<TmuxPaneOutput> {
+    const result = await sshConnections.exec(
+      host,
+      remoteLoginShellCommand(capturePanePayload(target)),
+    );
+    if (result.code !== 0) {
+      throw new Error(
+        result.stderr.trim() || result.stdout.trim() || "Failed to capture tmux pane",
+      );
+    }
+    return {
+      output: result.stdout,
+      capturedAt: new Date().toISOString(),
+    };
+  }
+}
+
+function capturePanePayload(target: { sessionId: string; paneId: string }) {
+  const sessionId = shellQuote(target.sessionId);
+  const paneId = shellQuote(target.paneId);
+  return `
+set -eu
+actual_session_id="$(tmux display-message -p -t ${paneId} -F '#{session_id}')"
+actual_pane_id="$(tmux display-message -p -t ${paneId} -F '#{pane_id}')"
+[ "$actual_session_id" = ${sessionId} ] && [ "$actual_pane_id" = ${paneId} ] || {
+  echo "The selected tmux pane identity changed" >&2
+  exit 1
+}
+# A training pane can retain an enormous history. Bound both lines and bytes before the
+# gateway buffers this one-shot SSH exec result; this does not create another SSH client.
+tmux capture-pane -p -S -500 -t ${paneId} | tail -c 262144
+`;
 }
 
 function scanPayload() {
