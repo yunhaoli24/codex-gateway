@@ -53,6 +53,9 @@ test("can revoke the current session from appearance settings", async ({ page })
 test("config JSON editor shows current config by default and scrolls", async ({ page }) => {
   await openApp(page);
   await page.getByTestId("settings-toggle").click();
+  const settingsPanel = page.getByTestId("settings-panel");
+  await expect(settingsPanel.locator(".dv-groupview")).toHaveCount(1);
+  await expect(settingsPanel.getByRole("tab")).toHaveCount(4);
   const editor = page.getByTestId("config-json-editor");
   await expect(editor).toContainText('"version"');
   await expect(editor).toContainText('"notifications"');
