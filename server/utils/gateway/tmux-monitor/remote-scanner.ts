@@ -88,12 +88,24 @@ printf '%s\n' "$pane_ids" | while IFS= read -r pane_id; do
   window_name="$(tmux display-message -p -t "$pane_id" -F '#{window_name}')"
   pane_index="$(tmux display-message -p -t "$pane_id" -F '#{pane_index}')"
   pane_pid="$(tmux display-message -p -t "$pane_id" -F '#{pane_pid}')"
+  pane_tty="$(tmux display-message -p -t "$pane_id" -F '#{pane_tty}')"
   current_command="$(tmux display-message -p -t "$pane_id" -F '#{pane_current_command}')"
   process_state="$(ps -o pgid=,tpgid= -p "$pane_pid" 2>/dev/null || true)"
   set -- $process_state
   [ "$#" -ge 2 ] || { echo "Unable to inspect foreground process group for $pane_id" >&2; exit 1; }
   running=1
   [ "$1" = "$2" ] && running=0
+  if [ "$running" -eq 0 ]; then
+    # pane_current_command and the foreground PGID both report the shell after a job is
+    # backgrounded. Processes still attached to the pane TTY are nevertheless live work;
+    # ignoring them makes long-running training jobs look completed while output continues.
+    for process_pid in $(ps -t "$pane_tty" -o pid= 2>/dev/null || true); do
+      if [ "$process_pid" != "$pane_pid" ]; then
+        running=1
+        break
+      fi
+    done
+  fi
   printf '${RECORD_KIND}|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
     "$(encode "$session_name")" "$(encode "$session_id")" "$session_created" "$window_index" \
     "$(encode "$window_name")" "$pane_index" "$(encode "$pane_id")" "$pane_pid" \

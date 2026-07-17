@@ -17,6 +17,7 @@ test("monitors a real tmux pane, persists it, and notifies once when it returns 
   const suffix = Date.now();
   const sessionName = `train-${suffix}`;
   const idleSessionName = `idle-${suffix}`;
+  const backgroundSessionName = `background-${suffix}`;
   const outputMarker = `tmux-preview-${suffix}`;
   const hostName = `tmux-monitor-host-${suffix}`;
 
@@ -27,8 +28,17 @@ tmux kill-server >/dev/null 2>&1 || true
 tmux new-session -d -s ${shellQuote(sessionName)} -n model
 tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} ${shellQuote(`for i in $(seq 1 200); do printf 'training-line-%s\\n' "$i"; done; printf '${outputMarker}\\n'; sleep 300`)} Enter
 tmux new-session -d -s ${shellQuote(idleSessionName)} -n shell
+tmux new-session -d -s ${shellQuote(backgroundSessionName)} -n model
+tmux send-keys -t ${shellQuote(`${backgroundSessionName}:0.0`)} ${shellQuote("sleep 300 &")} Enter
 for i in $(seq 1 50); do
   [ "$(tmux display-message -p -t ${shellQuote(`${sessionName}:0.0`)} '#{pane_current_command}')" = sleep ] && break
+  sleep 0.1
+done
+for i in $(seq 1 50); do
+  pane_pid="$(tmux display-message -p -t ${shellQuote(`${backgroundSessionName}:0.0`)} '#{pane_pid}')"
+  [ "$(tmux display-message -p -t ${shellQuote(`${backgroundSessionName}:0.0`)} '#{pane_current_command}')" = bash ] \
+    && ps --ppid "$pane_pid" -o comm= | grep -qx sleep \
+    && break
   sleep 0.1
 done
 `,
@@ -45,8 +55,13 @@ done
   await expect(panel).toBeVisible();
   const runningPane = panel.getByTestId(`tmux-pane-${sessionName}-0-0`);
   const idlePane = panel.getByTestId(`tmux-pane-${idleSessionName}-0-0`);
+  const backgroundPane = panel.getByTestId(`tmux-pane-${backgroundSessionName}-0-0`);
   await expect(runningPane).toContainText("sleep");
   await expect(idlePane.getByRole("button", { name: "已回到 Shell" })).toBeDisabled();
+  // A background job leaves bash in the foreground but still owns the pane TTY. It must not
+  // be conflated with the genuinely idle shell above.
+  await expect(backgroundPane).toContainText("bash");
+  await expect(backgroundPane.getByRole("button", { name: "加入监控" })).toBeEnabled();
 
   await runningPane.getByRole("button", { name: `查看 ${sessionName} Pane 输出` }).click();
   const paneOutput = page.getByTestId("tmux-pane-output");
@@ -89,14 +104,14 @@ done
   await expect(page.getByTestId("tmux-monitor-panel").getByText("已返回 Shell")).toBeVisible();
   const toast = page.locator("[data-sonner-toast]").filter({ hasText: "Tmux 任务已结束" });
   await expect(toast).toBeVisible();
-  await expect.poll(async () => (await bark.readRequests()).length, { timeout: 30_000 }).toBe(1);
-  const completionNotification = (await bark.readRequests())[0];
+  await expect.poll(() => readTmuxNotifications(bark), { timeout: 30_000 }).toHaveLength(1);
+  const completionNotification = (await readTmuxNotifications(bark))[0];
   expect(completionNotification?.body).toContain(hostName);
   expect(completionNotification?.body).toContain(threadId.slice(0, 8));
   expect(completionNotification?.body).toContain(sessionName);
 
   await page.waitForTimeout(1_000);
-  expect(await bark.readRequests()).toHaveLength(1);
+  expect(await readTmuxNotifications(bark)).toHaveLength(1);
 
   await execRemoteSsh(
     remote,
@@ -124,11 +139,17 @@ done`,
   await execRemoteSsh(remote, `tmux kill-session -t ${shellQuote(exitSessionName)}`);
   await page.getByRole("button", { name: "立即检查" }).click();
   await expect(panel.getByText("Session 已退出")).toBeVisible();
-  await expect.poll(async () => (await bark.readRequests()).length, { timeout: 30_000 }).toBe(2);
+  await expect.poll(() => readTmuxNotifications(bark), { timeout: 30_000 }).toHaveLength(2);
 
   await execRemoteSsh(remote, "tmux kill-server >/dev/null 2>&1 || true");
 });
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+async function readTmuxNotifications(bark: Awaited<ReturnType<typeof useBarkReceiver>>) {
+  return (await bark.readRequests()).filter((request) =>
+    request.title.startsWith("Tmux 任务已结束"),
+  );
 }
