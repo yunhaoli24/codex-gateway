@@ -1,27 +1,28 @@
-import { computed, ref } from "vue";
+import { useDocumentVisibility, useElementVisibility, useIntervalFn } from "@vueuse/core";
+import { computed, ref, watch } from "vue";
 import { toast } from "vue-sonner";
 import type { TmuxMonitor, TmuxPaneSnapshot } from "~~/shared/types";
 import { useTmuxMonitorDashboard } from "./useTmuxMonitorDashboard";
 import { useGatewayTmuxStore } from "@/stores/gateway-tmux";
+import type { TmuxRemoteHostState } from "@/stores/gateway-tmux";
 import { paneSnapshotFromMonitor } from "@/stores/gateway-tmux/pane";
 import { gatewayErrorMessage } from "@/utils/gateway-error";
+
+const EMPTY_REMOTE_STATE: TmuxRemoteHostState = {
+  sessions: [],
+  scanning: false,
+  error: "",
+};
 
 export function useTmuxMonitorPanel() {
   const tmux = useGatewayTmuxStore();
   const dashboard = useTmuxMonitorDashboard();
   const { t } = useI18n();
-  const remoteState = computed(() =>
-    tmux.selectedHostId ? tmux.remoteStateFor(tmux.selectedHostId) : null,
-  );
-  const monitoredPaneKeys = computed(
-    () =>
-      new Set(
-        tmux.active
-          .filter((monitor) => monitor.hostId === tmux.selectedHostId)
-          .map((monitor) => `${monitor.sessionId}:${monitor.paneId}`),
-      ),
-  );
   const addingPaneKey = ref<string | null>(null);
+  const expandedHostIds = ref(new Set<number>());
+  const panelRoot = ref<HTMLElement | null>(null);
+  const panelVisible = useElementVisibility(panelRoot);
+  const documentVisibility = useDocumentVisibility();
   const preview = ref<{ hostId: number; pane: TmuxPaneSnapshot } | null>(null);
   const previewHostTitle = computed(() =>
     preview.value
@@ -29,11 +30,63 @@ export function useTmuxMonitorPanel() {
       : "",
   );
 
-  async function addMonitor(pane: TmuxPaneSnapshot) {
-    if (!tmux.selectedHostId) return;
-    const hostId = tmux.selectedHostId;
-    const binding = dashboard.selectedThreadBinding.value;
-    const paneKey = `${pane.sessionId}:${pane.paneId}`;
+  function monitoredPaneKeysForHost(hostId: number) {
+    return new Set(
+      tmux.active
+        .filter((monitor) => monitor.hostId === hostId)
+        .map((monitor) => `${monitor.sessionId}:${monitor.paneId}`),
+    );
+  }
+
+  function remoteStateForHost(hostId: number) {
+    return tmux.remoteHosts[hostId] ?? EMPTY_REMOTE_STATE;
+  }
+
+  function activeCountForHost(hostId: number) {
+    return tmux.active.filter((monitor) => monitor.hostId === hostId).length;
+  }
+
+  function setHostExpanded(hostId: number, expanded: boolean) {
+    const next = new Set(expandedHostIds.value);
+    if (expanded) next.add(hostId);
+    else next.delete(hostId);
+    expandedHostIds.value = next;
+    if (expanded) void tmux.refreshSessions(hostId);
+  }
+
+  async function refreshExpandedHosts() {
+    await Promise.all([...expandedHostIds.value].map((hostId) => tmux.refreshSessions(hostId)));
+  }
+
+  const sessionRefresh = useIntervalFn(refreshExpandedHosts, 15_000, {
+    immediate: false,
+    immediateCallback: false,
+  });
+
+  watch(
+    [panelVisible, documentVisibility],
+    ([visible, documentState]) => {
+      // Dockview keeps inactive panels mounted. The interval must follow actual element and
+      // document visibility, otherwise a background tmux panel would keep opening SSH channels.
+      if (visible && documentState === "visible") sessionRefresh.resume();
+      else sessionRefresh.pause();
+    },
+    { immediate: true },
+  );
+
+  watch(
+    [() => tmux.panelOpen, dashboard.currentHostId],
+    ([open, hostId]) => {
+      // Opening the dashboard from a conversation should reveal that Host immediately.
+      // Other Hosts remain lazy: expanding their tree node starts the singleflight SSH scan.
+      if (open && hostId) setHostExpanded(hostId, true);
+    },
+    { immediate: true },
+  );
+
+  async function addMonitor(hostId: number, pane: TmuxPaneSnapshot) {
+    const binding = dashboard.currentThreadBindingForHost(hostId);
+    const paneKey = `${hostId}:${pane.sessionId}:${pane.paneId}`;
     if (addingPaneKey.value) return;
     addingPaneKey.value = paneKey;
     try {
@@ -107,11 +160,15 @@ export function useTmuxMonitorPanel() {
   return {
     tmux,
     dashboard,
-    remoteState,
-    monitoredPaneKeys,
     addingPaneKey,
+    expandedHostIds,
+    panelRoot,
     preview,
     previewHostTitle,
+    monitoredPaneKeysForHost,
+    remoteStateForHost,
+    activeCountForHost,
+    setHostExpanded,
     addMonitor,
     cancelMonitor,
     monitorAgain,

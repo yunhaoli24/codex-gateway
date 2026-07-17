@@ -49,8 +49,6 @@ async function openTmuxMonitor(target: TargetFor<"tmuxMonitor">) {
     await useGatewayStore().selectHost(target.hostId);
   }
   useGatewayTmuxStore().openPanel({
-    hostId: target.hostId,
-    threadId: target.threadId,
     monitorId: target.monitorId,
   });
 }

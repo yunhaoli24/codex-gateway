@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 defineProps<{
+  hostId: number;
   sessions: TmuxSessionSnapshot[];
   monitoredPaneKeys: Set<string>;
   addingPaneKey: string | null;
@@ -16,6 +17,10 @@ const emit = defineEmits<{
 
 function paneKey(pane: TmuxPaneSnapshot) {
   return `${pane.sessionId}:${pane.paneId}`;
+}
+
+function addingKey(hostId: number, pane: TmuxPaneSnapshot) {
+  return `${hostId}:${pane.sessionId}:${pane.paneId}`;
 }
 </script>
 
@@ -92,7 +97,7 @@ function paneKey(pane: TmuxPaneSnapshot) {
             @click="emit('monitor', pane)"
           >
             <LoaderCircleIcon
-              v-if="addingPaneKey === paneKey(pane)"
+              v-if="addingPaneKey === addingKey(hostId, pane)"
               data-testid="tmux-monitor-adding-spinner"
               class="mr-1 size-3.5 animate-spin"
             />

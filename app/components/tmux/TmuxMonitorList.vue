@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { AlertCircleIcon, ClockIcon, ServerIcon } from "@lucide/vue";
+import { AlertCircleIcon, ClockIcon } from "@lucide/vue";
 import type { TmuxMonitor } from "~~/shared/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import TmuxHostBadge from "./TmuxHostBadge.vue";
 
 defineProps<{
   monitors: TmuxMonitor[];
@@ -65,12 +66,10 @@ function reasonKey(monitor: TmuxMonitor) {
           <div
             class="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted"
           >
-            <span class="flex min-w-0 items-center gap-1">
-              <ServerIcon class="size-3 shrink-0" />
-              <span class="truncate" :title="hostNames[monitor.hostId]">
-                {{ hostNames[monitor.hostId] || `Host ${monitor.hostId}` }}
-              </span>
-            </span>
+            <TmuxHostBadge
+              :host-id="monitor.hostId"
+              :name="hostNames[monitor.hostId] || `Host ${monitor.hostId}`"
+            />
             <span class="truncate" :title="monitor.threadTitle || undefined">
               {{ monitor.threadTitle || $t("app.tmuxHostLevelMonitor") }}
             </span>
