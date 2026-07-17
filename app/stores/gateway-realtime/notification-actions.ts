@@ -36,7 +36,7 @@ export function notificationAction(notification: ServerNotification) {
 
 export function projectPublishedNotification(notification: ServerNotification) {
   if (notification.target.kind !== "tmuxMonitor") return;
-  useGatewayTmuxStore().handleCompletion(notification.target.hostId, notification.target.monitorId);
+  useGatewayTmuxStore().handleCompletion(notification.target.monitorId);
 }
 
 async function openTmuxMonitor(target: TargetFor<"tmuxMonitor">) {
@@ -48,5 +48,9 @@ async function openTmuxMonitor(target: TargetFor<"tmuxMonitor">) {
   } else if (useGatewayNavigationStore().selectedHostId !== target.hostId) {
     await useGatewayStore().selectHost(target.hostId);
   }
-  useGatewayTmuxStore().openPanel(target.hostId, target.monitorId);
+  useGatewayTmuxStore().openPanel({
+    hostId: target.hostId,
+    threadId: target.threadId,
+    monitorId: target.monitorId,
+  });
 }

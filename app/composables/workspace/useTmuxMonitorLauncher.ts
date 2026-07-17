@@ -1,29 +1,31 @@
 import { createSharedComposable, useDocumentVisibility } from "@vueuse/core";
-
 import { storeToRefs } from "pinia";
 import { computed, watch } from "vue";
-import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useAuthStore } from "@/stores/auth";
+import { useGatewayStore } from "@/stores/gateway";
 import { useGatewayTmuxStore } from "@/stores/gateway-tmux";
 
 export const useTmuxMonitorLauncher = createSharedComposable(() => {
-  const navigation = useGatewayNavigationStore();
+  const auth = useAuthStore();
+  const gateway = useGatewayStore();
   const tmux = useGatewayTmuxStore();
-  const { selectedHostId } = storeToRefs(navigation);
+  const { hosts } = storeToRefs(gateway);
+  const { isAuthenticated } = storeToRefs(auth);
   const visibility = useDocumentVisibility();
 
   watch(
-    [selectedHostId, visibility],
-    ([hostId, state]) => {
-      if (hostId && state === "visible") void tmux.loadHost(hostId);
+    [visibility, isAuthenticated],
+    ([state, authenticated]) => {
+      if (state === "visible" && authenticated) void tmux.loadSummary();
     },
     { immediate: true },
   );
 
   return {
-    activeCount: computed(() => tmux.activeCount(selectedHostId.value)),
-    canOpen: computed(() => Boolean(selectedHostId.value)),
+    activeCount: computed(() => tmux.activeCount),
+    canOpen: computed(() => hosts.value.length > 0),
     open() {
-      if (selectedHostId.value) tmux.openPanel(selectedHostId.value);
+      tmux.openPanel();
     },
   };
 });

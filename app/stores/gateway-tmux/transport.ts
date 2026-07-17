@@ -10,8 +10,8 @@ import { gatewayApi } from "@/utils/gateway-api";
 
 const tmuxApiRoot = (hostId: number) => `/api/hosts/${hostId}/tmux`;
 
-export function fetchTmuxMonitors(hostId: number) {
-  return gatewayApi<TmuxMonitorListResult>(`${tmuxApiRoot(hostId)}/monitors`);
+export function fetchTmuxMonitors() {
+  return gatewayApi<TmuxMonitorListResult>("/api/tmux/monitors");
 }
 
 export function fetchTmuxSessions(hostId: number) {

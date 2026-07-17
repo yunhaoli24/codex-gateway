@@ -11,7 +11,7 @@ export type WorkspaceDockPanelParams =
   | { kind: "terminal"; sessionId: string }
   | { kind: "subagent"; subAgentHostId: number; subAgentThreadId: string }
   | { kind: "browser"; browserPanelId: string }
-  | { kind: "tmux"; tmuxHostId: number };
+  | { kind: "tmux" };
 
 export type WorkspaceDockPanelParamsFor<K extends WorkspacePanelKind> = Extract<
   WorkspaceDockPanelParams,

@@ -11,6 +11,7 @@ import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { useGatewayThreadActivityStore } from "@/stores/gateway-thread-activity";
+import { useGatewayTmuxStore } from "@/stores/gateway-tmux";
 import { useGatewayWorkspaceLayoutStore } from "@/stores/gateway-workspace-layout";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
 
@@ -21,6 +22,7 @@ const realtime = useGatewayRealtimeStore();
 const terminal = useGatewayTerminalStore();
 const threadTurns = useGatewayThreadTurnsStore();
 const threadActivity = useGatewayThreadActivityStore();
+const tmux = useGatewayTmuxStore();
 const workspaceLayout = useGatewayWorkspaceLayoutStore();
 const auth = useAuthStore();
 const device = useDevice();
@@ -88,6 +90,7 @@ function resetClientSessionState() {
   terminal.resetState();
   threadTurns.resetState();
   threadActivity.resetState();
+  tmux.resetState();
   workspaceLayout.resetRuntimeState();
 }
 </script>

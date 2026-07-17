@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { AlertCircleIcon, ClockIcon } from "@lucide/vue";
+import { AlertCircleIcon, ClockIcon, ServerIcon } from "@lucide/vue";
 import type { TmuxMonitor } from "~~/shared/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 defineProps<{
   monitors: TmuxMonitor[];
+  hostNames: Record<number, string>;
   mode: "active" | "history";
   highlightedMonitorId?: number | null;
 }>();
 const emit = defineEmits<{
+  preview: [monitor: TmuxMonitor];
   cancel: [monitor: TmuxMonitor];
   retry: [monitor: TmuxMonitor];
 }>();
@@ -36,12 +38,17 @@ function reasonKey(monitor: TmuxMonitor) {
       v-for="monitor in monitors"
       :key="monitor.id"
       :data-testid="`tmux-monitor-${monitor.id}`"
-      class="rounded-lg border bg-surface px-3 py-3 transition-colors"
+      class="flex min-w-0 items-start gap-2 rounded-lg border bg-surface p-2 transition-colors"
       :class="
         monitor.id === highlightedMonitorId ? 'border-primary bg-primary/5' : 'border-hairline'
       "
     >
-      <div class="flex min-w-0 items-start gap-3">
+      <button
+        type="button"
+        class="flex min-w-0 flex-1 items-start gap-3 rounded-md p-1 text-left outline-none transition-colors hover:bg-canvas-soft focus-visible:ring-2 focus-visible:ring-ring"
+        :aria-label="$t('app.tmuxViewPaneOutput', { session: monitor.sessionName })"
+        @click="emit('preview', monitor)"
+      >
         <ClockIcon
           class="mt-0.5 size-4 shrink-0"
           :class="mode === 'active' ? 'text-accent-green' : 'text-ink-faint'"
@@ -51,16 +58,25 @@ function reasonKey(monitor: TmuxMonitor) {
             <span class="max-w-full truncate text-sm font-semibold" :title="monitor.sessionName">
               {{ monitor.sessionName }}
             </span>
-            <Badge variant="secondary"> {{ monitor.windowIndex }}.{{ monitor.paneIndex }} </Badge>
             <Badge v-if="mode === 'history'" variant="outline">
               {{ $t(reasonKey(monitor)) }}
             </Badge>
           </div>
+          <div
+            class="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted"
+          >
+            <span class="flex min-w-0 items-center gap-1">
+              <ServerIcon class="size-3 shrink-0" />
+              <span class="truncate" :title="hostNames[monitor.hostId]">
+                {{ hostNames[monitor.hostId] || `Host ${monitor.hostId}` }}
+              </span>
+            </span>
+            <span class="truncate" :title="monitor.threadTitle || undefined">
+              {{ monitor.threadTitle || $t("app.tmuxHostLevelMonitor") }}
+            </span>
+          </div>
           <div class="mt-1 truncate font-mono text-xs text-ink-muted" :title="monitor.lastCommand">
             {{ monitor.lastCommand }}
-          </div>
-          <div v-if="monitor.threadId" class="mt-1 truncate text-xs text-ink-muted">
-            {{ $t("app.tmuxBoundThread", { title: monitor.threadTitle || monitor.threadId }) }}
           </div>
           <div class="mt-1.5 text-xs text-ink-faint">
             {{
@@ -77,25 +93,25 @@ function reasonKey(monitor: TmuxMonitor) {
             <span>{{ $t("app.tmuxCheckFailed", { message: monitor.lastError }) }}</span>
           </div>
         </div>
-        <Button
-          v-if="mode === 'active'"
-          size="sm"
-          variant="ghost"
-          class="h-7 shrink-0 text-ink-muted"
-          @click="emit('cancel', monitor)"
-        >
-          {{ $t("app.tmuxCancelMonitor") }}
-        </Button>
-        <Button
-          v-else
-          size="sm"
-          variant="outline"
-          class="h-7 shrink-0"
-          @click="emit('retry', monitor)"
-        >
-          {{ $t("app.tmuxMonitorAgain") }}
-        </Button>
-      </div>
+      </button>
+      <Button
+        v-if="mode === 'active'"
+        size="sm"
+        variant="ghost"
+        class="h-7 shrink-0 text-ink-muted"
+        @click="emit('cancel', monitor)"
+      >
+        {{ $t("app.tmuxCancelMonitor") }}
+      </Button>
+      <Button
+        v-else
+        size="sm"
+        variant="outline"
+        class="h-7 shrink-0"
+        @click="emit('retry', monitor)"
+      >
+        {{ $t("app.tmuxMonitorAgain") }}
+      </Button>
     </article>
   </div>
   <div

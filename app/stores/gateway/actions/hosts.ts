@@ -57,7 +57,7 @@ export function createHostActions() {
       const navigation = useGatewayNavigationStore();
       await gatewayApi(`/api/hosts/${hostId}`, { method: "DELETE" });
       useGatewayRealtimeStore().closeHostThreadEvents(hostId);
-      useGatewayTmuxStore().closePanel(hostId);
+      useGatewayTmuxStore().removeHost(hostId);
       gateway.hosts = gateway.hosts.filter((host) => host.id !== hostId);
       const removedProjectIds = new Set(
         gateway.projects

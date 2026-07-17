@@ -28,7 +28,7 @@ export function useWorkspaceDockPanels(options: {
     Array<{ id: string; hostId: number; threadId: string; title: string }>
   >;
   browserPanels: ComputedRef<Array<{ id: string; panel: { panelId: string; title: string } }>>;
-  tmuxPanels: ComputedRef<Array<{ id: string; hostId: number }>>;
+  tmuxPanels: ComputedRef<Array<{ id: string }>>;
 }) {
   const { t } = useI18n();
   const threadView = useGatewayThreadViewStore();
@@ -73,11 +73,11 @@ export function useWorkspaceDockPanels(options: {
         component: workspacePanelPolicy("browser").component,
         params: { kind: "browser" as const, browserPanelId: panel.panelId },
       })),
-      ...options.tmuxPanels.value.map(({ id, hostId }) => ({
+      ...options.tmuxPanels.value.map(({ id }) => ({
         id,
         title: t("app.tmuxMonitors"),
         component: workspacePanelPolicy("tmux").component,
-        params: { kind: "tmux" as const, tmuxHostId: hostId },
+        params: { kind: "tmux" as const },
       })),
     );
     return panels;
@@ -136,8 +136,8 @@ export function useWorkspaceDockPanels(options: {
       const removed = browserStore.removePanel(params.browserPanelId);
       if (removed.sessionId) void closeBrowserPreview(removed.sessionId);
     },
-    tmux(params: Extract<WorkspaceDockPanelParams, { kind: "tmux" }>) {
-      tmuxStore.closePanel(params.tmuxHostId);
+    tmux() {
+      tmuxStore.closePanel();
     },
   };
 
