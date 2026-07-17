@@ -1,21 +1,50 @@
 <script setup lang="ts">
-import { AlertCircleIcon, ClockIcon } from "@lucide/vue";
+import {
+  AlertCircleIcon,
+  ClockIcon,
+  InfinityIcon,
+  LoaderCircleIcon,
+  MoreHorizontalIcon,
+} from "@lucide/vue";
+import { ref } from "vue";
 import type { TmuxMonitor } from "~~/shared/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import TmuxHostBadge from "./TmuxHostBadge.vue";
+import TmuxPermanentMonitorDialog from "./TmuxPermanentMonitorDialog.vue";
 
 defineProps<{
   monitors: TmuxMonitor[];
   hostNames: Record<number, string>;
   mode: "active" | "history";
   highlightedMonitorId?: number | null;
+  promotingMonitorId?: number | null;
 }>();
 const emit = defineEmits<{
   preview: [monitor: TmuxMonitor];
   cancel: [monitor: TmuxMonitor];
+  promote: [monitor: TmuxMonitor];
   retry: [monitor: TmuxMonitor];
 }>();
+
+const permanentCandidate = ref<{
+  monitor: TmuxMonitor;
+  action: "promote" | "retry";
+} | null>(null);
+
+function confirmPermanentAction() {
+  if (!permanentCandidate.value) return;
+  const { monitor, action } = permanentCandidate.value;
+  if (action === "promote") emit("promote", monitor);
+  else emit("retry", monitor);
+  permanentCandidate.value = null;
+}
 
 function timestamp(value: string | null) {
   return value ? new Date(value).toLocaleString() : "";
@@ -62,6 +91,18 @@ function reasonKey(monitor: TmuxMonitor) {
             <Badge v-if="mode === 'history'" variant="outline">
               {{ $t(reasonKey(monitor)) }}
             </Badge>
+            <Badge v-if="monitor.mode === 'permanent'" variant="secondary" class="gap-1">
+              <InfinityIcon class="size-3" />
+              {{
+                mode === "active"
+                  ? $t(
+                      monitor.runStartedAt
+                        ? "app.tmuxPermanentRunning"
+                        : "app.tmuxPermanentWaiting",
+                    )
+                  : $t("app.tmuxPermanentMonitor")
+              }}
+            </Badge>
           </div>
           <div
             class="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted"
@@ -80,7 +121,11 @@ function reasonKey(monitor: TmuxMonitor) {
           <div class="mt-1.5 text-xs text-ink-faint">
             {{
               mode === "active"
-                ? $t("app.tmuxMonitoringSince", { time: timestamp(monitor.createdAt) })
+                ? monitor.mode === "permanent" && !monitor.runStartedAt
+                  ? $t("app.tmuxPermanentWaitingSince", { time: timestamp(monitor.createdAt) })
+                  : $t("app.tmuxMonitoringSince", {
+                      time: timestamp(monitor.runStartedAt || monitor.createdAt),
+                    })
                 : $t("app.tmuxCompletedAt", { time: timestamp(monitor.completedAt) })
             }}
           </div>
@@ -93,6 +138,28 @@ function reasonKey(monitor: TmuxMonitor) {
           </div>
         </div>
       </button>
+      <DropdownMenu v-if="mode === 'active' && monitor.mode === 'once'">
+        <DropdownMenuTrigger as-child>
+          <Button
+            size="icon"
+            variant="ghost"
+            class="size-7 shrink-0 text-ink-muted"
+            :disabled="promotingMonitorId === monitor.id"
+            :aria-label="$t('app.tmuxMonitorActions')"
+          >
+            <LoaderCircleIcon
+              v-if="promotingMonitorId === monitor.id"
+              class="size-4 animate-spin"
+            />
+            <MoreHorizontalIcon v-else class="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem @select="permanentCandidate = { monitor, action: 'promote' }">
+            {{ $t("app.tmuxPromotePermanent") }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Button
         v-if="mode === 'active'"
         size="sm"
@@ -100,14 +167,22 @@ function reasonKey(monitor: TmuxMonitor) {
         class="h-7 shrink-0 text-ink-muted"
         @click="emit('cancel', monitor)"
       >
-        {{ $t("app.tmuxCancelMonitor") }}
+        {{
+          monitor.mode === "permanent"
+            ? $t("app.tmuxCancelPermanentMonitor")
+            : $t("app.tmuxCancelMonitor")
+        }}
       </Button>
       <Button
         v-else
         size="sm"
         variant="outline"
         class="h-7 shrink-0"
-        @click="emit('retry', monitor)"
+        @click="
+          monitor.mode === 'permanent'
+            ? (permanentCandidate = { monitor, action: 'retry' })
+            : emit('retry', monitor)
+        "
       >
         {{ $t("app.tmuxMonitorAgain") }}
       </Button>
@@ -119,4 +194,12 @@ function reasonKey(monitor: TmuxMonitor) {
   >
     {{ mode === "active" ? $t("app.tmuxNoActiveMonitors") : $t("app.tmuxNoHistory") }}
   </div>
+  <TmuxPermanentMonitorDialog
+    :open="Boolean(permanentCandidate)"
+    :session-name="permanentCandidate?.monitor.sessionName || ''"
+    :pending="promotingMonitorId === permanentCandidate?.monitor.id"
+    :promote="permanentCandidate?.action === 'promote'"
+    @cancel="permanentCandidate = null"
+    @confirm="confirmPermanentAction"
+  />
 </template>

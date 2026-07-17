@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ChevronRightIcon, LoaderCircleIcon, RefreshCwIcon, ServerIcon } from "@lucide/vue";
-import type { HostRecord, TmuxPaneSnapshot } from "~~/shared/types";
+import type { HostRecord, TmuxMonitor, TmuxMonitorMode, TmuxPaneSnapshot } from "~~/shared/types";
 import type { TmuxRemoteHostState } from "@/stores/gateway-tmux";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -12,14 +12,17 @@ defineProps<{
   expanded: boolean;
   remoteState: TmuxRemoteHostState;
   activeCount: number;
-  monitoredPaneKeys: Set<string>;
+  monitors: TmuxMonitor[];
   addingPaneKey: string | null;
+  promotingMonitorId: number | null;
 }>();
 const emit = defineEmits<{
   "update:expanded": [expanded: boolean];
   refresh: [];
   check: [];
-  monitor: [pane: TmuxPaneSnapshot];
+  monitor: [pane: TmuxPaneSnapshot, mode: TmuxMonitorMode];
+  promote: [monitor: TmuxMonitor];
+  cancel: [monitor: TmuxMonitor];
   preview: [pane: TmuxPaneSnapshot];
 }>();
 </script>
@@ -88,9 +91,12 @@ const emit = defineEmits<{
           v-else
           :host-id="host.id"
           :sessions="remoteState.sessions"
-          :monitored-pane-keys="monitoredPaneKeys"
+          :monitors="monitors"
           :adding-pane-key="addingPaneKey"
-          @monitor="emit('monitor', $event)"
+          :promoting-monitor-id="promotingMonitorId"
+          @monitor="(pane, mode) => emit('monitor', pane, mode)"
+          @promote="emit('promote', $event)"
+          @cancel="emit('cancel', $event)"
           @preview="emit('preview', $event)"
         />
       </div>

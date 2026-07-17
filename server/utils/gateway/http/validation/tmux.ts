@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createTmuxMonitorSchema = z.object({
+  mode: z.enum(["once", "permanent"]),
   sessionId: z.string().trim().min(1).max(128),
   paneId: z.string().trim().min(1).max(128),
   thread: z

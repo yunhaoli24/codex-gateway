@@ -2,6 +2,7 @@ import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import type {
   TmuxMonitor,
+  TmuxMonitorMode,
   TmuxMonitorThreadBinding,
   TmuxPaneSnapshot,
   TmuxSessionSnapshot,
@@ -15,6 +16,7 @@ import {
   deleteTmuxMonitor,
   fetchTmuxMonitors,
   fetchTmuxSessions,
+  promoteTmuxMonitor,
 } from "./transport";
 
 export interface TmuxRemoteHostState {
@@ -44,6 +46,10 @@ export const useGatewayTmuxStore = defineStore(
     let sessionGeneration = 0;
 
     const activeCount = computed(() => active.value.length);
+    const oneShotActive = computed(() => active.value.filter((monitor) => monitor.mode === "once"));
+    const permanentActive = computed(() =>
+      active.value.filter((monitor) => monitor.mode === "permanent"),
+    );
 
     function remoteStateFor(hostId: number) {
       const existing = remoteHosts.value[hostId];
@@ -132,8 +138,15 @@ export const useGatewayTmuxStore = defineStore(
       hostId: number,
       pane: TmuxPaneSnapshot,
       thread: TmuxMonitorThreadBinding | null,
+      mode: TmuxMonitorMode,
     ) {
-      const monitor = await createTmuxMonitor(hostId, pane, thread);
+      const monitor = await createTmuxMonitor(hostId, pane, thread, mode);
+      await loadSummary(true);
+      return monitor;
+    }
+
+    async function promoteMonitor(hostId: number, monitorId: number) {
+      const monitor = await promoteTmuxMonitor(hostId, monitorId);
       await loadSummary(true);
       return monitor;
     }
@@ -205,10 +218,13 @@ export const useGatewayTmuxStore = defineStore(
       highlightedMonitorId,
       remoteHosts,
       activeCount,
+      oneShotActive,
+      permanentActive,
       remoteStateFor,
       loadSummary,
       refreshSessions: scanSessions,
       addMonitor,
+      promoteMonitor,
       cancelMonitor,
       checkNow,
       openPanel,

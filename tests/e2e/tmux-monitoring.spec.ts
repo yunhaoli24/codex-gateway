@@ -158,7 +158,14 @@ done
   );
   await panel.getByRole("button", { name: "重新监控" }).click();
   await expect(panel.getByText("监控中 · 1")).toBeVisible();
-  await panel.getByRole("button", { name: "取消监控" }).click();
+  const activeMonitorCard = panel
+    .getByRole("button", { name: "取消监控" })
+    .locator("xpath=ancestor::article");
+  await activeMonitorCard.getByRole("button", { name: "监控操作" }).click();
+  await page.getByRole("menuitem", { name: "改为永久监控" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "改为永久监控" }).click();
+  await expect(panel.getByText("永久监控 · 1")).toBeVisible();
+  await panel.getByRole("button", { name: "取消永久监控" }).click();
   await expect(panel.getByText("已取消")).toBeVisible();
 
   const exitSessionName = `exit-${suffix}`;
@@ -183,8 +190,122 @@ done`,
   await execRemoteSsh(remote, "tmux kill-server >/dev/null 2>&1 || true");
 });
 
+test("permanently monitors repeated runs and reattaches to the same logical pane", async ({
+  page,
+}) => {
+  const remote = await readRemoteEnv();
+  const bark = await useBarkReceiver();
+  const suffix = Date.now();
+  const sessionName = `permanent-${suffix}`;
+  const hostName = `permanent-monitor-host-${suffix}`;
+
+  await execRemoteSsh(
+    remote,
+    `tmux kill-server >/dev/null 2>&1 || true
+tmux new-session -d -s ${shellQuote(sessionName)} -n train`,
+  );
+
+  await openApp(page);
+  await configureBarkNotifications(page, bark.url);
+  const host = await addRemoteHost(page, remote, hostName);
+  const project = await addRemoteProject(page, remote, host.id);
+  await startRemoteThreadFromProjectMenu(page, project.id);
+  await page.getByTestId("open-tmux-button").click();
+
+  const panel = page.getByTestId("tmux-monitor-panel");
+  const hostNode = panel.getByTestId(`tmux-host-node-${host.id}`);
+  const pane = panel.getByTestId(`tmux-pane-${sessionName}-0-0`);
+  await expect(pane.getByRole("button", { name: "已回到 Shell" })).toBeDisabled();
+  await pane.getByRole("button", { name: "监控操作" }).click();
+  await page.getByRole("menuitem", { name: "永久监控" }).click();
+  const confirmation = page.getByRole("alertdialog");
+  await expect(confirmation).toContainText("任务每次结束都会发送通知");
+  await expect(confirmation).toContainText("直到你手动取消");
+  await confirmation.getByRole("button", { name: "启用永久监控" }).click();
+
+  await expect(panel.getByText("永久监控 · 1")).toBeVisible();
+  await expect(panel.getByText("永久监控 · 等待中").first()).toBeVisible();
+  expect(await readTmuxNotifications(bark)).toHaveLength(0);
+
+  await startTmuxRun(remote, sessionName);
+  await hostNode.getByRole("button", { name: /立即检查/ }).click();
+  await expect(panel.getByText("永久监控 · 运行中").first()).toBeVisible();
+  expect(await readTmuxNotifications(bark)).toHaveLength(0);
+
+  await stopTmuxRun(remote, sessionName);
+  await hostNode.getByRole("button", { name: /立即检查/ }).click();
+  await expect(panel.getByText("永久监控 · 等待中").first()).toBeVisible();
+  await expect.poll(() => readTmuxNotifications(bark), { timeout: 30_000 }).toHaveLength(1);
+
+  await startTmuxRun(remote, sessionName);
+  await hostNode.getByRole("button", { name: /立即检查/ }).click();
+  await stopTmuxRun(remote, sessionName);
+  await hostNode.getByRole("button", { name: /立即检查/ }).click();
+  await expect.poll(() => readTmuxNotifications(bark), { timeout: 30_000 }).toHaveLength(2);
+
+  await startTmuxRun(remote, sessionName);
+  await hostNode.getByRole("button", { name: /立即检查/ }).click();
+  await execRemoteSsh(remote, `tmux kill-session -t ${shellQuote(sessionName)}`);
+  await hostNode.getByRole("button", { name: /立即检查/ }).click();
+  await expect.poll(() => readTmuxNotifications(bark), { timeout: 30_000 }).toHaveLength(3);
+  expect((await readTmuxNotifications(bark))[2]?.body).toContain("状态：Session 已退出");
+
+  await execRemoteSsh(remote, `tmux new-session -d -s ${shellQuote(sessionName)} -n train`);
+  await hostNode.getByRole("button", { name: `刷新 ${hostName} 的 Pane` }).click();
+  await startTmuxRun(remote, sessionName);
+  await hostNode.getByRole("button", { name: /立即检查/ }).click();
+  await stopTmuxRun(remote, sessionName);
+  await hostNode.getByRole("button", { name: /立即检查/ }).click();
+  await expect.poll(() => readTmuxNotifications(bark), { timeout: 30_000 }).toHaveLength(4);
+
+  await panel.getByRole("button", { name: "取消永久监控" }).click();
+  await expect(panel.getByText("永久监控 · 0")).toBeVisible();
+  await startTmuxRun(remote, sessionName);
+  expect(await readTmuxNotifications(bark)).toHaveLength(4);
+
+  await execRemoteSsh(remote, "tmux kill-server >/dev/null 2>&1 || true");
+});
+
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+async function startTmuxRun(
+  remote: Awaited<ReturnType<typeof readRemoteEnv>>,
+  sessionName: string,
+) {
+  await execRemoteSsh(
+    remote,
+    `tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} ${shellQuote("sleep 300")} Enter`,
+  );
+  await expect
+    .poll(
+      async () =>
+        (
+          await execRemoteSsh(
+            remote,
+            `tmux display-message -p -t ${shellQuote(`${sessionName}:0.0`)} '#{pane_current_command}'`,
+          )
+        ).stdout.trim(),
+      { timeout: 10_000 },
+    )
+    .toBe("sleep");
+}
+
+async function stopTmuxRun(remote: Awaited<ReturnType<typeof readRemoteEnv>>, sessionName: string) {
+  await execRemoteSsh(remote, `tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} C-c`);
+  await expect
+    .poll(
+      async () =>
+        (
+          await execRemoteSsh(
+            remote,
+            `tmux display-message -p -t ${shellQuote(`${sessionName}:0.0`)} '#{pane_current_command}'`,
+          )
+        ).stdout.trim(),
+      { timeout: 10_000 },
+    )
+    .toMatch(/bash|zsh|sh/);
 }
 
 async function readTmuxNotifications(bark: Awaited<ReturnType<typeof useBarkReceiver>>) {
