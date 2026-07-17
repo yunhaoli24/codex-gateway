@@ -17,15 +17,13 @@ import {
   fetchTmuxSessions,
 } from "./transport";
 
-interface TmuxRemoteHostState {
+export interface TmuxRemoteHostState {
   sessions: TmuxSessionSnapshot[];
   scanning: boolean;
   error: string;
 }
 
 interface OpenTmuxPanelTarget {
-  hostId?: number | null;
-  threadId?: string | null;
   monitorId?: number | null;
 }
 
@@ -39,8 +37,6 @@ export const useGatewayTmuxStore = defineStore(
     const loading = ref(false);
     const error = ref("");
     const loadedAt = ref(0);
-    const selectedHostId = ref<number | null>(null);
-    const selectedThreadId = ref<string | null>(null);
     const highlightedMonitorId = ref<number | null>(null);
     const remoteHosts = ref<Record<number, TmuxRemoteHostState>>({});
     const pendingScans = new Map<number, Promise<TmuxRemoteHostState>>();
@@ -164,21 +160,8 @@ export const useGatewayTmuxStore = defineStore(
       }
     }
 
-    function selectHost(hostId: number | null) {
-      selectedHostId.value = hostId;
-      selectedThreadId.value = null;
-      highlightedMonitorId.value = null;
-    }
-
-    function selectThread(threadId: string | null) {
-      selectedThreadId.value = threadId;
-      highlightedMonitorId.value = null;
-    }
-
     function openPanel(target: OpenTmuxPanelTarget = {}) {
       panelOpen.value = true;
-      if ("hostId" in target) selectedHostId.value = target.hostId ?? null;
-      if ("threadId" in target) selectedThreadId.value = target.threadId ?? null;
       highlightedMonitorId.value = target.monitorId ?? null;
       useGatewayWorkspaceLayoutStore().requestPanelActivation(TMUX_WORKSPACE_PANEL_ID);
     }
@@ -191,7 +174,6 @@ export const useGatewayTmuxStore = defineStore(
       remoteHosts.value = Object.fromEntries(
         Object.entries(remoteHosts.value).filter(([candidate]) => Number(candidate) !== hostId),
       );
-      if (selectedHostId.value === hostId) selectHost(null);
       void loadSummary(true);
     }
 
@@ -210,8 +192,6 @@ export const useGatewayTmuxStore = defineStore(
       loading.value = false;
       error.value = "";
       loadedAt.value = 0;
-      selectedHostId.value = null;
-      selectedThreadId.value = null;
       highlightedMonitorId.value = null;
       remoteHosts.value = {};
     }
@@ -222,8 +202,6 @@ export const useGatewayTmuxStore = defineStore(
       history,
       loading,
       error,
-      selectedHostId,
-      selectedThreadId,
       highlightedMonitorId,
       remoteHosts,
       activeCount,
@@ -233,8 +211,6 @@ export const useGatewayTmuxStore = defineStore(
       addMonitor,
       cancelMonitor,
       checkNow,
-      selectHost,
-      selectThread,
       openPanel,
       closePanel,
       removeHost,

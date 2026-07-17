@@ -49,6 +49,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
+    "color-hash": "^2.0.2",
     "dockview-vue": "7.0.2",
     "embla-carousel-vue": "^8.6.0",
     "isbinaryfile": "^6.0.0",
@@ -78,6 +79,7 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.3.2",
+    "@types/color-hash": "^2.0.0",
     "@types/markdown-it": "^14.1.2",
     "@types/ssh2": "^1.15.5",
     "@types/ws": "^8.18.1",
