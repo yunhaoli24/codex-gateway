@@ -11,7 +11,7 @@ import {
   subAgentWorkspacePanelId,
   terminalWorkspacePanelId,
   browserWorkspacePanelId,
-  tmuxWorkspacePanelId,
+  TMUX_WORKSPACE_PANEL_ID,
 } from "@/stores/gateway/workspace-panels";
 import type { WorkspacePanelSelection } from "./types";
 
@@ -69,9 +69,8 @@ export function useWorkspacePanels(selection: WorkspacePanelSelection) {
   );
 
   const tmuxPanels = computed(() => {
-    const hostId = selection.selectedHostId.value;
-    if (!hostId || !tmuxStore.openHostIds.includes(hostId)) return [];
-    return [{ id: tmuxWorkspacePanelId(hostId), hostId }];
+    if (!tmuxStore.panelOpen) return [];
+    return [{ id: TMUX_WORKSPACE_PANEL_ID }];
   });
 
   const fileWorkspaceRoot = computed(() => {

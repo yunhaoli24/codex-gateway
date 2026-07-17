@@ -1,5 +1,13 @@
+import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import type { TmuxMonitorListResult, TmuxPaneSnapshot, TmuxSessionSnapshot } from "~~/shared/types";
+import type {
+  TmuxMonitor,
+  TmuxMonitorThreadBinding,
+  TmuxPaneSnapshot,
+  TmuxSessionSnapshot,
+} from "~~/shared/types";
+import { useGatewayWorkspaceLayoutStore } from "@/stores/gateway-workspace-layout";
+import { TMUX_WORKSPACE_PANEL_ID } from "@/stores/gateway/workspace-panels";
 import { gatewayErrorMessage } from "@/utils/gateway-error";
 import {
   checkTmuxMonitors,
@@ -8,169 +16,240 @@ import {
   fetchTmuxMonitors,
   fetchTmuxSessions,
 } from "./transport";
-import { useGatewayWorkspaceLayoutStore } from "@/stores/gateway-workspace-layout";
-import { tmuxWorkspacePanelId } from "@/stores/gateway/workspace-panels";
-import { currentTmuxThreadBinding } from "./monitor-context";
 
-interface TmuxHostState extends TmuxMonitorListResult {
+interface TmuxRemoteHostState {
   sessions: TmuxSessionSnapshot[];
-  loading: boolean;
   scanning: boolean;
   error: string;
-  highlightedMonitorId: number | null;
-  loadedAt: number;
+}
+
+interface OpenTmuxPanelTarget {
+  hostId?: number | null;
+  threadId?: string | null;
+  monitorId?: number | null;
 }
 
 export const useGatewayTmuxStore = defineStore(
   "gateway-tmux",
   () => {
     const { t } = useI18n();
-    const openHostIds = ref<number[]>([]);
-    const hosts = ref<Record<number, TmuxHostState>>({});
-    const pendingSummaries = new Map<number, Promise<TmuxHostState>>();
-    const pendingScans = new Map<number, Promise<TmuxHostState>>();
+    const panelOpen = ref(false);
+    const active = ref<TmuxMonitor[]>([]);
+    const history = ref<TmuxMonitor[]>([]);
+    const loading = ref(false);
+    const error = ref("");
+    const loadedAt = ref(0);
+    const selectedHostId = ref<number | null>(null);
+    const selectedThreadId = ref<string | null>(null);
+    const highlightedMonitorId = ref<number | null>(null);
+    const remoteHosts = ref<Record<number, TmuxRemoteHostState>>({});
+    const pendingScans = new Map<number, Promise<TmuxRemoteHostState>>();
+    let pendingSummary: Promise<void> | null = null;
+    let sessionGeneration = 0;
 
-    function stateFor(hostId: number) {
-      return (hosts.value[hostId] ??= createHostState());
-    }
+    const activeCount = computed(() => active.value.length);
 
-    async function loadHost(hostId: number, options: { scan?: boolean; force?: boolean } = {}) {
-      const tasks = [loadSummary(hostId, options.force)];
-      if (options.scan) tasks.push(scanSessions(hostId));
-      await Promise.all(tasks);
-      return stateFor(hostId);
-    }
-
-    async function loadSummary(hostId: number, force = false) {
-      const state = stateFor(hostId);
-      if (!force && state.loadedAt && Date.now() - state.loadedAt < 30_000) return state;
-      const pending = pendingSummaries.get(hostId);
-      if (pending) return await pending;
-      const request = loadSummaryNow(hostId).finally(() => pendingSummaries.delete(hostId));
-      pendingSummaries.set(hostId, request);
-      return await request;
-    }
-
-    async function loadSummaryNow(hostId: number) {
-      const state = stateFor(hostId);
-      state.loading = true;
-      state.error = "";
-      try {
-        const monitors = await fetchTmuxMonitors(hostId);
-        state.active = monitors.active;
-        state.history = monitors.history;
-        state.loadedAt = Date.now();
-      } catch (error) {
-        state.error = gatewayErrorMessage(error, t("app.tmuxLoadFailed"));
-      } finally {
-        state.loading = false;
-      }
+    function remoteStateFor(hostId: number) {
+      const existing = remoteHosts.value[hostId];
+      if (existing) return existing;
+      const state = createRemoteState();
+      remoteHosts.value = { ...remoteHosts.value, [hostId]: state };
       return state;
+    }
+
+    function updateRemoteState(hostId: number, patch: Partial<TmuxRemoteHostState>) {
+      const state = { ...remoteStateFor(hostId), ...patch };
+      // Dockview keeps inactive renderers mounted. Replacing the Host entry, rather
+      // than mutating a nested array in place, gives Vue an explicit dependency change
+      // across that renderer boundary and prevents successful scans rendering as empty.
+      remoteHosts.value = { ...remoteHosts.value, [hostId]: state };
+      return state;
+    }
+
+    async function loadSummary(force = false) {
+      if (!force && loadedAt.value && Date.now() - loadedAt.value < 30_000) return;
+      if (pendingSummary) {
+        const previousRequest = pendingSummary;
+        if (!force) return await previousRequest;
+        // A mutation must not reuse a request that started before the write. Wait for
+        // that read to settle, then issue a fresh query so cards and the global badge
+        // always reflect the completed create/cancel operation.
+        await previousRequest;
+        if (pendingSummary && pendingSummary !== previousRequest) return await pendingSummary;
+      }
+      const request = loadSummaryNow();
+      const trackedRequest = request.finally(() => {
+        if (pendingSummary === trackedRequest) pendingSummary = null;
+      });
+      pendingSummary = trackedRequest;
+      return await pendingSummary;
+    }
+
+    async function loadSummaryNow() {
+      const generation = sessionGeneration;
+      loading.value = true;
+      error.value = "";
+      try {
+        const monitors = await fetchTmuxMonitors();
+        if (generation !== sessionGeneration) return;
+        active.value = monitors.active;
+        history.value = monitors.history;
+        loadedAt.value = Date.now();
+      } catch (loadError) {
+        if (generation !== sessionGeneration) return;
+        error.value = gatewayErrorMessage(loadError, t("app.tmuxLoadFailed"));
+      } finally {
+        if (generation === sessionGeneration) loading.value = false;
+      }
     }
 
     async function scanSessions(hostId: number) {
       const pending = pendingScans.get(hostId);
       if (pending) return await pending;
-      const request = scanSessionsNow(hostId).finally(() => pendingScans.delete(hostId));
-      pendingScans.set(hostId, request);
-      return await request;
+      const request = scanSessionsNow(hostId);
+      const trackedRequest = request.finally(() => {
+        if (pendingScans.get(hostId) === trackedRequest) pendingScans.delete(hostId);
+      });
+      pendingScans.set(hostId, trackedRequest);
+      return await trackedRequest;
     }
 
     async function scanSessionsNow(hostId: number) {
-      const state = stateFor(hostId);
-      state.scanning = true;
-      state.error = "";
+      const generation = sessionGeneration;
+      updateRemoteState(hostId, { scanning: true, error: "" });
       try {
         const result = await fetchTmuxSessions(hostId);
-        state.sessions = result.sessions;
-      } catch (error) {
-        state.error = gatewayErrorMessage(error, t("app.tmuxScanFailed"));
+        if (generation !== sessionGeneration) return createRemoteState();
+        updateRemoteState(hostId, { sessions: result.sessions });
+      } catch (scanError) {
+        if (generation !== sessionGeneration) return createRemoteState();
+        updateRemoteState(hostId, {
+          error: gatewayErrorMessage(scanError, t("app.tmuxScanFailed")),
+        });
       } finally {
-        state.scanning = false;
+        if (generation === sessionGeneration) updateRemoteState(hostId, { scanning: false });
       }
-      return state;
+      return remoteStateFor(hostId);
     }
 
-    async function addMonitor(hostId: number, pane: TmuxPaneSnapshot) {
-      const monitor = await createTmuxMonitor(hostId, pane, currentTmuxThreadBinding(hostId));
-      await loadHost(hostId, { force: true });
+    async function addMonitor(
+      hostId: number,
+      pane: TmuxPaneSnapshot,
+      thread: TmuxMonitorThreadBinding | null,
+    ) {
+      const monitor = await createTmuxMonitor(hostId, pane, thread);
+      await loadSummary(true);
       return monitor;
     }
 
     async function cancelMonitor(hostId: number, monitorId: number) {
       await deleteTmuxMonitor(hostId, monitorId);
-      await loadHost(hostId, { force: true });
+      await loadSummary(true);
     }
 
     async function checkNow(hostId: number) {
-      const state = stateFor(hostId);
-      state.scanning = true;
-      state.error = "";
+      updateRemoteState(hostId, { scanning: true, error: "" });
       try {
         const monitors = await checkTmuxMonitors(hostId);
-        state.active = monitors.active;
-        state.history = monitors.history;
+        active.value = monitors.active;
+        history.value = monitors.history;
+        loadedAt.value = Date.now();
         await scanSessions(hostId);
-      } catch (error) {
-        state.error = gatewayErrorMessage(error, t("app.tmuxCheckRequestFailed"));
+      } catch (checkError) {
+        updateRemoteState(hostId, {
+          error: gatewayErrorMessage(checkError, t("app.tmuxCheckRequestFailed")),
+        });
       } finally {
-        state.scanning = false;
+        updateRemoteState(hostId, { scanning: false });
       }
     }
 
-    function openPanel(hostId: number, monitorId?: number) {
-      if (!openHostIds.value.includes(hostId)) openHostIds.value = [...openHostIds.value, hostId];
-      const state = stateFor(hostId);
-      state.highlightedMonitorId = monitorId ?? null;
-      useGatewayWorkspaceLayoutStore().requestPanelActivation(tmuxWorkspacePanelId(hostId));
+    function selectHost(hostId: number | null) {
+      selectedHostId.value = hostId;
+      selectedThreadId.value = null;
+      highlightedMonitorId.value = null;
     }
 
-    function closePanel(hostId: number) {
-      openHostIds.value = openHostIds.value.filter((candidate) => candidate !== hostId);
+    function selectThread(threadId: string | null) {
+      selectedThreadId.value = threadId;
+      highlightedMonitorId.value = null;
     }
 
-    function handleCompletion(hostId: number, monitorId: number) {
-      const state = stateFor(hostId);
-      state.highlightedMonitorId = monitorId;
-      void loadHost(hostId, { force: true });
+    function openPanel(target: OpenTmuxPanelTarget = {}) {
+      panelOpen.value = true;
+      if ("hostId" in target) selectedHostId.value = target.hostId ?? null;
+      if ("threadId" in target) selectedThreadId.value = target.threadId ?? null;
+      highlightedMonitorId.value = target.monitorId ?? null;
+      useGatewayWorkspaceLayoutStore().requestPanelActivation(TMUX_WORKSPACE_PANEL_ID);
     }
 
-    function activeCount(hostId: number | null) {
-      return hostId ? (hosts.value[hostId]?.active.length ?? 0) : 0;
+    function closePanel() {
+      panelOpen.value = false;
+    }
+
+    function removeHost(hostId: number) {
+      remoteHosts.value = Object.fromEntries(
+        Object.entries(remoteHosts.value).filter(([candidate]) => Number(candidate) !== hostId),
+      );
+      if (selectedHostId.value === hostId) selectHost(null);
+      void loadSummary(true);
+    }
+
+    function handleCompletion(monitorId: number) {
+      highlightedMonitorId.value = monitorId;
+      void loadSummary(true);
+    }
+
+    function resetState() {
+      sessionGeneration += 1;
+      pendingSummary = null;
+      pendingScans.clear();
+      panelOpen.value = false;
+      active.value = [];
+      history.value = [];
+      loading.value = false;
+      error.value = "";
+      loadedAt.value = 0;
+      selectedHostId.value = null;
+      selectedThreadId.value = null;
+      highlightedMonitorId.value = null;
+      remoteHosts.value = {};
     }
 
     return {
-      openHostIds,
-      hosts,
-      stateFor,
-      loadHost,
+      panelOpen,
+      active,
+      history,
+      loading,
+      error,
+      selectedHostId,
+      selectedThreadId,
+      highlightedMonitorId,
+      remoteHosts,
+      activeCount,
+      remoteStateFor,
+      loadSummary,
       refreshSessions: scanSessions,
       addMonitor,
       cancelMonitor,
       checkNow,
+      selectHost,
+      selectThread,
       openPanel,
       closePanel,
+      removeHost,
       handleCompletion,
-      activeCount,
+      resetState,
     };
   },
   {
     persist: {
-      pick: ["openHostIds"],
+      pick: ["panelOpen"],
       storage: piniaPluginPersistedstate.localStorage(),
     },
   },
 );
 
-function createHostState(): TmuxHostState {
-  return {
-    active: [],
-    history: [],
-    sessions: [],
-    loading: false,
-    scanning: false,
-    error: "",
-    highlightedMonitorId: null,
-    loadedAt: 0,
-  };
+function createRemoteState(): TmuxRemoteHostState {
+  return { sessions: [], scanning: false, error: "" };
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ActivityIcon, MonitorIcon } from "@lucide/vue";
+import { ActivityIcon, LoaderCircleIcon, MonitorIcon } from "@lucide/vue";
 import type { TmuxPaneSnapshot, TmuxSessionSnapshot } from "~~/shared/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 defineProps<{
   sessions: TmuxSessionSnapshot[];
   monitoredPaneKeys: Set<string>;
+  addingPaneKey: string | null;
 }>();
 const emit = defineEmits<{
   monitor: [pane: TmuxPaneSnapshot];
@@ -86,10 +87,15 @@ function paneKey(pane: TmuxPaneSnapshot) {
             size="sm"
             variant="outline"
             class="h-7 shrink-0"
-            :disabled="!pane.running"
+            :disabled="!pane.running || Boolean(addingPaneKey)"
             :data-testid="`monitor-tmux-pane-${session.name}-${pane.windowIndex}-${pane.paneIndex}`"
             @click="emit('monitor', pane)"
           >
+            <LoaderCircleIcon
+              v-if="addingPaneKey === paneKey(pane)"
+              data-testid="tmux-monitor-adding-spinner"
+              class="mr-1 size-3.5 animate-spin"
+            />
             {{ pane.running ? $t("app.tmuxAddMonitor") : $t("app.tmuxIdleShell") }}
           </Button>
         </div>

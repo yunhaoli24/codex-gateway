@@ -11,15 +11,15 @@ import type { StoredTmuxMonitor, TmuxMonitorHostGroup } from "./types";
 const HISTORY_LIMIT = 100;
 
 export class TmuxMonitorRepository {
-  listForHost(userId: number, hostId: number): TmuxMonitorListResult {
+  listForUser(userId: number): TmuxMonitorListResult {
     const rows = gatewayDatabase()
       .prepare(
         `SELECT * FROM tmux_monitors
-         WHERE user_id = ? AND host_id = ?
+         WHERE user_id = ?
          ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END,
            CASE WHEN status = 'active' THEN created_at ELSE completed_at END DESC`,
       )
-      .all(userId, hostId)
+      .all(userId)
       .map(mapMonitor);
     return {
       active: rows.filter((row) => row.status === "active"),

@@ -17,8 +17,8 @@ export class TmuxMonitorService {
   private readonly scanner = new RemoteTmuxScanner();
   private readonly notifier = new TmuxMonitorNotifier(this.repository);
 
-  list(userId: number, hostId: number): TmuxMonitorListResult {
-    return this.repository.listForHost(userId, hostId);
+  list(userId: number): TmuxMonitorListResult {
+    return this.repository.listForUser(userId);
   }
 
   scan(host: HostWithSecret): Promise<TmuxSessionSnapshot[]> {
@@ -85,7 +85,7 @@ export class TmuxMonitorService {
 
   async checkHost(userId: number, host: HostWithSecret, monitors?: StoredTmuxMonitor[]) {
     const active = monitors ?? this.repository.activeForHost(userId, host.id);
-    if (!active.length) return this.list(userId, host.id);
+    if (!active.length) return this.list(userId);
 
     try {
       const sessions = await this.scanner.scan(host);
@@ -107,7 +107,7 @@ export class TmuxMonitorService {
       this.repository.recordHostError(userId, host.id, error);
       throw error;
     }
-    return this.list(userId, host.id);
+    return this.list(userId);
   }
 }
 

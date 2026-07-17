@@ -53,6 +53,7 @@ done
   await page.getByTestId("open-tmux-button").click();
   const panel = page.getByTestId("tmux-monitor-panel");
   await expect(panel).toBeVisible();
+  await chooseTmuxHostAndThread(page, host.id, threadId);
   const runningPane = panel.getByTestId(`tmux-pane-${sessionName}-0-0`);
   const idlePane = panel.getByTestId(`tmux-pane-${idleSessionName}-0-0`);
   const backgroundPane = panel.getByTestId(`tmux-pane-${backgroundSessionName}-0-0`);
@@ -75,9 +76,27 @@ done
     .toBeLessThanOrEqual(1);
   await page.keyboard.press("Escape");
 
-  await runningPane.getByRole("button", { name: "加入监控" }).click();
+  const addMonitorButton = runningPane.getByRole("button", { name: "加入监控" });
+  const monitorCreated = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/hosts/${host.id}/tmux/monitors`) &&
+      response.request().method() === "POST",
+  );
+  await addMonitorButton.click();
+  await expect(runningPane.getByTestId("tmux-monitor-adding-spinner")).toBeVisible();
+  await monitorCreated;
   await expect(panel.getByText("监控中 · 1")).toBeVisible();
   await expect(page.getByTestId("open-tmux-button")).toContainText("1");
+  const addedToast = page.locator("[data-sonner-toast]").filter({ hasText: "已开始监控" });
+  await expect(addedToast).toContainText(sessionName);
+  await expect(addedToast).toContainText(hostName);
+  await expect(addedToast).not.toContainText("0.1");
+  await panel
+    .getByTestId(/^tmux-monitor-\d+$/)
+    .getByRole("button", { name: `查看 ${sessionName} Pane 输出` })
+    .click();
+  await expect(page.getByTestId("tmux-pane-output")).toContainText(outputMarker);
+  await page.keyboard.press("Escape");
   await runningPane.getByTestId(`view-monitored-tmux-pane-${sessionName}-0-0`).click();
   await expect(page.getByTestId("tmux-pane-output")).toContainText(outputMarker);
   await page.keyboard.press("Escape");
@@ -85,6 +104,7 @@ done
   await reloadApp(page);
   await expect(page.getByTestId("tmux-monitor-panel")).toBeVisible();
   await expect(page.getByTestId("tmux-monitor-panel").getByText("监控中 · 1")).toBeVisible();
+  await chooseTmuxHostAndThread(page, host.id, threadId);
 
   await execRemoteSsh(remote, `tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} C-c`);
   await expect
@@ -106,9 +126,13 @@ done
   await expect(toast).toBeVisible();
   await expect.poll(() => readTmuxNotifications(bark), { timeout: 30_000 }).toHaveLength(1);
   const completionNotification = (await readTmuxNotifications(bark))[0];
+  expect(completionNotification?.title).toContain(hostName);
+  expect(completionNotification?.title).toContain(sessionName);
   expect(completionNotification?.body).toContain(hostName);
-  expect(completionNotification?.body).toContain(threadId.slice(0, 8));
   expect(completionNotification?.body).toContain(sessionName);
+  expect(completionNotification?.body).toContain("Thread：");
+  expect(completionNotification?.body).toContain("状态：已返回 Shell");
+  expect(completionNotification?.body).not.toContain("0.0");
 
   await page.waitForTimeout(1_000);
   expect(await readTmuxNotifications(bark)).toHaveLength(1);
@@ -152,4 +176,15 @@ async function readTmuxNotifications(bark: Awaited<ReturnType<typeof useBarkRece
   return (await bark.readRequests()).filter((request) =>
     request.title.startsWith("Tmux 任务已结束"),
   );
+}
+
+async function chooseTmuxHostAndThread(
+  page: import("@playwright/test").Page,
+  hostId: number,
+  threadId: string,
+) {
+  await page.getByTestId("tmux-host-filter").click();
+  await page.getByTestId(`tmux-host-option-${hostId}`).click();
+  await page.getByTestId("tmux-thread-filter").click();
+  await page.getByTestId(`tmux-thread-option-${threadId}`).click();
 }
