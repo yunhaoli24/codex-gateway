@@ -1,6 +1,7 @@
 import type {
   TmuxMonitor,
   TmuxMonitorListResult,
+  TmuxMonitorMode,
   TmuxPaneSnapshot,
   TmuxPaneOutput,
   TmuxSessionSnapshot,
@@ -28,10 +29,17 @@ export function createTmuxMonitor(
   hostId: number,
   pane: TmuxPaneSnapshot,
   thread: TmuxMonitorThreadBinding | null,
+  mode: TmuxMonitorMode,
 ) {
   return gatewayApi<TmuxMonitor>(`${tmuxApiRoot(hostId)}/monitors`, {
     method: "POST",
-    body: { sessionId: pane.sessionId, paneId: pane.paneId, thread },
+    body: { mode, sessionId: pane.sessionId, paneId: pane.paneId, thread },
+  });
+}
+
+export function promoteTmuxMonitor(hostId: number, monitorId: number) {
+  return gatewayApi<TmuxMonitor>(`${tmuxApiRoot(hostId)}/monitors/${monitorId}/promote`, {
+    method: "POST",
   });
 }
 

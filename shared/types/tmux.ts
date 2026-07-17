@@ -1,4 +1,5 @@
 export type TmuxMonitorStatus = "active" | "completed" | "cancelled";
+export type TmuxMonitorMode = "once" | "permanent";
 
 export type TmuxMonitorCompletionReason =
   | "returnedToShell"
@@ -54,9 +55,11 @@ export interface TmuxMonitor {
   panePid: number;
   initialCommand: string;
   lastCommand: string;
+  mode: TmuxMonitorMode;
   status: TmuxMonitorStatus;
   completionReason: TmuxMonitorCompletionReason | null;
   createdAt: string;
+  runStartedAt: string | null;
   lastCheckedAt: string | null;
   completedAt: string | null;
   lastError: string | null;

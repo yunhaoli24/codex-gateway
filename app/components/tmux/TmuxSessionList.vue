@@ -1,23 +1,27 @@
 <script setup lang="ts">
-import { ActivityIcon, LoaderCircleIcon, MonitorIcon } from "@lucide/vue";
-import type { TmuxPaneSnapshot, TmuxSessionSnapshot } from "~~/shared/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ActivityIcon, MonitorIcon } from "@lucide/vue";
+import type {
+  TmuxMonitor,
+  TmuxMonitorMode,
+  TmuxPaneSnapshot,
+  TmuxSessionSnapshot,
+} from "~~/shared/types";
+import { monitorForPane } from "@/stores/gateway-tmux/pane-monitor";
+import TmuxPaneMonitorActions from "./TmuxPaneMonitorActions.vue";
 
 defineProps<{
   hostId: number;
   sessions: TmuxSessionSnapshot[];
-  monitoredPaneKeys: Set<string>;
+  monitors: TmuxMonitor[];
   addingPaneKey: string | null;
+  promotingMonitorId: number | null;
 }>();
 const emit = defineEmits<{
-  monitor: [pane: TmuxPaneSnapshot];
+  monitor: [pane: TmuxPaneSnapshot, mode: TmuxMonitorMode];
   preview: [pane: TmuxPaneSnapshot];
+  promote: [monitor: TmuxMonitor];
+  cancel: [monitor: TmuxMonitor];
 }>();
-
-function paneKey(pane: TmuxPaneSnapshot) {
-  return `${pane.sessionId}:${pane.paneId}`;
-}
 
 function addingKey(hostId: number, pane: TmuxPaneSnapshot) {
   return `${hostId}:${pane.sessionId}:${pane.paneId}`;
@@ -75,34 +79,18 @@ function addingKey(hostId: number, pane: TmuxPaneSnapshot) {
               </div>
             </div>
           </button>
-          <button
-            v-if="monitoredPaneKeys.has(paneKey(pane))"
-            type="button"
-            class="shrink-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            :aria-label="$t('app.tmuxViewPaneOutput', { session: session.name })"
-            :data-testid="`view-monitored-tmux-pane-${session.name}-${pane.windowIndex}-${pane.paneIndex}`"
-            @click="emit('preview', pane)"
-          >
-            <Badge variant="secondary" class="cursor-pointer">
-              {{ $t("app.tmuxActiveMonitors") }}
-            </Badge>
-          </button>
-          <Button
-            v-else
-            size="sm"
-            variant="outline"
-            class="h-7 shrink-0"
-            :disabled="!pane.running || Boolean(addingPaneKey)"
-            :data-testid="`monitor-tmux-pane-${session.name}-${pane.windowIndex}-${pane.paneIndex}`"
-            @click="emit('monitor', pane)"
-          >
-            <LoaderCircleIcon
-              v-if="addingPaneKey === addingKey(hostId, pane)"
-              data-testid="tmux-monitor-adding-spinner"
-              class="mr-1 size-3.5 animate-spin"
-            />
-            {{ pane.running ? $t("app.tmuxAddMonitor") : $t("app.tmuxIdleShell") }}
-          </Button>
+          <TmuxPaneMonitorActions
+            :pane="pane"
+            :monitor="monitorForPane(monitors, hostId, pane) || null"
+            :pending="
+              addingPaneKey === addingKey(hostId, pane) ||
+              promotingMonitorId === monitorForPane(monitors, hostId, pane)?.id
+            "
+            @monitor="emit('monitor', pane, $event)"
+            @preview="emit('preview', pane)"
+            @promote="emit('promote', $event)"
+            @cancel="emit('cancel', $event)"
+          />
         </div>
       </div>
     </section>

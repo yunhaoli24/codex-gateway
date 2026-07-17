@@ -1,7 +1,7 @@
 import { useDocumentVisibility, useElementVisibility, useIntervalFn } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
 import { toast } from "vue-sonner";
-import type { TmuxMonitor, TmuxPaneSnapshot } from "~~/shared/types";
+import type { TmuxMonitor, TmuxMonitorMode, TmuxPaneSnapshot } from "~~/shared/types";
 import { useTmuxMonitorDashboard } from "./useTmuxMonitorDashboard";
 import { useGatewayTmuxStore } from "@/stores/gateway-tmux";
 import type { TmuxRemoteHostState } from "@/stores/gateway-tmux";
@@ -19,6 +19,7 @@ export function useTmuxMonitorPanel() {
   const dashboard = useTmuxMonitorDashboard();
   const { t } = useI18n();
   const addingPaneKey = ref<string | null>(null);
+  const promotingMonitorId = ref<number | null>(null);
   const expandedHostIds = ref(new Set<number>());
   const panelRoot = ref<HTMLElement | null>(null);
   const panelVisible = useElementVisibility(panelRoot);
@@ -30,12 +31,8 @@ export function useTmuxMonitorPanel() {
       : "",
   );
 
-  function monitoredPaneKeysForHost(hostId: number) {
-    return new Set(
-      tmux.active
-        .filter((monitor) => monitor.hostId === hostId)
-        .map((monitor) => `${monitor.sessionId}:${monitor.paneId}`),
-    );
+  function monitorsForHost(hostId: number) {
+    return tmux.active.filter((monitor) => monitor.hostId === hostId);
   }
 
   function remoteStateForHost(hostId: number) {
@@ -84,15 +81,15 @@ export function useTmuxMonitorPanel() {
     { immediate: true },
   );
 
-  async function addMonitor(hostId: number, pane: TmuxPaneSnapshot) {
+  async function addMonitor(hostId: number, pane: TmuxPaneSnapshot, mode: TmuxMonitorMode) {
     const binding = dashboard.currentThreadBindingForHost(hostId);
     const paneKey = `${hostId}:${pane.sessionId}:${pane.paneId}`;
     if (addingPaneKey.value) return;
     addingPaneKey.value = paneKey;
     try {
-      await tmux.addMonitor(hostId, pane, binding);
+      await tmux.addMonitor(hostId, pane, binding, mode);
       toast.success(
-        t("app.tmuxMonitorAdded", {
+        t(mode === "permanent" ? "app.tmuxPermanentMonitorAdded" : "app.tmuxMonitorAdded", {
           session: pane.sessionName,
           host: dashboard.hostNames.value[hostId] || `Host ${hostId}`,
           thread: binding?.threadTitle || t("app.tmuxHostLevelMonitor"),
@@ -102,6 +99,19 @@ export function useTmuxMonitorPanel() {
       toast.error(gatewayErrorMessage(error, t("app.tmuxAddFailed")));
     } finally {
       addingPaneKey.value = null;
+    }
+  }
+
+  async function promoteMonitor(monitor: TmuxMonitor) {
+    if (promotingMonitorId.value) return;
+    promotingMonitorId.value = monitor.id;
+    try {
+      await tmux.promoteMonitor(monitor.hostId, monitor.id);
+      toast.success(t("app.tmuxMonitorPromoted", { session: monitor.sessionName }));
+    } catch (error) {
+      toast.error(gatewayErrorMessage(error, t("app.tmuxPromoteFailed")));
+    } finally {
+      promotingMonitorId.value = null;
     }
   }
 
@@ -122,7 +132,7 @@ export function useTmuxMonitorPanel() {
         (candidate) =>
           candidate.windowIndex === monitor.windowIndex &&
           candidate.paneIndex === monitor.paneIndex &&
-          candidate.running,
+          (monitor.mode === "permanent" || candidate.running),
       );
     if (!pane) {
       toast.error(state.error || t("app.tmuxPreviousPaneUnavailable"));
@@ -136,9 +146,9 @@ export function useTmuxMonitorPanel() {
         }
       : null;
     try {
-      await tmux.addMonitor(monitor.hostId, pane, binding);
+      await tmux.addMonitor(monitor.hostId, pane, binding, monitor.mode);
       toast.success(
-        t("app.tmuxMonitorAdded", {
+        t(monitor.mode === "permanent" ? "app.tmuxPermanentMonitorAdded" : "app.tmuxMonitorAdded", {
           session: pane.sessionName,
           host: dashboard.hostNames.value[monitor.hostId] || `Host ${monitor.hostId}`,
           thread: binding?.threadTitle || t("app.tmuxHostLevelMonitor"),
@@ -161,15 +171,17 @@ export function useTmuxMonitorPanel() {
     tmux,
     dashboard,
     addingPaneKey,
+    promotingMonitorId,
     expandedHostIds,
     panelRoot,
     preview,
     previewHostTitle,
-    monitoredPaneKeysForHost,
+    monitorsForHost,
     remoteStateForHost,
     activeCountForHost,
     setHostExpanded,
     addMonitor,
+    promoteMonitor,
     cancelMonitor,
     monitorAgain,
     previewPane,

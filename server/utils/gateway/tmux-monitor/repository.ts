@@ -2,10 +2,11 @@ import type {
   TmuxMonitor,
   TmuxMonitorCompletionReason,
   TmuxMonitorListResult,
+  TmuxMonitorMode,
   TmuxPaneSnapshot,
   TmuxMonitorThreadBinding,
 } from "~~/shared/types";
-import { gatewayDatabase } from "../storage/database";
+import { gatewayDatabase, withGatewayDatabaseTransaction } from "../storage/database";
 import type { StoredTmuxMonitor, TmuxMonitorHostGroup } from "./types";
 
 const HISTORY_LIMIT = 100;
@@ -32,6 +33,7 @@ export class TmuxMonitorRepository {
     hostId: number,
     pane: TmuxPaneSnapshot,
     thread: TmuxMonitorThreadBinding | null,
+    mode: TmuxMonitorMode,
   ): StoredTmuxMonitor {
     const now = new Date().toISOString();
     const result = gatewayDatabase()
@@ -40,8 +42,8 @@ export class TmuxMonitorRepository {
           user_id, host_id, project_id, thread_id, thread_title,
           session_name, session_id, session_created,
           window_index, window_name, pane_index, pane_id, pane_pid,
-          initial_command, last_command, status, created_at, last_checked_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+          initial_command, last_command, mode, status, created_at, run_started_at, last_checked_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
       )
       .run(
         userId,
@@ -59,7 +61,9 @@ export class TmuxMonitorRepository {
         pane.panePid,
         pane.currentCommand,
         pane.currentCommand,
+        mode,
         now,
+        mode === "once" || pane.running ? now : null,
         now,
       );
     return this.getOwned(userId, Number(result.lastInsertRowid))!;
@@ -104,16 +108,53 @@ export class TmuxMonitorRepository {
     const now = new Date().toISOString();
     gatewayDatabase()
       .prepare(
-        `UPDATE tmux_monitors SET session_name = ?, window_index = ?, window_name = ?,
-          pane_index = ?, last_command = ?, last_checked_at = ?, last_error = NULL,
+        `UPDATE tmux_monitors SET session_name = ?, session_id = ?, session_created = ?,
+          window_index = ?, window_name = ?, pane_index = ?, pane_id = ?, pane_pid = ?,
+          last_command = ?, last_checked_at = ?, last_error = NULL,
           last_error_at = NULL WHERE id = ? AND status = 'active'`,
       )
       .run(
         pane.sessionName,
+        pane.sessionId,
+        pane.sessionCreated,
         pane.windowIndex,
         pane.windowName,
         pane.paneIndex,
+        pane.paneId,
+        pane.panePid,
         pane.currentCommand,
+        now,
+        monitor.id,
+      );
+  }
+
+  recordWaitingCheck(monitor: StoredTmuxMonitor) {
+    gatewayDatabase()
+      .prepare(
+        `UPDATE tmux_monitors SET last_checked_at = ?, last_error = NULL, last_error_at = NULL
+         WHERE id = ? AND status = 'active' AND mode = 'permanent'`,
+      )
+      .run(new Date().toISOString(), monitor.id);
+  }
+
+  startPermanentRun(monitor: StoredTmuxMonitor, pane: TmuxPaneSnapshot) {
+    const now = new Date().toISOString();
+    gatewayDatabase()
+      .prepare(
+        `UPDATE tmux_monitors SET session_id = ?, session_created = ?, window_name = ?,
+          pane_id = ?, pane_pid = ?, initial_command = ?, last_command = ?, run_started_at = ?,
+          last_checked_at = ?, last_error = NULL, last_error_at = NULL
+         WHERE id = ? AND status = 'active' AND mode = 'permanent' AND run_started_at IS NULL`,
+      )
+      .run(
+        pane.sessionId,
+        pane.sessionCreated,
+        pane.windowName,
+        pane.paneId,
+        pane.panePid,
+        pane.currentCommand,
+        pane.currentCommand,
+        now,
         now,
         monitor.id,
       );
@@ -155,6 +196,101 @@ export class TmuxMonitorRepository {
       );
     if (!result.changes) return null;
     this.pruneHistory(monitor.userId, monitor.hostId);
+    return this.getOwned(monitor.userId, monitor.id);
+  }
+
+  completePermanentRun(
+    monitor: StoredTmuxMonitor,
+    reason: Exclude<TmuxMonitorCompletionReason, "cancelled">,
+    pane: TmuxPaneSnapshot | null,
+  ): StoredTmuxMonitor | null {
+    if (monitor.mode !== "permanent" || !monitor.runStartedAt) return null;
+    const now = new Date().toISOString();
+    let historyId: number | null = null;
+    withGatewayDatabaseTransaction((database) => {
+      const reset = database
+        .prepare(
+          `UPDATE tmux_monitors SET session_id = ?, session_created = ?, window_name = ?,
+            pane_id = ?, pane_pid = ?, last_command = ?, run_started_at = NULL,
+            last_checked_at = ?, last_error = NULL, last_error_at = NULL
+           WHERE id = ? AND status = 'active' AND mode = 'permanent' AND run_started_at IS NOT NULL`,
+        )
+        .run(
+          pane?.sessionId ?? monitor.sessionId,
+          pane?.sessionCreated ?? monitor.sessionCreated,
+          pane?.windowName ?? monitor.windowName,
+          pane?.paneId ?? monitor.paneId,
+          pane?.panePid ?? monitor.panePid,
+          pane?.currentCommand ?? monitor.lastCommand,
+          now,
+          monitor.id,
+        );
+      if (!reset.changes) return;
+      const inserted = database
+        .prepare(
+          `INSERT INTO tmux_monitors (
+            user_id, host_id, project_id, thread_id, thread_title,
+            session_name, session_id, session_created, window_index, window_name,
+            pane_index, pane_id, pane_pid, initial_command, last_command, mode, status,
+            completion_reason, created_at, run_started_at, last_checked_at, completed_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'permanent', 'completed',
+            ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          monitor.userId,
+          monitor.hostId,
+          monitor.projectId,
+          monitor.threadId,
+          monitor.threadTitle,
+          monitor.sessionName,
+          monitor.sessionId,
+          monitor.sessionCreated,
+          monitor.windowIndex,
+          monitor.windowName,
+          monitor.paneIndex,
+          monitor.paneId,
+          monitor.panePid,
+          monitor.initialCommand,
+          pane?.currentCommand ?? monitor.lastCommand,
+          reason,
+          monitor.runStartedAt,
+          monitor.runStartedAt,
+          now,
+          now,
+        );
+      historyId = Number(inserted.lastInsertRowid);
+    });
+    if (historyId === null) return null;
+    this.pruneHistory(monitor.userId, monitor.hostId);
+    return this.getOwned(monitor.userId, historyId);
+  }
+
+  promote(monitor: StoredTmuxMonitor, pane: TmuxPaneSnapshot | null) {
+    const now = new Date().toISOString();
+    gatewayDatabase()
+      .prepare(
+        `UPDATE tmux_monitors SET mode = 'permanent', session_name = ?, session_id = ?,
+          session_created = ?, window_index = ?, window_name = ?, pane_index = ?, pane_id = ?,
+          pane_pid = ?, initial_command = ?, last_command = ?, run_started_at = ?, last_checked_at = ?,
+          last_error = NULL, last_error_at = NULL
+         WHERE id = ? AND user_id = ? AND status = 'active' AND mode = 'once'`,
+      )
+      .run(
+        pane?.sessionName ?? monitor.sessionName,
+        pane?.sessionId ?? monitor.sessionId,
+        pane?.sessionCreated ?? monitor.sessionCreated,
+        pane?.windowIndex ?? monitor.windowIndex,
+        pane?.windowName ?? monitor.windowName,
+        pane?.paneIndex ?? monitor.paneIndex,
+        pane?.paneId ?? monitor.paneId,
+        pane?.panePid ?? monitor.panePid,
+        pane?.currentCommand ?? monitor.initialCommand,
+        pane?.currentCommand ?? monitor.lastCommand,
+        pane?.running ? monitor.createdAt : null,
+        now,
+        monitor.id,
+        monitor.userId,
+      );
     return this.getOwned(monitor.userId, monitor.id);
   }
 
@@ -221,9 +357,11 @@ function mapMonitor(row: Record<string, unknown>): StoredTmuxMonitor {
     panePid: Number(row.pane_pid),
     initialCommand: String(row.initial_command),
     lastCommand: String(row.last_command),
+    mode: String(row.mode) as TmuxMonitor["mode"],
     status: String(row.status) as TmuxMonitor["status"],
     completionReason: optionalText(row.completion_reason) as TmuxMonitorCompletionReason | null,
     createdAt: String(row.created_at),
+    runStartedAt: optionalText(row.run_started_at),
     lastCheckedAt: optionalText(row.last_checked_at),
     completedAt: optionalText(row.completed_at),
     lastError: optionalText(row.last_error),

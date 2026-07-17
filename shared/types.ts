@@ -31,6 +31,7 @@ export type {
   TmuxMonitor,
   TmuxMonitorCompletionReason,
   TmuxMonitorListResult,
+  TmuxMonitorMode,
   TmuxMonitorStatus,
   TmuxPaneSnapshot,
   TmuxPaneOutput,

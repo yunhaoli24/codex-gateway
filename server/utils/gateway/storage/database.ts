@@ -45,6 +45,19 @@ export function gatewayDatabase() {
   return database;
 }
 
+export function withGatewayDatabaseTransaction<T>(callback: (db: DatabaseSync) => T): T {
+  const db = gatewayDatabase();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = callback(db);
+    db.exec("COMMIT");
+    return result;
+  } catch (error) {
+    if (db.isTransaction) db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 function markGatewayDatabaseReady() {
   if (ready) {
     return;
@@ -98,9 +111,11 @@ function migrate(db: DatabaseSync) {
       pane_pid INTEGER NOT NULL,
       initial_command TEXT NOT NULL,
       last_command TEXT NOT NULL,
+      mode TEXT NOT NULL DEFAULT 'once' CHECK (mode IN ('once', 'permanent')),
       status TEXT NOT NULL CHECK (status IN ('active', 'completed', 'cancelled')),
       completion_reason TEXT,
       created_at TEXT NOT NULL,
+      run_started_at TEXT,
       last_checked_at TEXT,
       completed_at TEXT,
       last_error TEXT,
@@ -112,8 +127,8 @@ function migrate(db: DatabaseSync) {
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_tmux_monitors_host
       ON tmux_monitors(user_id, host_id, status, created_at DESC);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_tmux_monitors_active_pane
-      ON tmux_monitors(user_id, host_id, session_id, pane_id)
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tmux_monitors_active_location
+      ON tmux_monitors(user_id, host_id, session_name, window_index, pane_index)
       WHERE status = 'active';
   `);
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HostRecord, TmuxPaneSnapshot } from "~~/shared/types";
+import type { HostRecord, TmuxMonitor, TmuxMonitorMode, TmuxPaneSnapshot } from "~~/shared/types";
 import type { TmuxRemoteHostState } from "@/stores/gateway-tmux";
 import TmuxRemoteHostNode from "./TmuxRemoteHostNode.vue";
 
@@ -8,14 +8,17 @@ defineProps<{
   expandedHostIds: Set<number>;
   remoteStateFor: (hostId: number) => TmuxRemoteHostState;
   activeCountFor: (hostId: number) => number;
-  monitoredPaneKeysFor: (hostId: number) => Set<string>;
+  monitorsFor: (hostId: number) => TmuxMonitor[];
   addingPaneKey: string | null;
+  promotingMonitorId: number | null;
 }>();
 const emit = defineEmits<{
   expand: [hostId: number, expanded: boolean];
   refresh: [hostId: number];
   check: [hostId: number];
-  monitor: [hostId: number, pane: TmuxPaneSnapshot];
+  monitor: [hostId: number, pane: TmuxPaneSnapshot, mode: TmuxMonitorMode];
+  promote: [monitor: TmuxMonitor];
+  cancel: [monitor: TmuxMonitor];
   preview: [hostId: number, pane: TmuxPaneSnapshot];
 }>();
 </script>
@@ -33,12 +36,15 @@ const emit = defineEmits<{
         :expanded="expandedHostIds.has(host.id)"
         :remote-state="remoteStateFor(host.id)"
         :active-count="activeCountFor(host.id)"
-        :monitored-pane-keys="monitoredPaneKeysFor(host.id)"
+        :monitors="monitorsFor(host.id)"
         :adding-pane-key="addingPaneKey"
+        :promoting-monitor-id="promotingMonitorId"
         @update:expanded="emit('expand', host.id, $event)"
         @refresh="emit('refresh', host.id)"
         @check="emit('check', host.id)"
-        @monitor="emit('monitor', host.id, $event)"
+        @monitor="(pane, mode) => emit('monitor', host.id, pane, mode)"
+        @promote="emit('promote', $event)"
+        @cancel="emit('cancel', $event)"
         @preview="emit('preview', host.id, $event)"
       />
     </div>

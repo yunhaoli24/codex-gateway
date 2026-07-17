@@ -7,8 +7,16 @@ import TmuxPaneOutputDialog from "./TmuxPaneOutputDialog.vue";
 import TmuxRemoteHostTree from "./TmuxRemoteHostTree.vue";
 
 const controller = useTmuxMonitorPanel();
-const { tmux, dashboard, addingPaneKey, expandedHostIds, panelRoot, preview, previewHostTitle } =
-  controller;
+const {
+  tmux,
+  dashboard,
+  addingPaneKey,
+  promotingMonitorId,
+  expandedHostIds,
+  panelRoot,
+  preview,
+  previewHostTitle,
+} = controller;
 </script>
 
 <template>
@@ -35,10 +43,10 @@ const { tmux, dashboard, addingPaneKey, expandedHostIds, panelRoot, preview, pre
       <div class="mx-auto max-w-5xl space-y-6">
         <section>
           <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-            {{ $t("app.tmuxActiveMonitors") }} · {{ tmux.active.length }}
+            {{ $t("app.tmuxPermanentMonitors") }} · {{ tmux.permanentActive.length }}
           </h2>
           <TmuxMonitorList
-            :monitors="tmux.active"
+            :monitors="tmux.permanentActive"
             :host-names="dashboard.hostNames.value"
             mode="active"
             :highlighted-monitor-id="tmux.highlightedMonitorId"
@@ -47,17 +55,36 @@ const { tmux, dashboard, addingPaneKey, expandedHostIds, panelRoot, preview, pre
           />
         </section>
 
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            {{ $t("app.tmuxActiveMonitors") }} · {{ tmux.oneShotActive.length }}
+          </h2>
+          <TmuxMonitorList
+            :monitors="tmux.oneShotActive"
+            :host-names="dashboard.hostNames.value"
+            mode="active"
+            :highlighted-monitor-id="tmux.highlightedMonitorId"
+            :promoting-monitor-id="promotingMonitorId"
+            @preview="controller.previewMonitor"
+            @cancel="controller.cancelMonitor"
+            @promote="controller.promoteMonitor"
+          />
+        </section>
+
         <TmuxRemoteHostTree
           :hosts="dashboard.hosts.value"
           :expanded-host-ids="expandedHostIds"
           :remote-state-for="controller.remoteStateForHost"
           :active-count-for="controller.activeCountForHost"
-          :monitored-pane-keys-for="controller.monitoredPaneKeysForHost"
+          :monitors-for="controller.monitorsForHost"
           :adding-pane-key="addingPaneKey"
+          :promoting-monitor-id="promotingMonitorId"
           @expand="controller.setHostExpanded"
           @refresh="tmux.refreshSessions"
           @check="tmux.checkNow"
           @monitor="controller.addMonitor"
+          @promote="controller.promoteMonitor"
+          @cancel="controller.cancelMonitor"
           @preview="controller.previewPane"
         />
 
