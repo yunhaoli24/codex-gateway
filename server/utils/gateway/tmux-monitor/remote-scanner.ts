@@ -89,22 +89,41 @@ printf '%s\n' "$pane_ids" | while IFS= read -r pane_id; do
   pane_index="$(tmux display-message -p -t "$pane_id" -F '#{pane_index}')"
   pane_pid="$(tmux display-message -p -t "$pane_id" -F '#{pane_pid}')"
   pane_tty="$(tmux display-message -p -t "$pane_id" -F '#{pane_tty}')"
+  pane_dead="$(tmux display-message -p -t "$pane_id" -F '#{pane_dead}')"
+  pane_start_command="$(tmux display-message -p -t "$pane_id" -F '#{pane_start_command}')"
   current_command="$(tmux display-message -p -t "$pane_id" -F '#{pane_current_command}')"
-  process_state="$(ps -o pgid=,tpgid= -p "$pane_pid" 2>/dev/null || true)"
-  set -- $process_state
-  [ "$#" -ge 2 ] || { echo "Unable to inspect foreground process group for $pane_id" >&2; exit 1; }
   running=1
-  [ "$1" = "$2" ] && running=0
-  if [ "$running" -eq 0 ]; then
-    # pane_current_command and the foreground PGID both report the shell after a job is
-    # backgrounded. Processes still attached to the pane TTY are nevertheless live work;
-    # ignoring them makes long-running training jobs look completed while output continues.
-    for process_pid in $(ps -t "$pane_tty" -o pid= 2>/dev/null || true); do
-      if [ "$process_pid" != "$pane_pid" ]; then
-        running=1
-        break
+  [ "$pane_dead" = "1" ] && running=0
+  if [ "$running" -eq 1 ] && [ -z "$pane_start_command" ]; then
+    root_executable="$(readlink -f "/proc/$pane_pid/exe" 2>/dev/null || true)"
+    root_is_login_shell=0
+    if [ -n "$root_executable" ] && [ -r /etc/shells ]; then
+      while IFS= read -r shell_path; do
+        case "$shell_path" in ''|'#'*) continue ;; esac
+        if [ "$root_executable" -ef "$shell_path" ] 2>/dev/null; then
+          root_is_login_shell=1
+          break
+        fi
+      done < /etc/shells
+    fi
+    if [ "$root_is_login_shell" -eq 1 ]; then
+      # tcgetpgrp semantics are exposed by ps as tpgid. A default interactive shell is
+      # idle only when it owns the foreground process group and no non-zombie process is
+      # still attached to the pane TTY. Unknown process state stays running by design.
+      process_state="$(ps -o pgid=,tpgid= -p "$pane_pid" 2>/dev/null || true)"
+      set -- $process_state
+      if [ "$#" -ge 2 ] && [ "$1" = "$2" ]; then
+        running=0
+        for process_pid in $(ps -t "$pane_tty" -o pid=,stat= 2>/dev/null | while read -r pid state; do
+          case "$state" in Z*) ;; *) printf '%s\n' "$pid" ;; esac
+        done); do
+          if [ "$process_pid" != "$pane_pid" ]; then
+            running=1
+            break
+          fi
+        done
       fi
-    done
+    fi
   fi
   printf '${RECORD_KIND}|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
     "$(encode "$session_name")" "$(encode "$session_id")" "$session_created" "$window_index" \

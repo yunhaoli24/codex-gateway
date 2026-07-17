@@ -18,6 +18,7 @@ test("monitors a real tmux pane, persists it, and notifies once when it returns 
   const sessionName = `train-${suffix}`;
   const idleSessionName = `idle-${suffix}`;
   const backgroundSessionName = `background-${suffix}`;
+  const directSessionName = `direct-${suffix}`;
   const outputMarker = `tmux-preview-${suffix}`;
   const hostName = `tmux-monitor-host-${suffix}`;
 
@@ -30,6 +31,7 @@ tmux send-keys -t ${shellQuote(`${sessionName}:0.0`)} ${shellQuote(`for i in $(s
 tmux new-session -d -s ${shellQuote(idleSessionName)} -n shell
 tmux new-session -d -s ${shellQuote(backgroundSessionName)} -n model
 tmux send-keys -t ${shellQuote(`${backgroundSessionName}:0.0`)} ${shellQuote("sleep 300 &")} Enter
+tmux new-session -d -s ${shellQuote(directSessionName)} -n proxy ${shellQuote("sleep 300")}
 for i in $(seq 1 50); do
   [ "$(tmux display-message -p -t ${shellQuote(`${sessionName}:0.0`)} '#{pane_current_command}')" = sleep ] && break
   sleep 0.1
@@ -58,12 +60,17 @@ done
   const runningPane = panel.getByTestId(`tmux-pane-${sessionName}-0-0`);
   const idlePane = panel.getByTestId(`tmux-pane-${idleSessionName}-0-0`);
   const backgroundPane = panel.getByTestId(`tmux-pane-${backgroundSessionName}-0-0`);
+  const directPane = panel.getByTestId(`tmux-pane-${directSessionName}-0-0`);
   await expect(runningPane).toContainText("sleep");
   await expect(idlePane.getByRole("button", { name: "已回到 Shell" })).toBeDisabled();
   // A background job leaves bash in the foreground but still owns the pane TTY. It must not
   // be conflated with the genuinely idle shell above.
   await expect(backgroundPane).toContainText("bash");
   await expect(backgroundPane.getByRole("button", { name: "加入监控" })).toBeEnabled();
+  // A pane can start a process directly, so its root PGID is also the foreground PGID.
+  // tmux pane_start_command distinguishes this from an idle default interactive shell.
+  await expect(directPane).toContainText("sleep");
+  await expect(directPane.getByRole("button", { name: "加入监控" })).toBeEnabled();
 
   await runningPane.getByRole("button", { name: `查看 ${sessionName} Pane 输出` }).click();
   const paneOutput = page.getByTestId("tmux-pane-output");
