@@ -90,11 +90,10 @@ printf '%s\n' "$pane_ids" | while IFS= read -r pane_id; do
   pane_pid="$(tmux display-message -p -t "$pane_id" -F '#{pane_pid}')"
   pane_tty="$(tmux display-message -p -t "$pane_id" -F '#{pane_tty}')"
   pane_dead="$(tmux display-message -p -t "$pane_id" -F '#{pane_dead}')"
-  pane_start_command="$(tmux display-message -p -t "$pane_id" -F '#{pane_start_command}')"
   current_command="$(tmux display-message -p -t "$pane_id" -F '#{pane_current_command}')"
   running=1
   [ "$pane_dead" = "1" ] && running=0
-  if [ "$running" -eq 1 ] && [ -z "$pane_start_command" ]; then
+  if [ "$running" -eq 1 ]; then
     root_executable="$(readlink -f "/proc/$pane_pid/exe" 2>/dev/null || true)"
     root_is_login_shell=0
     if [ -n "$root_executable" ] && [ -r /etc/shells ]; then
@@ -107,7 +106,7 @@ printf '%s\n' "$pane_ids" | while IFS= read -r pane_id; do
       done < /etc/shells
     fi
     if [ "$root_is_login_shell" -eq 1 ]; then
-      # tcgetpgrp semantics are exposed by ps as tpgid. A default interactive shell is
+      # tcgetpgrp semantics are exposed by ps as tpgid. An interactive shell is
       # idle only when it owns the foreground process group and no non-zombie process is
       # still attached to the pane TTY. Unknown process state stays running by design.
       process_state="$(ps -o pgid=,tpgid= -p "$pane_pid" 2>/dev/null || true)"
