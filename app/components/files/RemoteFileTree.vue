@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { FolderIcon, Loader2Icon, RefreshCwIcon } from "@lucide/vue";
-import { TreeRoot, TreeVirtualizer } from "reka-ui";
+import { TreeRoot } from "reka-ui";
 import { computed, ref, watch } from "vue";
 import type { RemoteDirectoryEntry } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
@@ -128,6 +128,7 @@ function fileTreeNode(value: unknown) {
     </div>
     <div v-else class="min-h-0 flex-1 overflow-hidden py-2">
       <TreeRoot
+        v-slot="{ flattenItems }"
         data-testid="remote-file-tree-scroll"
         v-model="selected"
         v-model:expanded="expanded"
@@ -137,20 +138,22 @@ function fileTreeNode(value: unknown) {
         class="relative h-full w-full min-w-0 list-none overflow-x-scroll overflow-y-auto outline-none"
       >
         <!--
-          Reka virtualizes rows, so scrollWidth only reflects the currently rendered names.
-          Keep the horizontal scrollbar geometry allocated: auto overflow can otherwise toggle
-          when a long row enters/leaves the virtual range, changing clientHeight and feeding back
-          into the vertical virtualizer. The estimate must also match the h-8 row height exactly.
+          Keep this as a regular tree like the Host sidebar. Directory children arrive
+          asynchronously and rows can widen the horizontal scroll range; virtualizing that changing
+          two-axis geometry makes the vertical scrollbar repeatedly correct itself after deep
+          expansion. The normal tree has one stable scroll owner and is appropriate for the number
+          of entries loaded interactively here. Do not reintroduce TreeVirtualizer without isolating
+          horizontal sizing and proving deep expansion remains stable.
         -->
-        <TreeVirtualizer v-slot="{ item }" :estimate-size="32" :text-content="(node) => node.name">
-          <RemoteFileTreeRow
-            :node="fileTreeNode(item.value)"
-            :level="item.level"
-            @download="fileActions.downloadFile"
-            @copy-path="fileActions.copyAbsolutePath"
-            @delete="fileActions.requestDelete"
-          />
-        </TreeVirtualizer>
+        <RemoteFileTreeRow
+          v-for="item in flattenItems"
+          :key="item._id"
+          :node="fileTreeNode(item.value)"
+          :level="item.level"
+          @download="fileActions.downloadFile"
+          @copy-path="fileActions.copyAbsolutePath"
+          @delete="fileActions.requestDelete"
+        />
       </TreeRoot>
     </div>
 

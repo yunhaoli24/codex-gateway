@@ -17,6 +17,7 @@ test("the unified file workspace browses, restores, and refreshes real remote fi
   const unknownTextPath = `${projectPath}/codex-gateway-preview-${Date.now()}.customformat`;
   const binaryPath = `${projectPath}/codex-gateway-preview-${Date.now()}.bin`;
   const longFilePath = `${projectPath}/${"very-long-file-name-".repeat(8)}preview.log`;
+  const treeStressPath = `${projectPath}/tree-stability-${Date.now()}`;
   const wideTable = `| metric | sample-a | sample-b | sample-c |
 | --- | --- | --- | --- |
 | very-long-column | ${"unbroken-value-".repeat(12)}a | ${"unbroken-value-".repeat(12)}b | ${"unbroken-value-".repeat(12)}c |`;
@@ -52,6 +53,15 @@ unknown extensions still render as text
 EOF
 printf '\\000\\001\\002codex-gateway-binary' > ${shellQuote(binaryPath)}
 printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath)}
+current=${shellQuote(treeStressPath)}
+mkdir -p "$current"
+for level in $(seq -w 1 14); do
+  current="$current/level-$level"
+  mkdir -p "$current"
+  for file in $(seq -w 1 6); do
+    printf 'tree stability %s %s\n' "$level" "$file" > "$current/file-$level-$file.log"
+  done
+done
 `,
   );
 
@@ -176,6 +186,24 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   });
   expect(new Set(treeGeometry.map(([height]) => height)).size).toBe(1);
   expect(new Set(treeGeometry.map(([, height]) => height)).size).toBe(1);
+
+  await tree.getByText(treeStressPath.split("/").pop()!, { exact: true }).click();
+  for (let level = 1; level <= 14; level += 1) {
+    await tree.getByText(`level-${String(level).padStart(2, "0")}`, { exact: true }).click();
+  }
+  await expect.poll(() => tree.getByRole("treeitem").count()).toBeGreaterThan(90);
+  const expandedTreeGeometry = await treeScroll.evaluate(async (element) => {
+    element.scrollTop = Math.floor((element.scrollHeight - element.clientHeight) / 2);
+    const samples: Array<[number, number, number]> = [];
+    for (let index = 0; index < 30; index += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      samples.push([element.scrollTop, element.clientHeight, element.scrollHeight]);
+    }
+    return samples;
+  });
+  expect(new Set(expandedTreeGeometry.map(([top]) => top)).size).toBe(1);
+  expect(new Set(expandedTreeGeometry.map(([, height]) => height)).size).toBe(1);
+  expect(new Set(expandedTreeGeometry.map(([, , height]) => height)).size).toBe(1);
 
   const treePane = page.getByTestId("file-tree-pane");
   const separator = page.getByTestId("file-workspace-separator");
