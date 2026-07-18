@@ -1,11 +1,12 @@
 import { createReadStream, readFileSync } from "node:fs";
-import { connect as connectTcp } from "node:net";
+import { stat as statLocal } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
+import pRetry from "p-retry";
 import { Client, type ClientChannel, type SFTPWrapper } from "ssh2";
 import type {
   CommandResult,
   DirectTcpChannelOptions,
   HostWithSecret,
-  ReverseTcpForwardOptions,
   ShellOptions,
 } from "./ssh-types";
 import { createProxySocket, expandHome, resolveSshConfig, sshConnectionKey } from "./ssh-config";
@@ -158,41 +159,58 @@ export class SshConnectionPool {
     return remotePath;
   }
 
-  async withReverseTcpForward<T>(
-    host: HostWithSecret,
-    options: ReverseTcpForwardOptions,
-    callback: (remotePort: number) => Promise<T>,
-  ) {
-    const client = await this.connect(host);
-    const remotePort = await this.forwardIn(client, options.remoteHost, options.remotePort);
-    const listener = (
-      details: {
-        destIP: string;
-        destPort: number;
-      },
-      accept: () => ClientChannel,
-      reject: () => void,
-    ) => {
-      if (details.destPort !== remotePort) {
-        reject();
-        return;
-      }
-      const channel = accept();
-      const upstream = connectTcp(options.targetPort, options.targetHost);
-      channel.pipe(upstream);
-      upstream.pipe(channel);
-      upstream.on("error", () => channel.close());
-      channel.on("error", () => upstream.destroy());
-      channel.on("close", () => upstream.destroy());
-    };
+  async uploadFileResumable(host: HostWithSecret, localPath: string, remotePath: string) {
+    const localSize = (await statLocal(localPath)).size;
+    // Keep the partial file across reconnects, but expose the final name only after size validation.
+    const partialPath = `${remotePath}.part`;
 
-    client.on("tcp connection", listener);
-    try {
-      return await callback(remotePort);
-    } finally {
-      client.off("tcp connection", listener);
-      await this.closeReverseTcpForward(client, options.remoteHost, remotePort);
-    }
+    await pRetry(
+      async () => {
+        try {
+          const sftp = await this.sftp(host);
+          let offset = await remoteFileSize(sftp, partialPath);
+          if (offset > localSize) {
+            await unlinkRemoteFile(sftp, partialPath);
+            offset = 0;
+          }
+          if (offset < localSize) {
+            const reader = createReadStream(localPath, { start: offset });
+            const writer = sftp.createWriteStream(partialPath, {
+              flags: offset > 0 ? "r+" : "w",
+              mode: 0o600,
+              start: offset,
+            });
+            await pipeline(reader, writer);
+          }
+          const uploadedSize = await remoteFileSize(sftp, partialPath);
+          if (uploadedSize !== localSize) {
+            throw new Error(
+              `Incomplete SFTP upload for ${remotePath}: ${uploadedSize}/${localSize} bytes`,
+            );
+          }
+          await renameRemoteFile(sftp, partialPath, remotePath);
+        } catch (error) {
+          if (isTransientSftpTransferError(error)) this.disconnectHost(host);
+          throw error;
+        }
+      },
+      {
+        retries: 4,
+        minTimeout: 1_000,
+        factor: 2,
+        shouldRetry: ({ error }) => isTransientSftpTransferError(error),
+        onFailedAttempt: ({ error, attemptNumber, retriesLeft }) => {
+          console.info("[gateway-ssh] retrying resumable SFTP upload", {
+            hostId: host.id,
+            hostName: host.name,
+            attempt: attemptNumber,
+            retriesLeft,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        },
+      },
+    );
+    return remotePath;
   }
 
   syncHosts(hosts: HostWithSecret[]) {
@@ -316,38 +334,44 @@ export class SshConnectionPool {
         });
     });
   }
+}
 
-  private async forwardIn(client: Client, remoteHost: string, remotePort: number) {
-    return await new Promise<number>((resolve, reject) => {
-      client.forwardIn(remoteHost, remotePort, (error, assignedPort) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(assignedPort || remotePort);
-      });
-    });
-  }
-
-  private async unforwardIn(client: Client, remoteHost: string, remotePort: number) {
-    await new Promise<void>((resolve, reject) => {
-      client.unforwardIn(remoteHost, remotePort, (error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve();
-      });
-    });
-  }
-
-  private async closeReverseTcpForward(client: Client, remoteHost: string, remotePort: number) {
-    try {
-      await this.unforwardIn(client, remoteHost, remotePort);
-    } catch (error) {
-      if (!isConnectionLevelSshError(error)) {
-        throw error;
+async function remoteFileSize(sftp: SFTPWrapper, path: string) {
+  return await new Promise<number>((resolve, reject) => {
+    sftp.stat(path, (error, stats) => {
+      if (!error) {
+        resolve(stats.size);
+        return;
       }
-    }
-  }
+      if (isMissingSftpFile(error)) {
+        resolve(0);
+        return;
+      }
+      reject(error);
+    });
+  });
+}
+
+async function unlinkRemoteFile(sftp: SFTPWrapper, path: string) {
+  await new Promise<void>((resolve, reject) => {
+    sftp.unlink(path, (error) => (error && !isMissingSftpFile(error) ? reject(error) : resolve()));
+  });
+}
+
+async function renameRemoteFile(sftp: SFTPWrapper, from: string, to: string) {
+  await new Promise<void>((resolve, reject) => {
+    sftp.rename(from, to, (error) => (error ? reject(error) : resolve()));
+  });
+}
+
+function isMissingSftpFile(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === 2;
+}
+
+function isTransientSftpTransferError(error: unknown) {
+  if (isConnectionLevelSshError(error)) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /SSH channel closed|socket hang up|ECONNRESET|EPIPE|ETIMEDOUT|Incomplete SFTP upload/i.test(
+    message,
+  );
 }

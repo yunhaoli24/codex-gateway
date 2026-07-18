@@ -20,13 +20,6 @@ export interface DirectTcpChannelOptions {
   port: number;
 }
 
-export interface ReverseTcpForwardOptions {
-  remoteHost: string;
-  remotePort: number;
-  targetHost: string;
-  targetPort: number;
-}
-
 export interface RemoteFileResult {
   path: string;
   size: number;

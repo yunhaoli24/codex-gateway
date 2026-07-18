@@ -99,16 +99,27 @@ export class CodexRuntimeService {
             `Remote Codex runtime ${currentRuntimeVersion} is below supported ${supportedVersion}, but a loaded thread is active`,
           );
         }
-        await this.appServerRuntime.terminateUnmanaged(host);
       }
 
       if (!cliVersionSupported) {
         hostLifecycleBus.emit({
           hostId: host.id,
           status: "upgrading",
-          message: `正在升级 ${hostDisplayName(host)} 的远端 Codex ${beforeVersion} -> ${supportedVersion}`,
+          message: `正在为 ${hostDisplayName(host)} 准备 Codex ${supportedVersion} 官方 npm 安装包`,
         });
-        const version = await this.upgrader.upgrade(host, supportedVersion);
+        const version = await this.upgrader.withPreparedUpgrade(
+          host,
+          supportedVersion,
+          async (install) => {
+            if (runtimeState.running) await this.appServerRuntime.terminateUnmanaged(host);
+            hostLifecycleBus.emit({
+              hostId: host.id,
+              status: "upgrading",
+              message: `正在离线升级 ${hostDisplayName(host)} 的远端 Codex ${beforeVersion} -> ${supportedVersion}`,
+            });
+            return await install();
+          },
+        );
         await this.appServerRuntime.ensureStoppedAfterUpgrade(host);
         if (!isCodexVersionAtLeast(version, supportedVersion)) {
           throw new Error(
@@ -129,6 +140,7 @@ export class CodexRuntimeService {
         };
       }
 
+      if (runtimeState.running) await this.appServerRuntime.terminateUnmanaged(host);
       hostLifecycleBus.emit({
         hostId: host.id,
         status: "restarting",

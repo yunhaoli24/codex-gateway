@@ -1,7 +1,13 @@
+import { shellQuote } from "./shell";
+
 export function codexRemotePayload(command: string) {
+  return codexRemoteBootstrapPayload(command, { requireCodex: true });
+}
+
+export function codexRemoteBootstrapPayload(command: string, options: { requireCodex: boolean }) {
   return [
     "printf '%b' '\\254\\341\\117\\004\\120\\367\\316\\361' >/dev/null;",
-    codexPathBootstrap({ requireCodex: true }),
+    codexPathBootstrap(options),
     command,
   ].join(" ");
 }
@@ -71,120 +77,6 @@ fi
 
 export function codexRemoteVersionPayload() {
   return codexRemotePayload('"$CODEX_BIN" --version');
-}
-
-export function codexRemoteUpgradeAndRestartPayload(version: string, proxyUrl?: string | null) {
-  return [
-    "printf '%b' '\\254\\341\\117\\004\\120\\367\\316\\361' >/dev/null;",
-    codexPathBootstrap({ requireCodex: false }),
-    `
-set -eu
-${npmProxyEnvSnippet(proxyUrl)}
-codex_gateway_npm_prefix_writable() {
-  prefix="$1"
-  root="$2"
-  [ -n "$prefix" ] && [ -n "$root" ] || return 1
-  mkdir -p "$prefix/bin" "$root" 2>/dev/null || return 1
-  [ -w "$prefix/bin" ] && [ -w "$root" ]
-}
-npm_global_prefix="$(npm prefix -g 2>/dev/null || true)"
-npm_global_root="$(npm root -g 2>/dev/null || true)"
-if ! codex_gateway_npm_prefix_writable "$npm_global_prefix" "$npm_global_root"; then
-  npm_global_prefix="$HOME/.npm-global"
-  mkdir -p "$npm_global_prefix"
-  export npm_config_prefix="$npm_global_prefix"
-  npm_global_prefix="$(npm prefix -g 2>/dev/null || printf '%s' "$npm_global_prefix")"
-  npm_global_root="$(npm root -g 2>/dev/null || printf '%s/lib/node_modules' "$npm_global_prefix")"
-fi
-codex_gateway_path_add "$npm_global_prefix/bin"
-export PATH
-codex_gateway_cleanup_codex_package() {
-  if [ -n "$npm_global_root" ] && [ -d "$npm_global_root/@openai" ]; then
-    echo "codex_gateway_upgrade_progress npm_install cleanup_stale_package" >&2
-    rm -rf "$npm_global_root/@openai/codex" "$npm_global_root/@openai"/.codex-* 2>/dev/null || true
-  fi
-}
-codex_gateway_npm_install_once() {
-  echo "codex_gateway_upgrade_progress npm_install started $(date -u +%FT%TZ 2>/dev/null || true)" >&2
-  npm install -g --force --include=optional @openai/codex@${shellQuote(version)} &
-  npm_pid="$!"
-  while kill -0 "$npm_pid" 2>/dev/null; do
-    sleep 15
-    if kill -0 "$npm_pid" 2>/dev/null; then
-      echo "codex_gateway_upgrade_progress npm_install still_running $(date -u +%FT%TZ 2>/dev/null || true)" >&2
-    fi
-  done
-  set +e
-  wait "$npm_pid"
-  npm_status="$?"
-  set -e
-  echo "codex_gateway_upgrade_progress npm_install exited status=$npm_status $(date -u +%FT%TZ 2>/dev/null || true)" >&2
-  return "$npm_status"
-}
-codex_gateway_npm_install_codex() {
-  codex_gateway_npm_install_once && return 0
-  status="$?"
-  codex_gateway_cleanup_codex_package
-  codex_gateway_npm_install_once && return 0
-  return "$status"
-}
-codex_gateway_resolve_codex_bin() {
-  CODEX_BIN=""
-  if [ -n "$npm_global_prefix" ] && [ -x "$npm_global_prefix/bin/codex" ]; then
-    CODEX_BIN="$npm_global_prefix/bin/codex"
-  fi
-  if [ -z "$CODEX_BIN" ]; then
-    CODEX_BIN="$(command -v codex 2>/dev/null || true)"
-  fi
-  if [ -z "$CODEX_BIN" ] && [ -x "\${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex" ]; then
-    CODEX_BIN="\${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex"
-  fi
-  if [ -z "$CODEX_BIN" ]; then
-    NPM_PREFIX="$(npm prefix -g 2>/dev/null || true)"
-    if [ -n "$NPM_PREFIX" ] && [ -x "$NPM_PREFIX/bin/codex" ]; then
-      CODEX_BIN="$NPM_PREFIX/bin/codex"
-    fi
-  fi
-  if [ -z "$CODEX_BIN" ]; then
-    NPM_ROOT="$(npm root -g 2>/dev/null || true)"
-    if [ -n "$NPM_ROOT" ] && [ -x "$NPM_ROOT/.bin/codex" ]; then
-      CODEX_BIN="$NPM_ROOT/.bin/codex"
-    fi
-  fi
-  export CODEX_BIN
-  [ -n "$CODEX_BIN" ]
-}
-codex_gateway_npm_install_codex
-codex_gateway_resolve_codex_bin || true
-if [ -z "$CODEX_BIN" ]; then
-  echo "codex executable not found after npm install" >&2
-  exit 127
-fi
-codex_version_output="$("$CODEX_BIN" --version)"
-case "$codex_version_output" in
-  *${version}*) ;;
-  *)
-    echo "codex_gateway_upgrade_progress installed_version_mismatch $codex_version_output" >&2
-    codex_gateway_cleanup_codex_package
-    codex_gateway_npm_install_once
-    codex_gateway_resolve_codex_bin || true
-    if [ -z "$CODEX_BIN" ]; then
-      echo "codex executable not found after npm reinstall" >&2
-      exit 127
-    fi
-    codex_version_output="$("$CODEX_BIN" --version)"
-    case "$codex_version_output" in
-      *${version}*) ;;
-      *)
-        echo "codex_gateway_upgrade_progress installed_version_mismatch_after_reinstall $codex_version_output" >&2
-        exit 1
-        ;;
-    esac
-    ;;
-esac
-echo "$codex_version_output"
-`,
-  ].join(" ");
 }
 
 export function codexRemoteTerminateUnmanagedAppServerPayload() {
@@ -266,10 +158,6 @@ export function remoteLoginShellCommand(payload: string) {
   return `sh -c ${shellQuote(wrapper)} sh ${shellQuote(payload)}`;
 }
 
-function shellQuote(value: string) {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
 function ensureGatewayCodexConfigFeatureSnippet() {
   return `
 codex_home="\${CODEX_HOME:-$HOME/.codex}"
@@ -330,22 +218,5 @@ codex_gateway_socket_has_listener() {
   fi
   return 0
 }
-`;
-}
-
-function npmProxyEnvSnippet(proxyUrl?: string | null) {
-  if (!proxyUrl) {
-    return "";
-  }
-  const quoted = shellQuote(proxyUrl);
-  return `
-export HTTP_PROXY=${quoted}
-export HTTPS_PROXY=${quoted}
-export ALL_PROXY=${quoted}
-export http_proxy=${quoted}
-export https_proxy=${quoted}
-export all_proxy=${quoted}
-export npm_config_proxy=${quoted}
-export npm_config_https_proxy=${quoted}
 `;
 }

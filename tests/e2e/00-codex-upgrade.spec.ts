@@ -52,6 +52,25 @@ test("upgrades an old remote npm Codex install before using the app-server", asy
     })
     .toContain(remote.supportedCodexVersion!);
 
+  const npmLayout = await execRemoteSsh(
+    remote,
+    `
+set -eu
+codex_bin=${JSON.stringify(remote.codexBin)}
+codex_bin_dir="$(dirname "$codex_bin")"
+PATH="$codex_bin_dir:$PATH"
+export PATH
+npm_root="$(npm root -g)"
+test -f "$npm_root/@openai/codex/package.json"
+node -e 'require.resolve("@openai/codex-linux-x64/package.json", { paths: [process.argv[1]] })' "$npm_root/@openai/codex"
+if [ -d "$HOME/.cache/codex-gateway/upgrades" ]; then
+  test -z "$(find "$HOME/.cache/codex-gateway/upgrades" -mindepth 1 -maxdepth 1 -type d -name 'upgrade.*' -print -quit)"
+fi
+printf 'official npm layout and staging cleanup verified\\n'
+`,
+  );
+  expect(npmLayout.stdout).toContain("official npm layout and staging cleanup verified");
+
   const project = await addRemoteProject(page, remote, host.id, `upgrade-project-${Date.now()}`);
   const threadId = await startRemoteThreadFromProjectMenu(page, project.id);
   const marker = `E2E 升级后发送 ${Date.now()}`;
