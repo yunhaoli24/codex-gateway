@@ -5,6 +5,7 @@ export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
   experimental: {
+    checkOutdatedBuildInterval: 5 * 60_000,
     emitRouteChunkError: "automatic-immediate",
   },
   css: ["~/assets/css/tailwind.css"],
