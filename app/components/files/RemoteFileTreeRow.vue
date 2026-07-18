@@ -46,6 +46,7 @@ const { longPressContextMenuHandlers } = useLongPressContextMenu({ menuWidthEsti
         v-slot="{ isExpanded }"
         v-bind="node.type === 'file' ? longPressContextMenuHandlers : {}"
         :value="node"
+        :data-file-path="node.path"
         :level="level"
         class="flex h-8 w-max min-w-full cursor-default items-center gap-1.5 rounded-md pr-2 text-sm text-ink-muted outline-none hover:bg-canvas-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary/35 data-selected:bg-primary/10 data-selected:text-ink"
         :style="{ paddingInlineStart: `${Math.max(0, level - 1) * 1.125 + 0.5}rem` }"
