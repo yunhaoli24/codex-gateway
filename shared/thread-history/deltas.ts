@@ -100,12 +100,11 @@ function appendTextDelta(
   );
 }
 
-export function appendItemOutputDelta(
+export function appendCommandOutputDelta(
   history: unknown,
   currentThread: unknown,
   threadId: string,
   params: Record<string, unknown>,
-  itemType: "commandExecution" | "fileChange",
 ) {
   const itemIdValue = stringParam(params, "itemId");
   const turnIdValue = paramsTurnId(params);
@@ -121,7 +120,7 @@ export function appendItemOutputDelta(
     turnIdValue,
     itemIdValue,
     () => ({
-      type: itemType,
+      type: "commandExecution",
       id: itemIdValue,
       turnId: turnIdValue,
       status: "inProgress",

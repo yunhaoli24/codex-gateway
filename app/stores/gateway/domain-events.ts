@@ -46,11 +46,10 @@ export type GatewayDomainEventMap = {
   "history-plan-delta": { hostId: number; threadId: string; params: any };
   "history-reasoning-summary-delta": { hostId: number; threadId: string; params: any };
   "history-reasoning-text-delta": { hostId: number; threadId: string; params: any };
-  "history-item-output-delta": {
+  "history-command-output-delta": {
     hostId: number;
     threadId: string;
     params: any;
-    itemType: "commandExecution" | "fileChange";
   };
   "history-server-request-resolved": {
     hostId: number;

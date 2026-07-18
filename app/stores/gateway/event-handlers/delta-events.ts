@@ -1,4 +1,3 @@
-import type { GatewayEvent } from "~~/shared/types";
 import { gatewayDomainEvents } from "../domain-events";
 import type { GatewayEventHandlerRegistry } from "./types";
 
@@ -19,28 +18,17 @@ export const deltaEventHandlers: GatewayEventHandlerRegistry = {
       threadId,
       params,
     }),
-  "item/commandExecution/outputDelta": (event, params, threadId) =>
-    emitOutputDelta(event, params, threadId, "commandExecution"),
-  "item/fileChange/outputDelta": (event, params, threadId) =>
-    emitOutputDelta(event, params, threadId, "fileChange"),
+  "item/commandExecution/outputDelta": (event, params, threadId) => {
+    gatewayDomainEvents.emit("thread-status-detected", {
+      hostId: event.hostId,
+      threadId,
+      status: "running",
+      turnId: params.turnId ? String(params.turnId) : null,
+    });
+    gatewayDomainEvents.emit("history-command-output-delta", {
+      hostId: event.hostId,
+      threadId,
+      params,
+    });
+  },
 };
-
-function emitOutputDelta(
-  event: GatewayEvent,
-  params: Record<string, any>,
-  threadId: string,
-  itemType: "commandExecution" | "fileChange",
-) {
-  gatewayDomainEvents.emit("thread-status-detected", {
-    hostId: event.hostId,
-    threadId,
-    status: "running",
-    turnId: params.turnId ? String(params.turnId) : null,
-  });
-  gatewayDomainEvents.emit("history-item-output-delta", {
-    hostId: event.hostId,
-    threadId,
-    params,
-    itemType,
-  });
-}

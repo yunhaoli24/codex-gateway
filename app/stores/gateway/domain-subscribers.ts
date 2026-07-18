@@ -1,6 +1,6 @@
 import {
   appendAgentDelta,
-  appendItemOutputDelta,
+  appendCommandOutputDelta,
   appendPlanDelta,
   appendReasoningSummaryDelta,
   appendReasoningTextDelta,
@@ -81,9 +81,9 @@ export function registerGatewayDomainSubscribers() {
       appendReasoningTextDelta(history, currentThread, event.threadId, event.params),
     );
   });
-  gatewayDomainEvents.on("history-item-output-delta", (event) => {
+  gatewayDomainEvents.on("history-command-output-delta", (event) => {
     updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      appendItemOutputDelta(history, currentThread, event.threadId, event.params, event.itemType),
+      appendCommandOutputDelta(history, currentThread, event.threadId, event.params),
     );
   });
   gatewayDomainEvents.on("history-server-request-resolved", (event) => {

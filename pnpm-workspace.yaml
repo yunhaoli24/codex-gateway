@@ -7,6 +7,9 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 
+minimumReleaseAgeExclude:
+  - katex@0.18.0
+
 overrides:
   crossws: 0.4.7
   vite: 8.1.0

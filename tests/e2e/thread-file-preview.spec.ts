@@ -34,6 +34,12 @@ cat > ${shellQuote(markdownPath)} <<'EOF'
 # Rendered Markdown Preview
 
 This **markdown file** should render as HTML.
+
+Inline formula: $E = mc^2$.
+
+\\[
+\\int_0^1 x^2\\,dx = \\frac{1}{3}
+\\]
 EOF
 cat > ${shellQuote(nestedPythonPath)} <<'EOF'
 def nested_preview_marker():
@@ -85,7 +91,7 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
               id: "file-preview-md-message",
               type: "agentMessage",
               phase: "final_answer",
-              text: `Open [markdown target](${origin}${markdownPath}), [nested python](${origin}${nestedPythonPath}:2), [unknown text](${origin}${unknownTextPath}), and [binary target](${origin}${binaryPath}).\n\n${wideTable}`,
+              text: `Open [markdown target](${origin}${markdownPath}), [nested python](${origin}${nestedPythonPath}:2), [unknown text](${origin}${unknownTextPath}), and [binary target](${origin}${binaryPath}).\n\nInline agent formula: \\(E = mc^2\\).\n\n${wideTable}`,
             },
           ],
         },
@@ -258,6 +264,7 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
     hasText: "very-long-column",
   });
   await expect(renderedTable).toBeVisible();
+  await expect(page.locator(".markdown-content .katex")).toBeVisible();
   await expect(renderedTable).toHaveCSS("overflow-x", "auto");
   const [markdownBox, tableBox] = await Promise.all([
     renderedTable.locator("xpath=..").boundingBox(),
@@ -269,6 +276,8 @@ printf '%s\n' 'long file names stay inside the tree' > ${shellQuote(longFilePath
   await panel.getByRole("button", { name: "预览" }).click();
   await expect(panel.locator(".markdown-content h1")).toHaveText("Rendered Markdown Preview");
   await expect(panel.locator(".markdown-content strong")).toHaveText("markdown file");
+  await expect(panel.locator(".markdown-content .katex")).toHaveCount(2);
+  await expect(panel.locator(".markdown-content .katex-display")).toHaveCount(1);
 
   await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "nested python" }).click();
