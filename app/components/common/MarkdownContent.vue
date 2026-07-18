@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { katex } from "@mdit/plugin-katex";
 import MarkdownIt from "markdown-it";
 import { useEventListener } from "@vueuse/core";
 import { ref, watch } from "vue";
@@ -24,6 +25,13 @@ const markdown = new MarkdownIt({
   linkify: true,
   typographer: true,
   breaks: false,
+});
+
+markdown.use(katex, {
+  delimiters: "all",
+  throwOnError: false,
+  strict: false,
+  trust: false,
 });
 
 markdown.renderer.rules.fence = (tokens, index) => {

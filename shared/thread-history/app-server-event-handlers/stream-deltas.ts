@@ -1,6 +1,6 @@
 import {
   appendAgentDelta,
-  appendItemOutputDelta,
+  appendCommandOutputDelta,
   appendPlanDelta,
   appendReasoningSummaryDelta,
   appendReasoningTextDelta,
@@ -21,14 +21,5 @@ export const streamDeltaReducers = {
     appendReasoningTextDelta(input.history, input.currentThread, input.threadId, params),
 
   "item/commandExecution/outputDelta": (input, params) =>
-    appendItemOutputDelta(
-      input.history,
-      input.currentThread,
-      input.threadId,
-      params,
-      "commandExecution",
-    ),
-
-  "item/fileChange/outputDelta": (input, params) =>
-    appendItemOutputDelta(input.history, input.currentThread, input.threadId, params, "fileChange"),
+    appendCommandOutputDelta(input.history, input.currentThread, input.threadId, params),
 } satisfies AppServerHistoryReducerRegistry;
