@@ -14,6 +14,7 @@ import { createDirectoryState, loadDirectoryState } from "./directory-runtime";
 import {
   absolutePath,
   directoryStateKey,
+  directoryPathsToFile,
   fileDocumentKey,
   fileWorkspaceScopeKey,
   parentPath,
@@ -210,6 +211,21 @@ export const useGatewayFileWorkspaceStore = defineStore(
       await Promise.all(added.map((path) => loadDirectory(hostId, threadId, path)));
     }
 
+    async function revealFileInTree(hostId: number, threadId: string, path: string) {
+      const scope = scopeFor(hostId, threadId);
+      if (!scope) {
+        return false;
+      }
+      const ancestors = directoryPathsToFile(scope.rootPath, path);
+      if (!ancestors.length) {
+        return false;
+      }
+      await setExpandedPaths(hostId, threadId, [
+        ...new Set([...scope.expandedPaths, ...ancestors]),
+      ]);
+      return true;
+    }
+
     async function refreshExpandedDirectories(hostId: number, threadId: string, force = true) {
       const scope = scopeFor(hostId, threadId);
       if (!scope) {
@@ -322,6 +338,7 @@ export const useGatewayFileWorkspaceStore = defineStore(
       loadDirectory,
       directoryFor,
       setExpandedPaths,
+      revealFileInTree,
       refreshExpandedDirectories,
       deleteFile,
       markRemoteFilesChanged,

@@ -141,6 +141,7 @@ function revalidateWorkspace() {
           :host-id="hostId"
           :thread-id="threadId"
           :root-path="rootPath"
+          :visible="active"
           @open="openFile"
         />
       </template>
@@ -217,6 +218,7 @@ function revalidateWorkspace() {
             :host-id="hostId"
             :thread-id="threadId"
             :root-path="rootPath"
+            :visible="mobileTreeOpen"
             @open="openFile"
           />
         </SheetContent>

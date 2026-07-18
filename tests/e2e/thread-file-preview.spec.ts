@@ -14,6 +14,7 @@ test("the unified file workspace browses, restores, and refreshes real remote fi
   const remotePath = `${projectPath}/codex-gateway-preview-${Date.now()}.ts`;
   const markdownPath = `${projectPath}/codex-gateway-preview-${Date.now()}.md`;
   const nestedPythonPath = `${projectPath}/deep/prefix/model_${Date.now()}.py`;
+  const outsideWorkspacePath = `/tmp/codex-gateway-outside-${Date.now()}.log`;
   const unknownTextPath = `${projectPath}/codex-gateway-preview-${Date.now()}.customformat`;
   const binaryPath = `${projectPath}/codex-gateway-preview-${Date.now()}.bin`;
   const longFilePath = `${projectPath}/${"very-long-file-name-".repeat(8)}preview.log`;
@@ -45,6 +46,9 @@ EOF
 cat > ${shellQuote(nestedPythonPath)} <<'EOF'
 def nested_preview_marker():
     return "codex-gateway-nested-python"
+EOF
+cat > ${shellQuote(outsideWorkspacePath)} <<'EOF'
+outside workspace files still open safely
 EOF
 for line in $(seq 1 120); do printf '# source line %s\n' "$line" >> ${shellQuote(nestedPythonPath)}; done
 cat > ${shellQuote(unknownTextPath)} <<'EOF'
@@ -101,7 +105,7 @@ done
               id: "file-preview-md-message",
               type: "agentMessage",
               phase: "final_answer",
-              text: `Open [markdown target](${origin}${markdownPath}), [nested python](${origin}${nestedPythonPath}:2), [unknown text](${origin}${unknownTextPath}), and [binary target](${origin}${binaryPath}).\n\nInline agent formula: \\(E = mc^2\\).\n\n${wideTable}`,
+              text: `Open [markdown target](${origin}${markdownPath}), [nested python](${origin}${nestedPythonPath}:2), [outside workspace](${origin}${outsideWorkspacePath}), [unknown text](${origin}${unknownTextPath}), and [binary target](${origin}${binaryPath}).\n\nInline agent formula: \\(E = mc^2\\).\n\n${wideTable}`,
             },
           ],
         },
@@ -287,6 +291,8 @@ done
     history: latestHistory,
   });
 
+  await tree.getByText("deep", { exact: true }).click();
+  await expect(tree.getByText("prefix", { exact: true })).toBeHidden();
   await agentWorkspaceTab(page).click();
   const renderedTable = page.locator(".markdown-content table").filter({
     hasText: "very-long-column",
@@ -317,11 +323,21 @@ done
   await expect(page.getByTestId("file-workspace-tab")).toHaveCount(3);
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
   await expect(panel.getByTestId("remote-file-editor")).toBeVisible();
+  await expect(tree.getByText("prefix", { exact: true })).toBeVisible();
+  await expect(
+    tree.locator(`[data-file-path=${JSON.stringify(nestedPythonPath)}][data-selected]`),
+  ).toBeVisible();
   const nestedSourceScroller = panel.getByTestId("remote-file-editor").locator(".cm-scroller");
   await nestedSourceScroller.evaluate((element) => element.scrollTo({ top: 320, left: 0 }));
   await expect
     .poll(() => nestedSourceScroller.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(250);
+
+  await agentWorkspaceTab(page).click();
+  await page.getByRole("link", { name: "outside workspace" }).click();
+  await expect(fileTab(page, outsideWorkspacePath)).toBeVisible();
+  await expect(panel.getByText("outside workspace files still open safely")).toBeVisible();
+  await expect(tree.locator("[data-selected]")).toHaveCount(0);
 
   await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "unknown text" }).click();
@@ -408,7 +424,7 @@ done
   const restoredDockRatio =
     restoredAgentDockBox!.width / (restoredAgentDockBox!.width + restoredFilesDockBox!.width);
   expect(Math.abs(restoredDockRatio - dockWidthRatio)).toBeLessThan(0.08);
-  await expect(page.getByTestId("file-workspace-tab")).toHaveCount(5);
+  await expect(page.getByTestId("file-workspace-tab")).toHaveCount(6);
   await expect(panel.getByText("codex-gateway-nested-python")).toBeVisible();
 
   await execRemoteSsh(

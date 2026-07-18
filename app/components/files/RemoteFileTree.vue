@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { FolderIcon, Loader2Icon, RefreshCwIcon } from "@lucide/vue";
 import { TreeRoot } from "reka-ui";
-import { computed, ref, watch } from "vue";
+import { computed, ref, useTemplateRef, watch } from "vue";
 import type { RemoteDirectoryEntry } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
 import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
 import RemoteFileDeleteDialog from "./RemoteFileDeleteDialog.vue";
 import RemoteFileTreeRow from "./RemoteFileTreeRow.vue";
 import { useRemoteFileTreeActions } from "./useRemoteFileTreeActions";
+import { useRemoteFileTreeReveal } from "./useRemoteFileTreeReveal";
 
 interface FileTreeNode {
   name: string;
@@ -20,6 +21,7 @@ const props = defineProps<{
   hostId: number;
   threadId: string;
   rootPath: string;
+  visible: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -32,7 +34,9 @@ const fileActions = useRemoteFileTreeActions({
   threadId: () => props.threadId,
 });
 const selected = ref<FileTreeNode>();
+const treeViewport = useTemplateRef<HTMLElement>("treeViewport");
 const scope = computed(() => fileWorkspace.scopeFor(props.hostId, props.threadId));
+const activePath = computed(() => scope.value?.activePath ?? null);
 const rootDirectory = computed(() =>
   fileWorkspace.directoryFor(props.hostId, props.threadId, props.rootPath),
 );
@@ -55,6 +59,17 @@ const tree = computed<FileTreeNode[]>(() =>
     : [],
 );
 
+useRemoteFileTreeReveal({
+  hostId: () => props.hostId,
+  threadId: () => props.threadId,
+  rootPath: () => props.rootPath,
+  visible: () => props.visible,
+  activePath,
+  tree,
+  selected,
+  viewport: treeViewport,
+});
+
 watch(
   () => props.rootPath,
   (path) => {
@@ -65,11 +80,12 @@ watch(
   { immediate: true },
 );
 
-watch(selected, (node) => {
+function selectNode(node: FileTreeNode | undefined) {
+  selected.value = node;
   if (node?.type === "file") {
     emit("open", node.path);
   }
-});
+}
 
 function childrenFor(path: string): FileTreeNode[] {
   const state = fileWorkspace.directoryFor(props.hostId, props.threadId, path);
@@ -126,15 +142,16 @@ function fileTreeNode(value: unknown) {
       <Loader2Icon class="mr-2 size-4 animate-spin" />
       {{ $t("app.loadingFileTree") }}
     </div>
-    <div v-else class="min-h-0 flex-1 overflow-hidden py-2">
+    <div v-else ref="treeViewport" class="min-h-0 flex-1 overflow-hidden py-2">
       <TreeRoot
         v-slot="{ flattenItems }"
         data-testid="remote-file-tree-scroll"
-        v-model="selected"
+        :model-value="selected"
         v-model:expanded="expanded"
         :items="tree"
         :get-key="(node: FileTreeNode) => node.path"
         :get-children="(node: FileTreeNode) => node.children"
+        @update:model-value="selectNode"
         class="relative h-full w-full min-w-0 list-none overflow-x-scroll overflow-y-auto outline-none"
       >
         <!--

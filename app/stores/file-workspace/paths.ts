@@ -30,6 +30,25 @@ export function parentPaths(path: string) {
   return result;
 }
 
+export function isPathWithinRoot(rootPath: string, path: string) {
+  const root = normalizeRemotePath(rootPath);
+  const candidate = normalizeRemotePath(path);
+  return root === "/" ? candidate.startsWith("/") : candidate.startsWith(`${root}/`);
+}
+
+export function directoryPathsToFile(rootPath: string, filePath: string) {
+  if (!isPathWithinRoot(rootPath, filePath)) {
+    return [];
+  }
+  return parentPaths(filePath)
+    .reverse()
+    .filter((path) => path === normalizeRemotePath(rootPath) || isPathWithinRoot(rootPath, path));
+}
+
 export function absolutePath(rootPath: string, path: string) {
   return path.startsWith("/") ? path : `${rootPath.replace(/\/$/, "")}/${path}`;
+}
+
+function normalizeRemotePath(path: string) {
+  return path.replace(/\/+$/, "") || "/";
 }
