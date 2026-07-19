@@ -116,12 +116,20 @@ export function removeThreadView(hostId: number, threadId: string) {
 }
 
 export function appendEventToThreadView(event: GatewayEvent) {
+  appendEventsToThreadView([event]);
+}
+
+export function appendEventsToThreadView(events: GatewayEvent[]) {
+  if (!events.length) return;
   const views = useGatewayThreadViewStore();
-  const view = views.threadViews[threadViewKey(event.hostId, event.threadId)];
-  if (!view || event.id <= view.lastEventId) return;
-  patchThreadView(event.hostId, event.threadId, {
-    events: [...view.events, event].slice(-500),
-    lastEventId: event.id,
+  const first = events[0]!;
+  const view = views.threadViews[threadViewKey(first.hostId, first.threadId)];
+  if (!view) return;
+  const fresh = events.filter((event) => event.id > view.lastEventId);
+  if (!fresh.length) return;
+  patchThreadView(first.hostId, first.threadId, {
+    events: [...view.events, ...fresh].slice(-500),
+    lastEventId: fresh.at(-1)!.id,
   });
 }
 

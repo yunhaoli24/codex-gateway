@@ -1,6 +1,5 @@
 import type { DockviewApi, DockviewReadyEvent, SerializedDockview } from "dockview-vue";
 
-import { useDebounceFn } from "@vueuse/core";
 import type { ComputedRef } from "vue";
 import { nextTick, onBeforeUnmount, shallowRef, watch } from "vue";
 import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
@@ -10,6 +9,7 @@ import {
   FILES_WORKSPACE_PANEL_ID,
 } from "@/stores/gateway/workspace-panels";
 import { notifyPopoutBlocked } from "./actions";
+import { useDockLayoutPersistence } from "./useDockLayoutPersistence";
 
 export function useWorkspaceDockLifecycle(options: {
   scopeKey: ComputedRef<string>;
@@ -24,31 +24,12 @@ export function useWorkspaceDockLifecycle(options: {
   const api = shallowRef<DockviewApi | null>(null);
   let activeScopeKey = options.scopeKey.value;
   let switchingScope = false;
-  let lastDockedLayout: SerializedDockview | null = null;
   let disposables: Array<{ dispose(): void }> = [];
-  const saveLayout = useDebounceFn(
-    (scopeKey: string, layout: SerializedDockview) => workspaceLayout.saveLayout(scopeKey, layout),
-    180,
-  );
-
-  function captureDockedLayout() {
-    if (!api.value) return;
-    if (api.value.getPopouts().length === 0) {
-      lastDockedLayout = api.value.toJSON();
-    }
-    return lastDockedLayout;
-  }
-
-  function persistLayout(scopeKey = activeScopeKey) {
-    const layout = captureDockedLayout();
-    if (layout) workspaceLayout.saveLayout(scopeKey, layout);
-  }
-
-  function scheduleLayoutSave() {
-    if (switchingScope) return;
-    const layout = captureDockedLayout();
-    if (layout) void saveLayout(activeScopeKey, layout);
-  }
+  const persistence = useDockLayoutPersistence({
+    api,
+    activeScopeKey: () => activeScopeKey,
+    isSwitchingScope: () => switchingScope,
+  });
 
   function activate(panelId: string) {
     const panel = api.value?.getPanel(panelId);
@@ -62,14 +43,10 @@ export function useWorkspaceDockLifecycle(options: {
     activeScopeKey = options.scopeKey.value;
     initializeScope(activeScopeKey);
     disposables = [
-      event.api.onDidLayoutChange(scheduleLayoutSave),
+      event.api.onDidLayoutChange(persistence.scheduleLayoutSave),
       event.api.onWillMutateLayout((mutation) => {
-        if (switchingScope) return;
         // Popouts are runtime windows. Capture the docked layout before Dockview removes the group.
-        if (mutation.kind === "popout" && event.api.getPopouts().length === 0) {
-          lastDockedLayout = event.api.toJSON();
-          workspaceLayout.saveLayout(activeScopeKey, lastDockedLayout);
-        }
+        if (mutation.kind === "popout") persistence.captureBeforePopout();
       }),
       event.api.onDidMovePanel(({ panel }) => {
         if (switchingScope) return;
@@ -122,7 +99,7 @@ export function useWorkspaceDockLifecycle(options: {
     // adapters created through fromJSON are not yet attached by the wrapper. The documented
     // addPanel path used by reconcile performs that first mount. Later scope changes can safely use
     // fromJSON({ reuseExistingPanels: true }) because the permanent Agent adapter already exists.
-    lastDockedLayout = null;
+    persistence.setDockedLayout(null);
     options.reconcile(api.value);
     activate(workspaceLayout.activePanelFor(scopeKey));
   }
@@ -130,13 +107,14 @@ export function useWorkspaceDockLifecycle(options: {
   function restoreScope(scopeKey: string) {
     if (!api.value) return;
     const saved = workspaceLayout.layoutFor(scopeKey);
-    lastDockedLayout = saved ? dockedLayout(saved) : null;
+    const dockedLayoutState = saved ? dockedLayout(saved) : null;
+    persistence.setDockedLayout(dockedLayoutState);
     try {
       // Dockview owns renderer="always" Vue subtrees. Its reuse mode moves matching panels to a
       // temporary group while replacing the layout, so the Agent DOM and virtualizer survive a
       // thread switch without hidden duplicates or a destroy/recreate race. Do not replace this
       // with clear()+nextTick(): clearing disposes the adapter before Vue can commit the new panel.
-      api.value.fromJSON(lastDockedLayout ?? options.defaultLayout(api.value), {
+      api.value.fromJSON(dockedLayoutState ?? options.defaultLayout(api.value), {
         reuseExistingPanels: true,
       });
     } catch (error) {
@@ -153,7 +131,7 @@ export function useWorkspaceDockLifecycle(options: {
     try {
       // Persist before changing the key. A delayed layout event must never save the target scope's
       // geometry under the thread being left.
-      persistLayout(activeScopeKey);
+      persistence.persistLayout(activeScopeKey);
       for (const popout of api.value.getPopouts()) popout.window.close();
       activeScopeKey = scopeKey;
       restoreScope(scopeKey);
@@ -215,7 +193,7 @@ export function useWorkspaceDockLifecycle(options: {
   );
 
   onBeforeUnmount(() => {
-    persistLayout(activeScopeKey);
+    persistence.persistLayout(activeScopeKey);
     disposables.forEach((disposable) => disposable.dispose());
     disposables = [];
     api.value = null;

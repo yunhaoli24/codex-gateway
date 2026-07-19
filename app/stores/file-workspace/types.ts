@@ -13,6 +13,7 @@ export interface FileWorkspaceScope {
 export interface RemoteDirectoryState extends RemoteDirectoryResult {
   loading: boolean;
   loaded: boolean;
+  loadedAt: number;
   error: string | null;
   stale: boolean;
 }

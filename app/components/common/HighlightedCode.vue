@@ -7,16 +7,19 @@ const props = withDefaults(
     code: string;
     language?: string;
     preClass?: string;
+    streaming?: boolean;
   }>(),
   {
     language: "",
     preClass: "",
+    streaming: false,
   },
 );
 
 const codeRef = computed(() => props.code);
 const languageRef = computed(() => props.language);
-const { html } = useCodeHighlighter(codeRef, languageRef);
+const streamingRef = computed(() => props.streaming);
+const { html } = useCodeHighlighter(codeRef, languageRef, streamingRef);
 </script>
 
 <template>

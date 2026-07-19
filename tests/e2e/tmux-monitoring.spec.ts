@@ -135,8 +135,14 @@ done
     )
     .toMatch(/bash|zsh|sh/);
 
-  await hostNode.getByRole("button", { name: /立即检查/ }).click();
-  await expect(page.getByTestId("tmux-monitor-panel").getByText("已返回 Shell")).toBeVisible();
+  const returnedToShell = page.getByTestId("tmux-monitor-panel").getByText("已返回 Shell");
+  // The production poller and the explicit action use the same scanner. Either may observe the
+  // transition first; once background polling already completed the monitor, its per-host action
+  // correctly disappears with the active card rather than leaving a stale button in the UI.
+  if (!(await returnedToShell.isVisible())) {
+    await hostNode.getByRole("button", { name: /立即检查/ }).click();
+  }
+  await expect(returnedToShell).toBeVisible();
   const toast = page.locator("[data-sonner-toast]").filter({ hasText: "Tmux 任务已结束" });
   await expect(toast).toBeVisible();
   await expect.poll(() => readTmuxNotifications(bark), { timeout: 30_000 }).toHaveLength(1);

@@ -155,7 +155,14 @@ watch(
   () => props.followKey,
   () => {
     startControlsVisible.value = false;
-    chatVirtualizer.followContentChange();
+    // `followKey` changes for every streamed token. It is a content-invalidating
+    // signal, not an instruction to resume following: a reader who explicitly
+    // scrolled upward must keep the exact viewport while the Agent keeps writing.
+    // Reflow/measurement for detached readers is handled by the keyed-anchor
+    // paths above, so only the already-pinned state may advance to the latest row.
+    if (chatVirtualizer.followLatest.value) {
+      chatVirtualizer.followContentChange();
+    }
   },
   { flush: "post" },
 );

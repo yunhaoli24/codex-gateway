@@ -5,6 +5,7 @@ import HighlightedCode from "@/components/common/HighlightedCode.vue";
 defineProps<{
   output: string;
   extraClass?: string;
+  streaming?: boolean;
 }>();
 </script>
 
@@ -17,6 +18,7 @@ defineProps<{
     <HighlightedCode
       :code="output"
       language="shell"
+      :streaming="streaming"
       pre-class="syntax-highlight min-w-max whitespace-pre p-3 text-xs leading-5 text-ink-secondary"
     />
   </ScrollArea>

@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { Duplex } from "node:stream";
+import type { BrowserPreviewHttpAgent } from "./browser-preview-http-agent";
 import type {
   BrowserPreviewSessionSnapshot,
   BrowserPreviewTarget,
@@ -21,6 +22,7 @@ export interface BrowserPreviewSession {
   ticketExpiresAt: number;
   status: "open" | "closed";
   sockets: Set<Duplex>;
+  agent: BrowserPreviewHttpAgent | null;
 }
 
 export class BrowserPreviewManager {
@@ -47,6 +49,7 @@ export class BrowserPreviewManager {
       ticketExpiresAt: Date.now() + TICKET_TTL_MS,
       status: "open",
       sockets: new Set(),
+      agent: null,
     };
     this.sessions.set(sessionId, session);
     this.tickets.set(ticket, session);
@@ -84,6 +87,14 @@ export class BrowserPreviewManager {
     socket.once("close", () => session.sockets.delete(socket));
   }
 
+  agentFor(
+    session: BrowserPreviewSession,
+    create: () => BrowserPreviewHttpAgent,
+  ): BrowserPreviewHttpAgent {
+    session.agent ??= create();
+    return session.agent;
+  }
+
   close(userId: number, sessionId: string) {
     this.closeSession(this.require(userId, sessionId));
   }
@@ -106,6 +117,8 @@ export class BrowserPreviewManager {
     this.sessions.delete(session.sessionId);
     this.sessionsByCookie.delete(session.cookieToken);
     this.tickets.delete(session.ticket);
+    session.agent?.destroy();
+    session.agent = null;
     for (const socket of session.sockets) socket.destroy();
     session.sockets.clear();
   }

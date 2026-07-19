@@ -11,7 +11,14 @@ interface RealtimeConnectionOptions {
   onDisconnected: (error: Error) => void;
 }
 
+interface ReadyWaiter {
+  resolve: () => void;
+  reject: (error: Error) => void;
+  timer: number;
+}
+
 export function createRealtimeConnection(options: RealtimeConnectionOptions) {
+  const readyWaiters = new Set<ReadyWaiter>();
   const state = reactive({
     socket: null as WebSocket | null,
     connected: false,
@@ -87,6 +94,7 @@ export function createRealtimeConnection(options: RealtimeConnectionOptions) {
     closeCurrentSocket();
     state.reconnectAttempt = 0;
     state.readyCount = 0;
+    rejectReadyWaiters(new Error(options.disconnectedMessage()));
     options.onDisconnected(new Error(options.disconnectedMessage()));
   }
 
@@ -161,6 +169,39 @@ export function createRealtimeConnection(options: RealtimeConnectionOptions) {
     state.connected = true;
     state.reconnectAttempt = 0;
     state.readyCount += 1;
+    resolveReadyWaiters();
+  }
+
+  function waitForReady(timeoutMs: number) {
+    connect();
+    if (state.connected) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const waiter: ReadyWaiter = {
+        resolve,
+        reject,
+        timer: window.setTimeout(() => {
+          readyWaiters.delete(waiter);
+          reject(new Error(options.disconnectedMessage()));
+        }, timeoutMs),
+      };
+      readyWaiters.add(waiter);
+    });
+  }
+
+  function resolveReadyWaiters() {
+    for (const waiter of readyWaiters) {
+      window.clearTimeout(waiter.timer);
+      waiter.resolve();
+    }
+    readyWaiters.clear();
+  }
+
+  function rejectReadyWaiters(error: Error) {
+    for (const waiter of readyWaiters) {
+      window.clearTimeout(waiter.timer);
+      waiter.reject(error);
+    }
+    readyWaiters.clear();
   }
 
   function clearReconnectTimer() {
@@ -188,5 +229,6 @@ export function createRealtimeConnection(options: RealtimeConnectionOptions) {
     checkConnection,
     acknowledgePong,
     markReady,
+    waitForReady,
   };
 }

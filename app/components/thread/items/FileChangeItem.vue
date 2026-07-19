@@ -93,7 +93,7 @@ watch(
       />
     </div>
     <div v-if="fileChanges.length" class="mt-3 space-y-2">
-      <FileChangeOutputPanel v-if="output" :output="output" />
+      <FileChangeOutputPanel v-if="output" :output="output" :streaming="isInProgress" />
       <Collapsible
         v-for="change in fileChanges"
         :key="fileChangeKey(change)"
@@ -116,11 +116,16 @@ watch(
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <FileChangeDiffPanel v-if="open" :change="change" />
+          <FileChangeDiffPanel v-if="open" :change="change" :streaming="isInProgress" />
         </CollapsibleContent>
       </Collapsible>
     </div>
-    <FileChangeOutputPanel v-else-if="output" :output="output" extra-class="mt-3" />
+    <FileChangeOutputPanel
+      v-else-if="output"
+      :output="output"
+      :streaming="isInProgress"
+      extra-class="mt-3"
+    />
     <div
       v-else-if="isInProgress"
       class="mt-3 rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink-muted"

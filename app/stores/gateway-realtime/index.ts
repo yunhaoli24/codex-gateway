@@ -24,8 +24,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
     onDisconnected: (error) => requestBroker.rejectAllRequests(error),
   });
   const requestBroker = createRealtimeRequestBroker({
-    connect: connection.connect,
-    isConnected: () => connection.state.connected,
+    waitForReady: connection.waitForReady,
     send: connection.send,
     unavailableMessage: () => t("app.realtimeUnavailable"),
     timeoutMessage: () => t("app.realtimeRequestTimedOut"),

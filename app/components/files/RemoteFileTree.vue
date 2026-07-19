@@ -96,7 +96,9 @@ function childrenFor(path: string): FileTreeNode[] {
 }
 
 function refreshTree() {
-  void fileWorkspace.refreshExpandedDirectories(props.hostId, props.threadId);
+  // User-triggered refresh is the only full forced refresh. Activation and visibility recovery
+  // refresh stale/expired directories only, avoiding a deep-tree request burst.
+  void fileWorkspace.refreshExpandedDirectories(props.hostId, props.threadId, true);
 }
 
 function fileName(path: string) {

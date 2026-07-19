@@ -5,12 +5,13 @@ import { toast } from "vue-sonner";
 import { Button } from "@/components/ui/button";
 import MarkdownContent from "@/components/common/MarkdownContent.vue";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { threadItemText } from "@/utils/thread-items";
+import { isItemInProgress, threadItemText } from "@/utils/thread-items";
 
 const props = defineProps<{ item: Record<string, any> }>();
 
 const { t } = useI18n();
 const text = computed(() => threadItemText(props.item));
+const inProgress = computed(() => isItemInProgress(props.item));
 const copied = ref(false);
 
 async function copyText() {
@@ -30,7 +31,7 @@ async function copyText() {
 
 <template>
   <div class="group min-w-0 max-w-full text-[0.9375rem] leading-8 text-ink lg:max-w-4xl">
-    <MarkdownContent :content="text" />
+    <MarkdownContent :content="text" :streaming="inProgress" />
     <div
       v-if="text"
       class="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"

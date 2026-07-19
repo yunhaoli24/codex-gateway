@@ -107,6 +107,7 @@ async function respond(decision: "accept" | "decline") {
         <HighlightedCode
           :code="output"
           language="shell"
+          :streaming="isInProgress"
           pre-class="syntax-highlight min-w-max whitespace-pre p-3 text-xs leading-5 text-ink-secondary"
         />
       </ChatStickToBottomScrollArea>

@@ -252,9 +252,7 @@ function handleThreadEvent(ctx: RealtimeServerMessageHandlerContext, event: Gate
   if (event.id <= lastAppliedEventId) {
     return;
   }
-  views.appendSelectedThreadEvent(event);
-  views.recordThreadEvent(event);
-  views.applyLiveEvent(event);
+  views.queueThreadEvent(event);
   ctx.advanceThreadSubscriptionCursor(event);
 }
 
