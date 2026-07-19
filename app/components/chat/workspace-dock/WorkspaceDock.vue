@@ -31,7 +31,6 @@ const { terminalPanels, subAgentPanels, browserPanels, tmuxPanels, fileWorkspace
     selectedHostId: refs.selectedHostId,
     selectedProjectId: refs.selectedProjectId,
     selectedThreadId: refs.selectedThreadId,
-    visibleSubAgentPanels: refs.visibleSubAgentPanels,
   });
 const panels = useWorkspaceDockPanels({
   selectedThreadId: refs.selectedThreadId,
@@ -61,6 +60,7 @@ const lifecycle = useWorkspaceDockLifecycle({
   scopeKey,
   fileRequestScopeKey,
   reconcile: panels.reconcile,
+  defaultLayout: panels.defaultLayout,
   panelIds,
 });
 const dockTheme = computed(() => (isDark.value ? themeDark : themeLight));

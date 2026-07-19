@@ -22,7 +22,7 @@ export function useWorkspacePanels(selection: WorkspacePanelSelection) {
   const browserStore = useGatewayBrowserStore();
   const tmuxStore = useGatewayTmuxStore();
   const { terminalSessions } = storeToRefs(terminalStore);
-  const { threadViews, currentThread } = storeToRefs(threadView);
+  const { threadViews, currentThread, visibleSubAgentPanels } = storeToRefs(threadView);
 
   const terminalPanels = computed(() =>
     Object.values(terminalSessions.value)
@@ -42,7 +42,7 @@ export function useWorkspacePanels(selection: WorkspacePanelSelection) {
   );
 
   const subAgentPanels = computed(() =>
-    selection.visibleSubAgentPanels.value.map((panel) => {
+    visibleSubAgentPanels.value.map((panel) => {
       const key = pinnedKey(panel.hostId, panel.threadId);
       const thread = threadViews.value[key]?.currentThread as Record<string, any> | null;
       return {

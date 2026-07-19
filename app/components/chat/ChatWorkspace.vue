@@ -25,7 +25,6 @@ const {
   loading,
   loadingOlderTurns,
   olderTurnsCursor,
-  visibleSubAgentPanels,
   historyTurns,
   openingThread,
   selectedThreadViewReady,
@@ -68,7 +67,6 @@ useBackgroundTurnTopUp({
       :older-turns-cursor="olderTurnsCursor"
       :visible-error="visibleError"
       :follow-key="followKey"
-      :visible-sub-agent-panels="visibleSubAgentPanels"
       :can-open-terminal="canOpenTerminal"
       :selected-thread-view-ready="selectedThreadViewReady"
       @load-older="loadOlderTurns"

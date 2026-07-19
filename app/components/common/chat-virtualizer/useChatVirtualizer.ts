@@ -5,7 +5,7 @@ import {
   type ComponentPublicInstance,
   type MaybeRefOrGetter,
 } from "vue";
-import { createChatVirtualizerBehavior } from "./anchoring";
+import { createChatVirtualizerBehavior, shouldAdjustChatScrollForSizeChange } from "./anchoring";
 import { useDirectDomVirtualizer } from "./direct-dom-virtualizer";
 import { useStickToBottom } from "./stick-to-bottom";
 import type { ThresholdSource } from "./stick-to-bottom-state";
@@ -46,6 +46,8 @@ export function useChatVirtualizer(options: ChatVirtualizerOptions) {
     })),
   );
   const virtualizer = directVirtualizer.virtualizer;
+  virtualizer.value.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
+    shouldAdjustChatScrollForSizeChange(item, instance, sticky.followLatest.value);
   const virtualItems = computed(() => virtualizer.value.getVirtualItems());
 
   function bottomOffset(viewport: HTMLElement) {

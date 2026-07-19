@@ -64,10 +64,12 @@ function capturePrependAnchor<TScrollElement extends Element, TItemElement exten
 
   const viewport = instance.scrollElement;
   if (!(viewport instanceof HTMLElement)) return null;
-  // A scrollable viewport is already covered by virtual-core's keyed prepend
-  // anchor. Applying this DOM fallback there would compensate the same delta
-  // twice. It exists only for the underfilled list where scrollTop was clamped.
-  if (viewport.scrollHeight - viewport.clientHeight > 1) return null;
+  // While following, a scrollable viewport is already covered by virtual-core's end anchor and a
+  // DOM correction would apply the prepend delta twice. A detached timeline deliberately switches
+  // to anchorTo="start" so core cannot misclassify streaming row growth as an at-end resize; in
+  // that mode this keyed DOM anchor owns prepends for both scrollable and underfilled timelines.
+  if (nextOptions.anchorTo === "end" && viewport.scrollHeight - viewport.clientHeight > 1)
+    return null;
   const viewportRect = viewport.getBoundingClientRect();
   for (const item of instance.getVirtualItems()) {
     const element = instance.elementsCache.get(item.key);
@@ -266,6 +268,12 @@ export function useDirectDomVirtualizer<
 
   function containerRef(refValue: Element | ComponentPublicInstance | null) {
     const element = refValue instanceof HTMLElement ? refValue : null;
+    // Vue may invoke a function ref again for the same DOM node after every component patch.
+    // Treat this as a binding callback, not a render notification: resetting the cache and
+    // scheduling a commit for an unchanged node creates a render -> ref -> post-flush watcher ->
+    // triggerRef feedback loop. Content and viewport changes are already owned by TanStack and
+    // the ResizeObservers in VirtualTimelineViewport, so doing nothing here is intentional.
+    if (directState.container === element) return;
     containerElement.value = element;
     directState.container = element;
     directState.lastSize = null;

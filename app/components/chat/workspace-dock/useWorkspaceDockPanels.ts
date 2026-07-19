@@ -1,4 +1,5 @@
-import type { DockviewApi, IDockviewPanel } from "dockview-vue";
+import { Orientation } from "dockview-vue";
+import type { DockviewApi, IDockviewPanel, SerializedDockview } from "dockview-vue";
 
 import type { ComputedRef, Ref } from "vue";
 import { useGatewayTerminalTransport } from "@/composables/terminal/useGatewayTerminalTransport";
@@ -20,6 +21,8 @@ interface PanelDefinition {
   component: string;
   params: WorkspaceDockPanelParams;
 }
+
+const DEFAULT_GROUP_ID = "workspace-default-group";
 
 export function useWorkspaceDockPanels(options: {
   selectedThreadId: Ref<string | null>;
@@ -114,6 +117,51 @@ export function useWorkspaceDockPanels(options: {
     }
   }
 
+  function defaultLayout(api: DockviewApi): SerializedDockview {
+    const desired = definitions();
+    const panelIds = desired.map(({ id }) => id);
+    const activePanelId = panelIds.includes(AGENT_WORKSPACE_PANEL_ID)
+      ? AGENT_WORKSPACE_PANEL_ID
+      : panelIds[0];
+
+    return {
+      grid: {
+        root: {
+          type: "branch",
+          size: api.height,
+          data: [
+            {
+              type: "leaf",
+              size: api.width,
+              data: {
+                id: DEFAULT_GROUP_ID,
+                views: panelIds,
+                activeView: activePanelId,
+              },
+            },
+          ],
+        },
+        width: api.width,
+        height: api.height,
+        orientation: Orientation.HORIZONTAL,
+      },
+      panels: Object.fromEntries(
+        desired.map((definition) => [
+          definition.id,
+          {
+            id: definition.id,
+            contentComponent: definition.component,
+            tabComponent: "WorkspaceDockTab",
+            title: definition.title,
+            renderer: "always",
+            params: definition.params,
+          },
+        ]),
+      ),
+      activeGroup: DEFAULT_GROUP_ID,
+    };
+  }
+
   function closeDynamic(panel: IDockviewPanel) {
     const params = panel.params as WorkspaceDockPanelParams;
     const nextPanelId = activateNextPanel(panel);
@@ -154,5 +202,5 @@ export function useWorkspaceDockPanels(options: {
     return nextPanel?.id ?? null;
   }
 
-  return { reconcile, closeDynamic };
+  return { reconcile, defaultLayout, closeDynamic };
 }
