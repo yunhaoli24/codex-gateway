@@ -44,7 +44,10 @@ async function proxyHttpRequest(
   response: ServerResponse,
 ) {
   const headers = upstreamHeaders(session, request.headers);
-  const agent = new BrowserPreviewHttpAgent(() => openBrowserPreviewUpstreamSocket(session));
+  const agent = browserPreviewManager.agentFor(
+    session,
+    () => new BrowserPreviewHttpAgent(() => openBrowserPreviewUpstreamSocket(session)),
+  );
   await new Promise<void>((resolve) => {
     const upstream = http.request(
       {

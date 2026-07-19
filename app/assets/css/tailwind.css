@@ -315,6 +315,25 @@
     @apply border border-hairline bg-canvas-soft;
   }
 
+  /* Shiki's dual-theme output sets these variables on each token. Keep selection in CSS so theme
+   * changes do not schedule a second highlighter pass while Agent output is still streaming. */
+  .syntax-highlight,
+  .syntax-highlight span {
+    color: var(--shiki-light);
+  }
+
+  :root.dark .syntax-highlight,
+  :root.dark .syntax-highlight span {
+    color: var(--shiki-dark);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light) .syntax-highlight,
+    :root:not(.light) .syntax-highlight span {
+      color: var(--shiki-dark);
+    }
+  }
+
   .markdown-content pre code {
     @apply bg-transparent p-0 text-sm;
   }

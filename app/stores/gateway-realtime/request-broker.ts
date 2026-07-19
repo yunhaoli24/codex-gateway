@@ -14,8 +14,7 @@ interface PendingRealtimeRequest {
 }
 
 interface RealtimeRequestBrokerOptions {
-  connect: () => void;
-  isConnected: () => boolean;
+  waitForReady: (timeoutMs: number) => Promise<void>;
   send: (message: RealtimeClientMessage) => boolean;
   unavailableMessage: () => string;
   timeoutMessage: () => string;
@@ -33,7 +32,7 @@ export function createRealtimeRequestBroker(options: RealtimeRequestBrokerOption
     buildMessage: (requestId: string) => RealtimeRequestMessage,
     timeoutMs = REALTIME_REQUEST_TIMEOUT_MS,
   ) {
-    await waitForReady(REALTIME_READY_TIMEOUT_MS);
+    await options.waitForReady(REALTIME_READY_TIMEOUT_MS);
     const requestId = `gateway-ws-${createUuid()}`;
     const requestMessage = buildMessage(requestId);
 
@@ -93,27 +92,6 @@ export function createRealtimeRequestBroker(options: RealtimeRequestBrokerOption
         }),
       );
     }
-  }
-
-  async function waitForReady(timeoutMs: number) {
-    options.connect();
-    if (options.isConnected()) return;
-
-    const startedAt = Date.now();
-    await new Promise<void>((resolve, reject) => {
-      const poll = () => {
-        if (options.isConnected()) {
-          resolve();
-          return;
-        }
-        if (Date.now() - startedAt >= timeoutMs) {
-          reject(new Error(options.unavailableMessage()));
-          return;
-        }
-        window.setTimeout(poll, 25);
-      };
-      poll();
-    });
   }
 
   function requestHostDetails(request: RealtimeRequestMessage) {

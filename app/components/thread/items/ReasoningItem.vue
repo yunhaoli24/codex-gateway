@@ -36,7 +36,7 @@ watch(inProgress, (active) => (active ? resume() : pause()), { immediate: true }
             >{{ timeLabel }}</span
           >
         </div>
-        <MarkdownContent v-if="text" :content="text" compact />
+        <MarkdownContent v-if="text" :content="text" :streaming="inProgress" compact />
       </div>
     </div>
   </div>

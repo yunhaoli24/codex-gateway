@@ -11,6 +11,7 @@ import {
 
 const props = defineProps<{
   change: Record<string, any>;
+  streaming?: boolean;
 }>();
 </script>
 
@@ -26,6 +27,7 @@ const props = defineProps<{
     <MarkdownContent
       :content="fileChangeDiffMarkdown(props.change)"
       :diff-language="languageFromPath(fileChangePath(props.change))"
+      :streaming="props.streaming"
       compact
     />
   </ChatStickToBottomScrollArea>

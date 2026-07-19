@@ -1,5 +1,6 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
+import pLimit from "p-limit";
 import type {
   TmuxMonitor,
   TmuxMonitorMode,
@@ -42,6 +43,7 @@ export const useGatewayTmuxStore = defineStore(
     const highlightedMonitorId = ref<number | null>(null);
     const remoteHosts = ref<Record<number, TmuxRemoteHostState>>({});
     const pendingScans = new Map<number, Promise<TmuxRemoteHostState>>();
+    const scanLimit = pLimit(2);
     let pendingSummary: Promise<void> | null = null;
     let sessionGeneration = 0;
 
@@ -108,7 +110,9 @@ export const useGatewayTmuxStore = defineStore(
     async function scanSessions(hostId: number) {
       const pending = pendingScans.get(hostId);
       if (pending) return await pending;
-      const request = scanSessionsNow(hostId);
+      // A user may expand many Hosts. Keep the dashboard responsive without creating a burst of
+      // browser requests; the server applies the authoritative shared SSH-channel limit as well.
+      const request = scanLimit(() => scanSessionsNow(hostId));
       const trackedRequest = request.finally(() => {
         if (pendingScans.get(hostId) === trackedRequest) pendingScans.delete(hostId);
       });

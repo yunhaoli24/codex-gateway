@@ -191,6 +191,64 @@ test("streaming output stays pinned when the user is already at the latest conte
   }
 });
 
+test("streaming Agent output keeps a manually detached reader in place", async ({ page }) => {
+  await openApp(page);
+  const threadId = "e2e-manual-detach-stream-thread";
+  const agentLines = Array.from(
+    { length: 160 },
+    (_, index) => `manual detach line ${String(index + 1).padStart(3, "0")}`,
+  );
+  await seedGatewayThread(page, {
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId, name: "Manual Detach Stream" },
+    status: "running",
+    history: {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "turn-manual-detach-1",
+            status: "running",
+            items: [
+              {
+                id: "user-manual-detach-1",
+                type: "userMessage",
+                content: [{ type: "text", text: "read earlier output" }],
+              },
+              {
+                id: "agent-manual-detach-1",
+                type: "agentMessage",
+                status: "inProgress",
+                text: agentLines.join("\n\n"),
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  await expect(page.getByText("manual detach line 160")).toBeVisible();
+  await parkChatViewportInMiddle(page);
+  await expect(page.getByTestId("chat-scroll-area")).toHaveAttribute("data-follow-latest", "false");
+  const anchor = await captureVisibleTextAnchor(page, "manual detach line ");
+  const scrollTop = await chatViewportScrollTop(page);
+
+  await appendAgentStreamLines(page, {
+    itemId: "agent-manual-detach-1",
+    prefix: "detached incoming line",
+    count: 40,
+  });
+
+  await page.waitForTimeout(300);
+  await expect.poll(() => chatViewportScrollTop(page)).toBeGreaterThanOrEqual(scrollTop - 2);
+  await expect.poll(() => chatViewportScrollTop(page)).toBeLessThanOrEqual(scrollTop + 2);
+  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeGreaterThanOrEqual(anchor.top - 2);
+  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeLessThanOrEqual(anchor.top + 2);
+  await expect(page.getByTestId("chat-scroll-area")).toHaveAttribute("data-follow-latest", "false");
+});
+
 test("switching threads discards stale virtual row measurements", async ({ page }) => {
   await openApp(page);
   const longThreadId = "e2e-long-measure-thread";

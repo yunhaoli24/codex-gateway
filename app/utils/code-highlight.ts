@@ -5,7 +5,10 @@ import {
   type Highlighter,
 } from "shiki";
 
-const SHIKI_THEME = "github-light";
+const SHIKI_THEMES = {
+  light: "github-light-default",
+  dark: "github-dark-default",
+} as const;
 const SHIKI_LANGUAGES = [
   "bash",
   "c",
@@ -44,7 +47,7 @@ const languageLoadPromises = new Map<string, Promise<void>>();
 export function getCodeHighlighter() {
   highlighterPromise ??= getSingletonHighlighter({
     langs: [...SHIKI_LANGUAGES],
-    themes: [SHIKI_THEME],
+    themes: Object.values(SHIKI_THEMES),
   });
   return highlighterPromise;
 }
@@ -116,7 +119,10 @@ export async function highlightCode(value: string, language = "") {
   await ensureLanguageLoaded(highlighter, normalizedLanguage);
   return highlighter.codeToHtml(value, {
     lang: normalizedLanguage,
-    theme: SHIKI_THEME,
+    themes: SHIKI_THEMES,
+    // Shiki emits --shiki-light/--shiki-dark per token. CSS chooses the active variable, so a
+    // system or user theme change does not re-run syntax highlighting for every open document.
+    defaultColor: false,
     structure: "inline",
   });
 }
