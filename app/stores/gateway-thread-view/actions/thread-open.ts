@@ -230,11 +230,15 @@ export function createThreadOpenActions() {
       if (!isCurrentViewTransition(viewEpoch)) return;
       const threadId = applyStartedThreadResult(result);
       cacheSelectedThreadView();
-      useGatewayRealtimeStore().connectThreadEvents();
-      await navigation.listThreads();
-      cacheSelectedThreadView();
       rememberOpenThread(threadId);
       syncSelectedRoute();
+      useGatewayRealtimeStore().connectThreadEvents();
+
+      // Creating the thread is the authoritative state transition. Commit its selection and URL
+      // before refreshing the sidebar catalog: that secondary RPC may be slow while a host has
+      // just upgraded/restarted, but it must not leave a successfully created thread unreachable.
+      await navigation.listThreads();
+      cacheSelectedThreadView();
     },
   };
 }

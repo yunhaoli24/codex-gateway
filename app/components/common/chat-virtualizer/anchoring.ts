@@ -1,4 +1,9 @@
-import { elementScroll, type VirtualizerOptions } from "@tanstack/virtual-core";
+import {
+  elementScroll,
+  type VirtualItem,
+  type Virtualizer,
+  type VirtualizerOptions,
+} from "@tanstack/virtual-core";
 
 type ChatVirtualizerBehavior = Pick<
   VirtualizerOptions<HTMLElement, Element>,
@@ -13,20 +18,16 @@ export function createChatVirtualizerBehavior(options: {
   // output use independent max-height viewports; their input events stay inside
   // those components and must never toggle or drive this outer scroll instance.
   //
-  // Keep end anchoring enabled even while the reader is detached: TanStack uses
-  // it to preserve stable message keys across history prepends. Detachment is
-  // expressed by disabling append following and at-end resize compensation,
-  // not by blocking scrollToFn, which would also block prepend corrections.
-  // While detached, disable core's "was at end" resize compensation entirely.
-  // During dynamic remeasurement, virtual distance can temporarily be <= 0,
-  // so use negative infinity rather than a small negative threshold.
+  // End anchoring is only valid while following. During dynamic measurement TanStack can report
+  // an end-distance sentinel that still satisfies even a negative-infinity threshold; leaving
+  // anchorTo="end" would then run the core's wasAtEnd resize branch before our custom predicate
+  // and pull a detached reader downward. Detached history prepends are preserved by the keyed DOM
+  // anchor in direct-dom-virtualizer instead, so using start anchoring here is intentional.
   const scrollEndThreshold = options.followLatest
     ? options.scrollEndThreshold
     : Number.NEGATIVE_INFINITY;
   return {
-    // Chat history always uses end anchoring so keyed prepends remain stable.
-    // Detaching only disables append following and at-end resize compensation.
-    anchorTo: "end",
+    anchorTo: options.followLatest ? "end" : "start",
     followOnAppend: options.followLatest,
     initialOffset: () => 1_000_000_000,
     scrollEndThreshold,
@@ -38,4 +39,17 @@ export function createChatVirtualizerBehavior(options: {
       elementScroll(offset, scrollOptions, instance);
     },
   };
+}
+
+export function shouldAdjustChatScrollForSizeChange(
+  _item: VirtualItem,
+  _instance: Virtualizer<HTMLElement, Element>,
+  followLatest: boolean,
+) {
+  // Do not add a positional fallback here. A turn can contain Agent text followed by command and
+  // diff blocks, so streamed text may resize a row that is geometrically above the viewport even
+  // though the user expects the raw viewport to stay parked. Once detached, all row-resize
+  // compensation is disabled. Keyed history prepends use anchorTo="end", while panel restoration
+  // uses the explicit DOM anchor in reflow(); neither path depends on this resize hook.
+  return followLatest;
 }

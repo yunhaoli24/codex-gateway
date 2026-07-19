@@ -21,16 +21,63 @@ services:
     volumes:
       - ../..:/workspace/codex-gateway
 
-  test-runner:
+  build-runner:
+    image: codex-gateway-e2e-runner
+    mem_limit: 2g
     build:
       context: ../..
       dockerfile: tests/e2e/runner.Dockerfile
+    environment:
+      NODE_OPTIONS: --max-old-space-size=1200
+      CODEX_GATEWAY_DB_PATH: /workspace/codex-gateway/.data-e2e/codex-gateway.db
+      E2E_GATEWAY_USERNAME: ${E2E_GATEWAY_USERNAME:-e2e}
+      E2E_GATEWAY_PASSWORD: ${E2E_GATEWAY_PASSWORD:-codex-gateway-e2e-password}
+    volumes:
+      - build-output:/e2e-output
+      - e2e-data:/workspace/codex-gateway/.data-e2e
+
+  gateway-under-test:
+    image: codex-gateway-e2e-runner
+    mem_limit: 2g
     depends_on:
       - ssh-target
       - bark-target
     environment:
+      HOST: 0.0.0.0
+      PORT: "3100"
+      CODEX_GATEWAY_CONFIG_SECRET: e2e-config-secret
+      CODEX_GATEWAY_DB_PATH: /workspace/codex-gateway/.data-e2e/codex-gateway.db
+      NUXT_IGNORE_LOCK: "1"
+      BROWSER_PREVIEW_PUBLIC_PORT: "3100"
+      BROWSER_PREVIEW_DOMAIN: 127.0.0.1.nip.io
+      BROWSER_PREVIEW_SCHEME: http
+    volumes:
+      - build-output:/e2e-output:ro
+      - e2e-data:/workspace/codex-gateway/.data-e2e
+    command: ["node", "/e2e-output/server/index.mjs"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const s=require('node:net').connect(3100,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))",
+        ]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  test-runner:
+    image: codex-gateway-e2e-runner
+    mem_limit: 2g
+    network_mode: service:gateway-under-test
+    depends_on:
+      gateway-under-test:
+        condition: service_healthy
+    environment:
       CI: ${CI:-}
       E2E_CONTAINERIZED: "1"
+      E2E_DATABASE_PREPARED: "1"
       E2E_SOURCE_DIR: /workspace/source
       E2E_CODEX_HOME: /codex-auth
       E2E_REMOTE_HOST: ssh-target
@@ -48,10 +95,13 @@ services:
     volumes:
       - ${E2E_CODEX_HOME:-${HOME}/.codex}:/codex-auth:ro
       - ../../test-results:/workspace/codex-gateway/test-results
+      - e2e-data:/workspace/codex-gateway/.data-e2e
       - bark-requests:/bark-requests
       - runner-home:/home/pwuser
     working_dir: /workspace/codex-gateway
 
 volumes:
   bark-requests:
+  build-output:
+  e2e-data:
   runner-home:

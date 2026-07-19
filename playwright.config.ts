@@ -13,23 +13,10 @@ export default defineConfig({
     baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3100",
     actionTimeout: 30_000,
     navigationTimeout: 60_000,
-    trace: "retain-on-failure",
+    // Continuous DOM snapshots are larger than the application itself and can push Chromium over
+    // the E2E runner's 2 GiB cgroup limit. Failure screenshots and Playwright error context remain.
+    trace: "off",
     screenshot: "only-on-failure",
-  },
-  webServer: {
-    command:
-      "rm -rf .data-e2e .output .nuxt && pnpm build && HOST=0.0.0.0 PORT=3100 node .output/server/index.mjs",
-    url: "http://127.0.0.1:3100",
-    reuseExistingServer: false,
-    timeout: 240_000,
-    env: {
-      CODEX_GATEWAY_CONFIG_SECRET: process.env.CODEX_GATEWAY_CONFIG_SECRET || "e2e-config-secret",
-      CODEX_GATEWAY_DB_PATH: process.env.CODEX_GATEWAY_DB_PATH || ".data-e2e/codex-gateway.db",
-      NUXT_IGNORE_LOCK: "1",
-      BROWSER_PREVIEW_PUBLIC_PORT: "3100",
-      BROWSER_PREVIEW_DOMAIN: "127.0.0.1.nip.io",
-      BROWSER_PREVIEW_SCHEME: "http",
-    },
   },
   projects: [
     {

@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import type { ThreadRuntimeStatus } from "~~/shared/types";
-import type { SubAgentPanelState } from "@/stores/gateway/types";
 import WorkspaceDock from "./workspace-dock/WorkspaceDock.vue";
 
 const props = defineProps<{
@@ -18,20 +16,14 @@ const props = defineProps<{
   olderTurnsCursor: string | null;
   visibleError: string | null;
   followKey: unknown[];
-  visibleSubAgentPanels: SubAgentPanelState[];
   canOpenTerminal: boolean;
   selectedThreadViewReady: boolean;
 }>();
 const emit = defineEmits<{ loadOlder: []; openTerminal: [] }>();
-const scopeKey = computed(
-  () =>
-    `${props.selectedHostId ?? "host"}:${props.selectedProjectId ?? "project"}:${props.selectedThreadId ?? "thread"}`,
-);
 </script>
 
 <template>
   <WorkspaceDock
-    :key="scopeKey"
     v-bind="props"
     @load-older="emit('loadOlder')"
     @open-terminal="emit('openTerminal')"

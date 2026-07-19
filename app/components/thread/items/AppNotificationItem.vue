@@ -38,8 +38,7 @@ const details = computed(() => props.item.details || "");
       <CollapsibleContent>
         <pre
           class="mt-2 max-h-40 overflow-auto rounded-md bg-canvas-soft p-2 text-xs leading-5 text-ink-secondary"
-          >{{ details }}</pre
-        >
+          >{{ details }}</pre>
       </CollapsibleContent>
     </Collapsible>
   </div>

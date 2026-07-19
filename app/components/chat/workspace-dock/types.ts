@@ -1,7 +1,6 @@
 import type { ComputedRef, Ref } from "vue";
 
 import type { ThreadRuntimeStatus } from "~~/shared/types";
-import type { SubAgentPanelState } from "@/stores/gateway/types";
 
 export type WorkspacePanelKind = "agent" | "files" | "terminal" | "subagent" | "browser" | "tmux";
 
@@ -32,7 +31,6 @@ export interface WorkspaceDockProps {
   olderTurnsCursor: string | null;
   visibleError: string | null;
   followKey: unknown[];
-  visibleSubAgentPanels: SubAgentPanelState[];
   canOpenTerminal: boolean;
   selectedThreadViewReady: boolean;
 }
@@ -41,5 +39,4 @@ export interface WorkspacePanelSelection {
   selectedHostId: Ref<number | null> | ComputedRef<number | null>;
   selectedProjectId: Ref<number | null> | ComputedRef<number | null>;
   selectedThreadId: Ref<string | null> | ComputedRef<string | null>;
-  visibleSubAgentPanels: Ref<SubAgentPanelState[]> | ComputedRef<SubAgentPanelState[]>;
 }

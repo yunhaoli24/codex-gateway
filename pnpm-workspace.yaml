@@ -9,7 +9,13 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - katex@0.18.0
+  - '@nuxt/kit@4.5.0'
+  - '@nuxt/nitro-server@4.5.0'
+  - '@nuxt/schema@4.5.0'
+  - '@nuxt/vite-builder@4.5.0'
+  - '@open-file-viewer/core@0.1.22'
+  - '@open-file-viewer/vue@0.1.22'
+  - nuxt@4.5.0
 
 overrides:
   crossws: 0.4.7
-  vite: 8.1.0
