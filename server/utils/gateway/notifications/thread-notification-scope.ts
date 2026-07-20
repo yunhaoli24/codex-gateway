@@ -1,5 +1,6 @@
 import type { GatewayEvent } from "~~/shared/types";
 import { parentThreadIdFromMetadata } from "../state/sub-agent-threads";
+import { threadMetadataStore } from "../state/thread-metadata";
 import type { ThreadMetadataResolver } from "../runtime/thread-runtime-events";
 
 export async function shouldNotifyMainThread(
@@ -14,6 +15,9 @@ export async function shouldNotifyMainThread(
     const result = await resolveThread();
     const thread = (result as any)?.thread ?? result;
     if (thread && typeof thread === "object") {
+      // Notifications for a thread opened outside Gateway still need its real title
+      // and cwd. This is a volatile index only; app-server remains authoritative.
+      threadMetadataStore.record(event.hostId, null, thread);
       return parentThreadIdFromMetadata(thread) === null;
     }
   } catch (error) {

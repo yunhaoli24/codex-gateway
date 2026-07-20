@@ -9,6 +9,7 @@ import { tmuxMonitorService } from "../tmux-monitor/monitor-service";
 import type { StoredHostRecord } from "../state/memory";
 import { threadBroker } from "./broker";
 import { hostRuntimeFingerprint } from "./host-runtime-fingerprint";
+import { activeMainThreadMonitor } from "./active-main-thread-monitor";
 
 export const hostResourceLifecycle = {
   changed(userId: number, previous: StoredHostRecord, next: StoredHostRecord) {
@@ -29,6 +30,7 @@ export const hostResourceLifecycle = {
 };
 
 function closeEphemeralResources(userId: number, hostId: number) {
+  activeMainThreadMonitor.forgetHost(userId, hostId);
   threadBroker.closeHost(hostId);
   terminalManager.closeHost(userId, hostId);
   browserPreviewManager.closeHost(userId, hostId);

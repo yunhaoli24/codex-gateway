@@ -116,6 +116,10 @@ class ThreadBroker {
     return this.registry.controllersForHost(hostId);
   }
 
+  hasController(hostId: number, threadId: string) {
+    return this.registry.hasController(hostId, threadId);
+  }
+
   async ensureUpstreamSubscribed(host: HostRecord, threadId: string) {
     const controller = await this.registry.getController(host, threadId);
     if (!controller.isSubscribed()) {

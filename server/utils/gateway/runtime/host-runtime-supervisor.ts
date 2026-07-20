@@ -20,6 +20,7 @@ import {
   type HostRuntimeSlot,
 } from "./host-runtime-slot";
 import { hostSessionEvents, type HostSessionClosedEvent } from "./host-session-events";
+import { activeMainThreadMonitor } from "./active-main-thread-monitor";
 
 class HostRuntimeSupervisor {
   private readonly slots = new Map<string, HostRuntimeSlot>();
@@ -136,9 +137,11 @@ class HostRuntimeSupervisor {
     this.clearTimer(slot);
     slot.generation += 1;
     this.slots.delete(key);
+    activeMainThreadMonitor.forgetHost(slot.userId, slot.hostId);
   }
 
   private handleSessionClosed(event: HostSessionClosedEvent) {
+    activeMainThreadMonitor.forgetHost(event.userId, event.hostId);
     const slot = this.slots.get(this.slotKey(event.userId, event.hostId));
     if (!slot || slot.connecting || slot.timer) {
       return;
