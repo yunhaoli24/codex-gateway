@@ -5,6 +5,7 @@ import { bindGatewayUser } from "../state/memory";
 import type { HostControllerLookup, HostControllersLookup } from "./types";
 import { threadIdFromNotification } from "../protocol/thread-payload";
 import { threadRuntimeEvents } from "./thread-runtime-events";
+import { activeMainThreadMonitor } from "./active-main-thread-monitor";
 
 export class HostRpcSession {
   readonly client: CodexRpcClient;
@@ -58,6 +59,14 @@ export class HostRpcSession {
   }
 
   private routeNotification(message: any) {
+    activeMainThreadMonitor.handleNotification(
+      {
+        host: this.host,
+        client: this.client,
+        hasController: (threadId) => Boolean(this.controllerForThread(this.host.id, threadId)),
+      },
+      message,
+    );
     const threadId = threadIdFromNotification(message);
     if (!threadId) {
       return;

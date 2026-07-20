@@ -20,8 +20,12 @@ export async function connectHostRuntime(slot: HostRuntimeSlot) {
       hostName: slot.host.name,
       pinnedThreads: slot.pinnedThreads.filter((thread) => thread.hostId === slot.hostId).length,
     });
-    await threadBroker.getHostClient(slot.host);
-    await activeMainThreadMonitor.refreshHost(slot.host);
+    const client = await threadBroker.getHostClient(slot.host);
+    await activeMainThreadMonitor.recoverHost({
+      host: slot.host,
+      client,
+      hasController: (threadId) => threadBroker.hasController(slot.host.id, threadId),
+    });
     await refreshRunningThreadsForHost({
       host: slot.host,
       reason: "host-connected",
