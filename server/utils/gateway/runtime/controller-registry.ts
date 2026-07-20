@@ -60,6 +60,10 @@ export class ControllerRegistry {
     return this.controllersForUserHost(this.userKey(), hostId);
   }
 
+  hasController(hostId: number, threadId: string) {
+    return this.controllers.has(this.key(this.userKey(), hostId, threadId));
+  }
+
   close(hostId: number, threadId: string) {
     const key = this.key(this.userKey(), hostId, threadId);
     this.invalidateController(key);

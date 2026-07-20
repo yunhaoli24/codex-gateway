@@ -49,6 +49,7 @@ export interface GatewayMemoryState {
   subAgentThreads: SubAgentThreadRecord[];
   events: GatewayEvent[];
   nextEventId: number;
+  publishedNotificationKeys: string[];
   deliveredNotificationKeys: string[];
   pendingNotificationKeys: string[];
   configLoaded: boolean;
@@ -66,6 +67,7 @@ function createGatewayMemoryState(): GatewayMemoryState {
     subAgentThreads: [],
     events: [],
     nextEventId: 1,
+    publishedNotificationKeys: [],
     deliveredNotificationKeys: [],
     pendingNotificationKeys: [],
     configLoaded: false,
@@ -154,6 +156,7 @@ export const initialGatewayMemoryState: GatewayMemoryState = {
   subAgentThreads: [],
   events: [],
   nextEventId: 1,
+  publishedNotificationKeys: [],
   deliveredNotificationKeys: [],
   pendingNotificationKeys: [],
   configLoaded: false,
