@@ -25,6 +25,7 @@ export class CodexRpcClient extends EventEmitter {
   private connectPromise: Promise<void> | null = null;
   private readonly requests = new RpcRequestBroker();
   private transport: CodexRpcTransport | null = null;
+  private deferredUpgrade = false;
 
   constructor(
     private readonly host: HostRecord,
@@ -55,6 +56,7 @@ export class CodexRpcClient extends EventEmitter {
     let versionState = this.options.skipVersionCheck
       ? null
       : await codexRuntime.ensureCodexVersion(this.host);
+    this.deferredUpgrade = Boolean(versionState?.deferredUpgrade);
 
     try {
       await this.connectRemoteProxyWebSocket();
@@ -145,6 +147,14 @@ export class CodexRpcClient extends EventEmitter {
     this.requests.rejectAll(new Error("Codex RPC client closed"));
     this.transport?.close();
     this.transport = null;
+  }
+
+  hasDeferredUpgrade() {
+    return this.deferredUpgrade;
+  }
+
+  resolveDeferredUpgrade() {
+    this.deferredUpgrade = false;
   }
 
   private async connectRemoteProxyWebSocket() {

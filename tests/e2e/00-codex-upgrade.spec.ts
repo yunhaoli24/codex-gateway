@@ -1,16 +1,19 @@
 import { expect, test } from "@playwright/test";
+import type { HostRecord } from "../../shared/types";
 import { parseCodexVersion } from "../../server/utils/gateway/infra/codex-version";
-import { openApp } from "./helpers/app";
+import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
 import {
   addRemoteHost,
   addRemoteProject,
   execRemoteSsh,
   readContainerCodexVersion,
   readRemoteEnv,
+  readUpgradeRemoteEnvs,
   resetRemoteAppServer,
   remoteCodexCommand,
   sendTextTurn,
   startRemoteThreadFromProjectMenu,
+  stopRemoteFixture,
 } from "./helpers/remote-codex";
 
 test("parses current Codex CLI and app-server user-agent versions", () => {
@@ -28,49 +31,59 @@ test("parses current Codex CLI and app-server user-agent versions", () => {
   );
 });
 
-test("upgrades an old remote npm Codex install before using the app-server", async ({ page }) => {
-  const remote = await readRemoteEnv();
-  test.skip(
-    !remote.initialCodexVersion ||
-      !remote.supportedCodexVersion ||
-      remote.initialCodexVersion === remote.supportedCodexVersion,
-    "The E2E image is already using the supported Codex version.",
-  );
+test("upgrades empty, legacy Node, and legacy Codex SSH hosts serially", async ({ page }) => {
+  test.setTimeout(10 * 60_000);
+  const environments = await readUpgradeRemoteEnvs();
+  const remote = environments.find(({ runtimeFixture }) => runtimeFixture === "empty-runtime")!;
 
-  await expect
-    .poll(async () => readContainerCodexVersion(remote), {
-      timeout: 30_000,
-    })
-    .toContain(remote.initialCodexVersion!);
+  for (const environment of environments) {
+    await verifyInitialRuntime(environment);
+  }
 
   await openApp(page);
+  const hosts: HostRecord[] = [];
+  for (const environment of environments) {
+    hosts.push(
+      await authenticatedFetch<HostRecord>(page, {
+        url: "/api/hosts",
+        method: "POST",
+        body: {
+          name: `upgrade-${environment.runtimeFixture}-${Date.now()}`,
+          sshHost: environment.host,
+          username: environment.username,
+          port: Number(environment.port),
+          authMode: "password",
+          password: environment.password,
+          proxyUrl: environment.proxyUrl ?? null,
+        },
+      }),
+    );
+  }
 
-  const host = await addRemoteHost(page, remote, `old-codex-upgrade-${Date.now()}`);
-  await expect
-    .poll(async () => readContainerCodexVersion(remote), {
-      timeout: 30_000,
-    })
-    .toContain(remote.supportedCodexVersion!);
+  for (const environment of environments) {
+    await expect
+      .poll(async () => readContainerCodexVersion(environment).catch(() => "runtime not ready"), {
+        timeout: 240_000,
+      })
+      .toContain(environment.supportedCodexVersion!);
+    // Seeing the binary version only proves npm has replaced the package. Wait for the
+    // install shell's cleanup trap instead of coupling this backend test to sidebar state.
+    await verifyOfficialNpmLayout(environment);
+  }
 
-  const npmLayout = await execRemoteSsh(
-    remote,
-    `
-set -eu
-codex_bin=${JSON.stringify(remote.codexBin)}
-codex_bin_dir="$(dirname "$codex_bin")"
-PATH="$codex_bin_dir:$PATH"
-export PATH
-npm_root="$(npm root -g)"
-test -f "$npm_root/@openai/codex/package.json"
-node -e 'require.resolve("@openai/codex-linux-x64/package.json", { paths: [process.argv[1]] })' "$npm_root/@openai/codex"
-if [ -d "$HOME/.cache/codex-gateway/upgrades" ]; then
-  test -z "$(find "$HOME/.cache/codex-gateway/upgrades" -mindepth 1 -maxdepth 1 -type d -name 'upgrade.*' -print -quit)"
-fi
-printf 'official npm layout and staging cleanup verified\\n'
-`,
-  );
-  expect(npmLayout.stdout).toContain("official npm layout and staging cleanup verified");
+  for (const [index, environment] of environments.entries()) {
+    if (environment === remote) continue;
+    await authenticatedFetch(page, {
+      url: `/api/hosts/${hosts[index]!.id}`,
+      method: "DELETE",
+    });
+    await stopRemoteFixture(environment);
+  }
 
+  const host = hosts[environments.indexOf(remote)]!;
+  // Hosts were registered directly through the API so all upgrades could queue immediately.
+  // Refresh once before the sole product-flow test to hydrate Pinia with the surviving Host.
+  await reloadApp(page);
   const project = await addRemoteProject(page, remote, host.id, `upgrade-project-${Date.now()}`);
   const threadId = await startRemoteThreadFromProjectMenu(page, project.id);
   const marker = `E2E 升级后发送 ${Date.now()}`;
@@ -82,6 +95,62 @@ printf 'official npm layout and staging cleanup verified\\n'
     timeout: 120_000,
   });
 });
+
+async function verifyInitialRuntime(remote: Awaited<ReturnType<typeof readRemoteEnv>>) {
+  const checks = {
+    "empty-runtime":
+      "! command -v node && ! command -v npm && ! command -v codex && printf 'empty runtime verified\\n'",
+    "legacy-node": `
+test "$(node --version)" = "v${remote.initialNodeVersion}"
+command -v npm >/dev/null
+! command -v codex
+printf 'legacy Node runtime verified\\n'
+`,
+    "legacy-codex": `
+node_bin=${JSON.stringify(remote.codexBin?.replace(/\/codex$/, "/node"))}
+test "$("$node_bin" --version)" = "v${remote.initialNodeVersion}"
+${remoteCodexCommand(remote)} --version | grep -F ${JSON.stringify(remote.initialCodexVersion)}
+printf 'legacy Codex runtime verified\\n'
+`,
+  } as const;
+  const result = await execRemoteSsh(remote, `set -eu\n${checks[remote.runtimeFixture!]}`);
+  expect(result.stdout).toContain("verified");
+}
+
+async function verifyOfficialNpmLayout(remote: Awaited<ReturnType<typeof readRemoteEnv>>) {
+  await expect
+    .poll(
+      async () => {
+        try {
+          const { stdout } = await execRemoteSsh(
+            remote,
+            `
+set -eu
+codex_bin=${JSON.stringify(remote.codexBin)}
+codex_bin_dir="$(dirname "$codex_bin")"
+PATH="$codex_bin_dir:$PATH"
+export PATH
+npm_root="$(npm root -g)"
+fail() { printf 'npm layout check failed: %s\n' "$1" >&2; exit 1; }
+test -f "$npm_root/@openai/codex/package.json" || fail "missing @openai/codex under $npm_root"
+test "$(node -p 'Number(process.versions.node.split(".")[0])')" -ge 16 || fail "Node is older than 16"
+test "$(command -v node)" = "$(dirname "$codex_bin")/node" || fail "Codex and Node do not share the official npm prefix"
+node -e 'require.resolve("@openai/codex-linux-x64/package.json", { paths: [process.argv[1]] })' "$npm_root/@openai/codex" || fail "missing official platform package"
+if [ -d "$HOME/.cache/codex-gateway/upgrades" ]; then
+  test -z "$(find "$HOME/.cache/codex-gateway/upgrades" -mindepth 1 -maxdepth 1 -type d -name 'upgrade.*' -print -quit)" || fail "remote staging directory was not cleaned"
+fi
+printf 'official npm layout and staging cleanup verified\\n'
+`,
+          );
+          return stdout.trim();
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      },
+      { timeout: 120_000 },
+    )
+    .toContain("official npm layout and staging cleanup verified");
+}
 
 test("replaces an existing socket app-server when no loaded turn is active", async ({ page }) => {
   const remote = await readRemoteEnv();

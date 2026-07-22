@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { FolderIcon, Loader2Icon, RefreshCwIcon } from "@lucide/vue";
 import { TreeRoot } from "reka-ui";
-import { computed, ref, useTemplateRef, watch } from "vue";
+import { computed, nextTick, ref, useTemplateRef } from "vue";
 import type { RemoteDirectoryEntry } from "~~/shared/types";
 import { Button } from "@/components/ui/button";
 import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
@@ -70,21 +70,25 @@ useRemoteFileTreeReveal({
   viewport: treeViewport,
 });
 
-watch(
-  () => props.rootPath,
-  (path) => {
-    if (path) {
-      void fileWorkspace.loadDirectory(props.hostId, props.threadId, path);
-    }
-  },
-  { immediate: true },
-);
-
 function selectNode(node: FileTreeNode | undefined) {
   selected.value = node;
   if (node?.type === "file") {
     emit("open", node.path);
+  } else if (node?.type === "directory") {
+    void expandUnloadedDirectory(node.path);
   }
+}
+
+async function expandUnloadedDirectory(path: string) {
+  // Reka cannot infer that a lazy directory has children before its first request, so its initial
+  // click may only select the row. Wait for Reka's own update first, then fill in the one missing
+  // transition. Do not toggle loaded directories here: Reka remains the sole owner of collapse.
+  await nextTick();
+  const state = fileWorkspace.directoryFor(props.hostId, props.threadId, path);
+  if (state?.loaded || expanded.value.includes(path)) return;
+  await fileWorkspace.setExpandedPaths(props.hostId, props.threadId, [
+    ...new Set([...expanded.value, path]),
+  ]);
 }
 
 function childrenFor(path: string): FileTreeNode[] {

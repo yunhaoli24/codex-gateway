@@ -319,7 +319,7 @@ async function verifyRemoteDirectoryBrowser(
   );
   await expect(page.getByRole("button", { name: directoryName })).toBeVisible();
 
-  const missingPath = `missing-directory-${Date.now()}`;
+  const missingPath = `/home/${remote.username}/missing-directory-${Date.now()}`;
   const responsePromise = page.waitForResponse(
     (response) =>
       response.url().includes("/api/remote/directories?") && response.request().method() === "GET",
@@ -331,9 +331,20 @@ async function verifyRemoteDirectoryBrowser(
   const payload = await response.json();
   expect(payload.code).toBe("remoteDirectoryNotFound");
   expect(payload.message).toContain(missingPath);
-  expect(payload.message).toContain(`/home/${remote.username}/${missingPath}`);
   await expect(page.getByText(new RegExp(`Remote directory.*${missingPath}`))).toBeVisible();
   await expect(page.getByText(new RegExp(`主机: ${hostName}|Host: ${hostName}`))).toBeVisible();
+
+  const deniedResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/remote/directories?") && response.request().method() === "GET",
+  );
+  await page.getByTestId("project-browse-path-input").fill("/root");
+  await page.getByRole("button", { name: /浏览|Browse/ }).click();
+  const deniedResponse = await deniedResponsePromise;
+  expect(deniedResponse.status()).toBe(403);
+  const deniedPayload = await deniedResponse.json();
+  expect(deniedPayload.code).toBe("remoteDirectoryAccessDenied");
+  expect(deniedPayload.message).toContain("/root");
   await page.keyboard.press("Escape");
 }
 

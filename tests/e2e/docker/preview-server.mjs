@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { WebSocketServer } from "/home/codex/.nvm/versions/node/v22.0.0/lib/node_modules/ws/wrapper.mjs";
+import { WebSocketServer } from "ws";
 
 const server = createServer((request, response) => {
   if (request.url === "/api/message") {

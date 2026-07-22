@@ -15,6 +15,7 @@ export interface RemoteDirectoryState extends RemoteDirectoryResult {
   loaded: boolean;
   loadedAt: number;
   error: string | null;
+  errorCode: string | null;
   stale: boolean;
 }
 

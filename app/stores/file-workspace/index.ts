@@ -7,7 +7,7 @@ import {
   updateFileDocumentDraft,
 } from "./document-runtime";
 import { createFileDocumentActions } from "./document-actions";
-import { RemoteDirectoryLoader } from "./directory-loader";
+import { isPermanentDirectoryError, RemoteDirectoryLoader } from "./directory-loader";
 import { createFileWorkspaceScopeState } from "./scope-state";
 import {
   absolutePath,
@@ -15,6 +15,7 @@ import {
   directoryPathsToFile,
   parentPath,
   parentPaths,
+  withoutPathAndDescendants,
 } from "./paths";
 import type { RemoteDirectoryState } from "./types";
 
@@ -51,7 +52,11 @@ export const useGatewayFileWorkspaceStore = defineStore(
       }
       const key = directoryStateKey(hostId, threadId, path);
       const state = ensureDirectoryState(key, path);
-      return directoryLoader.load(state, scope.hostId, path, force);
+      const result = await directoryLoader.load(state, scope.hostId, path, force);
+      if (isPermanentDirectoryError(undefined, result.errorCode ?? undefined)) {
+        scope.expandedPaths = withoutPathAndDescendants(scope.expandedPaths, path);
+      }
+      return result;
     }
 
     function directoryFor(hostId: number, threadId: string, path: string) {
@@ -65,7 +70,17 @@ export const useGatewayFileWorkspaceStore = defineStore(
       }
       const added = paths.filter((path) => !scope.expandedPaths.includes(path));
       scope.expandedPaths = paths;
-      await Promise.all(added.map((path) => loadDirectory(hostId, threadId, path)));
+      await Promise.all(
+        added.map((path) => {
+          const state = directoryFor(hostId, threadId, path);
+          return loadDirectory(
+            hostId,
+            threadId,
+            path,
+            isPermanentDirectoryError(undefined, state?.errorCode ?? undefined),
+          );
+        }),
+      );
     }
 
     async function revealFileInTree(hostId: number, threadId: string, path: string) {

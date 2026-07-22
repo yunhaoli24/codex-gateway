@@ -22,6 +22,21 @@ export class RemoteDirectoryNotFoundError extends Error {
   }
 }
 
+export class RemoteDirectoryAccessDeniedError extends Error {
+  readonly statusCode = 403;
+  readonly code = "remoteDirectoryAccessDenied";
+
+  constructor(
+    readonly inputPath: string,
+    readonly resolvedPath: string,
+  ) {
+    super(
+      `Permission denied while reading remote directory: ${inputPath} (resolved to ${resolvedPath})`,
+    );
+    this.name = "RemoteDirectoryAccessDeniedError";
+  }
+}
+
 export class RemoteFileService {
   constructor(private readonly ssh: SshConnectionPool) {}
 
@@ -31,7 +46,7 @@ export class RemoteFileService {
     return new Promise<ReturnType<typeof directoryResult>>((resolve, reject) => {
       sftp.readdir(resolvedPath, (readError, entries) => {
         if (readError) {
-          reject(readError);
+          reject(directoryReadError(readError, path, resolvedPath));
           return;
         }
         resolve(directoryResult(resolvedPath, entries));
@@ -264,6 +279,21 @@ async function inspectDirectory(
 function isMissingSftpPath(error: unknown) {
   const code = (error as { code?: unknown })?.code;
   return code === 2 || code === "ENOENT";
+}
+
+function isDeniedSftpPath(error: unknown) {
+  const code = (error as { code?: unknown })?.code;
+  return code === 3 || code === "EACCES" || code === "EPERM";
+}
+
+function directoryReadError(error: unknown, inputPath: string, resolvedPath: string) {
+  if (isMissingSftpPath(error)) {
+    return new RemoteDirectoryNotFoundError(inputPath, resolvedPath);
+  }
+  if (isDeniedSftpPath(error)) {
+    return new RemoteDirectoryAccessDeniedError(inputPath, resolvedPath);
+  }
+  return error;
 }
 
 function directoryResult(path: string, source: FileEntryWithStats[]) {

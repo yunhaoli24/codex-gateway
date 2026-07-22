@@ -39,4 +39,5 @@ export interface RemoteCodexVersionState {
   supportedVersion: string;
   beforeVersion: string;
   upgraded: boolean;
+  deferredUpgrade?: boolean;
 }

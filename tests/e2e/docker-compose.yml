@@ -1,3 +1,9 @@
+x-ssh-target: &ssh-target
+  environment:
+    CODEX_HOME: /home/codex/.codex
+  volumes:
+    - ../..:/workspace/codex-gateway
+
 services:
   bark-target:
     image: node:22-bookworm
@@ -12,14 +18,30 @@ services:
   ssh-target:
     build:
       context: ./docker
+      target: empty-runtime
+      args:
+        E2E_UID: ${E2E_UID:-12345}
+        E2E_GID: ${E2E_GID:-12345}
+    <<: *ssh-target
+
+  ssh-target-legacy-node:
+    build:
+      context: ./docker
+      target: legacy-node
+      args:
+        E2E_UID: ${E2E_UID:-12345}
+        E2E_GID: ${E2E_GID:-12345}
+    <<: *ssh-target
+
+  ssh-target-legacy-codex:
+    build:
+      context: ./docker
+      target: legacy-codex
       args:
         CODEX_CLI_VERSION: ${E2E_CODEX_CLI_VERSION:-0.140.0}
         E2E_UID: ${E2E_UID:-12345}
         E2E_GID: ${E2E_GID:-12345}
-    environment:
-      CODEX_HOME: /home/codex/.codex
-    volumes:
-      - ../..:/workspace/codex-gateway
+    <<: *ssh-target
 
   build-runner:
     image: codex-gateway-e2e-runner
@@ -41,6 +63,8 @@ services:
     mem_limit: 2g
     depends_on:
       - ssh-target
+      - ssh-target-legacy-node
+      - ssh-target-legacy-codex
       - bark-target
     environment:
       HOST: 0.0.0.0
@@ -81,6 +105,8 @@ services:
       E2E_SOURCE_DIR: /workspace/source
       E2E_CODEX_HOME: /codex-auth
       E2E_REMOTE_HOST: ssh-target
+      E2E_LEGACY_NODE_REMOTE_HOST: ssh-target-legacy-node
+      E2E_LEGACY_CODEX_REMOTE_HOST: ssh-target-legacy-codex
       E2E_REMOTE_PORT: "22"
       E2E_REMOTE_USERNAME: codex
       E2E_REMOTE_PASSWORD: codex

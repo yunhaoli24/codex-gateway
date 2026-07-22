@@ -9,11 +9,14 @@ import { currentGatewayUserId } from "../state/memory";
 import type { SshConnectionPool } from "./ssh-connection";
 import { AppServerRuntimeProbe } from "./app-server-runtime-probe";
 import { CodexUpgrader } from "./codex-upgrader";
+import { CodexUpgradeWorkflow } from "./codex-upgrade-workflow";
 import { CodexVersionChecker } from "./codex-version-checker";
 import { HostVerifyService } from "./host-verify-service";
 
 export class CodexRuntimeService {
   private readonly versionChecks = new Map<string, Promise<RemoteCodexVersionState>>();
+  private readonly deferredUpgradeChecks = new Map<string, Promise<boolean>>();
+  private readonly upgradeWorkflow: CodexUpgradeWorkflow;
   private readonly appServerRuntime: AppServerRuntimeProbe;
   private readonly upgrader: CodexUpgrader;
   private readonly versionChecker: CodexVersionChecker;
@@ -23,6 +26,11 @@ export class CodexRuntimeService {
     this.appServerRuntime = new AppServerRuntimeProbe(ssh);
     this.upgrader = new CodexUpgrader(ssh);
     this.versionChecker = new CodexVersionChecker(ssh);
+    this.upgradeWorkflow = new CodexUpgradeWorkflow(
+      this.appServerRuntime,
+      this.upgrader,
+      this.versionChecker,
+    );
     this.verifier = new HostVerifyService(ssh, (host) => this.ensureCodexVersion(host));
   }
 
@@ -95,49 +103,24 @@ export class CodexRuntimeService {
 
       if (runtimeState.running) {
         if (await this.appServerRuntime.hasActiveLoadedThread(host)) {
-          throw new Error(
-            `Remote Codex runtime ${currentRuntimeVersion} is below supported ${supportedVersion}, but a loaded thread is active`,
-          );
+          hostLifecycleBus.emit({
+            hostId: host.id,
+            status: "connecting",
+            message: `${hostDisplayName(host)} 仍有活动对话，Codex ${currentRuntimeVersion} -> ${supportedVersion} 升级已延后`,
+          });
+          return {
+            version: beforeVersion,
+            appServerVersion,
+            supportedVersion,
+            beforeVersion,
+            upgraded: false,
+            deferredUpgrade: true,
+          };
         }
       }
 
       if (!cliVersionSupported) {
-        hostLifecycleBus.emit({
-          hostId: host.id,
-          status: "upgrading",
-          message: `正在为 ${hostDisplayName(host)} 准备 Codex ${supportedVersion} 官方 npm 安装包`,
-        });
-        const version = await this.upgrader.withPreparedUpgrade(
-          host,
-          supportedVersion,
-          async (install) => {
-            if (runtimeState.running) await this.appServerRuntime.terminateUnmanaged(host);
-            hostLifecycleBus.emit({
-              hostId: host.id,
-              status: "upgrading",
-              message: `正在离线升级 ${hostDisplayName(host)} 的远端 Codex ${beforeVersion} -> ${supportedVersion}`,
-            });
-            return await install();
-          },
-        );
-        await this.appServerRuntime.ensureStoppedAfterUpgrade(host);
-        if (!isCodexVersionAtLeast(version, supportedVersion)) {
-          throw new Error(
-            `Remote Codex upgraded to ${version}, still below supported ${supportedVersion}`,
-          );
-        }
-        hostLifecycleBus.emit({
-          hostId: host.id,
-          status: "restarting",
-          message: `${hostDisplayName(host)} 的远端 Codex 已升级到 ${version}，正在重启 app-server`,
-        });
-        return {
-          version,
-          appServerVersion: null,
-          supportedVersion,
-          beforeVersion,
-          upgraded: true,
-        };
+        return await this.upgradeWorkflow.upgradeOutdatedCli(host, supportedVersion, beforeVersion);
       }
 
       if (runtimeState.running) await this.appServerRuntime.terminateUnmanaged(host);
@@ -167,6 +150,20 @@ export class CodexRuntimeService {
     this.versionChecks.delete(this.hostKey(hostId));
   }
 
+  completeDeferredUpgrade(host: HostWithSecret) {
+    const key = this.hostKey(host.id);
+    const pending = this.deferredUpgradeChecks.get(key);
+    if (pending) return pending;
+
+    const check = this.stopIdleOutdatedRuntime(host).finally(() => {
+      if (this.deferredUpgradeChecks.get(key) === check) {
+        this.deferredUpgradeChecks.delete(key);
+      }
+    });
+    this.deferredUpgradeChecks.set(key, check);
+    return check;
+  }
+
   async repairAfterProxyFailure(
     host: HostWithSecret,
     error: unknown,
@@ -181,37 +178,23 @@ export class CodexRuntimeService {
       message: `${hostDisplayName(host)} 的远端 Codex app-server 启动失败，正在重新安装 ${SUPPORTED_CODEX_VERSION}：${messageFromError(error)}`,
     });
 
-    const beforeVersion = await this.readVersionForRepair(host);
-    await this.stopRuntimeIfPresent(host);
-    const version = await this.upgrader.upgrade(host, SUPPORTED_CODEX_VERSION);
-    await this.appServerRuntime.ensureStoppedAfterUpgrade(host);
+    return await this.upgradeWorkflow.repair(host);
+  }
 
-    return {
-      version,
-      appServerVersion: null,
-      supportedVersion: SUPPORTED_CODEX_VERSION,
-      beforeVersion,
-      upgraded: true,
-    };
+  private async stopIdleOutdatedRuntime(host: HostWithSecret) {
+    if (await this.appServerRuntime.hasActiveLoadedThread(host)) return false;
+    hostLifecycleBus.emit({
+      hostId: host.id,
+      status: "restarting",
+      message: `${hostDisplayName(host)} 的活动对话已结束，正在执行延后的 Codex 升级`,
+    });
+    await this.appServerRuntime.terminateUnmanaged(host);
+    this.clearVersionCheck(host.id);
+    return true;
   }
 
   private hostKey(hostId: number) {
     return `${currentGatewayUserId() ?? "anonymous"}:${hostId}`;
-  }
-
-  private async readVersionForRepair(host: HostWithSecret) {
-    try {
-      return await this.versionChecker.readVersionOrRecoverableMissing(host);
-    } catch {
-      return "0.0.0";
-    }
-  }
-
-  private async stopRuntimeIfPresent(host: HostWithSecret) {
-    const runtimeState = await this.appServerRuntime.readState(host);
-    if (runtimeState.running) {
-      await this.appServerRuntime.terminateUnmanaged(host);
-    }
   }
 }
 
