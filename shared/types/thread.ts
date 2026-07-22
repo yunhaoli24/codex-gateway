@@ -36,7 +36,7 @@ export interface ThreadGoalTimelineItem {
 
 export interface ThreadOpenResult {
   hostId: number;
-  thread: unknown;
+  thread: AppServerThread;
   history: unknown;
   lastEventId: number;
   runtimeStatus?: ThreadRuntimeStatus | null;
@@ -72,8 +72,15 @@ export interface TokenUsageBreakdown {
   totalTokens: number;
   inputTokens: number;
   cachedInputTokens: number;
+  cacheWriteInputTokens: number;
   outputTokens: number;
   reasoningOutputTokens: number;
+}
+
+export interface AppServerThread extends Record<string, unknown> {
+  id: string;
+  /** False for parent-managed sub-agents that cannot accept direct turns. */
+  canAcceptDirectInput?: boolean | null;
 }
 
 export interface ThreadTokenUsageState {

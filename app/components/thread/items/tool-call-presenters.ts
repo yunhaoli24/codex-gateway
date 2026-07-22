@@ -6,8 +6,15 @@ export type ToolCallIcon = "image" | "search" | "tool";
 
 export interface ToolCallDetailSection {
   label: string;
-  content: string;
+  content?: string;
   markdown?: boolean;
+  links?: ToolCallResultLink[];
+}
+
+export interface ToolCallResultLink {
+  title: string;
+  url: string;
+  snippet?: string;
 }
 
 export interface ToolCallPresentation {
@@ -45,13 +52,7 @@ const toolCallPresenters: Record<string, ToolCallPresenter> = {
     ]),
   }),
 
-  webSearch: (item, t) => ({
-    title: item.query || "Web search",
-    icon: "search",
-    details: compactDetails([
-      item.action ? { label: t("app.action"), content: jsonPreview(item.action) } : null,
-    ]),
-  }),
+  webSearch: webSearchPresentation,
 
   imageGeneration: (item, t) => ({
     title: item.revisedPrompt || t("app.imageGeneration"),
@@ -89,6 +90,45 @@ function reviewModePresentation(item: ToolCallItem, t: Translate, title: string)
   };
 }
 
+function webSearchPresentation(item: ToolCallItem, t: Translate): ToolCallPresentation {
+  const links = webSearchResultLinks(item.results);
+  return {
+    title: item.query || "Web search",
+    icon: "search",
+    details: compactDetails([
+      item.action ? { label: t("app.action"), content: jsonPreview(item.action) } : null,
+      links.length ? { label: t("app.result"), links } : null,
+    ]),
+  };
+}
+
 function compactDetails(details: Array<ToolCallDetailSection | null>) {
-  return details.filter((detail): detail is ToolCallDetailSection => Boolean(detail?.content));
+  return details.filter((detail): detail is ToolCallDetailSection =>
+    Boolean(detail?.content || (detail?.links && detail.links.length > 0)),
+  );
+}
+
+function webSearchResultLinks(results: unknown): ToolCallResultLink[] {
+  if (!Array.isArray(results)) return [];
+  return results.flatMap((result, index) => {
+    if (!result || typeof result !== "object") return [];
+    const record = result as Record<string, unknown>;
+    const url = typeof record.url === "string" ? record.url : "";
+    if (!isHttpUrl(url)) return [];
+    const title =
+      (typeof record.title === "string" && record.title.trim()) ||
+      (typeof record.ref_id === "string" && record.ref_id.trim()) ||
+      `#${index + 1}`;
+    const snippet = typeof record.snippet === "string" ? record.snippet.trim() : "";
+    return [{ title, url, ...(snippet ? { snippet } : {}) }];
+  });
+}
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }

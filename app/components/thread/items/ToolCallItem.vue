@@ -46,7 +46,22 @@ const detailSections = computed(() => presentation.value.details);
         <div class="space-y-3 border-t border-hairline px-3 py-3">
           <div v-for="section in detailSections" :key="section.label" class="space-y-1">
             <div class="text-xs font-medium uppercase text-ink-faint">{{ section.label }}</div>
-            <MarkdownContent v-if="section.markdown" :content="section.content" compact />
+            <MarkdownContent v-if="section.markdown" :content="section.content || ''" compact />
+            <ul v-else-if="section.links?.length" class="space-y-2 text-sm">
+              <li v-for="link in section.links" :key="link.url" class="min-w-0">
+                <a
+                  :href="link.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block truncate font-medium text-ink underline decoration-hairline underline-offset-4 hover:text-accent"
+                >
+                  {{ link.title }}
+                </a>
+                <p v-if="link.snippet" class="mt-1 line-clamp-2 text-xs text-ink-muted">
+                  {{ link.snippet }}
+                </p>
+              </li>
+            </ul>
             <ScrollArea v-else class="h-56 rounded-md bg-canvas-soft">
               <pre class="p-3 text-xs leading-5 text-ink-secondary">{{ section.content }}</pre>
             </ScrollArea>

@@ -54,11 +54,22 @@ export interface RpcEnvelope {
   method?: string;
   params?: unknown;
   result?: unknown;
+  /** Unix time recorded by app-server when a notification was emitted. */
+  emittedAtMs?: number;
   error?: {
     code: number;
     message: string;
     data?: unknown;
   };
+}
+
+export function rpcEnvelopeCreatedAt(payload: unknown, fallback = new Date()): string {
+  const emittedAtMs = (payload as RpcEnvelope | null)?.emittedAtMs;
+  if (typeof emittedAtMs !== "number" || !Number.isFinite(emittedAtMs)) {
+    return fallback.toISOString();
+  }
+  const emittedAt = new Date(emittedAtMs);
+  return Number.isFinite(emittedAt.getTime()) ? emittedAt.toISOString() : fallback.toISOString();
 }
 
 export interface GatewayEvent {

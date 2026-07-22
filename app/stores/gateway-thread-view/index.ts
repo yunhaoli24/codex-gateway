@@ -1,6 +1,6 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import type { GatewayEvent } from "~~/shared/types";
+import type { AppServerThread, GatewayEvent } from "~~/shared/types";
 import type { SubAgentPanelState, ThreadViewState } from "@/stores/gateway/types";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { createThreadLiveEventActions } from "./actions/live-events";
@@ -11,7 +11,7 @@ export const useGatewayThreadViewStore = defineStore("gateway-thread-view", () =
   const threadViews = ref<Record<string, ThreadViewState>>({});
   const subAgentPanels = ref<SubAgentPanelState[]>([]);
   const viewEpoch = ref(0);
-  const currentThread = ref<unknown>(null);
+  const currentThread = ref<AppServerThread | null>(null);
   const history = ref<unknown>(null);
   const events = ref<GatewayEvent[]>([]);
   const loading = ref(false);

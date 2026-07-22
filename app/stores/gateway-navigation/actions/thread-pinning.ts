@@ -123,7 +123,7 @@ export function createThreadPinningActions() {
         views.currentThread &&
         typeof views.currentThread === "object"
       ) {
-        views.currentThread = { ...(views.currentThread as Record<string, unknown>), name };
+        views.currentThread = { ...views.currentThread, name };
       }
       if (hostId === navigation.selectedHostId) await navigation.listThreads();
     },
