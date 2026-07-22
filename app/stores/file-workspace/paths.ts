@@ -49,6 +49,12 @@ export function absolutePath(rootPath: string, path: string) {
   return path.startsWith("/") ? path : `${rootPath.replace(/\/$/, "")}/${path}`;
 }
 
+export function withoutPathAndDescendants(paths: string[], removedPath: string) {
+  return paths.filter(
+    (path) => path !== removedPath && !path.startsWith(`${removedPath.replace(/\/$/, "")}/`),
+  );
+}
+
 function normalizeRemotePath(path: string) {
   return path.replace(/\/+$/, "") || "/";
 }

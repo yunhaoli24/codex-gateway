@@ -6,6 +6,7 @@ export interface CodexRemotePlatform {
     | "@openai/codex-darwin-x64"
     | "@openai/codex-linux-arm64"
     | "@openai/codex-linux-x64";
+  nodeTarget: "darwin-arm64" | "darwin-x64" | "linux-arm64" | "linux-x64";
 }
 
 const PLATFORM_PACKAGES = {
@@ -28,5 +29,6 @@ export function parseCodexRemotePlatform(output: string): CodexRemotePlatform {
     platform: platform as CodexRemotePlatform["platform"],
     arch: arch as CodexRemotePlatform["arch"],
     packageName,
+    nodeTarget: key.replace(":", "-") as CodexRemotePlatform["nodeTarget"],
   };
 }

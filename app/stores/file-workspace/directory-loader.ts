@@ -1,6 +1,7 @@
 import pLimit from "p-limit";
 import { reactive } from "vue";
 import { listRemoteDirectory } from "@/utils/remote-file-transport";
+import { gatewayErrorMessage, gatewayErrorPayload } from "@/utils/gateway-error";
 import type { RemoteDirectoryState } from "./types";
 
 const DIRECTORY_LOAD_CONCURRENCY = 3;
@@ -22,6 +23,7 @@ export class RemoteDirectoryLoader {
       loaded: false,
       loadedAt: 0,
       error: null,
+      errorCode: null,
       stale: true,
     });
   }
@@ -36,6 +38,7 @@ export class RemoteDirectoryLoader {
       if (!force && !isDirectoryStale(state)) return state;
       state.loading = true;
       state.error = null;
+      state.errorCode = null;
       try {
         const result = await listRemoteDirectory(hostId, path);
         state.path = result.path;
@@ -44,7 +47,18 @@ export class RemoteDirectoryLoader {
         state.loadedAt = Date.now();
         state.stale = false;
       } catch (error) {
-        state.error = error instanceof Error ? error.message : String(error);
+        const payload = gatewayErrorPayload(error);
+        state.error = gatewayErrorMessage(error, "Failed to read remote directory");
+        state.errorCode = payload.code ?? null;
+        if (isPermanentDirectoryError(payload.statusCode, payload.code)) {
+          // A deleted or inaccessible path does not become healthy with time. Mark it loaded so
+          // panel activation and visibility recovery do not retry it forever. Explicit refresh or
+          // expanding the path again still passes force=true and performs a new SFTP read.
+          state.entries = [];
+          state.loaded = true;
+          state.loadedAt = Date.now();
+          state.stale = false;
+        }
       } finally {
         state.loading = false;
       }
@@ -67,7 +81,20 @@ export class RemoteDirectoryLoader {
   }
 }
 
+export function isPermanentDirectoryError(statusCode?: number, code?: string) {
+  return (
+    statusCode === 403 ||
+    statusCode === 404 ||
+    code === "remoteDirectoryNotFound" ||
+    code === "remoteDirectoryAccessDenied"
+  );
+}
+
 function isDirectoryStale(state: RemoteDirectoryState) {
+  // Time-based revalidation is for previously successful and transiently failed reads. A stable
+  // 404/403 must stay quiet until an explicit user action forces a retry; otherwise every panel
+  // activation resumes the same SFTP/log storm after DIRECTORY_STALE_AFTER_MS.
+  if (isPermanentDirectoryError(undefined, state.errorCode ?? undefined)) return false;
   return (
     state.loading ||
     state.stale ||

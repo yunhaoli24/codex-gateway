@@ -1,7 +1,9 @@
 import { expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { Client } from "ssh2";
-import { envFile } from "../docker-environment";
+import { envFile, upgradeEnvFile } from "../docker-environment";
+
+export type RemoteRuntimeFixture = "empty-runtime" | "legacy-node" | "legacy-codex";
 
 export interface RemoteCodexEnv {
   host: string;
@@ -10,7 +12,9 @@ export interface RemoteCodexEnv {
   password: string;
   projectPath: string;
   imagePath: string;
-  initialCodexVersion?: string;
+  runtimeFixture?: RemoteRuntimeFixture;
+  initialNodeVersion?: string | null;
+  initialCodexVersion?: string | null;
   supportedCodexVersion?: string;
   testModel?: string;
   codexBin?: string;
@@ -32,6 +36,10 @@ export async function readRemoteEnv() {
   return JSON.parse(await readFile(envFile, "utf8")) as RemoteCodexEnv;
 }
 
+export async function readUpgradeRemoteEnvs() {
+  return JSON.parse(await readFile(upgradeEnvFile, "utf8")) as RemoteCodexEnv[];
+}
+
 export async function readContainerCodexVersion(remote: RemoteCodexEnv) {
   return await runRemoteCodexVersion(remote);
 }
@@ -43,6 +51,15 @@ export async function execRemoteSsh(remote: RemoteCodexEnv, command: string) {
   } finally {
     connection.end();
   }
+}
+
+export async function stopRemoteFixture(remote: RemoteCodexEnv) {
+  // Auxiliary upgrade Hosts are not used by the product E2E suite. Stop their PID 1 after the
+  // matrix test so they cannot retain an SSH connection, app-server, or memory for later tests.
+  await execRemoteSsh(
+    remote,
+    `(sleep 0.1; printf '%s\\n' ${shellQuote(remote.password)} | sudo -S kill -TERM 1) >/dev/null 2>&1 &`,
+  );
 }
 
 export async function resetRemoteAppServer(remote: RemoteCodexEnv) {
@@ -75,6 +92,30 @@ if [ -n "$pids" ]; then
 fi
 rm -f "$socket"
 rm -f "$daemon_dir"/app-server.pid "$daemon_dir"/app-server.pid.lock "$daemon_dir"/app-server.stderr.log
+`,
+  );
+}
+
+export async function startRemotePreviewServer(remote: RemoteCodexEnv) {
+  const nodeBin = remote.codexBin?.replace(/\/codex$/, "/node");
+  if (!nodeBin) throw new Error("Missing managed remote Node path");
+  await execRemoteSsh(
+    remote,
+    `
+set -eu
+if [ -f /tmp/codex-preview-server.pid ]; then
+  kill "$(cat /tmp/codex-preview-server.pid)" >/dev/null 2>&1 || true
+fi
+nohup ${shellQuote(nodeBin)} /usr/local/lib/codex-preview-server.mjs >/tmp/codex-preview-server.log 2>&1 </dev/null &
+echo $! >/tmp/codex-preview-server.pid
+for i in $(seq 1 50); do
+  if ${shellQuote(nodeBin)} -e 'const s=require("net").connect(4173,"127.0.0.1",()=>{s.end();process.exit(0)});s.on("error",()=>process.exit(1))' >/dev/null 2>&1; then
+    exit 0
+  fi
+  sleep 0.1
+done
+cat /tmp/codex-preview-server.log >&2 || true
+exit 1
 `,
   );
 }
@@ -253,8 +294,10 @@ async function closeSettings(page: Page) {
   if (!(await panel.isVisible().catch(() => false))) {
     return;
   }
-  await page.getByTestId("settings-close-button").last().click();
-  await expect(panel).toBeHidden();
+  // Adding a Host updates the Dockview contents and may replace its dialog subtree. Use the
+  // dialog's keyboard close contract instead of retaining a close button that can be detached.
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("settings-dialog")).toBeHidden();
 }
 
 function shellQuote(value: string) {
@@ -267,11 +310,13 @@ async function runRemoteCodexVersion(remote: RemoteCodexEnv) {
 }
 
 export function remoteCodexCommand(remote: RemoteCodexEnv) {
-  const candidates = [
-    remote.codexBin,
-    "$HOME/.npm-global/bin/codex",
-    "$HOME/.local/bin/codex",
-  ].filter(Boolean) as string[];
+  if (remote.codexBin) {
+    const binDirectory = remote.codexBin.replace(/\/[^/]+$/, "");
+    return `env PATH=${shellQuote(binDirectory)}:"$PATH" ${shellQuote(remote.codexBin)}`;
+  }
+  const candidates = ["$HOME/.npm-global/bin/codex", "$HOME/.local/bin/codex"].filter(
+    Boolean,
+  ) as string[];
   const candidateList = candidates.map(shellQuote).join(" ");
   return `$(
 for candidate in ${candidateList}; do

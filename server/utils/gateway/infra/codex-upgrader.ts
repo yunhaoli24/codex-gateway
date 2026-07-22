@@ -5,6 +5,7 @@ import {
   codexRemoteCleanupUpgradeStagePayload,
   codexRemoteCreateUpgradeStagePayload,
   codexRemoteOfflineInstallPayload,
+  codexRemoteNodeRuntimeProbePayload,
   codexRemotePlatformProbePayload,
 } from "./codex-upgrade-remote";
 import { parseCodexVersion } from "./codex-version";
@@ -37,9 +38,21 @@ export class CodexUpgrader {
     callback: (install: () => Promise<string>) => Promise<T>,
   ) {
     const platform = await this.readRemotePlatform(host);
-    return await artifactProvider.withArtifacts(version, platform, async (artifacts) =>
-      callback(() => this.installWithRetries(host, version, artifacts)),
+    const includeNode = await this.requiresNodeBootstrap(host);
+    return await artifactProvider.withArtifacts(
+      version,
+      platform,
+      { includeNode },
+      async (artifacts) => callback(() => this.installWithRetries(host, version, artifacts)),
     );
+  }
+
+  private async requiresNodeBootstrap(host: HostWithSecret) {
+    const result = await this.ssh.exec(
+      host,
+      remoteLoginShellCommand(codexRemoteNodeRuntimeProbePayload()),
+    );
+    return result.code !== 0;
   }
 
   private async readRemotePlatform(host: HostWithSecret) {
@@ -78,6 +91,13 @@ export class CodexUpgrader {
   private async installOnce(host: HostWithSecret, version: string, artifacts: CodexArtifactBundle) {
     const stagePath = await this.createRemoteStage(host);
     try {
+      if (artifacts.nodeArchive) {
+        await this.ssh.uploadFileResumable(
+          host,
+          artifacts.nodeArchive.localPath,
+          `${stagePath}/${artifacts.nodeArchive.fileName}`,
+        );
+      }
       await this.ssh.uploadFileResumable(
         host,
         artifacts.cacheArchive.localPath,

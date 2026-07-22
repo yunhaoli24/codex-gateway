@@ -9,7 +9,10 @@ import { SUPPORTED_CODEX_VERSION } from "../../server/utils/gateway/infra/codex-
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const runtimeDir = join(rootDir, ".e2e-runtime", "ssh-container");
 const envFile = join(runtimeDir, "env.json");
-const remoteCodexBin = "/home/codex/.nvm/versions/node/v22.0.0/bin/codex";
+const upgradeEnvFile = join(runtimeDir, "upgrade-env.json");
+const managedCodexBin = `/home/codex/.nvm/versions/node/v${process.versions.node}/bin/codex`;
+
+type RuntimeFixture = "empty-runtime" | "legacy-node" | "legacy-codex";
 
 interface RemoteEnv {
   host: string;
@@ -18,7 +21,9 @@ interface RemoteEnv {
   password: string;
   projectPath: string;
   imagePath: string;
-  initialCodexVersion: string;
+  runtimeFixture: RuntimeFixture;
+  initialNodeVersion: string | null;
+  initialCodexVersion: string | null;
   supportedCodexVersion: string;
   testModel: string;
   codexBin: string;
@@ -28,28 +33,53 @@ interface RemoteEnv {
 export async function startDockerEnvironment() {
   await mkdir(runtimeDir, { recursive: true });
   const password = process.env.E2E_REMOTE_PASSWORD || "codex";
-  const env: RemoteEnv = {
-    host: process.env.E2E_REMOTE_HOST || "ssh-target",
+  const shared = {
     port: process.env.E2E_REMOTE_PORT || "22",
     username: process.env.E2E_REMOTE_USERNAME || "codex",
     password,
     projectPath: process.env.E2E_REMOTE_PROJECT_PATH || "/workspace/codex-gateway",
     imagePath: "/home/codex/e2e-image.png",
-    initialCodexVersion: "",
     supportedCodexVersion: SUPPORTED_CODEX_VERSION,
     testModel: process.env.E2E_CODEX_MODEL || "gpt-5.4-mini",
-    codexBin: remoteCodexBin,
     proxyUrl: null,
   };
+  const environments: RemoteEnv[] = [
+    {
+      ...shared,
+      host: process.env.E2E_REMOTE_HOST || "ssh-target",
+      runtimeFixture: "empty-runtime",
+      initialNodeVersion: null,
+      initialCodexVersion: null,
+      codexBin: managedCodexBin,
+    },
+    {
+      ...shared,
+      host: process.env.E2E_LEGACY_NODE_REMOTE_HOST || "ssh-target-legacy-node",
+      runtimeFixture: "legacy-node",
+      initialNodeVersion: "14.21.3",
+      initialCodexVersion: null,
+      codexBin: managedCodexBin,
+    },
+    {
+      ...shared,
+      host: process.env.E2E_LEGACY_CODEX_REMOTE_HOST || "ssh-target-legacy-codex",
+      runtimeFixture: "legacy-codex",
+      initialNodeVersion: "22.23.1",
+      initialCodexVersion: process.env.E2E_CODEX_CLI_VERSION || "0.140.0",
+      codexBin: "/home/codex/.nvm/versions/node/v22.23.1/bin/codex",
+    },
+  ];
 
-  await waitForSsh(env.host, env.port);
-  env.initialCodexVersion = parseCodexVersionOutput(
-    (await execRemoteSsh(env, `${remoteCodexBin} --version`)).stdout,
-  );
-  await prepareRemoteCodexHome(env);
-  await writeRemoteImage(env);
-  await writeFile(envFile, JSON.stringify(env, null, 2));
-  return env;
+  await Promise.all(environments.map((env) => waitForSsh(env.host, env.port)));
+  for (const env of environments) {
+    await prepareRemoteCodexHome(env);
+  }
+  await writeRemoteImage(environments[0]!);
+  await Promise.all([
+    writeFile(envFile, JSON.stringify(environments[0], null, 2)),
+    writeFile(upgradeEnvFile, JSON.stringify(environments, null, 2)),
+  ]);
+  return environments[0];
 }
 
 export async function stopDockerEnvironment() {
@@ -178,14 +208,6 @@ export async function execRemoteSsh(env: RemoteEnv, command: string) {
   }
 }
 
-function parseCodexVersionOutput(output: string) {
-  const match = output.match(/\b\d+\.\d+\.\d+\b/);
-  if (!match) {
-    throw new Error(`Unable to parse Codex version from: ${output}`);
-  }
-  return match[0];
-}
-
 async function uploadDirectory(
   connection: Client,
   localDirectory: string,
@@ -252,7 +274,7 @@ async function uploadFile(sftp: import("ssh2").SFTPWrapper, localPath: string, r
   });
 }
 
-export { envFile };
+export { envFile, upgradeEnvFile };
 
 async function prepareCodexHome(sourceCodexHome: string, codexHome: string) {
   await rm(codexHome, { recursive: true, force: true });

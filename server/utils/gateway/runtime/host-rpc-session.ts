@@ -6,6 +6,8 @@ import type { HostControllerLookup, HostControllersLookup } from "./types";
 import { threadIdFromNotification } from "../protocol/thread-payload";
 import { threadRuntimeEvents } from "./thread-runtime-events";
 import { activeMainThreadMonitor } from "./active-main-thread-monitor";
+import { codexRuntime } from "../infra/host-services";
+import { runtimeLog } from "./runtime-log";
 
 export class HostRpcSession {
   readonly client: CodexRpcClient;
@@ -67,6 +69,20 @@ export class HostRpcSession {
       },
       message,
     );
+    if (message?.method === "turn/completed" && this.client.hasDeferredUpgrade()) {
+      void codexRuntime
+        .completeDeferredUpgrade(this.host)
+        .then((stopped) => {
+          if (stopped) this.client.resolveDeferredUpgrade();
+        })
+        .catch((error) => {
+          runtimeLog("deferred Codex upgrade check failed", {
+            hostId: this.host.id,
+            hostName: this.host.name,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        });
+    }
     const threadId = threadIdFromNotification(message);
     if (!threadId) {
       return;

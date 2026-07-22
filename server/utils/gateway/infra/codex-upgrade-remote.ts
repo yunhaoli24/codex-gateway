@@ -6,11 +6,23 @@ export function codexRemotePlatformProbePayload() {
   return codexRemoteBootstrapPayload(
     `
 set -eu
-if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js is required to manage the official npm Codex installation" >&2
-  exit 127
-fi
-node -p 'process.platform + " " + process.arch'
+case "$(uname -s)" in Linux) platform=linux ;; Darwin) platform=darwin ;; *) echo "Unsupported remote OS: $(uname -s)" >&2; exit 1 ;; esac
+case "$(uname -m)" in x86_64|amd64) arch=x64 ;; arm64|aarch64) arch=arm64 ;; *) echo "Unsupported remote architecture: $(uname -m)" >&2; exit 1 ;; esac
+printf '%s %s\n' "$platform" "$arch"
+`,
+    { requireCodex: false },
+  );
+}
+
+export function codexRemoteNodeRuntimeProbePayload() {
+  return codexRemoteBootstrapPayload(
+    `
+set -eu
+node_major="$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || true)"
+case "$node_major" in ""|*[!0-9]*) exit 1 ;; esac
+[ "$node_major" -ge 16 ]
+command -v npm >/dev/null 2>&1
+printf '%s %s\n' "$(node --version)" "$(command -v node)"
 `,
     { requireCodex: false },
   );
@@ -41,6 +53,7 @@ export function codexRemoteOfflineInstallPayload(input: {
   artifacts: CodexArtifactBundle;
 }) {
   const archiveFile = `${input.stagePath}/${input.artifacts.cacheArchive.fileName}`;
+  const nodeArchive = input.artifacts.nodeArchive;
   return codexRemoteBootstrapPayload(
     `
 set -eu
@@ -54,6 +67,48 @@ trap cleanup EXIT HUP INT TERM
 archive_file=${shellQuote(archiveFile)}
 expected_archive_sha=${shellQuote(input.artifacts.cacheArchive.sha512)}
 npm_cache="$stage/npm-cache"
+
+verify_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    printf '%s  %s\n' "$2" "$1" | sha256sum -c - >/dev/null
+    return
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$1" | awk '{print $1}')"
+    [ "$actual" = "$2" ]
+    return
+  fi
+  echo "sha256sum or shasum is required to verify the official Node.js archive" >&2
+  return 1
+}
+
+${
+  nodeArchive
+    ? `
+node_archive=${shellQuote(`${input.stagePath}/${nodeArchive.fileName}`)}
+verify_sha256 "$node_archive" ${shellQuote(nodeArchive.sha256)}
+managed_node_dir="$HOME/.nvm/versions/node/v${nodeArchive.version}"
+managed_node_tmp="$managed_node_dir.codex-gateway.$$"
+rm -rf "$managed_node_tmp"
+mkdir -p "$(dirname "$managed_node_dir")" "$stage/node-extract"
+tar -xzf "$node_archive" -C "$stage/node-extract"
+mv "$stage/node-extract/${nodeArchive.directoryName}" "$managed_node_tmp"
+rm -rf "$managed_node_dir"
+mv "$managed_node_tmp" "$managed_node_dir"
+PATH="$managed_node_dir/bin:$PATH"
+export PATH
+hash -r
+`
+    : ""
+}
+
+node_major="$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || true)"
+case "$node_major" in ""|*[!0-9]*|0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15)
+  echo "Node.js >=16 with npm is required after bootstrap; selected $(node --version 2>/dev/null || echo missing)" >&2
+  exit 127
+  ;;
+esac
+command -v npm >/dev/null 2>&1 || { echo "npm is required after Node.js bootstrap" >&2; exit 127; }
 
 verify_sha512() {
   node -e '

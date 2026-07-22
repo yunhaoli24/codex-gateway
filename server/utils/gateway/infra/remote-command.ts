@@ -16,6 +16,7 @@ function codexPathBootstrap(options: { requireCodex: boolean }) {
   return [
     'codex_gateway_path_add() { if [ -d "$1" ]; then case ":$PATH:" in *":$1:"*) ;; *) PATH="$PATH:$1" ;; esac; fi; };',
     'for dir in "${CODEX_INSTALL_DIR:-$HOME/.local/bin}" "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.bun/bin" "$HOME/.nvm/current/bin" "$HOME/.nvm/versions/node"/*/bin /opt/homebrew/bin /opt/node/bin /usr/local/bin /usr/bin; do codex_gateway_path_add "$dir"; done; export PATH;',
+    modernNodePathBootstrap(),
     'CODEX_BIN="$(command -v codex 2>/dev/null || true)";',
     'if [ -z "$CODEX_BIN" ] && [ -x "${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex" ]; then CODEX_BIN="${CODEX_INSTALL_DIR:-$HOME/.local/bin}/codex"; fi;',
     'if [ -z "$CODEX_BIN" ] && command -v npm >/dev/null 2>&1; then NPM_PREFIX="$(npm prefix -g 2>/dev/null || true)"; if [ -n "$NPM_PREFIX" ] && [ -x "$NPM_PREFIX/bin/codex" ]; then CODEX_BIN="$NPM_PREFIX/bin/codex"; fi; fi;',
@@ -25,6 +26,27 @@ function codexPathBootstrap(options: { requireCodex: boolean }) {
       : "",
     "export CODEX_BIN;",
   ].join(" ");
+}
+
+function modernNodePathBootstrap() {
+  return `
+CODEX_GATEWAY_NODE_DIR=""
+CODEX_GATEWAY_NODE_MAJOR=0
+for node_bin in "$(command -v node 2>/dev/null || true)" "$HOME/.nvm/current/bin/node" "$HOME/.nvm/versions/node"/*/bin/node "$HOME/.local/share/fnm/node-versions"/*/installation/bin/node "$HOME/.volta/bin/node" /opt/homebrew/bin/node /opt/node/bin/node /usr/local/bin/node /usr/bin/node; do
+  [ -x "$node_bin" ] || continue
+  node_major="$("$node_bin" -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || true)"
+  case "$node_major" in ""|*[!0-9]*) continue ;; esac
+  node_dir="$(dirname "$node_bin")"
+  if [ "$node_major" -ge 16 ] && [ "$node_major" -gt "$CODEX_GATEWAY_NODE_MAJOR" ] && [ -x "$node_dir/npm" ]; then
+    CODEX_GATEWAY_NODE_DIR="$node_dir"
+    CODEX_GATEWAY_NODE_MAJOR="$node_major"
+  fi
+done
+if [ -n "$CODEX_GATEWAY_NODE_DIR" ]; then
+  PATH="$CODEX_GATEWAY_NODE_DIR:$PATH"
+  export PATH
+fi
+`;
 }
 
 export function codexRemoteAppServerStartPayload() {
