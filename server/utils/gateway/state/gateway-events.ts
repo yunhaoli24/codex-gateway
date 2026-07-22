@@ -1,6 +1,7 @@
 import type { GatewayEvent } from "~~/shared/types";
+import { rpcEnvelopeCreatedAt } from "~~/shared/types/records";
 import { SERVER_THREAD_CACHE_LIMIT } from "~~/shared/config";
-import { gatewayMemoryState, nowIso } from "./memory";
+import { gatewayMemoryState } from "./memory";
 
 export const gatewayEventStore = {
   pruneToHosts(hostIds: Set<number>) {
@@ -22,7 +23,9 @@ export const gatewayEventStore = {
       threadId,
       method,
       payload: payload as GatewayEvent["payload"],
-      createdAt: nowIso(),
+      // App-server time preserves the true event order across SSH/network latency.
+      // Gateway-generated events have no emittedAtMs and intentionally use receive time.
+      createdAt: rpcEnvelopeCreatedAt(payload),
     };
     gatewayMemoryState.events.push(event);
     this.prune(hostId, threadId, 500);

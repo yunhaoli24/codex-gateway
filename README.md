@@ -31,6 +31,7 @@ The goal is simple: open Codex sessions from many servers in a browser while kee
 - Recover thread state after browser reloads, app-server restarts, or temporary SSH disconnects.
 - Open a direct SSH terminal next to the agent loop when you need to inspect or fix the remote environment manually.
 - Preview remote web applications in an isolated Browser panel without publishing their ports.
+- Monitor long-running training or inference jobs in tmux across all hosts and get notified when a pane exits or returns to its shell.
 
 ## Architecture
 
@@ -43,6 +44,7 @@ Browser
         ├─ one shared RPC client per host
         ├─ direct SSH PTY terminal sessions
         ├─ HTTP/WebSocket preview proxy over SSH
+        ├─ SQLite-backed tmux monitor scheduler
         ├─ thread/event cache
         └─ remote official codex app-server
 ```
@@ -65,12 +67,13 @@ Core rules:
 - **Plan and goal modes**: slash commands expose Codex plan mode and goal progress, including token/time status in the composer.
 - **Agent loop UI**: reasoning, command execution, terminal waits, file edits, streaming diffs, images, context compaction, sleep, MCP/tool calls, notifications, and sub-agent side panels.
 - **Dockable IDE workspace**: split, resize, float, or pop out Agent, Files, Terminal, Browser, and Sub-agent panels with per-thread layouts persisted locally.
-- **Remote file workspace**: browse the current project's file tree and preview Markdown, code, images, PDF, and Office files without downloading them first.
+- **Remote file workspace**: browse the current project's file tree, edit text files, and preview Markdown, code, images, PDF, and Office files without downloading them first.
 - **Remote terminal tabs**: open independent SSH PTY terminals beside the agent loop with `@xterm/xterm`; terminal sessions are isolated per user and host.
 - **Remote browser tabs**: preview a Host's `localhost` HTTP/HTTPS application in Dockview through SSH, including WebSocket traffic, without exposing an additional Gateway port.
+- **User-wide tmux monitoring**: scan tmux sessions across every configured Host, inspect recent pane output, and bind a monitor to the relevant Codex thread. One-shot monitors notify when the current job exits or returns to its shell; permanent monitors wait for later runs and notify after each completed run. Active monitors and history are persisted in SQLite.
 - **Multi-client sync**: multiple browser tabs can subscribe to the same thread and receive the same gateway-side app-server event stream.
 - **State repair**: after SSH/app-server reconnect, Gateway refreshes running thread state; a Nitro scheduled task also checks stale running threads.
-- **Bark notifications**: server-side Bark push for completed main turns, de-duplicated per user and turn.
+- **Actionable notifications**: in-browser Sonner notifications and optional server-side Bark push for completed main turns and tmux jobs. Thread notifications navigate to the conversation; tmux notifications open the matching monitor and pane output. Delivery is de-duplicated per user and completion.
 - **Mobile layout**: responsive sidebar, composer, long-press context actions, and sub-agent panels.
 - **Real E2E coverage**: Playwright tests run against a real Nuxt server, real SSH Docker target, and real Codex app-server.
 
@@ -154,7 +157,7 @@ pnpm user:create <username> <password>
 - SSH credentials and Codex tokens stay on the server side.
 - Browser clients authenticate to Gateway with a Bearer token.
 - Stored connection config is encrypted in SQLite with `CODEX_GATEWAY_CONFIG_SECRET`.
-- Direct terminal tabs and remote Browser proxy connections are server-side SSH channels; they do not expose SSH keys or remote ports to the browser.
+- Direct terminal tabs, tmux inspection, and remote Browser proxy connections are server-side SSH channels; they do not expose SSH keys or remote ports to the browser.
 - Public deployments should run behind a trusted reverse proxy with HTTPS.
 
 ## Docker Deployment
@@ -175,7 +178,7 @@ E2E tests do not mock Codex app-server:
 - A production Nuxt build is started in the test runner.
 - Docker provides a real SSH target.
 - Gateway connects to the target over SSH and starts or resumes a real Codex app-server.
-- Playwright verifies login, config, thread restore, realtime sync, mobile layout, diff rendering, dynamic requests, notifications, and sub-agent UI.
+- Playwright verifies login, config, thread restore, realtime sync, mobile layout, diff rendering, dynamic requests, notifications, sub-agent UI, remote files, browser preview, and real tmux monitoring.
 
 Run:
 

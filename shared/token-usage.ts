@@ -17,6 +17,8 @@ function normalizeTokenBreakdown(value: any): TokenUsageBreakdown | null {
   const totalTokens = numberOrNull(value?.totalTokens ?? value?.total_tokens);
   const inputTokens = numberOrNull(value?.inputTokens ?? value?.input_tokens);
   const cachedInputTokens = numberOrNull(value?.cachedInputTokens ?? value?.cached_input_tokens);
+  const cacheWriteInputTokens =
+    numberOrNull(value?.cacheWriteInputTokens ?? value?.cache_write_input_tokens) ?? 0;
   const outputTokens = numberOrNull(value?.outputTokens ?? value?.output_tokens);
   const reasoningOutputTokens = numberOrNull(
     value?.reasoningOutputTokens ?? value?.reasoning_output_tokens,
@@ -34,6 +36,7 @@ function normalizeTokenBreakdown(value: any): TokenUsageBreakdown | null {
     totalTokens,
     inputTokens,
     cachedInputTokens,
+    cacheWriteInputTokens,
     outputTokens,
     reasoningOutputTokens,
   };

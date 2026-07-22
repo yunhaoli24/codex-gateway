@@ -12,6 +12,7 @@ export type {
 } from "./types/records";
 export type {
   ApprovalPolicy,
+  AppServerThread,
   ComposerTurnOptions,
   ThreadGoal,
   ThreadGoalStatus,
