@@ -9,9 +9,11 @@ import { hostRuntimeSupervisor } from "../../utils/gateway/runtime/host-runtime-
 import { hostStore } from "../../utils/gateway/state/hosts";
 import type { StoredHostRecord } from "../../utils/gateway/state/memory";
 import { runtimeConfigStore } from "../../utils/gateway/state/runtime-config";
+import { pinnedThreadEvents } from "../../utils/gateway/config/pinned-thread-events";
 
 export default defineGatewayConfigMutationHandler(async (event) => {
   const previousHosts = hostStore.listWithSecret();
+  const previousPinnedThreads = runtimeConfigStore.export().pinnedThreads;
   const userId = event.context.auth!.user.id;
   const config = await readValidatedBody(event, parseGatewayConfig);
   runtimeConfigStore.replace(config);
@@ -30,8 +32,16 @@ export default defineGatewayConfigMutationHandler(async (event) => {
     hostRuntimeSupervisor.syncCurrentUserConfig();
   }
   saveCurrentUserConfig(event);
-  return runtimeConfigStore.export();
+  const savedConfig = runtimeConfigStore.export();
+  if (!samePinnedThreads(previousPinnedThreads, savedConfig.pinnedThreads)) {
+    pinnedThreadEvents.publish(userId);
+  }
+  return savedConfig;
 });
+
+function samePinnedThreads(previous: unknown, next: unknown) {
+  return JSON.stringify(previous) === JSON.stringify(next);
+}
 
 function hostRuntimeChanged(previousHosts: StoredHostRecord[], nextHosts: StoredHostRecord[]) {
   const previousById = new Map(previousHosts.map((host) => [host.id, host]));

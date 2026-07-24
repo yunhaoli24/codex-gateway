@@ -30,6 +30,7 @@ export interface RealtimeServerMessageHandlerContext {
   acknowledgePong: (nonce?: string) => void;
   restoreTerminalSessions: () => Promise<void>;
   refreshSelectedThreadAfterReconnect: () => void;
+  refreshPinnedThreads: () => void;
   advanceThreadSubscriptionCursor: (event: GatewayEvent) => void;
 }
 
@@ -68,6 +69,7 @@ function createServerMessageHandlers(ctx: RealtimeServerMessageHandlerContext) {
   return {
     ready: () => handleReady(ctx),
     "notification.published": (message) => handlePublishedNotification(ctx, message),
+    "config.pinnedThreads.changed": () => ctx.refreshPinnedThreads(),
     "host.lifecycle": (message) => handleHostLifecycle(ctx, message.event),
     "thread.event": (message) => handleThreadEvent(ctx, message.event),
     "thread.goal.updated": (message) => handleGoalUpdated(ctx, message),
@@ -139,6 +141,7 @@ function handleReady(ctx: RealtimeServerMessageHandlerContext) {
   ctx.resubscribe();
   void ctx.restoreTerminalSessions();
   if (wasAlreadyReady) {
+    ctx.refreshPinnedThreads();
     ctx.refreshSelectedThreadAfterReconnect();
   }
 }
