@@ -2,8 +2,9 @@
 import { ChevronDownIcon, ChevronRightIcon, ImageIcon, SearchIcon, WrenchIcon } from "@lucide/vue";
 import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import DeferredCollapsibleContent from "@/components/common/DeferredCollapsibleContent.vue";
 import MarkdownContent from "@/components/common/MarkdownContent.vue";
 import { isItemInProgress } from "@/utils/thread-items";
 import { presentToolCall } from "./tool-call-presenters";
@@ -42,7 +43,7 @@ const detailSections = computed(() => presentation.value.details);
         <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
         <span class="min-w-0 flex-1 truncate text-ink-secondary">{{ t("app.toolDetails") }}</span>
       </CollapsibleTrigger>
-      <CollapsibleContent>
+      <DeferredCollapsibleContent :open="open">
         <div class="space-y-3 border-t border-hairline px-3 py-3">
           <div v-for="section in detailSections" :key="section.label" class="space-y-1">
             <div class="text-xs font-medium uppercase text-ink-faint">{{ section.label }}</div>
@@ -67,7 +68,7 @@ const detailSections = computed(() => presentation.value.details);
             </ScrollArea>
           </div>
         </div>
-      </CollapsibleContent>
+      </DeferredCollapsibleContent>
     </Collapsible>
   </div>
 </template>
