@@ -150,6 +150,20 @@ test("fans out a real remote app-server thread to multiple browser clients acros
       )
       .toBe(true);
 
+    await page.getByTestId(`thread-button-${threadId}`).click({ button: "right" });
+    await page.getByRole("menuitem", { name: /置顶会话|Pin thread/ }).click();
+    await expect(page.getByTestId(`pinned-thread-button-${threadId}`)).toBeVisible();
+    await expect(secondPage.getByTestId(`pinned-thread-button-${threadId}`)).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await secondPage.getByTestId(`pinned-thread-button-${threadId}`).click({ button: "right" });
+    await secondPage.getByRole("menuitem", { name: /取消置顶|Unpin thread/ }).click();
+    await expect(secondPage.getByTestId(`pinned-thread-button-${threadId}`)).toBeHidden();
+    await expect(page.getByTestId(`pinned-thread-button-${threadId}`)).toBeHidden({
+      timeout: 10_000,
+    });
+
     const secondMarker = `E2E 第二轮图片 ${Date.now()}`;
     await sendImageTurnThroughGateway(secondPage, {
       hostId: host.id,

@@ -55,6 +55,8 @@ export function cleanupRealtimePeer(peer: RealtimePeer) {
   state.terminalUnsubscribe = undefined;
   state.notificationUnsubscribe?.();
   state.notificationUnsubscribe = undefined;
+  state.pinnedThreadsUnsubscribe?.();
+  state.pinnedThreadsUnsubscribe = undefined;
   state.browserPreviewUnsubscribe?.();
   state.browserPreviewUnsubscribe = undefined;
   if (state.browserOwnerId) browserPreviewManager.closeOwner(state.browserOwnerId);

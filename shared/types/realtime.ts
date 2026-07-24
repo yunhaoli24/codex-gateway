@@ -173,6 +173,9 @@ export type RealtimeServerMessage =
       notification: ServerNotification;
     }
   | {
+      type: "config.pinnedThreads.changed";
+    }
+  | {
       type: "host.lifecycle";
       event: {
         hostId: number;

@@ -12,6 +12,7 @@ import {
   type RealtimeServerMessageMap,
 } from "./server-message-handlers";
 import { createRealtimeThreadSubscriptions } from "./thread-subscriptions";
+import { createPinnedThreadSync } from "./pinned-thread-sync";
 
 export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
   const { t } = useI18n();
@@ -33,6 +34,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
     connect: connection.connect,
     send: connection.send,
   });
+  const pinnedThreadSync = createPinnedThreadSync();
 
   registerRealtimeServerMessageHandlers(serverMessages, {
     t,
@@ -45,6 +47,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
     acknowledgePong: connection.acknowledgePong,
     restoreTerminalSessions,
     refreshSelectedThreadAfterReconnect,
+    refreshPinnedThreads,
     advanceThreadSubscriptionCursor: subscriptions.advanceThreadSubscriptionCursor,
   });
 
@@ -82,6 +85,12 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", () => {
       .catch((error: unknown) => {
         console.warn("[gateway] failed to refresh selected thread after realtime reconnect", error);
       });
+  }
+
+  function refreshPinnedThreads() {
+    void pinnedThreadSync.refresh().catch((error: unknown) => {
+      console.warn("[gateway] failed to refresh pinned threads", error);
+    });
   }
 
   return {
