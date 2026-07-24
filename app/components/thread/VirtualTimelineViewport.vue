@@ -19,6 +19,7 @@ const props = defineProps<{
   rows: TimelineViewportRow[];
   followKey: unknown;
   estimateSize: (row: unknown, index: number) => number;
+  deferNestedRowMeasurement?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -37,6 +38,9 @@ const chatVirtualizer = useChatVirtualizer({
   getItemKey: (index: number) => props.rows[index]?.key ?? index,
   estimateSize: (index: number) => props.estimateSize(props.rows[index], index),
   overscan: 6,
+  // Only timelines that contain a second virtualizer defer outer row measurement. Enabling this
+  // globally delays the synchronous keyed-anchor restore used by ordinary detached readers.
+  useAnimationFrameWithResizeObserver: () => props.deferNestedRowMeasurement ?? false,
   onViewportScroll: (viewport) => {
     // A short chat is simultaneously at the top and bottom. Only interpret
     // top proximity as history intent after explicit upward input detached the

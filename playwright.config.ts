@@ -29,5 +29,11 @@ export default defineConfig({
       testMatch: /.*\.mobile\.spec\.ts/,
       use: { ...devices["Pixel 5"] },
     },
+    {
+      name: "mobile-webkit-large-turn",
+      testMatch: /.*\.mobile\.spec\.ts/,
+      grep: /virtualizes intermediate items inside a large running turn/,
+      use: { ...devices["iPhone 13"] },
+    },
   ],
 });

@@ -28,6 +28,9 @@ const virtualizer = useVirtualizer(
     estimateSize: (index: number) => estimateIntermediateItem(props.items[index]),
     overscan: 5,
     scrollMargin: scrollMargin.value,
+    // TanStack's official RAF mode prevents a measured inner row from resizing the outer turn
+    // during the same WebKit ResizeObserver delivery cycle.
+    useAnimationFrameWithResizeObserver: true,
   })),
 );
 const virtualItems = computed(() => virtualizer.value.getVirtualItems());
@@ -69,8 +72,6 @@ async function updateScrollMargin() {
   scrollMargin.value = nextMargin;
 }
 
-useResizeObserver(containerElement, updateScrollMargin);
-useResizeObserver(outerTurnRow, updateScrollMargin);
 useResizeObserver(() => getViewport(), updateScrollMargin);
 useMutationObserver(outerTurnRow, updateScrollMargin, {
   attributes: true,
@@ -109,6 +110,11 @@ function estimateIntermediateItem(item: any) {
     scrollers, while the Agent timeline remains the only owner of vertical navigation and
     follow-latest intent. In particular, this component must not infer user detachment from its
     own range changes; the shared viewport's wheel/touch/keyboard state owns that decision.
+
+    Do not observe this container's height or the containing turn row's height. Inner measurements
+    resize both elements, and feeding that resize back into scrollMargin creates a nested
+    ResizeObserver cycle on WebKit. The viewport observer owns actual viewport geometry changes;
+    the outer row's transform observer owns movement caused by the turn virtualizer.
   -->
   <div
     :ref="setContainerRef"
