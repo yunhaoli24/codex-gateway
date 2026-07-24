@@ -32,16 +32,40 @@ test("uses the mobile layout with hidden sidebar and usable composer shell", asy
   await expect(page.getByText("先选择一个项目")).toBeVisible();
 });
 
-test("defers collapsed command output rendering in a large running turn", async ({ page }) => {
+test("virtualizes intermediate items inside a large running turn", async ({ page }) => {
   await openApp(page);
   const threadId = "mobile-large-running-turn";
-  const commands = Array.from({ length: 160 }, (_, index) => ({
+  const commands = Array.from({ length: 351 }, (_, index) => ({
     type: "commandExecution",
     id: `large-command-${index}`,
     command: `large command ${index}`,
-    aggregatedOutput: `output-${index} ${"x".repeat(8_000)}`,
+    aggregatedOutput: `output-${index} ${"x".repeat(4_000)}`,
     status: "completed",
     exitCode: 0,
+  }));
+  const fileChanges = Array.from({ length: 91 }, (_, index) => ({
+    type: "fileChange",
+    id: `large-file-change-${index}`,
+    status: "completed",
+    changes: [
+      {
+        path: `src/large_file_${index}.py`,
+        kind: "update",
+        diff: [
+          `diff --git a/src/large_file_${index}.py b/src/large_file_${index}.py`,
+          `--- a/src/large_file_${index}.py`,
+          `+++ b/src/large_file_${index}.py`,
+          "@@ -1,20 +1,20 @@",
+          ...Array.from({ length: 20 }, (_, line) => `-old_value_${line} = ${line}`),
+          ...Array.from({ length: 20 }, (_, line) => `+new_value_${line} = ${line + index}`),
+        ].join("\n"),
+      },
+    ],
+  }));
+  const agentMessages = Array.from({ length: 97 }, (_, index) => ({
+    type: "agentMessage",
+    id: `large-agent-message-${index}`,
+    text: `Agent progress ${index}: ${"analysis ".repeat(40)}`,
   }));
   await seedGatewayThread(page, {
     projectId: 1,
@@ -51,17 +75,57 @@ test("defers collapsed command output rendering in a large running turn", async 
     history: {
       thread: {
         id: threadId,
-        turns: [{ id: "large-running-turn", status: "inProgress", items: commands }],
+        turns: [
+          {
+            id: "large-running-turn",
+            status: "inProgress",
+            items: [...commands, ...fileChanges, ...agentMessages],
+          },
+        ],
       },
     },
   });
 
-  await expect(page.getByText("large command 159", { exact: true })).toBeVisible();
-  await expect(page.locator(".syntax-highlight")).toHaveCount(0);
+  const intermediate = page.getByTestId("virtual-intermediate-items");
+  const mountedRows = intermediate.locator(":scope > [data-index]");
+  await expect(intermediate).toBeAttached();
+  await expect.poll(() => mountedRows.count()).toBeLessThan(30);
 
-  await page.getByText("large command 159", { exact: true }).click();
-  await expect(page.locator(".syntax-highlight")).toHaveCount(1);
-  await expect(page.getByText(/output-159/)).toBeVisible();
+  await intermediate.evaluate((element) => {
+    const viewport = element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+    if (!viewport) throw new Error("Missing Agent timeline viewport");
+    // The production timeline only detaches after real backward input. A direct scrollTop write
+    // without this intent remains in follow-latest mode and is correctly returned to the running
+    // turn's end as nested rows replace estimates with measured heights.
+    viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -240 }));
+    const start =
+      viewport.scrollTop +
+      element.getBoundingClientRect().top -
+      viewport.getBoundingClientRect().top;
+    viewport.scrollTop = start + 350 * 48 - viewport.clientHeight / 2;
+    viewport.dispatchEvent(new Event("scroll"));
+  });
+  await expect(page.getByText("large command 350", { exact: true })).toBeVisible();
+  await expect(page.getByText(/output-350/)).toHaveCount(0);
+  await page.getByText("large command 350", { exact: true }).click();
+  await expect(page.getByText(/output-350/)).toBeVisible();
+
+  await intermediate.evaluate((element) => {
+    const viewport = element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+    if (!viewport) throw new Error("Missing Agent timeline viewport");
+    viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 240 }));
+    const start =
+      viewport.scrollTop +
+      element.getBoundingClientRect().top -
+      viewport.getBoundingClientRect().top;
+    viewport.scrollTop = start + element.scrollHeight * 0.55;
+    viewport.dispatchEvent(new Event("scroll"));
+  });
+  await expect(page.getByRole("button", { name: /src\/large_file_/ }).first()).toBeVisible();
+  await expect(page.locator(".diff-markdown .syntax-highlight").first()).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect.poll(() => mountedRows.count()).toBeLessThan(30);
 });
 
 test("background history top-up keeps the mobile timeline visually stable", async ({ page }) => {

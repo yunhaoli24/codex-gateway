@@ -9,6 +9,7 @@ import {
 import type { ComponentPublicInstance } from "vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { ChatVirtualScrollFrame, useChatVirtualizer } from "@/components/common/chat-virtualizer";
+import { provideTimelineViewport } from "@/components/thread/timeline-viewport-context";
 
 interface TimelineViewportRow {
   key: string;
@@ -69,6 +70,8 @@ const documentVisibility = useDocumentVisibility();
 function scrollViewport() {
   return scrollFrameRef.value?.getViewport() ?? null;
 }
+
+provideTimelineViewport(scrollViewport);
 
 function setRowRef(refValue: Element | ComponentPublicInstance | null) {
   const element = refValue instanceof Element ? refValue : null;
