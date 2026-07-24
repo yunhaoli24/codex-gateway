@@ -5,6 +5,7 @@ import type { ThreadRuntimeStatus } from "~~/shared/types";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ThreadItemView from "@/components/thread/ThreadItemView.vue";
+import VirtualIntermediateItems from "@/components/thread/VirtualIntermediateItems.vue";
 import { provideFilePreviewContext } from "@/composables/files/useFilePreviewContext";
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import {
@@ -97,14 +98,12 @@ function userMessageVariant(item: any) {
         <Badge variant="outline">{{ intermediateItems.length }}</Badge>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div data-testid="intermediate-steps" class="space-y-5 border-t border-hairline px-3 py-4">
-          <ThreadItemView
-            v-for="(item, index) in intermediateItems"
-            :key="itemKey(item, 'middle', index)"
-            :item="item"
+        <div data-testid="intermediate-steps" class="border-t border-hairline px-3 py-4">
+          <VirtualIntermediateItems
+            :items="intermediateItems"
             :host-id="hostId"
             :thread-id="threadId"
-            :user-message-variant="userMessageVariant(item)"
+            :user-message-variant="userMessageVariant"
           />
         </div>
       </CollapsibleContent>
