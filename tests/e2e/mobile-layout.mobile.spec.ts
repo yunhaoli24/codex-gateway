@@ -33,6 +33,8 @@ test("uses the mobile layout with hidden sidebar and usable composer shell", asy
 });
 
 test("virtualizes intermediate items inside a large running turn", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   await openApp(page);
   const threadId = "mobile-large-running-turn";
   const commands = Array.from({ length: 351 }, (_, index) => ({
@@ -67,6 +69,14 @@ test("virtualizes intermediate items inside a large running turn", async ({ page
     id: `large-agent-message-${index}`,
     text: `Agent progress ${index}: ${"analysis ".repeat(40)}`,
   }));
+  const lifecycleProbe = {
+    type: "commandExecution",
+    id: "large-command-lifecycle-probe",
+    command: "large command lifecycle probe",
+    aggregatedOutput: `lifecycle-probe-output ${"x".repeat(4_000)}`,
+    status: "completed",
+    exitCode: 0,
+  };
   await seedGatewayThread(page, {
     projectId: 1,
     threadId,
@@ -79,7 +89,7 @@ test("virtualizes intermediate items inside a large running turn", async ({ page
           {
             id: "large-running-turn",
             status: "inProgress",
-            items: [...commands, ...fileChanges, ...agentMessages],
+            items: [...commands, ...fileChanges, ...agentMessages, lifecycleProbe],
           },
         ],
       },
@@ -91,29 +101,20 @@ test("virtualizes intermediate items inside a large running turn", async ({ page
   await expect(intermediate).toBeAttached();
   await expect.poll(() => mountedRows.count()).toBeLessThan(30);
 
-  await intermediate.evaluate((element) => {
-    const viewport = element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
-    if (!viewport) throw new Error("Missing Agent timeline viewport");
-    // The production timeline only detaches after real backward input. A direct scrollTop write
-    // without this intent remains in follow-latest mode and is correctly returned to the running
-    // turn's end as nested rows replace estimates with measured heights.
-    viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -240 }));
-    const start =
-      viewport.scrollTop +
-      element.getBoundingClientRect().top -
-      viewport.getBoundingClientRect().top;
-    viewport.scrollTop = start + 350 * 48 - viewport.clientHeight / 2;
-    viewport.dispatchEvent(new Event("scroll"));
-  });
-  await expect(page.getByText("large command 350", { exact: true })).toBeVisible();
-  await expect(page.getByText(/output-350/)).toHaveCount(0);
-  await page.getByText("large command 350", { exact: true }).click();
-  await expect(page.getByText(/output-350/)).toBeVisible();
+  // Use the final row as a stable lifecycle probe. Deep estimated rows can move while WebKit
+  // replaces preceding estimates, which is expected virtualizer behavior rather than a leak.
+  const commandTitle = page.getByText("large command lifecycle probe", { exact: true });
+  await expect(commandTitle).toBeVisible();
+  await expect(page.getByText(/lifecycle-probe-output/)).toHaveCount(0);
+  const commandRow = commandTitle.locator("xpath=ancestor::*[@data-index][1]");
+  const commandRowHandle = await commandRow.elementHandle();
+  expect(commandRowHandle).not.toBeNull();
 
   await intermediate.evaluate((element) => {
     const viewport = element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
     if (!viewport) throw new Error("Missing Agent timeline viewport");
-    viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 240 }));
+    // Backward input must detach follow-latest before moving to the earlier file-change region.
+    viewport.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -240 }));
     const start =
       viewport.scrollTop +
       element.getBoundingClientRect().top -
@@ -122,10 +123,13 @@ test("virtualizes intermediate items inside a large running turn", async ({ page
     viewport.dispatchEvent(new Event("scroll"));
   });
   await expect(page.getByRole("button", { name: /src\/large_file_/ }).first()).toBeVisible();
-  await expect(page.locator(".diff-markdown .syntax-highlight").first()).toBeVisible({
-    timeout: 30_000,
-  });
+  // A collapsed file card remains discoverable, but its expensive diff highlighter must not mount.
+  await expect(page.locator(".diff-markdown .syntax-highlight")).toHaveCount(0);
+  await expect(page.getByText("large command lifecycle probe", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/lifecycle-probe-output/)).toHaveCount(0);
+  expect(await commandRowHandle!.evaluate((element) => element.isConnected)).toBe(false);
   await expect.poll(() => mountedRows.count()).toBeLessThan(30);
+  expect(pageErrors.filter((message) => message.includes("ResizeObserver loop"))).toEqual([]);
 });
 
 test("background history top-up keeps the mobile timeline visually stable", async ({ page }) => {

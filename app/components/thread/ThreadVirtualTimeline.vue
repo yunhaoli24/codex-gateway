@@ -10,6 +10,7 @@ import {
   type ThreadTimelineTurn,
   type ThreadTimelineRow,
 } from "@/components/thread/timeline-rows";
+import { buildThreadTurnSections } from "@/components/thread/thread-turn-sections";
 
 const props = defineProps<{
   threadId: string | null;
@@ -36,6 +37,11 @@ const rows = computed(() =>
     threadId: props.threadId,
     turns: props.turns,
   }),
+);
+const hasNestedIntermediateVirtualizer = computed(() =>
+  props.turns.some(
+    (turn) => buildThreadTurnSections(turn, { planModeActive: false }).intermediateItems.length > 0,
+  ),
 );
 
 function handleReachStart() {
@@ -77,6 +83,7 @@ watch(
     :rows="rows"
     :follow-key="followKey"
     :estimate-size="estimateRowSize"
+    :defer-nested-row-measurement="hasNestedIntermediateVirtualizer"
     @reach-start="handleReachStart"
     @user-detached-change="handleUserDetachedChange"
   >
