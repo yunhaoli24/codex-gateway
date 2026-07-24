@@ -9,8 +9,9 @@ import {
 import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import HighlightedCode from "@/components/common/HighlightedCode.vue";
+import DeferredCollapsibleContent from "@/components/common/DeferredCollapsibleContent.vue";
 import { ChatStickToBottomScrollArea } from "@/components/common/chat-virtualizer";
 import { useServerRequestResponder } from "@/composables/thread/useServerRequestResponder";
 
@@ -64,7 +65,7 @@ async function respond(decision: "accept" | "decline") {
         <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
       </span>
     </CollapsibleTrigger>
-    <CollapsibleContent>
+    <DeferredCollapsibleContent :open="open">
       <div
         v-if="pendingApproval"
         class="mt-2 rounded-lg border border-accent-orange/30 bg-accent-orange/10 px-3 py-2 text-sm text-accent-orange-deep"
@@ -117,6 +118,6 @@ async function respond(decision: "accept" | "decline") {
       >
         {{ t("app.waitingCommandOutput") }}
       </div>
-    </CollapsibleContent>
+    </DeferredCollapsibleContent>
   </Collapsible>
 </template>

@@ -2,8 +2,9 @@
 import { AlertTriangleIcon, BellIcon, InfoIcon } from "@lucide/vue";
 import { computed } from "vue";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+import DeferredCollapsibleContent from "@/components/common/DeferredCollapsibleContent.vue";
 
 const props = defineProps<{ item: Record<string, any> }>();
 const { t } = useI18n();
@@ -35,11 +36,11 @@ const details = computed(() => props.item.details || "");
           {{ open ? t("app.hideNotificationDetails") : t("app.showNotificationDetails") }}
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent>
+      <DeferredCollapsibleContent :open="open">
         <pre
           class="mt-2 max-h-40 overflow-auto rounded-md bg-canvas-soft p-2 text-xs leading-5 text-ink-secondary"
           >{{ details }}</pre>
-      </CollapsibleContent>
+      </DeferredCollapsibleContent>
     </Collapsible>
   </div>
 </template>

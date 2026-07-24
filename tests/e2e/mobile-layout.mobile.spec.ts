@@ -32,6 +32,38 @@ test("uses the mobile layout with hidden sidebar and usable composer shell", asy
   await expect(page.getByText("先选择一个项目")).toBeVisible();
 });
 
+test("defers collapsed command output rendering in a large running turn", async ({ page }) => {
+  await openApp(page);
+  const threadId = "mobile-large-running-turn";
+  const commands = Array.from({ length: 160 }, (_, index) => ({
+    type: "commandExecution",
+    id: `large-command-${index}`,
+    command: `large command ${index}`,
+    aggregatedOutput: `output-${index} ${"x".repeat(8_000)}`,
+    status: "completed",
+    exitCode: 0,
+  }));
+  await seedGatewayThread(page, {
+    projectId: 1,
+    threadId,
+    currentThread: { id: threadId, name: "Large mobile turn" },
+    status: "running",
+    history: {
+      thread: {
+        id: threadId,
+        turns: [{ id: "large-running-turn", status: "inProgress", items: commands }],
+      },
+    },
+  });
+
+  await expect(page.getByText("large command 159", { exact: true })).toBeVisible();
+  await expect(page.locator(".syntax-highlight")).toHaveCount(0);
+
+  await page.getByText("large command 159", { exact: true }).click();
+  await expect(page.locator(".syntax-highlight")).toHaveCount(1);
+  await expect(page.getByText(/output-159/)).toBeVisible();
+});
+
 test("background history top-up keeps the mobile timeline visually stable", async ({ page }) => {
   await openApp(page);
   const threadId = "mobile-background-turn-top-up";

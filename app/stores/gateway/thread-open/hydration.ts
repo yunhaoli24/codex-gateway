@@ -21,7 +21,7 @@ export function applyOpenedThreadResult(threadId: string, result: ThreadOpenResu
   navigation.selectedThreadId = threadId;
   useGatewayRealtimeStore().rememberThreadSubscription(result.hostId, threadId, result.lastEventId);
   if (result.project) gateway.mergeProjects([result.project]);
-  applyCommonThreadResult(threadId, result);
+  applyCommonThreadResult(threadId, result, result.lastEventId);
   for (const event of result.recentEvents) views.applyLiveEvent(event);
   syncRuntimeStatusFromResult(threadId, result, {
     thread: views.currentThread,
@@ -54,7 +54,7 @@ export function applyStartedThreadResult(result: ThreadOpenResult) {
   views.currentThread = result.thread;
   views.history = result.history;
   navigation.selectedThreadId = threadId;
-  applyCommonThreadResult(threadId, result);
+  applyCommonThreadResult(threadId, result, result.lastEventId);
   return threadId;
 }
 
