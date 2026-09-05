@@ -73,7 +73,7 @@ test("upgrades empty, legacy Node, and legacy Codex SSH hosts with bounded concu
       })
       .toContain(environment.supportedCodexVersion!);
     // Seeing the binary version only proves npm has replaced the package. Wait for the
-    // install shell's cleanup trap instead of coupling this backend test to sidebar state.
+    // workflow's final cleanup instead of coupling this backend test to sidebar state.
     await verifyOfficialNpmLayout(environment);
   }
 

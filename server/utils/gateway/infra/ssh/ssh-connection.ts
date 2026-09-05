@@ -324,6 +324,10 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
     return await uploadFile(this, host, localPath, remotePath);
   }
 
+  closeSftp(host: HostWithSecret) {
+    this.sftpChannels.close(this.connectionKeyFor(host));
+  }
+
   async uploadFileResumable(host: HostWithSecret, localPath: string, remotePath: string) {
     return await uploadFileResumable(this, host, localPath, remotePath);
   }

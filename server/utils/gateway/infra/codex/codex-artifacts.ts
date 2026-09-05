@@ -47,12 +47,7 @@ interface PreparedBundle {
 export class CodexArtifactProvider {
   private readonly shared = new Map<string, SharedBundle>();
 
-  async withArtifacts<T>(
-    version: string,
-    platform: CodexRemotePlatform,
-    options: { includeNode: boolean },
-    callback: (artifacts: CodexArtifactBundle) => Promise<T>,
-  ) {
+  async acquire(version: string, platform: CodexRemotePlatform, options: { includeNode: boolean }) {
     const key = `${version}:${platform.packageName}:${options.includeNode}`;
     let entry = this.shared.get(key);
     if (entry === undefined) {
@@ -70,10 +65,17 @@ export class CodexArtifactProvider {
     entry.users += 1;
     try {
       const prepared = await entry.promise;
-      return await callback(prepared.artifacts);
-    } finally {
+      return {
+        artifacts: prepared.artifacts,
+        release: () => {
+          entry.users -= 1;
+          if (entry.users === 0) this.scheduleCleanup(key, entry);
+        },
+      };
+    } catch (error) {
       entry.users -= 1;
       if (entry.users === 0) this.scheduleCleanup(key, entry);
+      throw error;
     }
   }
 

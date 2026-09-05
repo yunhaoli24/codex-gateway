@@ -34,7 +34,8 @@ export function codexRemoteCreateUpgradeStagePayload() {
 set -eu
 stage_root="$HOME/.cache/codex-gateway/upgrades"
 mkdir -p "$stage_root"
-find "$stage_root" -mindepth 1 -maxdepth 1 -type d -mmin +60 -name 'upgrade.*' -exec rm -rf {} + 2>/dev/null || true
+# A slow upload or queued retry may legitimately own a directory older than an hour.
+# The owning Gateway workflow cleans its staging directory when all attempts finish.
 mktemp -d "$stage_root/upgrade.XXXXXX"
 `,
     { requireCodex: false },
@@ -59,10 +60,7 @@ export function codexRemoteOfflineInstallPayload(input: {
 set -eu
 stage=${shellQuote(input.stagePath)}
 verify_prefix="$stage/verify-prefix"
-cleanup() {
-  rm -rf -- "$stage"
-}
-trap cleanup EXIT HUP INT TERM
+# Keep verified archives for a queued retry. Gateway owns final cleanup, including failed installs.
 
 archive_file=${shellQuote(archiveFile)}
 expected_archive_sha=${shellQuote(input.artifacts.cacheArchive.sha512)}
