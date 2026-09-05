@@ -100,10 +100,11 @@ export class CodexRpcClient extends EventEmitter<CodexRpcClientEvents> {
         capabilities: {
           experimentalApi: true,
           // Codex negotiates MCP extensions by their protocol names. Gateway renders
-          // OpenAI forms and their unsupported-field fallback, so advertise that exact surface
-          // instead of retaining the deprecated boolean alias.
+          // OpenAI forms and the current MCP elicitation form capability. These are independent
+          // protocol extensions, not compatibility branches for older app-server versions.
           extensions: {
             "openai/form": {},
+            "openai/elicitation": { form: {} },
           },
         },
       },

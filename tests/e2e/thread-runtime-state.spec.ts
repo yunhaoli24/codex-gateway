@@ -83,7 +83,7 @@ test("opening completed history does not show fake thinking", async ({ page }) =
         turnId: "turn-1",
         responseId,
         usage: null,
-        usageMetadata: { amount },
+        usageMetadata: { amount, metadata: null },
       },
     },
     createdAt: `2026-07-02T10:00:0${index + 1}.000Z`,

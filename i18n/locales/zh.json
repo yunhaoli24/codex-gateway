@@ -647,6 +647,14 @@
         "title": "模型验证已更新",
         "message": "收到 {count} 条验证结果：{items}"
       },
+      "authRecoveryStarted": {
+        "title": "模型提供方正在恢复认证",
+        "message": "{provider}：{message}"
+      },
+      "authRecoveryCompleted": {
+        "title": "模型提供方认证已恢复",
+        "message": "{provider}：{message}"
+      },
       "turnModerationMetadata": {
         "title": "安全审查元数据",
         "message": "本轮返回了 moderation metadata：{summary}"
