@@ -84,6 +84,13 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("已完成")).toBeVisible();
   await expect(page.getByText("加载回合内容失败")).toHaveCount(0);
   await revealVirtualizedChatLocator(page, firstIntermediateStepsToggle(page));
+  // This scenario owns realtime reconnection and cross-browser fanout. Whether completion
+  // auto-collapses is intentionally covered by the scroll suite because it depends on whether the
+  // reader is still bottom-pinned. Close it through the same control a user uses before checking
+  // that disclosure state is reset by a reload.
+  if ((await firstIntermediateStepsToggle(page).getAttribute("data-state")) === "open") {
+    await firstIntermediateStepsToggle(page).click();
+  }
   await expect(firstIntermediateStepsToggle(page)).toHaveAttribute("data-state", "closed");
   const reconnectedMarker = `E2E WS重连 ${Date.now()}`;
   await sendTextTurn(page, reconnectedMarker);

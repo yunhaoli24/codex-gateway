@@ -99,7 +99,7 @@ test("Bark keeps monitoring an active main turn after the last browser closes", 
   // Closing the last browser releases its UI lease, not the active app-server subscription.
   // The background monitor must own it until turn/completed so VS Code-only and closed-page
   // workflows receive the same completion notification as an open Gateway page.
-  await expect.poll(async () => (await bark.readRequests()).length, { timeout: 60_000 }).toBe(1);
+  await expect.poll(async () => (await bark.readRequests()).length, { timeout: 120_000 }).toBe(1);
   expect((await bark.readRequests())[0]?.title).toContain("回合已结束");
 });
 

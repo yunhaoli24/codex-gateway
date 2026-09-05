@@ -298,7 +298,7 @@ export class ThreadOpenService {
       projectId,
       read.thread,
       initialTurnsPage,
-      latestThreadSettingsFromEvents(gatewayEventStore.list(host.id, threadId, 0, 200)),
+      extractThreadSettings(read.thread),
     );
   }
 

@@ -647,6 +647,14 @@
         "title": "Model verification updated",
         "message": "Received {count} verification results: {items}"
       },
+      "authRecoveryStarted": {
+        "title": "Model provider authentication recovery started",
+        "message": "{provider}: {message}"
+      },
+      "authRecoveryCompleted": {
+        "title": "Model provider authentication recovered",
+        "message": "{provider}: {message}"
+      },
       "turnModerationMetadata": {
         "title": "Safety moderation metadata",
         "message": "This turn returned moderation metadata: {summary}"

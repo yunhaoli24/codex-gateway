@@ -184,7 +184,7 @@ export interface AppServerThreadSection {
   } | null;
 }
 
-/** Exact Codex 0.151 Thread DTO for the experimental API negotiated by Gateway. */
+/** Exact Codex 0.153 Thread DTO for the experimental API negotiated by Gateway. */
 export interface AppServerThread {
   id: string;
   extra: Record<never, never> | null;
@@ -198,6 +198,8 @@ export interface AppServerThread {
   projectId: string | null;
   historyMode: "legacy" | "paginated";
   modelProvider: string;
+  model: string | null;
+  reasoningEffort: ReasoningEffort | null;
   createdAt: number;
   updatedAt: number;
   recencyAt: number | null;

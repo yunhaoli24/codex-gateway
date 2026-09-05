@@ -50,6 +50,8 @@ export const visibleNotificationMethods = [
   "thread/compacted",
   "model/rerouted",
   "model/verification",
+  "modelProvider/authRecoveryStarted",
+  "modelProvider/authRecoveryCompleted",
   "turn/moderationMetadata",
   "model/safetyBuffering/updated",
   "warning",
@@ -152,6 +154,16 @@ const formatters: Record<VisibleNotificationMethod, NotificationFormatter> = {
     simpleNotification(ctx, "modelVerification", "info", {
       count: count(params.verifications),
       items: verificationSummary(params.verifications),
+    }),
+  "modelProvider/authRecoveryStarted": (ctx, params) =>
+    simpleNotification(ctx, "authRecoveryStarted", "warning", {
+      provider: text(params.provider),
+      message: text(params.message),
+    }),
+  "modelProvider/authRecoveryCompleted": (ctx, params) =>
+    simpleNotification(ctx, "authRecoveryCompleted", "info", {
+      provider: text(params.provider),
+      message: text(params.message),
     }),
   "turn/moderationMetadata": moderationMetadataNotification,
   "model/safetyBuffering/updated": modelSafetyBufferingNotification,

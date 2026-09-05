@@ -9,6 +9,7 @@ const rawResponseCompletedSchema = z
     usageMetadata: z
       .object({
         amount: z.string().nullable(),
+        metadata: z.json().nullable(),
       })
       .strict()
       .nullable(),

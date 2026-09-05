@@ -19,6 +19,11 @@ export interface ThreadUserInputQuestion extends Record<string, unknown> {
   isSecret?: boolean;
 }
 
+export interface ThreadAsyncUserInputQuestion extends Record<string, unknown> {
+  title: string;
+  options: string[] | null;
+}
+
 export interface ThreadRequestParams extends Record<string, unknown> {
   reason?: string | null;
   previousAccountId?: string | null;
@@ -63,6 +68,8 @@ export interface ThreadHistoryItem extends Record<string, unknown> {
   text?: string | null;
   /** `async` is a user-visible message delivered without completing the active turn. */
   delivery?: "async" | null;
+  /** Structured choices attached to an async agent message; replies remain ordinary user input. */
+  questions?: ThreadAsyncUserInputQuestion[] | null;
   explanation?: string | null;
   content?: unknown[];
   summary?: unknown[];
