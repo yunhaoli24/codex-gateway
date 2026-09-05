@@ -1,13 +1,22 @@
 import { createReadStream } from "node:fs";
 import { stat as statLocal } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
-import pRetry from "p-retry";
 import type { SFTPWrapper } from "ssh2";
 import type { HostWithSecret } from "./ssh-types";
 import { isConnectionLevelSshError } from "./ssh-errors";
+import { withSftpUploadProgress } from "./ssh-upload-progress";
+
+// @types/ssh2 omits the public counter maintained by SFTP WriteStream._write/_writev.
+// Declare the actual library field so progress tracking needs neither a cast nor a second counter.
+declare module "ssh2" {
+  interface WriteStream {
+    bytesWritten: number;
+  }
+}
 
 interface SftpTransferConnection {
   sftp(host: HostWithSecret): Promise<SFTPWrapper>;
+  closeSftp(host: HostWithSecret): void;
   disconnectHost(host: HostWithSecret): void;
 }
 
@@ -38,13 +47,23 @@ export async function uploadFileResumable(
   const localSize = (await statLocal(localPath)).size;
   const partialPath = `${remotePath}.part`;
 
-  await pRetry(
-    async () => {
-      try {
+  // Queue admission owns retries. A transfer failure must release its upgrade slot immediately.
+  try {
+    await withSftpUploadProgress(
+      host,
+      localSize,
+      () => connection.closeSftp(host),
+      async (monitor) => {
         const sftp = await connection.sftp(host);
-        let offset = await remoteFileSize(sftp, partialPath);
+        monitor.phase("stat");
+        const completeSize = await remoteFileSize(sftp, remotePath);
+        monitor.phase("stat partial");
+        if (completeSize === localSize) return;
+        let offset = (await remoteFileSize(sftp, partialPath)) ?? 0;
+        monitor.phase("prepare upload");
         if (offset > localSize) {
           await unlinkRemoteFile(sftp, partialPath);
+          monitor.phase("restart upload");
           offset = 0;
         }
         if (offset < localSize) {
@@ -54,48 +73,40 @@ export async function uploadFileResumable(
             mode: 0o600,
             start: offset,
           });
-          await pipeline(reader, writer);
+          // ssh2 counts bytesWritten after remote WRITE acknowledgement. Local reader/Transform
+          // data events only measure buffering and must not reset an upload's idle deadline.
+          monitor.track(() => offset + writer.bytesWritten);
+          await pipeline(reader, writer, { signal: monitor.signal });
         }
+        monitor.phase("verify upload");
         const uploadedSize = await remoteFileSize(sftp, partialPath);
+        monitor.phase("rename upload");
         if (uploadedSize !== localSize) {
           throw new Error(
-            `Incomplete SFTP upload for ${remotePath}: ${uploadedSize}/${localSize} bytes`,
+            `Incomplete SFTP upload for ${remotePath}: ${uploadedSize ?? 0}/${localSize} bytes`,
           );
         }
         await renameRemoteFile(sftp, partialPath, remotePath);
-      } catch (error) {
-        if (isTransientSftpTransferError(error)) connection.disconnectHost(host);
-        throw error;
-      }
-    },
-    {
-      retries: 4,
-      minTimeout: 1_000,
-      factor: 2,
-      shouldRetry: ({ error }) => isTransientSftpTransferError(error),
-      onFailedAttempt: ({ error, attemptNumber, retriesLeft }) => {
-        console.info("[gateway-ssh] retrying resumable SFTP upload", {
-          hostId: host.id,
-          hostName: host.name,
-          attempt: attemptNumber,
-          retriesLeft,
-          message: error instanceof Error ? error.message : String(error),
-        });
+        monitor.phase("completed");
       },
-    },
-  );
+    );
+  } catch (error) {
+    // A stalled SFTP request does not prove the shared Agent/Terminal transport is dead.
+    if (isConnectionLevelSshError(error)) connection.disconnectHost(host);
+    throw error;
+  }
   return remotePath;
 }
 
 async function remoteFileSize(sftp: SFTPWrapper, path: string) {
-  return await new Promise<number>((resolve, reject) => {
+  return await new Promise<number | null>((resolve, reject) => {
     sftp.stat(path, (error, stats) => {
       if (!error) {
         resolve(stats.size);
         return;
       }
       if (isMissingSftpFile(error)) {
-        resolve(0);
+        resolve(null);
         return;
       }
       reject(error);
@@ -119,10 +130,10 @@ function isMissingSftpFile(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === 2;
 }
 
-function isTransientSftpTransferError(error: unknown) {
+export function isTransientSftpTransferError(error: unknown) {
   if (isConnectionLevelSshError(error)) return true;
   const message = error instanceof Error ? error.message : String(error);
-  return /SSH channel closed|socket hang up|ECONNRESET|EPIPE|ETIMEDOUT|Incomplete SFTP upload/i.test(
+  return /SSH channel closed|socket hang up|ECONNRESET|EPIPE|ETIMEDOUT|SFTP upload timed out|Incomplete SFTP upload/i.test(
     message,
   );
 }

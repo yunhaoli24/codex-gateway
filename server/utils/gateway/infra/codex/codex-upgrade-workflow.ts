@@ -6,6 +6,7 @@ import type { CodexUpgrader } from "./codex-upgrader";
 import { CodexUpgradeQueue } from "./codex-upgrade-queue";
 import type { CodexVersionChecker } from "./codex-version-checker";
 import { codexUpgradeLog } from "./codex-upgrade-log";
+import type { CodexUpgradeResources } from "./codex-upgrade-resources";
 
 export class CodexUpgradeWorkflow {
   private readonly queue = new CodexUpgradeQueue();
@@ -17,10 +18,15 @@ export class CodexUpgradeWorkflow {
   ) {}
 
   async repair(host: HostWithSecret): Promise<RemoteCodexVersionState> {
-    return await this.runExclusive(host, async () => {
+    return await this.runExclusive(host, async (resources, attempt) => {
       const beforeVersion = await this.readVersionForRepair(host);
       await this.stopRuntimeIfPresent(host);
-      const version = await this.upgrader.upgrade(host, SUPPORTED_CODEX_VERSION);
+      const version = await this.upgrader.upgrade(
+        host,
+        SUPPORTED_CODEX_VERSION,
+        resources,
+        attempt,
+      );
       await this.runtime.ensureStoppedAfterUpgrade(host);
 
       return {
@@ -38,7 +44,7 @@ export class CodexUpgradeWorkflow {
     supportedVersion: string,
     observedBeforeVersion: string,
   ): Promise<RemoteCodexVersionState> {
-    return await this.runExclusive(host, async () => {
+    return await this.runExclusive(host, async (resources, attempt) => {
       // Hosts can wait in this queue for several minutes. Re-read both CLI and app-server state
       // when this Host reaches the front so a newly started thread is never interrupted and an
       // externally completed upgrade is not repeated.
@@ -91,7 +97,7 @@ export class CodexUpgradeWorkflow {
         };
       }
 
-      const version = await this.install(host, supportedVersion, beforeVersion);
+      const version = await this.install(host, supportedVersion, beforeVersion, resources, attempt);
       return {
         version,
         appServerVersion: null,
@@ -102,7 +108,13 @@ export class CodexUpgradeWorkflow {
     });
   }
 
-  private async install(host: HostWithSecret, supportedVersion: string, beforeVersion: string) {
+  private async install(
+    host: HostWithSecret,
+    supportedVersion: string,
+    beforeVersion: string,
+    resources: CodexUpgradeResources,
+    attempt: number,
+  ) {
     codexUpgradeLog("upgrade required", host, {
       observedVersion: beforeVersion,
       targetVersion: supportedVersion,
@@ -115,6 +127,8 @@ export class CodexUpgradeWorkflow {
     const version = await this.upgrader.withPreparedUpgrade(
       host,
       supportedVersion,
+      resources,
+      attempt,
       async (install) => {
         const latestRuntimeState = await this.runtime.readState(host);
         if (latestRuntimeState.running) {
@@ -147,7 +161,10 @@ export class CodexUpgradeWorkflow {
     return version;
   }
 
-  private async runExclusive<T>(host: HostWithSecret, work: () => Promise<T>) {
+  private async runExclusive<T>(
+    host: HostWithSecret,
+    work: (resources: CodexUpgradeResources, attempt: number) => Promise<T>,
+  ) {
     if (this.queue.busy) {
       hostLifecycleBus.emit({
         hostId: host.id,
@@ -155,7 +172,12 @@ export class CodexUpgradeWorkflow {
         message: `${hostDisplayName(host)} 正在等待 Codex 升级队列`,
       });
     }
-    return await this.queue.run(host, work);
+    const resources = this.upgrader.createResources(host);
+    try {
+      return await this.queue.run(host, (attempt) => work(resources, attempt));
+    } finally {
+      await resources.dispose();
+    }
   }
 
   private async readVersionForRepair(host: HostWithSecret) {

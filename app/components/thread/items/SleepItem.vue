@@ -1,54 +1,24 @@
 <script setup lang="ts">
 import type { ThreadHistoryItem } from "~~/shared/types";
-import { useTimestamp } from "@vueuse/core";
-import { CheckCircle2Icon, Loader2Icon, TimerIcon } from "@lucide/vue";
-import { computed, ref, watch } from "vue";
+import { Loader2Icon, TimerIcon } from "@lucide/vue";
+import { computed } from "vue";
+import { Checkpoint, CheckpointIcon } from "@codex-gateway/ai-elements/checkpoint";
 import { isItemInProgress } from "@/utils/thread-items";
-import { formatDurationMs, itemCompletedAtMs, itemStartedAtMs } from "@/utils/item-timing";
 
 const props = defineProps<{ item: ThreadHistoryItem }>();
 
 const { t } = useI18n();
-const { timestamp: now, pause, resume } = useTimestamp({ controls: true, interval: 250 });
-const localStartedAt = ref(Date.now());
-
 const inProgress = computed(() => isItemInProgress(props.item));
-const durationMs = computed(() => Number(props.item.durationMs || props.item.duration_ms || 0));
-const startedAt = computed(() => itemStartedAtMs(props.item) ?? localStartedAt.value);
-const completedAt = computed(() => itemCompletedAtMs(props.item));
-const elapsedMs = computed(() =>
-  Math.max(0, (inProgress.value ? now.value : (completedAt.value ?? now.value)) - startedAt.value),
-);
-const progressPercent = computed(() => {
-  if (!durationMs.value) return inProgress.value ? 18 : 100;
-  return Math.max(0, Math.min(100, (elapsedMs.value / durationMs.value) * 100));
-});
-const timeLabel = computed(() => {
-  if (!durationMs.value) return formatDurationMs(elapsedMs.value);
-  return `${formatDurationMs(elapsedMs.value)} / ${formatDurationMs(durationMs.value)}`;
-});
-
-watch(inProgress, (active) => (active ? resume() : pause()), { immediate: true });
 </script>
 
 <template>
-  <div
-    class="max-w-4xl overflow-hidden rounded-lg border border-accent-orange/20 bg-accent-orange/10 text-accent-orange-deep"
-  >
-    <div class="relative">
-      <div
-        class="absolute inset-y-0 left-0 bg-accent-orange/20 transition-[width] duration-300"
-        :style="{ width: `${progressPercent}%` }"
-      />
-      <div class="relative flex items-center gap-2 px-3 py-2 text-[0.9375rem]">
-        <Loader2Icon v-if="inProgress" class="size-4 shrink-0 animate-spin text-accent-orange" />
-        <CheckCircle2Icon v-else class="size-4 shrink-0 text-accent-green" />
-        <span class="min-w-0 flex-1 truncate">{{ t("app.sleep") }}</span>
-        <span class="rounded-full bg-surface/80 px-2 py-0.5 font-mono text-xs text-ink-secondary">{{
-          timeLabel
-        }}</span>
-        <TimerIcon class="size-4 shrink-0 text-ink-muted" />
-      </div>
-    </div>
-  </div>
+  <!-- Waiting is a routine timeline checkpoint. It has no measured completion percentage, so
+       a progress bar and a local countdown would imply precision the server does not provide. -->
+  <Checkpoint class="max-w-4xl gap-2 py-1 text-[0.9375rem] text-ink-muted">
+    <CheckpointIcon>
+      <Loader2Icon v-if="inProgress" class="size-4 shrink-0 animate-spin" />
+      <TimerIcon v-else class="size-4 shrink-0" />
+    </CheckpointIcon>
+    <span>{{ t("app.sleep") }}</span>
+  </Checkpoint>
 </template>
