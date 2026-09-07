@@ -8,6 +8,7 @@ import { threadSnapshotStore } from "../state/thread-snapshots";
 import type { ControllerRegistry } from "./controller-registry";
 import { pageCursorState, pageToFullHistory } from "./thread-history-pages";
 import { DEFAULT_TURN_PAGE_LIMIT, type TurnsPage } from "./types";
+import { readLegacyTurnItems } from "./legacy-turn-items";
 
 export interface ThreadTurnsListInput {
   cursor?: string | null;
@@ -26,9 +27,8 @@ export class ThreadHistoryReader {
   ) {
     // Keep the two upstream history contracts separate at this boundary. Paginated histories can
     // reuse thread/resume's bounded summary page and fetch items on demand. Legacy histories have
-    // no stable item-page API, so their Turn pages are requested with full items and are never
-    // exposed to the browser as lazily expandable rows. Mixing both contracts behind page locators
-    // previously let a newly-started live Turn trigger a read before it existed in the rollout.
+    // no stable item-page API, so initial Turn pages are requested with full items. Subsequent live
+    // notifications may still need hydration; that separate path reads full legacy Turn pages too.
     if (resumedPage !== undefined) {
       return resumedPage;
     }
@@ -59,12 +59,25 @@ export class ThreadHistoryReader {
     },
   ) {
     const snapshot = this.requireSnapshot(host.id, threadId);
-    if (snapshot.thread.historyMode === "legacy") {
-      // This is an invariant violation rather than a compatibility path: legacy pages already
-      // contain full items, so a browser item request means projection logic regressed.
-      throw new Error("Legacy Turn items are loaded with their Turn page");
+    const cached = snapshot.history.thread.turns.find((turn) => turn.id === input.turnId);
+    if (cached?.itemsView === "full" && input.cursor == null) {
+      return {
+        turnId: input.turnId,
+        items: input.sortDirection === "desc" ? [...cached.items].reverse() : cached.items,
+        nextCursor: null,
+        backwardsCursor: null,
+      };
     }
     const client = await this.registry.getHostClient(host);
+    if (snapshot.thread.historyMode === "legacy") {
+      const items = await readLegacyTurnItems(client, host, threadId, input.turnId);
+      return {
+        turnId: input.turnId,
+        items: input.sortDirection === "desc" ? [...items].reverse() : items,
+        nextCursor: null,
+        backwardsCursor: null,
+      };
+    }
     const page = await client.request(
       "thread/items/list",
       {
