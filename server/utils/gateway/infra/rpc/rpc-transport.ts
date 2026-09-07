@@ -1,4 +1,4 @@
-import WebSocket, { type RawData } from "ws";
+import WebSocket from "ws";
 import type { HostRecord, RpcEnvelope } from "~~/shared/types";
 import { sshConnections } from "../host-services";
 import {
@@ -7,6 +7,7 @@ import {
   remoteLoginShellCommand,
 } from "../ssh/remote-command";
 import { createRpcTransportError, type RpcTransportCloseDetail } from "./rpc-errors";
+import { rawWebSocketDataToString } from "../ws/raw-data";
 
 export interface CodexRpcTransportOptions {
   requireExistingAppServer: boolean;
@@ -166,10 +167,4 @@ export class CodexRpcTransport {
       .join(", ");
     return detail === "" ? "Codex RPC transport closed" : `Codex RPC transport closed (${detail})`;
   }
-}
-
-function rawWebSocketDataToString(data: RawData) {
-  if (Buffer.isBuffer(data)) return data.toString("utf8");
-  if (Array.isArray(data)) return Buffer.concat(data).toString("utf8");
-  return Buffer.from(data).toString("utf8");
 }

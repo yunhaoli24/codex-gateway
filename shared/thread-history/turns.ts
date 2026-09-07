@@ -57,6 +57,11 @@ export function syncCompletedTurn(
     turns[index] = {
       ...existingTurn,
       ...syncedTurn,
+      // A lifecycle notification describes its own payload, not our accumulated history.
+      // turn/completed carries only a summary (or no items), including for legacy threads.
+      // Never downgrade a full page we already loaded; conversely, receiving live items alone
+      // does not prove completeness when a client subscribed halfway through a turn.
+      itemsView: existingTurn.itemsView === "full" ? "full" : syncedTurn.itemsView,
       items: mergeTurnItems(existingItems, incomingItems),
     };
   } else {
