@@ -22,7 +22,11 @@ import { requestTurnStart, requestTurnSteer } from "./transport";
 import type { Translate, TurnRequestResult } from "./types";
 import { captureSessionEpoch } from "@/utils/session-epoch";
 
-export async function sendTurn(t: Translate, text: string, options: ComposerTurnOptions = {}) {
+export async function sendTurn(
+  t: Translate,
+  text: string,
+  options: ComposerTurnOptions = {},
+): Promise<boolean> {
   const sessionIsCurrent = captureSessionEpoch();
   const catalog = useGatewayCatalogStore();
   const gateway = useGatewayBootstrapStore();
@@ -33,7 +37,7 @@ export async function sendTurn(t: Translate, text: string, options: ComposerTurn
   const hostId = navigation.selectedHostId;
   const threadId = navigation.selectedThreadId;
   if (hostId === null || threadId === null) {
-    return;
+    return false;
   }
 
   const runtime = runtimeStore.threadRuntimeProjection(hostId, threadId);
@@ -60,7 +64,7 @@ export async function sendTurn(t: Translate, text: string, options: ComposerTurn
   if (projectId === null) {
     gateway.setError(t("app.projectRequiredForFileReferences"), { hostId, threadId });
     if (!shouldSteerActiveTurn) runtimeStore.setThreadStatus(hostId, threadId, "completed");
-    return;
+    return false;
   }
   const cwd = catalog.projects.find((project) => project.id === projectId)?.remotePath ?? null;
   const requestKind = shouldSteerActiveTurn ? "steer" : "start";
@@ -95,7 +99,7 @@ export async function sendTurn(t: Translate, text: string, options: ComposerTurn
       { kind: requestKind, hostId, projectId, threadId, cwd, text, options },
       executeTurnRequest,
     );
-    if (!sessionIsCurrent()) return;
+    if (!sessionIsCurrent()) return false;
     applyAcceptedTurnResult(hostId, threadId, result, clientUserMessageId, optimisticContent);
     if (!shouldSteerActiveTurn) {
       composer.updateSelectedThreadSettings({
@@ -104,8 +108,9 @@ export async function sendTurn(t: Translate, text: string, options: ComposerTurn
         ...(options.approvalPolicy !== undefined ? { approvalPolicy: options.approvalPolicy } : {}),
       });
     }
+    return true;
   } catch (error: unknown) {
-    if (!sessionIsCurrent()) return;
+    if (!sessionIsCurrent()) return false;
     useGatewayThreadTurnsStore().clearRequest(hostId, threadId);
     gateway.setError(messageFromError(error, t("app.sendMessageFailed"), errorMessageLabels(t)), {
       hostId,
@@ -115,6 +120,7 @@ export async function sendTurn(t: Translate, text: string, options: ComposerTurn
     if (!shouldSteerActiveTurn) {
       runtimeStore.setThreadStatus(hostId, threadId, "completed");
     }
+    return false;
   } finally {
     if (sessionIsCurrent()) views.loading = false;
   }

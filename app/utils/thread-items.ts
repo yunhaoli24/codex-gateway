@@ -1,18 +1,21 @@
 import type { ThreadHistoryItem } from "~~/shared/types";
 import { recordFromUnknown } from "~~/shared/utils/records";
+import { readableAsyncQuestionReply } from "~~/shared/thread-history/async-user-questions";
 
 export function threadItemText(item: ThreadHistoryItem) {
   if (item.type === "userMessage") {
-    return (Array.isArray(item.content) ? item.content : [])
+    const text = (Array.isArray(item.content) ? item.content : [])
       .map((part) => {
         const record = recordFromUnknown(part);
         return textValue(record?.text) || textValue(record?.content);
       })
       .filter(Boolean)
       .join("\n");
+    return readableAsyncQuestionReply(text) ?? text;
   }
   if (item.type === "agentMessage" || item.type === "plan") {
-    return textValue(item.text);
+    const text = textValue(item.text);
+    return readableAsyncQuestionReply(text) ?? text;
   }
   if (item.type === "reasoning") {
     const summary = Array.isArray(item.summary) ? item.summary : [];
