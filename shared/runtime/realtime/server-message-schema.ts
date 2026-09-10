@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { RealtimeServerMessage } from "../../types";
 import { threadTimelineItemTypes } from "../../thread-history/types";
-import { gatewayThreadSchema, rpcEnvelopeSchema, threadGoalSchema } from "../app-server";
+import { gatewayThreadSchema, threadGoalSchema } from "../app-server";
+import { agentEventSchema } from "../../agent/events";
 import { realtimeClientMessageSchema } from "./client-message-schema";
 import {
   nonEmptyString,
@@ -58,8 +59,7 @@ const gatewayEventSchema = z
     id: nonNegativeId,
     hostId: positiveId,
     threadId: nonEmptyString,
-    method: nonEmptyString,
-    payload: rpcEnvelopeSchema,
+    event: agentEventSchema,
     createdAt: nonEmptyString,
   })
   .strict();

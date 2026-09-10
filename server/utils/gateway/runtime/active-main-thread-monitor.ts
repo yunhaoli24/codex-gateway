@@ -11,7 +11,7 @@ import {
 import { recordFromUnknown } from "~~/shared/utils/records";
 import { threadIdFromNotification } from "../protocol/thread-payload";
 import { currentGatewayUserId } from "../state/memory";
-import type { CodexRpcClient } from "../infra/rpc/rpc";
+import type { AgentRpcClient } from "../agent/provider-adapter";
 import { runtimeLog } from "./runtime-log";
 import { runtimeStatusFromAppThreadStatus } from "~~/shared/thread-runtime-status";
 import { threadMetadataStore } from "../state/thread-metadata";
@@ -24,7 +24,7 @@ type ControllerLookup = (threadId: string) => boolean;
 
 interface MonitorContext {
   host: HostRecord;
-  client: CodexRpcClient;
+  client: AgentRpcClient;
   hasController: ControllerLookup;
 }
 
@@ -272,7 +272,7 @@ class ActiveMainThreadMonitor {
   }
 }
 
-async function loadedThreadIds(client: CodexRpcClient) {
+async function loadedThreadIds(client: AgentRpcClient) {
   const threadIds = new Set<string>();
   const seenCursors = new Set<string>();
   let cursor: string | null = null;
@@ -294,7 +294,7 @@ async function loadedThreadIds(client: CodexRpcClient) {
   return threadIds;
 }
 
-async function activeLoadedMainThreads(client: CodexRpcClient) {
+async function activeLoadedMainThreads(client: AgentRpcClient) {
   const loadedIds = await loadedThreadIds(client);
   if (loadedIds.size === 0) return [];
 

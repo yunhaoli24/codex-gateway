@@ -1,11 +1,5 @@
 import type { GatewayEvent } from "~~/shared/types";
-import type { AppServerEventParams } from "~~/shared/thread-history/app-server-event-handlers/types";
+import type { AgentEvent } from "~~/shared/agent/events";
 
-export type { AppServerEventParams };
-
-export type GatewayEventHandler = (
-  event: GatewayEvent,
-  params: AppServerEventParams,
-  threadId: string,
-) => void;
-export type GatewayEventHandlerRegistry = Record<string, GatewayEventHandler>;
+export type GatewayEventHandler = (event: GatewayEvent, threadId: string) => void;
+export type GatewayEventHandlerRegistry = Partial<Record<AgentEvent["type"], GatewayEventHandler>>;

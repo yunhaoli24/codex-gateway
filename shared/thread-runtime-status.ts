@@ -1,4 +1,5 @@
 import type { GatewayEvent, ThreadRuntimeStatus } from "./types";
+import type { AgentEvent } from "./agent/events";
 
 type ThreadStatusLike = string | { type?: unknown } | null | undefined;
 
@@ -24,7 +25,7 @@ interface RuntimeStatusCandidate {
 
 type RuntimeStatusEventReducer = (
   event: GatewayEvent,
-  params: Record<string, unknown>,
+  canonicalEvent: AgentEvent,
 ) => ThreadRuntimeStatus | null;
 
 const ACTIVE_STATUS_VALUES = new Set([
@@ -41,11 +42,21 @@ const ACTIVE_STATUS_VALUES = new Set([
 const TERMINAL_STATUS_VALUES = new Set(["completed", "failed", "interrupted"]);
 const COMPLETED_THREAD_VALUES = new Set(["completed", "idle", "notLoaded", "inactive"]);
 const POST_TURN_ACTIVE_ITEM_TYPES = new Set(["contextCompaction", "sleep"]);
+
 const RUNTIME_STATUS_EVENT_REDUCERS: Record<string, RuntimeStatusEventReducer> = {
-  "turn/started": () => "running",
-  "turn/completed": (_event, params) => runtimeStatusFromCompletedTurn(recordField(params, "turn")),
-  "thread/status/changed": (_event, params) =>
-    runtimeStatusFromAppThreadStatus(recordField(params, "status")),
+  "turn.started": () => "running",
+  "turn.completed": (_event, canonicalEvent) => {
+    if (canonicalEvent.type === "turn.completed") {
+      return runtimeStatusFromCompletedTurn(canonicalEvent.turn);
+    }
+    return null;
+  },
+  "thread.status.changed": (_event, canonicalEvent) => {
+    if (canonicalEvent.type === "thread.status.changed") {
+      return runtimeStatusFromAppThreadStatus(canonicalEvent.status);
+    }
+    return null;
+  },
 };
 
 export function isThreadActiveStatus(status: unknown) {
@@ -198,8 +209,8 @@ export function runtimeStatusFromEvent(
   if (!event) {
     return null;
   }
-  const params = eventParams(event);
-  return RUNTIME_STATUS_EVENT_REDUCERS[event.method]?.(event, params) ?? null;
+  const reducer = RUNTIME_STATUS_EVENT_REDUCERS[event.event.type];
+  return reducer?.(event, event.event) ?? null;
 }
 
 function runtimeStatusFromTopLevelThreadStatus(status: unknown): ThreadRuntimeStatus | null {
@@ -267,18 +278,6 @@ function hasPostTurnActiveItems(turn: TurnLike | undefined) {
       return POST_TURN_ACTIVE_ITEM_TYPES.has(type) && isThreadActiveStatus(item.status);
     }),
   );
-}
-
-function eventParams(event: GatewayEvent) {
-  const payload = isRecord(event.payload) ? event.payload : null;
-  return isRecord(payload?.params) ? payload.params : (payload ?? {});
-}
-
-function recordField(record: unknown, key: string) {
-  if (!isRecord(record)) {
-    return null;
-  }
-  return record[key];
 }
 
 function asThreadContainer(value: unknown): ThreadContainerLike | null {

@@ -7,7 +7,6 @@ import { threadRuntimeEvents } from "../../runtime/thread-runtime-events";
 import { gatewayEventStore } from "../../state/gateway-events";
 import { hostStore } from "../../state/hosts";
 import { bindGatewayUser } from "../../state/memory";
-import { recordFromUnknown } from "~~/shared/utils/records";
 import { isThreadActiveStatus } from "~~/shared/thread-runtime-status";
 import {
   runPeerScoped,
@@ -84,12 +83,12 @@ export async function activateThread(
       // cold opens already obtain it from the combined thread/resume response above.
       void runPeerScoped(peer, () =>
         threadBroker.resolveThreadSettings(host, input.threadId).catch((error: unknown) => {
-          threadRuntimeEvents.record(input.hostId, input.threadId, "gateway/error", {
-            method: "gateway/error",
-            params: {
-              message: error instanceof Error ? error.message : "Failed to resolve thread settings",
-            },
-          });
+          recordGatewayError(
+            input.hostId,
+            input.threadId,
+            error,
+            "Failed to resolve thread settings",
+          );
         }),
       );
     }
@@ -113,6 +112,7 @@ export async function startThread(
       approvalPolicy: input.approvalPolicy ?? undefined,
     },
     input.projectId ?? null,
+    input.provider,
   );
   const threadId = String(result.thread.id);
   // A newly started thread can emit notifications before thread/start returns its id. Replaying
@@ -224,13 +224,7 @@ function subscribeThreadEvents(
       upstreamLease = retained.lease;
       void runPeerScoped(peer, () =>
         retained.controller.ensureSubscribed().catch((error: unknown) => {
-          threadRuntimeEvents.record(hostId, threadId, "gateway/error", {
-            method: "gateway/error",
-            params: {
-              message:
-                error instanceof Error ? error.message : "Failed to subscribe thread upstream",
-            },
-          });
+          recordGatewayError(hostId, threadId, error, "Failed to subscribe thread upstream");
           if (upstreamLease === retained.lease) releaseUpstreamSubscription();
         }),
       );
@@ -240,12 +234,7 @@ function subscribeThreadEvents(
     upstreamLease = lease;
     void runPeerScoped(peer, () =>
       lease.ready.catch((error: unknown) => {
-        threadRuntimeEvents.record(hostId, threadId, "gateway/error", {
-          method: "gateway/error",
-          params: {
-            message: error instanceof Error ? error.message : "Failed to subscribe thread upstream",
-          },
-        });
+        recordGatewayError(hostId, threadId, error, "Failed to subscribe thread upstream");
         if (upstreamLease === lease) releaseUpstreamSubscription();
       }),
     );
@@ -301,21 +290,27 @@ function subscribeThreadEvents(
   liveQueue.length = 0;
 }
 
+function recordGatewayError(hostId: number, threadId: string, error: unknown, fallback: string) {
+  threadRuntimeEvents.record(hostId, threadId, {
+    type: "gateway.error",
+    message: error instanceof Error ? error.message : fallback,
+  });
+}
+
 function updateBrowserUpstreamLease(event: GatewayEvent, retain: () => void, release: () => void) {
-  if (event.method === "turn/started") {
+  if (event.event.type === "turn.started") {
     retain();
     return;
   }
-  if (event.method === "turn/completed") {
+  if (event.event.type === "turn.completed") {
     // The app-server emits turn/completed before it finishes persisting a first-turn rollout and
     // before the authoritative thread status becomes idle. Keep the lease until
     // thread/status/changed confirms the thread is no longer active so final persistence and Goal
     // continuation notifications remain on the same uninterrupted subscription.
     return;
   }
-  if (event.method !== "thread/status/changed") return;
-  const params = recordFromUnknown(event.payload.params);
-  if (isThreadActiveStatus(params?.status)) {
+  if (event.event.type !== "thread.status.changed") return;
+  if (isThreadActiveStatus(event.event.status)) {
     retain();
     return;
   }

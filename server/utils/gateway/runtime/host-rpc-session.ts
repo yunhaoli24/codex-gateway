@@ -1,31 +1,31 @@
 import type { HostRecord, RpcEnvelope } from "~~/shared/types";
-import { buildCurrentTimeReadResponse, isCurrentTimeReadRequest } from "~~/shared/server-requests";
-import { CodexRpcClient } from "../infra/rpc/rpc";
 import { bindGatewayUser } from "../state/memory";
 import type { HostControllerLookup, HostControllersLookup } from "./types";
 import { threadIdFromNotification } from "../protocol/thread-payload";
 import { threadRuntimeEvents } from "./thread-runtime-events";
 import { activeMainThreadMonitor } from "./active-main-thread-monitor";
-import { codexRuntime } from "../infra/host-services";
-import { runtimeLog } from "./runtime-log";
 import { createThreadNotificationResolvers } from "./notification-rpc-resolvers";
 import { pendingServerRequests } from "./pending-server-requests";
 import { mcpEventSubscriptions } from "./mcp-event-subscriptions";
-import { recordFromUnknown, stringFromUnknown } from "~~/shared/utils/records";
+import { stringFromUnknown, recordFromUnknown } from "~~/shared/utils/records";
+import type { AgentRpcClient, ProviderAdapter } from "../agent/provider-adapter";
 
 export class HostRpcSession {
-  readonly client: CodexRpcClient;
+  readonly client: AgentRpcClient;
+  readonly provider: ProviderAdapter;
   private connected = false;
-  private connectPromise: Promise<CodexRpcClient> | null = null;
+  private connectPromise: Promise<AgentRpcClient> | null = null;
   private generation = 0;
 
   constructor(
     readonly host: HostRecord,
     private readonly controllerForThread: HostControllerLookup,
     private readonly controllersForHost: HostControllersLookup,
+    provider: ProviderAdapter,
     private readonly onClose?: () => void,
   ) {
-    this.client = new CodexRpcClient(host);
+    this.provider = provider;
+    this.client = provider.createClient(host);
     this.client.on(
       "notification",
       bindGatewayUser((message: RpcEnvelope) => this.routeNotification(message)),
@@ -79,20 +79,7 @@ export class HostRpcSession {
       },
       message,
     );
-    if (message?.method === "turn/completed" && this.client.hasDeferredUpgrade()) {
-      void codexRuntime
-        .completeDeferredUpgrade(this.host)
-        .then((stopped) => {
-          if (stopped === true) this.client.resolveDeferredUpgrade();
-        })
-        .catch((error) => {
-          runtimeLog("deferred Codex upgrade check failed", {
-            hostId: this.host.id,
-            hostName: this.host.name,
-            message: error instanceof Error ? error.message : String(error),
-          });
-        });
-    }
+    this.provider.handleNotification(this.client, this.host, message);
     const threadId = threadIdFromNotification(message) ?? this.mcpEventStreamThreadId(message);
     if (threadId === null) {
       return;
@@ -102,27 +89,18 @@ export class HostRpcSession {
     if (controller !== null) {
       controller.handleNotification(message);
     } else {
-      threadRuntimeEvents.record(
-        this.host.id,
-        threadId,
-        message.method ?? "notification",
-        message,
-        createThreadNotificationResolvers(this.client, threadId),
-      );
+      this.recordUnownedNotification(threadId, message, "notification");
     }
   }
 
   private routeRequest(message: RpcEnvelope) {
-    if (isCurrentTimeReadRequest(message)) {
-      if (message.id !== null && message.id !== undefined) {
-        this.client.respond(message.id, buildCurrentTimeReadResponse());
-      }
-      return;
-    }
+    if (this.provider.handleServerRequest(this.client, message)) return;
 
     const threadId = threadIdFromNotification(message);
     if (threadId === null) {
-      threadRuntimeEvents.record(this.host.id, "gateway", message.method ?? "request", message);
+      // Provider-level requests with no thread routing land on the gateway
+      // scope; no thread notification resolvers apply there.
+      this.recordUnownedNotification("gateway", message, "request", false);
       return;
     }
     pendingServerRequests.track(this.host.id, threadId, message);
@@ -130,14 +108,33 @@ export class HostRpcSession {
     if (controller !== null) {
       controller.handleNotification(message);
     } else {
-      threadRuntimeEvents.record(
-        this.host.id,
-        threadId,
-        message.method ?? "request",
-        message,
-        createThreadNotificationResolvers(this.client, threadId),
-      );
+      this.recordUnownedNotification(threadId, message, "request");
     }
+  }
+
+  /**
+   * Notifications arriving for a thread with no live controller still flow
+   * through the provider adapter into the canonical event bus (snapshot
+   * caching, catch-up feeds, notifications).
+   */
+  private recordUnownedNotification(
+    threadId: string,
+    message: RpcEnvelope,
+    fallbackMethod: string,
+    withThreadResolvers = true,
+  ) {
+    threadRuntimeEvents.recordNotification(
+      this.host.id,
+      threadId,
+      {
+        method: message.method ?? fallbackMethod,
+        params: message.params,
+        id: message.id ?? undefined,
+        emittedAtMs: "emittedAtMs" in message ? message.emittedAtMs : undefined,
+      },
+      this.provider,
+      withThreadResolvers ? createThreadNotificationResolvers(this.client, threadId) : {},
+    );
   }
 
   private routeStderr(text: string) {

@@ -16,15 +16,20 @@ export function dispatchThreadRuntimeNotification(
   event: GatewayEvent,
   options: { resolveGoal?: ThreadGoalResolver; resolveThread?: ThreadMetadataResolver } = {},
 ) {
-  match(event.method)
-    .with("thread/goal/updated", () => {
+  match(event.event.type)
+    .with("thread.goal.updated", () => {
       void dispatchGoalUpdated(event, options.resolveThread);
     })
-    .with("turn/completed", () => {
+    .with("turn.completed", () => {
       void dispatchTurnCompleted(event, options.resolveGoal, options.resolveThread);
     })
-    .with("item/tool/requestUserInput", () => {
-      void dispatchUserInputRequested(event, options.resolveThread);
+    .with("serverRequest.requested", () => {
+      if (
+        event.event.type === "serverRequest.requested" &&
+        event.event.requestKind === "userInput"
+      ) {
+        void dispatchUserInputRequested(event, options.resolveThread);
+      }
     })
     .otherwise(() => undefined);
 }

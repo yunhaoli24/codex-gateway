@@ -1,5 +1,6 @@
 import type { GatewayEvent, ProjectRecord } from "./records";
 import type { ThreadHistoryItem, ThreadTimelineHistoryState } from "../thread-history/types";
+import type { AgentProviderId } from "../agent/providers";
 
 export type ThreadRuntimeStatus = "idle" | "running" | "completed" | "failed" | "interrupted";
 
@@ -245,6 +246,7 @@ export interface FileReference {
 }
 
 export interface ComposerTurnOptions {
+  provider?: AgentProviderId;
   model?: string | null;
   effort?: ReasoningEffort | null;
   approvalPolicy?: ApprovalPolicy | null;

@@ -1,141 +1,119 @@
 import type { GatewayEvent } from "~~/shared/types";
 import { threadHistoryItemFromUnknown } from "~~/shared/runtime/app-server";
-import { idFromUnknown, stringFromUnknown, stringIdFromUnknown } from "~~/shared/utils/records";
+import { recordFromUnknown, stringIdFromUnknown, stringFromUnknown } from "~~/shared/utils/records";
 import { gatewayDomainEvents } from "../domain-events";
-import { tagFileChanges } from "./file-change-sequence";
-import type { AppServerEventParams, GatewayEventHandlerRegistry } from "./types";
-import {
-  itemLifecycleTimestampMs,
-  type ItemLifecyclePhase,
-} from "~~/shared/thread-history/item-lifecycle-timing";
+import type { GatewayEventHandlerRegistry } from "./types";
+
+interface TimelineItemContext {
+  event: GatewayEvent;
+  threadId: string;
+  item: Record<string, unknown>;
+}
+
+type TimelineItemProjector = (context: TimelineItemContext) => void;
+
+interface TimelineItemProjection {
+  readonly matches: (item: Record<string, unknown>) => boolean;
+  readonly project: TimelineItemProjector;
+}
+
+/**
+ * How a canonical `timeline.item.upsert` projects into the local thread view.
+ *
+ * The provider mapper pre-builds every item (timestamps, tagged file changes,
+ * embedded pendingApproval), so each projection below only decides which local
+ * side effects accompany the plain timeline upsert. First matching rule wins;
+ * items that satisfy none fall through to the started-lifecycle default.
+ */
+const timelineItemProjections: readonly TimelineItemProjection[] = [
+  // Approval items (commandExecution / fileChange requestApproval) only project
+  // into the timeline; the pendingApproval payload is already embedded.
+  { matches: isApprovalItem, project: () => undefined },
+  // fileChange/patchUpdated streams accumulated hunks while the edit is in
+  // progress; the mapper already tagged the changes for sequencing.
+  { matches: isFileChangePatch, project: emitRunningStatus },
+  // item/completed: terminal side effects fire the process-completed chime and
+  // the remote file-refresh signal.
+  {
+    matches: isCompletedLifecycleItem,
+    project: composeProjectors(emitTerminalProcessCompleted, emitRemoteFilesChanged),
+  },
+];
 
 export const itemEventHandlers: GatewayEventHandlerRegistry = {
-  "item/started": (event, params, threadId) => {
-    emitRunning(event, params, threadId);
-    upsertStartedOrCompletedItem(event, params, threadId, "started");
-  },
-  "item/completed": (event, params, threadId) => {
-    upsertStartedOrCompletedItem(event, params, threadId, "completed");
-    emitTerminalProcessCompleted(event, params, threadId);
-    emitRemoteFilesChanged(event, params, threadId);
-  },
-  "item/commandExecution/requestApproval": (event, params, threadId) => {
-    const itemId = idFromUnknown(params.itemId);
-    const turnId = idFromUnknown(params.turnId);
-    if (itemId === null || turnId === null) return;
-    gatewayDomainEvents.emit("history-item-upsert", {
-      hostId: event.hostId,
-      threadId,
-      item: {
-        type: "commandExecution",
-        id: itemId,
-        turnId,
-        status: "waitingForApproval",
-        command: stringFromUnknown(params.command),
-        cwd: stringFromUnknown(params.cwd),
-        pendingApproval: { requestId: event.payload.id, method: event.method, params },
-      },
-    });
-  },
-  "item/fileChange/requestApproval": (event, params, threadId) => {
-    const itemId = idFromUnknown(params.itemId);
-    const turnId = idFromUnknown(params.turnId);
-    if (itemId === null || turnId === null) return;
-    gatewayDomainEvents.emit("history-item-upsert", {
-      hostId: event.hostId,
-      threadId,
-      item: {
-        type: "fileChange",
-        id: itemId,
-        turnId,
-        status: "waitingForApproval",
-        pendingApproval: { requestId: event.payload.id, method: event.method, params },
-      },
-    });
-  },
-  "item/fileChange/patchUpdated": (event, params, threadId) => {
-    emitRunning(event, params, threadId);
-    const itemId = idFromUnknown(params.itemId);
-    const turnId = idFromUnknown(params.turnId);
-    if (itemId === null || turnId === null) return;
-    gatewayDomainEvents.emit("history-item-upsert", {
-      hostId: event.hostId,
-      threadId,
-      item: {
-        type: "fileChange",
-        id: itemId,
-        turnId,
-        changes: tagFileChanges(params.changes),
-        status: "inProgress",
-      },
-    });
+  "timeline.item.upsert": (event, threadId) => {
+    const canonical = event.event;
+    if (canonical.type !== "timeline.item.upsert") return;
+    const item = recordFromUnknown(canonical.item);
+    if (item === null) return;
+    const context: TimelineItemContext = { event, threadId, item };
+    const projection = timelineItemProjections.find(({ matches }) => matches(item));
+    if (projection === undefined) {
+      // item/started lifecycle default; items the shared schema rejects are dropped.
+      if (threadHistoryItemFromUnknown(item) === null) return;
+      emitRunningStatus(context);
+      return;
+    }
+    projection.project(context);
   },
 };
 
-function emitRunning(event: GatewayEvent, params: AppServerEventParams, threadId: string) {
+function composeProjectors(...projectors: readonly TimelineItemProjector[]): TimelineItemProjector {
+  return (context) => {
+    for (const project of projectors) project(context);
+  };
+}
+
+function isApprovalItem(item: Record<string, unknown>) {
+  return stringFromUnknown(item.status) === "waitingForApproval";
+}
+
+function isFileChangePatch(item: Record<string, unknown>) {
+  return (
+    stringFromUnknown(item.type) === "fileChange" &&
+    stringFromUnknown(item.status) === "inProgress" &&
+    item.startedAt === undefined
+  );
+}
+
+function isCompletedLifecycleItem(item: Record<string, unknown>) {
+  return threadHistoryItemFromUnknown(item) !== null && item.completedAt !== undefined;
+}
+
+function emitRunningStatus({ event, threadId, item }: TimelineItemContext) {
   gatewayDomainEvents.emit("thread-status-detected", {
     hostId: event.hostId,
     threadId,
     status: "running",
-    turnId: stringIdFromUnknown(params.turnId),
+    turnId: stringIdFromUnknown(item.turnId),
   });
 }
 
-function emitTerminalProcessCompleted(
-  event: GatewayEvent,
-  params: AppServerEventParams,
-  threadId: string,
-) {
-  const item = threadHistoryItemFromUnknown(params.item);
-  const turnId = idFromUnknown(params.turnId);
-  if (item?.type !== "commandExecution" || turnId === null || item.id == null) return;
+function emitTerminalProcessCompleted({ event, threadId, item }: TimelineItemContext) {
+  const validated = threadHistoryItemFromUnknown(item);
+  const turnId = stringIdFromUnknown(item.turnId);
+  if (validated?.type !== "commandExecution" || turnId === null || validated.id == null) return;
   gatewayDomainEvents.emit("terminal-process-completed", {
     hostId: event.hostId,
     threadId,
-    turnId: String(turnId),
-    itemId: String(item.id),
+    turnId,
+    itemId: String(validated.id),
   });
 }
 
-function emitRemoteFilesChanged(
-  event: GatewayEvent,
-  params: AppServerEventParams,
-  threadId: string,
-) {
-  const item = threadHistoryItemFromUnknown(params.item);
-  if (item?.type !== "fileChange") return;
+function emitRemoteFilesChanged({ event, threadId, item }: TimelineItemContext) {
+  const validated = threadHistoryItemFromUnknown(item);
+  if (validated?.type !== "fileChange") return;
   const paths = [
     ...new Set(
-      (Array.isArray(item.changes) ? item.changes : []).flatMap((change: Record<string, unknown>) =>
-        [change.path, change.filePath, change.pathBefore, change.pathAfter].filter(
-          (path: unknown): path is string => typeof path === "string" && path.length > 0,
-        ),
+      (Array.isArray(validated.changes) ? validated.changes : []).flatMap(
+        (change: Record<string, unknown>) =>
+          [change.path, change.filePath, change.pathBefore, change.pathAfter].filter(
+            (path: unknown): path is string => typeof path === "string" && path.length > 0,
+          ),
       ),
     ),
   ];
   if (paths.length > 0)
     gatewayDomainEvents.emit("remote-files-changed", { hostId: event.hostId, threadId, paths });
-}
-
-function upsertStartedOrCompletedItem(
-  event: GatewayEvent,
-  params: AppServerEventParams,
-  threadId: string,
-  phase: ItemLifecyclePhase,
-) {
-  const item = threadHistoryItemFromUnknown(params.item);
-  if (item === null) return;
-  const turnId = idFromUnknown(params.turnId);
-  const lifecycleTimestamp = itemLifecycleTimestampMs(params, phase);
-  gatewayDomainEvents.emit("history-item-upsert", {
-    hostId: event.hostId,
-    threadId,
-    item: {
-      ...item,
-      turnId,
-      status: item.status ?? (phase === "started" ? "inProgress" : "completed"),
-      ...(phase === "started" ? { startedAt: lifecycleTimestamp } : {}),
-      ...(phase === "completed" ? { completedAt: lifecycleTimestamp } : {}),
-    },
-  });
 }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { RealtimeClientMessage } from "../../types";
+import { agentProviderIdSchema } from "../../agent/providers";
 import {
   nonEmptyString,
   nonNegativeId,
@@ -107,6 +108,7 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
         hostId: positiveId,
         projectId: positiveId.nullable().optional(),
         cwd: nullableString,
+        provider: agentProviderIdSchema.optional(),
         model: nullableString,
         effort: nullableString,
         approvalPolicy,

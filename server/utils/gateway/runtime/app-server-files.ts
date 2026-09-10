@@ -5,7 +5,7 @@ import {
   parseFsWatchResponse,
   parseFuzzyFileSearchResponse,
 } from "~~/shared/runtime/app-server/file-system";
-import type { CodexRpcClient } from "../infra/rpc/rpc";
+import type { AgentRpcClient } from "../agent/provider-adapter";
 import { bindGatewayUser, currentGatewayUserId } from "../state/memory";
 import { normalizeReferencePath } from "../project-files/project-file-references";
 import type { ControllerRegistry } from "./controller-registry";
@@ -19,7 +19,7 @@ type AppServerFileWatchListener = (event: AppServerFileWatchEvent) => void;
 
 interface ActiveFileWatch {
   token: object;
-  client: CodexRpcClient;
+  client: AgentRpcClient;
   watchId: string;
   requestedPath: string;
   canonicalPath: string;

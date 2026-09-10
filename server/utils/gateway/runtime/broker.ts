@@ -1,4 +1,9 @@
-import type { HostRecord, ThreadGoalStatus, ThreadSettingsState } from "~~/shared/types";
+import type {
+  AgentProviderId,
+  HostRecord,
+  ThreadGoalStatus,
+  ThreadSettingsState,
+} from "~~/shared/types";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
 import type { ServerRequestResponseInput, TurnStartInput, TurnSteerInput } from "./types";
 import { ControllerRegistry, type ThreadSubscriptionLease } from "./controller-registry";
@@ -32,8 +37,13 @@ class ThreadBroker {
     return this.openService.openThread(host, threadId, projectId, limit, controller);
   }
 
-  async startThread(host: HostRecord, params: Record<string, unknown>, projectId: number | null) {
-    const client = await this.registry.getHostClient(host);
+  async startThread(
+    host: HostRecord,
+    params: Record<string, unknown>,
+    projectId: number | null,
+    providerId: AgentProviderId = "codex",
+  ) {
+    const client = await this.registry.getHostClient(host, providerId);
     // Paginated history is the current App Server storage model that can hydrate indexed Turn
     // pages without replaying an entire rollout JSONL. Keep this policy at the protocol boundary so
     // every Gateway-created thread uses it and browser DTOs do not need to expose storage details.

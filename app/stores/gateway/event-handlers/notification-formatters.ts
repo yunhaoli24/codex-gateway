@@ -69,6 +69,12 @@ export const visibleNotificationMethods = [
 
 export type VisibleNotificationMethod = (typeof visibleNotificationMethods)[number];
 
+const visibleMethodList: readonly string[] = visibleNotificationMethods;
+
+export function isVisibleNotificationMethod(method: string): method is VisibleNotificationMethod {
+  return visibleMethodList.includes(method);
+}
+
 const warningMethods = new Set<VisibleNotificationMethod>([
   "warning",
   "guardianWarning",

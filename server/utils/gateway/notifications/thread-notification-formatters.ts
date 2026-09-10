@@ -8,8 +8,9 @@ import { idFromUnknown, recordFromUnknown, stringFromUnknown } from "~~/shared/u
 import { firstNonEmptyString } from "~~/shared/utils/strings";
 
 export function threadTurnCompletedNotification(event: GatewayEvent): ServerNotification | null {
-  const params = recordFromUnknown(event.payload.params);
-  const turn = threadHistoryTurnFromUnknown(params?.turn) ?? {};
+  const canonicalEvent = event.event;
+  if (canonicalEvent.type !== "turn.completed") return null;
+  const turn = threadHistoryTurnFromUnknown(canonicalEvent.turn) ?? {};
   const turnId = turn.id === null || turn.id === undefined ? `event-${event.id}` : String(turn.id);
   const status = terminalTurnStatus(turn.status);
   return {
@@ -22,8 +23,9 @@ export function threadTurnCompletedNotification(event: GatewayEvent): ServerNoti
 }
 
 export function threadGoalCompletedNotification(event: GatewayEvent): ServerNotification | null {
-  const params = recordFromUnknown(event.payload.params);
-  const goal = threadGoalFromUnknown(params?.goal);
+  const canonicalEvent = event.event;
+  if (canonicalEvent.type !== "thread.goal.updated") return null;
+  const goal = threadGoalFromUnknown(canonicalEvent.goal);
   if (goal === null || !isTerminalGoalStatus(goal.status)) {
     return null;
   }
@@ -40,23 +42,30 @@ export function threadGoalCompletedNotification(event: GatewayEvent): ServerNoti
 }
 
 export function threadUserInputRequestedNotification(event: GatewayEvent): ServerNotification {
-  const params = recordFromUnknown(event.payload.params);
+  const canonicalEvent = event.event;
+  if (canonicalEvent.type !== "serverRequest.requested") {
+    // Fallback: return a generic notification
+    return {
+      key: `thread-user-input:${event.hostId}:${event.threadId}:${event.id}`,
+      title: `${threadTitle(event.hostId, event.threadId)} · 等待回答`,
+      body: `${hostTitle(event.hostId)} 上的 Agent 正在等待你的回答。请打开会话查看问题。`,
+      group: "Codex Gateway",
+      target: notificationTarget(event),
+    };
+  }
+  const params = recordFromUnknown(canonicalEvent.item.params) ?? {};
   const questions = Array.isArray(params?.questions) ? params.questions : [];
   const firstQuestion = recordFromUnknown(questions[0]);
   const question = firstNonEmptyString([
     stringFromUnknown(firstQuestion?.question),
     stringFromUnknown(firstQuestion?.header),
   ]);
-  // itemId belongs to the thread history and survives app-server restarts. Numeric RPC ids restart
-  // from zero with each process, so they are only a fallback when older payloads omit itemId.
-  const requestId = idFromUnknown(params?.itemId) ?? idFromUnknown(event.payload.id) ?? event.id;
+  const requestId = idFromUnknown(params?.itemId) ?? canonicalEvent.requestId ?? event.id;
   const questionCount = questions.length > 1 ? `（共 ${questions.length} 个问题）` : "";
 
   return {
     key: `thread-user-input:${event.hostId}:${event.threadId}:${requestId}`,
     title: `${threadTitle(event.hostId, event.threadId)} · 等待回答`,
-    // Options may contain secrets or large model-generated payloads. A push notification only
-    // needs enough context to bring the user back; the interactive card remains authoritative.
     body: `${hostTitle(event.hostId)} 上的 Agent 正在等待你的回答${questionCount}：${question ?? "请打开会话查看问题。"}`,
     group: "Codex Gateway",
     target: notificationTarget(event),

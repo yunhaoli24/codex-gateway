@@ -1,4 +1,12 @@
-import type { AppServerEventParams } from "./app-server-event-handlers/types";
+/**
+ * Item lifecycle timestamp extraction.
+ *
+ * Moves from shared/thread-history/item-lifecycle-timing.ts into the
+ * Codex provider directory.  The app-server 0.147 reports the actual
+ * lifecycle instant fields (startedAtMs / completedAtMs); the envelope
+ * emission time must NOT be used to calculate item durations.
+ */
+import type { AppServerEventParams } from "./codex-reducer-helpers";
 
 export type ItemLifecyclePhase = "started" | "completed";
 

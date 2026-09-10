@@ -1,9 +1,9 @@
-import type { AppServerThread, RpcEnvelope, ThreadHistoryItem } from "~~/shared/types";
+import type { AgentEvent } from "~~/shared/agent/events";
+import type { AppServerThread, ThreadHistoryItem } from "~~/shared/types";
 import {
   isAppServerSubAgentThread,
   threadHistoryItemFromUnknown,
 } from "~~/shared/runtime/app-server";
-import { recordFromUnknown } from "~~/shared/utils/records";
 import { trimmedOrNull } from "~~/shared/utils/strings";
 import { gatewayMemoryState, nowIso } from "./memory";
 
@@ -56,8 +56,8 @@ export const subAgentThreadStore = {
     this.record(hostId, String(thread.id), parentThreadIdFromMetadata(thread));
   },
 
-  recordRuntimeEvent(hostId: number, parentThreadId: string, method: string, payload: RpcEnvelope) {
-    for (const threadId of subAgentThreadIdsFromRuntimeEvent(method, payload)) {
+  recordRuntimeEvent(hostId: number, parentThreadId: string, event: AgentEvent) {
+    for (const threadId of subAgentThreadIdsFromEvent(event)) {
       this.record(hostId, threadId, parentThreadId);
     }
   },
@@ -78,11 +78,13 @@ export function parentThreadIdFromMetadata(thread: AppServerThread) {
   return typeof parentThreadId === "string" ? trimmedOrNull(parentThreadId) : null;
 }
 
-function subAgentThreadIdsFromRuntimeEvent(method: string, payload: RpcEnvelope) {
-  if (method !== "item/started" && method !== "item/completed") {
+function subAgentThreadIdsFromEvent(event: AgentEvent) {
+  // Sub-agent activity arrives as pre-built timeline items (item/started |
+  // item/completed in the Codex feed; both map to timeline.item.upsert).
+  if (event.type !== "timeline.item.upsert") {
     return [];
   }
-  const item = threadHistoryItemFromUnknown(recordFromUnknown(payload.params)?.item);
+  const item = threadHistoryItemFromUnknown(event.item);
   return item === null ? [] : subAgentThreadIdsFromItem(item);
 }
 

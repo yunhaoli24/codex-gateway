@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { CheckIcon, ChevronDownIcon } from "@lucide/vue";
 import { ref } from "vue";
-import type { ModelRecord, ReasoningEffort } from "~~/shared/types";
+import type {
+  AgentProviderId,
+  AgentProviderOption,
+  ModelRecord,
+  ReasoningEffort,
+} from "~~/shared/types";
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -25,15 +30,23 @@ defineProps<{
   effortOptions: Array<{ value: ReasoningEffort; label?: string }>;
   labelEffortOption: (option: { value: ReasoningEffort; label?: string }) => string;
   modelOptionValue: (modelOption: { model?: string; id: string }) => string;
+  selectedProvider: AgentProviderId;
+  providerOptions: readonly AgentProviderOption[];
+  canSelectProvider: boolean;
 }>();
 
 const emit = defineEmits<{
   selectModel: [model: string];
   selectEffort: [effort: ReasoningEffort];
+  selectProvider: [provider: AgentProviderId];
 }>();
 
 const { t } = useI18n();
 const selectorOpen = ref(false);
+
+function providerLabel(option: AgentProviderOption) {
+  return t(option.labelKey);
+}
 
 function selectModel(model: string) {
   emit("selectModel", model);
@@ -88,6 +101,20 @@ function preventInitialFocus(event: Event) {
       <ModelSelectorInput :auto-focus="false" :placeholder="t('app.searchModels')" />
       <ModelSelectorList class="max-h-[min(60dvh,28rem)] p-1">
         <ModelSelectorEmpty>{{ t("app.noMatchingModels") }}</ModelSelectorEmpty>
+        <ModelSelectorGroup v-if="canSelectProvider" :heading="t('app.agentProvider')">
+          <ModelSelectorItem
+            v-for="option in providerOptions"
+            :key="option.id"
+            :value="`provider:${option.id}`"
+            class="min-h-11 rounded-lg px-3 text-sm text-ink"
+            :data-testid="`agent-provider-option-${option.id}`"
+            @select="emit('selectProvider', option.id)"
+          >
+            <span>{{ providerLabel(option) }}</span>
+            <CheckIcon v-if="option.id === selectedProvider" class="ml-auto size-4 text-primary" />
+          </ModelSelectorItem>
+        </ModelSelectorGroup>
+        <ModelSelectorSeparator class="my-1" />
         <ModelSelectorGroup :heading="t('app.reasoningEffort')">
           <ModelSelectorItem
             v-for="option in effortOptions"

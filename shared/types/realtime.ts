@@ -25,6 +25,7 @@ import type { TmuxSessionsSnapshot } from "./tmux";
 import type { RemoteGitFileComparison, RemoteGitWorkspaceSnapshot } from "./files";
 import type { ProjectFileSearchResult } from "./files";
 import type { GatewayMcpServerStatus } from "./mcp";
+import type { AgentProviderId } from "../agent/providers";
 
 export type RealtimeClientMessage =
   | {
@@ -105,6 +106,7 @@ export type RealtimeClientMessage =
       hostId: number;
       projectId?: number | null;
       cwd?: string | null;
+      provider?: AgentProviderId;
       model?: string | null;
       effort?: ReasoningEffort | null;
       approvalPolicy?: ApprovalPolicy | null;

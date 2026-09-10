@@ -4,13 +4,14 @@ import {
   threadSettingsFromAppServer,
 } from "~~/shared/runtime/app-server";
 import { gatewayDomainEvents } from "../domain-events";
-import { threadIdFromParams } from "../thread-utils/identity";
 import { runtimeStatusFromAppThreadStatus } from "../thread-utils/status";
 import type { GatewayEventHandlerRegistry } from "./types";
 
 export const threadEventHandlers: GatewayEventHandlerRegistry = {
-  "thread/started": (event, params) => {
-    const thread = appServerThreadFromUnknown(params.thread);
+  "thread.started": (event) => {
+    const canonical = event.event;
+    if (canonical.type !== "thread.started") return;
+    const thread = appServerThreadFromUnknown(canonical.thread);
     if (thread !== null) {
       gatewayDomainEvents.emit("thread-summary-detected", {
         hostId: event.hostId,
@@ -18,34 +19,35 @@ export const threadEventHandlers: GatewayEventHandlerRegistry = {
       });
     }
   },
-  "thread/status/changed": (event, params) => {
-    const threadId = threadIdFromParams(params);
-    if (threadId !== null) {
-      gatewayDomainEvents.emit("thread-status-detected", {
-        hostId: event.hostId,
-        threadId: String(threadId),
-        status: runtimeStatusFromAppThreadStatus(params.status),
-      });
-    }
+  "thread.status.changed": (event, threadId) => {
+    const canonical = event.event;
+    if (canonical.type !== "thread.status.changed") return;
+    gatewayDomainEvents.emit("thread-status-detected", {
+      hostId: event.hostId,
+      threadId,
+      status: runtimeStatusFromAppThreadStatus(canonical.status),
+    });
   },
-  "thread/settings/updated": (event, params) => {
-    const threadId = threadIdFromParams(params);
-    const settings = threadSettingsFromAppServer(params.threadSettings);
-    if (threadId !== null && settings !== null) {
+  "thread.settings.updated": (event, threadId) => {
+    const canonical = event.event;
+    if (canonical.type !== "thread.settings.updated") return;
+    const settings = threadSettingsFromAppServer(canonical.threadSettings);
+    if (settings !== null) {
       gatewayDomainEvents.emit("thread-settings-detected", {
         hostId: event.hostId,
-        threadId: String(threadId),
+        threadId,
         settings,
       });
     }
   },
-  "thread/tokenUsage/updated": (event, params) => {
-    const threadId = threadIdFromParams(params);
-    const tokenUsage = normalizeTokenUsage(params.tokenUsage);
-    if (threadId !== null && tokenUsage !== null) {
+  "thread.usage.updated": (event, threadId) => {
+    const canonical = event.event;
+    if (canonical.type !== "thread.usage.updated") return;
+    const tokenUsage = normalizeTokenUsage(canonical.tokenUsage);
+    if (tokenUsage !== null) {
       gatewayDomainEvents.emit("thread-token-usage-detected", {
         hostId: event.hostId,
-        threadId: String(threadId),
+        threadId,
         tokenUsage,
       });
     }

@@ -2,6 +2,8 @@
 import { CheckIcon, Loader2Icon, PlusIcon, SendIcon, SquareIcon } from "@lucide/vue";
 import type {
   ApprovalPolicy,
+  AgentProviderId,
+  AgentProviderOption,
   ModelRecord,
   ReasoningEffort,
   ThreadRuntimeStatus,
@@ -16,6 +18,9 @@ defineProps<{
   uploadingAttachments: boolean;
   selectedThreadId: string | null;
   selectedApprovalMode: ApprovalPolicy | "custom";
+  selectedProvider: AgentProviderId;
+  providerOptions: readonly AgentProviderOption[];
+  canSelectProvider: boolean;
   selectedThreadTokenUsage: ThreadTokenUsageState | null;
   models: ModelRecord[];
   loadingModels: boolean;
@@ -40,6 +45,7 @@ const emit = defineEmits<{
   primaryAction: [];
   selectModel: [model: string];
   selectEffort: [effort: ReasoningEffort];
+  selectProvider: [provider: AgentProviderId];
   updateSelectedApprovalMode: [mode: ApprovalPolicy | "custom"];
 }>();
 </script>
@@ -68,21 +74,23 @@ const emit = defineEmits<{
     </div>
     <div class="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
       <ContextUsageMeter :token-usage="selectedThreadTokenUsage" />
-      <div class="min-w-0">
-        <ModelEffortPicker
-          :models="models"
-          :loading-models="loadingModels"
-          :active-model="activeModel"
-          :active-model-label="activeModelLabel"
-          :active-effort-value="activeEffortValue"
-          :active-effort-compact-label="activeEffortCompactLabel"
-          :effort-options="effortOptions"
-          :label-effort-option="labelEffortOption"
-          :model-option-value="modelOptionValue"
-          @select-model="emit('selectModel', $event)"
-          @select-effort="emit('selectEffort', $event)"
-        />
-      </div>
+      <ModelEffortPicker
+        :models="models"
+        :loading-models="loadingModels"
+        :active-model="activeModel"
+        :active-model-label="activeModelLabel"
+        :active-effort-value="activeEffortValue"
+        :active-effort-compact-label="activeEffortCompactLabel"
+        :effort-options="effortOptions"
+        :label-effort-option="labelEffortOption"
+        :model-option-value="modelOptionValue"
+        :selected-provider="selectedProvider"
+        :provider-options="providerOptions"
+        :can-select-provider="canSelectProvider"
+        @select-model="emit('selectModel', $event)"
+        @select-effort="emit('selectEffort', $event)"
+        @select-provider="emit('selectProvider', $event)"
+      />
       <Button
         data-testid="send-turn-button"
         class="size-11 shrink-0 rounded-full bg-primary p-0 text-primary-foreground hover:bg-primary-active"

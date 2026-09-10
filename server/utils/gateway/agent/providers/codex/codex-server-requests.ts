@@ -1,10 +1,6 @@
-import type { RpcEnvelope } from "./types";
+import type { RpcEnvelope } from "~~/shared/types";
 
-/**
- * Codex server-request routing used at the provider boundary and by the RPC
- * responder. Canonical events carry provider-neutral request kinds after this
- * mapping; raw method names do not escape into the runtime event API.
- */
+/** Codex-only server-request details stay inside the Codex provider. */
 export const CURRENT_TIME_READ_METHOD = "currentTime/read";
 
 export const SERVER_REQUEST_ITEM_TYPES = {
@@ -15,8 +11,6 @@ export const SERVER_REQUEST_ITEM_TYPES = {
   "account/chatgptAuthTokens/refresh": "chatgptAuthTokensRefreshRequest",
   "attestation/generate": "attestationRequest",
 } as const;
-
-export type RoutedServerRequestMethod = keyof typeof SERVER_REQUEST_ITEM_TYPES;
 
 export const PENDING_SERVER_REQUEST_METHODS = [
   ...Object.keys(SERVER_REQUEST_ITEM_TYPES),
@@ -32,11 +26,11 @@ export function isCurrentTimeReadRequest(message: RpcEnvelope) {
 }
 
 export function buildCurrentTimeReadResponse() {
-  return {
-    currentTimeAt: Math.floor(Date.now() / 1000),
-  };
+  return { currentTimeAt: Math.floor(Date.now() / 1000) };
 }
 
-function isRoutedServerRequestMethod(method: string): method is RoutedServerRequestMethod {
+function isRoutedServerRequestMethod(
+  method: string,
+): method is keyof typeof SERVER_REQUEST_ITEM_TYPES {
   return Object.hasOwn(SERVER_REQUEST_ITEM_TYPES, method);
 }

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { openApp } from "./helpers/app";
+import { gatewayEventFromNotification } from "./helpers/canonical-event";
 import {
   applyGatewayLiveEvent,
   dismissPlanPrompt,
@@ -176,54 +177,25 @@ test("goal progress updates the composer status strip without flooding the agent
   const threadId = "e2e-goal-progress-thread";
   const goalCreatedAt = Date.now() - 4000;
   const goalObjective = "持续 **重构** 输入框状态\n\n- 保持滚动稳定";
-  await applyGatewayLiveEvent(page, {
-    id: 301,
-    hostId: 1,
+  const goalPayload = (status: string, tokensUsed: number, timeUsedSeconds: number) => ({
     threadId,
-    method: "thread/goal/updated",
-    payload: {
-      method: "thread/goal/updated",
-      params: {
-        threadId,
-        turnId: "turn-goal-progress",
-        goal: {
-          threadId,
-          objective: goalObjective,
-          status: "active",
-          tokenBudget: null,
-          tokensUsed: 128,
-          timeUsedSeconds: 3,
-          createdAt: goalCreatedAt,
-          updatedAt: Date.now(),
-        },
-      },
-    },
-    createdAt: new Date().toISOString(),
+    objective: goalObjective,
+    status,
+    tokenBudget: null,
+    tokensUsed,
+    timeUsedSeconds,
+    createdAt: goalCreatedAt,
+    updatedAt: Date.now(),
   });
-  await applyGatewayLiveEvent(page, {
-    id: 302,
-    hostId: 1,
-    threadId,
-    method: "thread/goal/updated",
-    payload: {
+  const goalUpdatedEvent = (id: number, goal: Record<string, unknown>) =>
+    gatewayEventFromNotification({
+      id,
+      threadId,
       method: "thread/goal/updated",
-      params: {
-        threadId,
-        turnId: "turn-goal-progress",
-        goal: {
-          threadId,
-          objective: goalObjective,
-          status: "active",
-          tokenBudget: null,
-          tokensUsed: 256,
-          timeUsedSeconds: 4,
-          createdAt: goalCreatedAt,
-          updatedAt: Date.now(),
-        },
-      },
-    },
-    createdAt: new Date().toISOString(),
-  });
+      params: { threadId, turnId: "turn-goal-progress", goal },
+    });
+  await applyGatewayLiveEvent(page, goalUpdatedEvent(301, goalPayload("active", 128, 3)));
+  await applyGatewayLiveEvent(page, goalUpdatedEvent(302, goalPayload("active", 256, 4)));
 
   const strip = page.getByTestId("composer-mode-strip");
   const goalSummary = page.getByTestId("composer-goal-summary");
@@ -240,58 +212,12 @@ test("goal progress updates the composer status strip without flooding the agent
   await expect(goalDialog.getByText("保持滚动稳定")).toBeVisible();
   await expect(page.getByTestId("chat-scroll-area").getByText("目标已更新")).toHaveCount(0);
 
-  await applyGatewayLiveEvent(page, {
-    id: 303,
-    hostId: 1,
-    threadId,
-    method: "thread/goal/updated",
-    payload: {
-      method: "thread/goal/updated",
-      params: {
-        threadId,
-        turnId: "turn-goal-progress",
-        goal: {
-          threadId,
-          objective: goalObjective,
-          status: "blocked",
-          tokenBudget: null,
-          tokensUsed: 384,
-          timeUsedSeconds: 6,
-          createdAt: goalCreatedAt,
-          updatedAt: Date.now(),
-        },
-      },
-    },
-    createdAt: new Date().toISOString(),
-  });
+  await applyGatewayLiveEvent(page, goalUpdatedEvent(303, goalPayload("blocked", 384, 6)));
 
   await expect(goalSummary).toHaveAttribute("data-goal-status", "blocked");
   await expect(goalSummary).toHaveClass(/bg-destructive\/10/);
 
-  await applyGatewayLiveEvent(page, {
-    id: 304,
-    hostId: 1,
-    threadId,
-    method: "thread/goal/updated",
-    payload: {
-      method: "thread/goal/updated",
-      params: {
-        threadId,
-        turnId: "turn-goal-progress",
-        goal: {
-          threadId,
-          objective: goalObjective,
-          status: "complete",
-          tokenBudget: null,
-          tokensUsed: 512,
-          timeUsedSeconds: 8,
-          createdAt: goalCreatedAt,
-          updatedAt: Date.now(),
-        },
-      },
-    },
-    createdAt: new Date().toISOString(),
-  });
+  await applyGatewayLiveEvent(page, goalUpdatedEvent(304, goalPayload("complete", 512, 8)));
 
   await expect(page.getByTestId("composer-goal-summary")).toHaveCount(0);
   await expect(page.getByTestId("composer-mode-strip")).toHaveCount(0);

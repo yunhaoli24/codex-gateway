@@ -108,12 +108,13 @@ export function rpcEnvelopeCreatedAt(payload: unknown, fallback = new Date()): s
   return Number.isFinite(emittedAt.getTime()) ? emittedAt.toISOString() : fallback.toISOString();
 }
 
+import type { AgentEvent } from "../agent/events";
+
 export interface GatewayEvent {
   id: number;
   hostId: number;
   threadId: string;
-  method: string;
-  payload: RpcEnvelope;
+  event: AgentEvent;
   createdAt: string;
 }
 import { recordFromUnknown } from "../utils/records";
