@@ -88,7 +88,7 @@ test("Bark keeps monitoring an active main turn after the last browser closes", 
         page.evaluate(
           () =>
             window.__codexGatewayE2e?.views.events.filter(
-              (event) => event.method === "turn/started",
+              (event) => event.event.type === "turn.started",
             ).length ?? 0,
         ),
       { timeout: 30_000 },
@@ -128,6 +128,10 @@ test("plan-mode user questions render and notify through Sonner and Bark", async
 
   const requestCard = page.getByTestId("chat-scroll-area").getByText(question, { exact: true });
   await expect(requestCard).toBeVisible({ timeout: 120_000 });
+  // The app-server keeps an async question in both agentMessage.text and
+  // agentMessage.questions. The UI must expose only the structured card, not
+  // render the protocol summary as a second plain-text question.
+  await expect(requestCard).toHaveCount(1);
   await expect(page.locator("[data-sonner-toast]").filter({ hasText: "等待回答" })).toBeVisible();
   await expect.poll(async () => (await bark.readRequests()).length, { timeout: 30_000 }).toBe(1);
   const request = (await bark.readRequests())[0];

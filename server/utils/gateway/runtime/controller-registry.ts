@@ -1,10 +1,11 @@
-import type { HostRecord } from "~~/shared/types";
+import type { AgentProviderId, HostRecord } from "~~/shared/types";
 import { currentGatewayUserId, runWithGatewayUser } from "../state/memory";
 import { activeMainThreadMonitor } from "./active-main-thread-monitor";
 import { HostRpcSession } from "./host-rpc-session";
 import { hostSessionEvents } from "./host-session-events";
 import { ThreadController } from "./thread-controller";
 import { runtimeLog } from "./runtime-log";
+import { providerAdapterFor } from "../agent/provider-registry";
 
 export type SubscriptionLeaseOwner = "bootstrap" | "browser" | "scoped";
 
@@ -54,8 +55,8 @@ export class ControllerRegistry {
     return controller;
   }
 
-  async getHostClient(host: HostRecord) {
-    return this.getHostClientForUser(this.userKey(), host);
+  async getHostClient(host: HostRecord, providerId: AgentProviderId = "codex") {
+    return this.getHostClientForUser(this.userKey(), host, this.getHostProvider(host, providerId));
   }
 
   retainSubscription(
@@ -238,7 +239,8 @@ export class ControllerRegistry {
     key: string,
     generation: number,
   ) {
-    const client = await this.getHostClientForUser(userId, host);
+    const provider = this.getHostProvider(host);
+    const client = await this.getHostClientForUser(userId, host, provider);
     if (this.controllerGeneration(key) !== generation) {
       throw new Error("Thread controller creation was superseded");
     }
@@ -250,6 +252,7 @@ export class ControllerRegistry {
       host,
       threadId,
       client,
+      provider,
       true,
       inheritedSubscription,
       false,
@@ -273,19 +276,31 @@ export class ControllerRegistry {
     return controller;
   }
 
-  private async getHostClientForUser(userId: number, host: HostRecord) {
-    const key = this.hostKey(userId, host.id);
+  private async getHostClientForUser(
+    userId: number,
+    host: HostRecord,
+    provider = this.getHostProvider(host),
+  ) {
+    const key = this.hostKey(userId, host.id, provider.id);
     let session = this.hostSessions.get(key);
     if (!session) {
       session = new HostRpcSession(
         host,
         (hostId, threadId) => this.controllers.get(this.key(userId, hostId, threadId)) ?? null,
         (hostId) => this.controllersForUserHost(userId, hostId),
-        () => this.disposeHostSession(userId, host.id, session),
+        provider,
+        () => this.disposeHostSession(userId, host.id, provider.id, session),
       );
       this.hostSessions.set(key, session);
     }
     return session.connect();
+  }
+
+  private getHostProvider(_host: HostRecord, providerId: AgentProviderId = "codex") {
+    // Host storage is intentionally provider-neutral for now. The binding is
+    // explicit at the session boundary so adding a provider later changes this
+    // registry, not every runtime event consumer.
+    return providerAdapterFor(providerId);
   }
 
   private controllersForUserHost(userId: number, hostId: number) {
@@ -303,8 +318,13 @@ export class ControllerRegistry {
       .map(([, controller]) => controller);
   }
 
-  private disposeHostSession(userId: number, hostId: number, session: HostRpcSession | undefined) {
-    const hostKey = this.hostKey(userId, hostId);
+  private disposeHostSession(
+    userId: number,
+    hostId: number,
+    providerId: AgentProviderId,
+    session: HostRpcSession | undefined,
+  ) {
+    const hostKey = this.hostKey(userId, hostId, providerId);
     if (session && this.hostSessions.get(hostKey) === session) {
       this.hostSessions.delete(hostKey);
     }
@@ -448,8 +468,8 @@ export class ControllerRegistry {
     return `${userId}:${hostId}:${threadId}`;
   }
 
-  private hostKey(userId: number, hostId: number) {
-    return `${userId}:${hostId}`;
+  private hostKey(userId: number, hostId: number, providerId: AgentProviderId = "codex") {
+    return `${userId}:${hostId}:${providerId}`;
   }
 
   private userKey() {

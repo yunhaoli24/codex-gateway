@@ -1,10 +1,9 @@
 import { EventEmitter } from "@posva/event-emitter";
 import type { GatewayEvent } from "~~/shared/types";
-import type { AppServerEventParams, GatewayEventHandlerRegistry } from "./types";
+import type { GatewayEventHandlerRegistry } from "./types";
 
 export interface AppServerEventHandlerPayload {
   event: GatewayEvent;
-  params: AppServerEventParams;
   threadId: string;
 }
 
@@ -21,7 +20,7 @@ export class AppServerEventDispatcher {
     Object.entries(registry).forEach(([method, handler]) => {
       this.emitter.on(method, (payload) => {
         payload.handled = true;
-        handler(payload.event, payload.params, payload.threadId);
+        handler(payload.event, payload.threadId);
       });
     });
   }

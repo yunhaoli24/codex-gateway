@@ -1,9 +1,14 @@
-import type { ThreadHistoryItem, ThreadHistoryTurn } from "../types";
+/**
+ * Codex-only parameter helpers used by the provider mapper. They stay inside
+ * the provider directory so neutral reducers never parse app-server DTOs.
+ */
+import type { ThreadHistoryItem, ThreadHistoryTurn } from "~~/shared/types";
 import {
   threadHistoryItemFromUnknown,
   threadHistoryTurnFromUnknown,
-} from "../../runtime/app-server";
-import type { AppServerEventParams } from "./types";
+} from "~~/shared/runtime/app-server";
+
+export type AppServerEventParams = Record<string, unknown>;
 
 export function idParam(value: unknown): string | number | null {
   return typeof value === "string" || typeof value === "number" ? value : null;

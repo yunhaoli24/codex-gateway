@@ -34,6 +34,8 @@ const {
   runSlashCommand,
   selectSlashCommandIndex,
   selectedApprovalMode,
+  selectedProvider,
+  providerOptions,
   selectedSlashCommandIndex,
   selectedThreadGoal,
   selectedThreadGoalObservedAt,
@@ -48,6 +50,7 @@ const {
   resumeSelectedThreadGoal,
   clearSelectedThreadGoal,
   setSelectedApprovalMode,
+  setSelectedProvider,
   setSelectedEffort,
   setSelectedModel,
   slashMenuOpen,
@@ -77,6 +80,9 @@ const {
     :selected-host-id="selectedHostId"
     :selected-project-id="selectedProjectId"
     :selected-approval-mode="selectedApprovalMode"
+    :selected-provider="selectedProvider"
+    :provider-options="providerOptions"
+    :can-select-provider="selectedThreadId === null"
     :selected-thread-token-usage="selectedThreadTokenUsage"
     :models="models"
     :loading-models="loadingModels"
@@ -110,5 +116,6 @@ const {
     @update-selected-approval-mode="setSelectedApprovalMode"
     @select-model="setSelectedModel"
     @select-effort="setSelectedEffort"
+    @select-provider="setSelectedProvider"
   />
 </template>

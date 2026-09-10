@@ -87,9 +87,8 @@ export function extractThreadSettings(source: unknown): ThreadSettingsState {
 
 export function latestThreadSettingsFromEvents(events: GatewayEvent[]): ThreadSettingsState | null {
   for (const event of [...events].sort((left, right) => right.id - left.id)) {
-    if (event.method !== "thread/settings/updated") continue;
-    const params = recordFromUnknown(event.payload.params);
-    const settings = threadSettingsFromAppServer(params?.threadSettings);
+    if (event.event.type !== "thread.settings.updated") continue;
+    const settings = threadSettingsFromAppServer(event.event.threadSettings);
     if (settings !== null) return settings;
   }
   return null;
@@ -97,14 +96,9 @@ export function latestThreadSettingsFromEvents(events: GatewayEvent[]): ThreadSe
 
 export function latestTokenUsageFromEvents(events: GatewayEvent[]): ThreadTokenUsageState | null {
   for (const event of [...events].sort((left, right) => right.id - left.id)) {
-    if (event.method !== "thread/tokenUsage/updated") {
-      continue;
-    }
-    const params = recordFromUnknown(event.payload.params);
-    const tokenUsage = normalizeTokenUsage(params?.tokenUsage);
-    if (tokenUsage !== null) {
-      return tokenUsage;
-    }
+    if (event.event.type !== "thread.usage.updated") continue;
+    const tokenUsage = normalizeTokenUsage(event.event.tokenUsage);
+    if (tokenUsage !== null) return tokenUsage;
   }
   return null;
 }

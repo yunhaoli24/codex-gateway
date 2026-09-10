@@ -73,6 +73,9 @@ export function useComposerController() {
         settings.selectedApprovalMode.value === "custom"
           ? undefined
           : settings.selectedApprovalMode.value,
+      // Provider is a thread-creation choice. Existing threads already have a provider-bound
+      // session, so turn.start must not imply that the protocol can be switched in place.
+      ...(selectedThreadId.value === null ? { provider: settings.selectedProvider.value } : {}),
     };
   };
   const submit = useComposerTurnSubmit({

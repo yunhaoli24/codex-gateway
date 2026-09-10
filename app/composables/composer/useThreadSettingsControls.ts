@@ -1,7 +1,12 @@
 import { computed, ref } from "vue";
 
 import { storeToRefs } from "pinia";
-import type { ApprovalPolicy, ReasoningEffort } from "~~/shared/types";
+import {
+  agentProviderOptions,
+  type AgentProviderId,
+  type ApprovalPolicy,
+  type ReasoningEffort,
+} from "~~/shared/types";
 import { firstNonEmptyString, trimmedOrFallback, trimmedOrNull } from "~~/shared/utils/strings";
 import { useGatewayCatalogStore } from "@/stores/gateway-catalog";
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
@@ -17,6 +22,7 @@ export function useThreadSettingsControls() {
   const newThreadModel = ref("");
   const newThreadEffort = ref<ReasoningEffort>("default");
   const newThreadApprovalMode = ref<ApprovalPolicy | "custom">("custom");
+  const selectedProvider = ref<AgentProviderId>("codex");
 
   // Existing-thread controls are computed proxies over the per-thread Pinia state. Do not mirror
   // them into local refs with bidirectional watchers: thread selection, snapshot hydration, and the
@@ -163,6 +169,13 @@ export function useThreadSettingsControls() {
     selectedApprovalMode.value = value;
   }
 
+  // Provider is selected before a thread/turn is sent and is deliberately not stored as a model
+  // setting. The current registry has one provider, but keeping this session-level control separate
+  // means adding another adapter will not require changing model or reasoning-effort semantics.
+  function setSelectedProvider(value: AgentProviderId) {
+    selectedProvider.value = value;
+  }
+
   return {
     selectedModel,
     selectedEffort,
@@ -178,5 +191,8 @@ export function useThreadSettingsControls() {
     setSelectedModel,
     setSelectedEffort,
     setSelectedApprovalMode,
+    selectedProvider,
+    providerOptions: agentProviderOptions,
+    setSelectedProvider,
   };
 }

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { openApp } from "./helpers/app";
+import { gatewayEventFromNotification } from "./helpers/canonical-event";
 import {
   applyGatewayLiveEvent,
   capturedRealtimeInterrupt,
@@ -78,14 +79,16 @@ test("dynamic tool response submits through the server request responder and sur
     page.getByTestId("chat-scroll-area").getByText("pending app-server request was not found"),
   ).toHaveCount(0);
 
-  await applyGatewayLiveEvent(page, {
-    id: 43,
-    hostId: 7,
-    threadId,
-    method: "serverRequest/resolved",
-    payload: { method: "serverRequest/resolved", params: { threadId, requestId: 42 } },
-    createdAt: new Date().toISOString(),
-  });
+  await applyGatewayLiveEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 43,
+      hostId: 7,
+      threadId,
+      method: "serverRequest/resolved",
+      params: { threadId, requestId: 42 },
+    }),
+  );
   await expect(page.getByTestId("dynamic-tool-submit")).toBeHidden();
   await expect(page.getByText("请求已处理")).toBeVisible();
 });
@@ -100,12 +103,11 @@ test("app-server error notifications use Sonner without entering the timeline", 
     currentThread: { id: threadId, name: "Error Notification" },
     history: { thread: { id: threadId, turns: [] } },
   });
-  await applyGatewayLiveEvent(page, {
-    id: 101,
-    hostId: 1,
-    threadId,
-    method: "error",
-    payload: {
+  await applyGatewayLiveEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 101,
+      threadId,
       method: "error",
       params: {
         threadId,
@@ -117,9 +119,8 @@ test("app-server error notifications use Sonner without entering the timeline", 
           additionalDetails: "stream closed before final response",
         },
       },
-    },
-    createdAt: new Date().toISOString(),
-  });
+    }),
+  );
 
   const chatScrollArea = page.getByTestId("chat-scroll-area");
   await expect(page.getByText(/remote provider disconnected/)).toBeVisible();
@@ -127,12 +128,11 @@ test("app-server error notifications use Sonner without entering the timeline", 
   await expect(page.getByText(/app-server 正在自动重试/)).toBeVisible();
   await expect(chatScrollArea.getByText("remote provider disconnected")).toHaveCount(0);
 
-  await applyGatewayLiveEvent(page, {
-    id: 102,
-    hostId: 1,
-    threadId,
-    method: "item/agentMessage/delta",
-    payload: {
+  await applyGatewayLiveEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 102,
+      threadId,
       method: "item/agentMessage/delta",
       params: {
         threadId,
@@ -140,9 +140,8 @@ test("app-server error notifications use Sonner without entering the timeline", 
         itemId: "agent-recovered",
         delta: "retry recovered",
       },
-    },
-    createdAt: new Date().toISOString(),
-  });
+    }),
+  );
 
   await expect(chatScrollArea.getByText("retry recovered")).toBeVisible();
 });
@@ -157,12 +156,11 @@ test("app-server moderation notifications render a readable summary before raw d
     currentThread: { id: threadId, name: "Moderation Notification" },
     history: { thread: { id: threadId, turns: [] } },
   });
-  await applyGatewayLiveEvent(page, {
-    id: 201,
-    hostId: 1,
-    threadId,
-    method: "turn/moderationMetadata",
-    payload: {
+  await applyGatewayLiveEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 201,
+      threadId,
       method: "turn/moderationMetadata",
       params: {
         threadId,
@@ -174,9 +172,8 @@ test("app-server moderation notifications render a readable summary before raw d
           raw: "only visible after expanding details",
         },
       },
-    },
-    createdAt: new Date().toISOString(),
-  });
+    }),
+  );
 
   const chatScrollArea = page.getByTestId("chat-scroll-area");
   await expect(chatScrollArea.getByText("安全审查元数据")).toBeVisible();
@@ -194,12 +191,11 @@ test("terminal wait notifications mention the command being watched", async ({ p
     currentThread: { id: "e2e-terminal-wait-thread", name: "Terminal Wait" },
     history: { thread: { id: "e2e-terminal-wait-thread", turns: [] } },
   });
-  await applyGatewayLiveEvent(page, {
-    id: 301,
-    hostId: 1,
-    threadId: "e2e-terminal-wait-thread",
-    method: "item/started",
-    payload: {
+  await applyGatewayLiveEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 301,
+      threadId: "e2e-terminal-wait-thread",
       method: "item/started",
       params: {
         threadId: "e2e-terminal-wait-thread",
@@ -217,15 +213,13 @@ test("terminal wait notifications mention the command being watched", async ({ p
           durationMs: null,
         },
       },
-    },
-    createdAt: new Date().toISOString(),
-  });
-  await applyGatewayLiveEvent(page, {
-    id: 302,
-    hostId: 1,
-    threadId: "e2e-terminal-wait-thread",
-    method: "item/commandExecution/terminalInteraction",
-    payload: {
+    }),
+  );
+  await applyGatewayLiveEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 302,
+      threadId: "e2e-terminal-wait-thread",
       method: "item/commandExecution/terminalInteraction",
       params: {
         threadId: "e2e-terminal-wait-thread",
@@ -234,9 +228,8 @@ test("terminal wait notifications mention the command being watched", async ({ p
         processId: "proc-123",
         stdin: "",
       },
-    },
-    createdAt: new Date().toISOString(),
-  });
+    }),
+  );
 
   const chatScrollArea = page.getByTestId("chat-scroll-area");
   await expect(

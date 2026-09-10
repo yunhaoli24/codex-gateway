@@ -1,4 +1,4 @@
-import type { CodexRpcClient } from "../infra/rpc/rpc";
+import type { AgentRpcClient } from "../agent/provider-adapter";
 import type { ThreadGoalResolver, ThreadMetadataResolver } from "./thread-runtime-events";
 
 const NOTIFICATION_INSPECTION_TIMEOUT_MS = 10_000;
@@ -9,7 +9,7 @@ export interface ThreadNotificationResolvers {
 }
 
 export function createThreadNotificationResolvers(
-  client: CodexRpcClient,
+  client: AgentRpcClient,
   threadId: string,
 ): ThreadNotificationResolvers {
   return {

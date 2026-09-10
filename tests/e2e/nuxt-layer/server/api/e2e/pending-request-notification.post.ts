@@ -1,4 +1,5 @@
 import type { GatewayEvent, RpcEnvelope } from "~~/shared/types";
+import { codexProviderAdapter } from "../../../../../../server/utils/gateway/agent/providers/codex/codex-provider";
 import { dispatchThreadRuntimeNotification } from "../../../../../../server/utils/gateway/notifications/thread-notification-dispatcher";
 import { defineGatewayEventHandler } from "../../../../../../server/utils/gateway/http/errors";
 import { pendingServerRequests } from "../../../../../../server/utils/gateway/runtime/pending-server-requests";
@@ -22,12 +23,19 @@ export default defineGatewayEventHandler(async () => {
   };
   pendingServerRequests.track(hostId, threadId, request);
   const before = new Set(gatewayMemoryState.publishedNotificationKeys);
+  const mapped = codexProviderAdapter.mapNotification({
+    method: request.method,
+    params: request.params,
+    id: request.id,
+  });
+  if (mapped.kind !== "event") {
+    throw new Error("Fixture notification produced no canonical event");
+  }
   const event: GatewayEvent = {
     id: 1,
     hostId,
     threadId,
-    method: request.method,
-    payload: request,
+    event: mapped.event,
     createdAt: new Date().toISOString(),
   };
   dispatchThreadRuntimeNotification(event, {

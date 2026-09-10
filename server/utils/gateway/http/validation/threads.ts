@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { INITIAL_TURN_PAGE_LIMIT, OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
 import { optionalPositiveInt } from "./common";
+import { agentProviderIdSchema } from "~~/shared/agent/providers";
 
 export const threadListSchema = z.object({
   hostId: z.coerce.number().int().positive(),
@@ -90,6 +91,7 @@ export const threadStartSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   projectId: optionalPositiveInt,
   cwd: z.string().trim().nullable().optional(),
+  provider: agentProviderIdSchema.optional(),
   ...threadSettingFields,
 });
 

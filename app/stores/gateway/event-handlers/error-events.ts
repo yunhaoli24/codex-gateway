@@ -11,7 +11,10 @@ import { useGatewayTurnRecoveryStore } from "@/stores/gateway-turn-recovery";
 import { misalignmentDetailsFromNotification } from "../errors";
 
 export const errorEventHandlers: GatewayEventHandlerRegistry = {
-  error: (event, params, threadId) => {
+  "error.reported": (event, threadId) => {
+    const canonical = event.event;
+    if (canonical.type !== "error.reported") return;
+    const params = canonical.params;
     const gateway = useGatewayBootstrapStore();
     const error = appServerTurnErrorFromNotification(params, gateway.t);
     const turnIdValue = idFromUnknown(params.turnId);
@@ -43,16 +46,14 @@ export const errorEventHandlers: GatewayEventHandlerRegistry = {
       transient: error.willRetry,
     });
   },
-  "thread/realtime/error": (event, params, threadId) => {
+  "thread.realtime.error": (event, threadId) => {
     const gateway = useGatewayBootstrapStore();
-    gateway.setError(
-      threadScopedErrorMessage(
-        event.hostId,
-        threadId,
-        typeof params.message === "string" ? params.message : gateway.t("app.appServerError"),
-      ),
-      { hostId: event.hostId, threadId },
-    );
+    const canonical = event.event;
+    if (canonical.type !== "thread.realtime.error") return;
+    gateway.setError(threadScopedErrorMessage(event.hostId, threadId, canonical.message), {
+      hostId: event.hostId,
+      threadId,
+    });
   },
 };
 

@@ -30,9 +30,11 @@ class PendingServerRequestRegistry {
   }
 
   isPending(event: GatewayEvent) {
-    const requestId = idFromUnknown(event.payload.id);
+    if (event.event.type !== "serverRequest.requested") return false;
+    const requestId = event.event.requestId;
     return (
       requestId !== null &&
+      requestId !== undefined &&
       this.currentUserKeys().has(this.key(event.hostId, event.threadId, requestId))
     );
   }

@@ -414,6 +414,8 @@
     "removeAttachment": "Remove attachment",
     "attachedFileReferences": "Attached files, remote paths:",
     "model": "Model",
+    "agentProvider": "Agent provider",
+    "agentProviderCodex": "Codex",
     "searchModels": "Search models or reasoning effort",
     "noMatchingModels": "No matching model or reasoning effort",
     "contextUsage": "{percent}% context used",

@@ -2,6 +2,8 @@
 import { ref } from "vue";
 import type {
   ApprovalPolicy,
+  AgentProviderId,
+  AgentProviderOption,
   ModelRecord,
   ReasoningEffort,
   ThreadGoal,
@@ -37,6 +39,9 @@ const props = defineProps<{
   selectedHostId: number | null;
   selectedProjectId: number | null;
   selectedApprovalMode: ApprovalPolicy | "custom";
+  selectedProvider: AgentProviderId;
+  providerOptions: readonly AgentProviderOption[];
+  canSelectProvider: boolean;
   selectedThreadTokenUsage: ThreadTokenUsageState | null;
   models: ModelRecord[];
   loadingModels: boolean;
@@ -75,6 +80,7 @@ const emit = defineEmits<{
   updateSelectedApprovalMode: [mode: ApprovalPolicy | "custom"];
   selectModel: [model: string];
   selectEffort: [effort: ReasoningEffort];
+  selectProvider: [provider: AgentProviderId];
 }>();
 
 const uploadInput = ref<HTMLInputElement | null>(null);
@@ -152,6 +158,9 @@ function updateFileReferences(value: ComposerFileReference[], sourceScopeKey: st
           :uploading-attachments="uploadingAttachments"
           :selected-thread-id="selectedThreadId"
           :selected-approval-mode="selectedApprovalMode"
+          :selected-provider="selectedProvider"
+          :provider-options="providerOptions"
+          :can-select-provider="canSelectProvider"
           :selected-thread-token-usage="selectedThreadTokenUsage"
           :models="models"
           :loading-models="loadingModels"
@@ -174,6 +183,7 @@ function updateFileReferences(value: ComposerFileReference[], sourceScopeKey: st
           @update-selected-approval-mode="emit('updateSelectedApprovalMode', $event)"
           @select-model="emit('selectModel', $event)"
           @select-effort="emit('selectEffort', $event)"
+          @select-provider="emit('selectProvider', $event)"
         />
       </div>
     </div>

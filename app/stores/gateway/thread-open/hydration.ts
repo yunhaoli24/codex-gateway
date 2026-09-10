@@ -1,6 +1,5 @@
 import type { ThreadOpenResult } from "~~/shared/types";
 import { normalizeTokenUsage } from "~~/shared/token-usage";
-import { recordFromUnknown } from "~~/shared/utils/records";
 import { useGatewayCatalogStore } from "@/stores/gateway-catalog";
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
@@ -8,7 +7,6 @@ import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { useGatewayThreadActivityStore } from "@/stores/gateway-thread-activity";
 import { useGatewayThreadRuntimeStore } from "@/stores/gateway-thread-runtime";
 import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
-import { threadIdFromParams } from "../thread-utils/identity";
 import { runtimeStatusFromThreadState } from "../thread-utils/status";
 import type { ThreadSnapshotMessage } from "./transport";
 
@@ -122,15 +120,11 @@ function syncRuntimeStatusFromResult(
 function syncTokenUsageFromRecentEvents(events: ThreadOpenResult["recentEvents"]) {
   const runtime = useGatewayThreadRuntimeStore();
   for (const event of events) {
-    if (event.method !== "thread/tokenUsage/updated") continue;
-    const params = recordFromUnknown(event.payload)?.params;
-    if (params === undefined) continue;
-    const paramsRecord = recordFromUnknown(params);
-    if (paramsRecord === null) continue;
-    const threadId = threadIdFromParams(paramsRecord);
-    const tokenUsage = normalizeTokenUsage(paramsRecord.tokenUsage);
-    if (threadId !== null && event.hostId !== null && tokenUsage !== null) {
-      runtime.setThreadTokenUsage(event.hostId, String(threadId), tokenUsage);
+    const canonical = event.event;
+    if (canonical.type !== "thread.usage.updated") continue;
+    const tokenUsage = normalizeTokenUsage(canonical.tokenUsage);
+    if (tokenUsage !== null && event.hostId !== null) {
+      runtime.setThreadTokenUsage(event.hostId, event.threadId, tokenUsage);
     }
   }
 }

@@ -9,15 +9,15 @@ import {
   runtimeStatusFromSnapshotState,
 } from "~~/shared/thread-runtime-status";
 import { recordFromUnknown } from "~~/shared/utils/records";
-import { CodexRpcClient } from "../infra/rpc/rpc";
 import { bindGatewayUser } from "../state/memory";
 import { threadSnapshotStore } from "../state/thread-snapshots";
 import { threadRuntimeEvents } from "./thread-runtime-events";
 import type { ThreadOpenSnapshot } from "./types";
 import { createThreadNotificationResolvers } from "./notification-rpc-resolvers";
+import type { AgentRpcClient, ProviderAdapter } from "../agent/provider-adapter";
 
 export class ThreadController {
-  readonly client: CodexRpcClient;
+  readonly client: AgentRpcClient;
   private operationQueue: Promise<unknown> = Promise.resolve();
   private connected = false;
   private subscribed = false;
@@ -28,14 +28,15 @@ export class ThreadController {
   constructor(
     readonly host: HostRecord,
     readonly threadId: string,
-    client?: CodexRpcClient,
+    client: AgentRpcClient,
+    private readonly provider: ProviderAdapter,
     connected = false,
     subscribed = false,
     private readonly ownsClient = true,
     private readonly onClose?: () => void,
     private readonly onMaterialized?: () => void,
   ) {
-    this.client = client ?? new CodexRpcClient(host);
+    this.client = client;
     this.connected = connected;
     this.subscribed = subscribed;
     const cachedSnapshot = threadSnapshotStore.get(host.id, threadId);
@@ -57,7 +58,16 @@ export class ThreadController {
   }
 
   publish(method: string, payload: RpcEnvelope) {
-    return threadRuntimeEvents.record(this.host.id, this.threadId, method, payload);
+    return threadRuntimeEvents.recordNotification(
+      this.host.id,
+      this.threadId,
+      {
+        method,
+        params: payload.params,
+        id: payload.id ?? undefined,
+      },
+      this.provider,
+    );
   }
 
   async ensureConnected() {
@@ -78,21 +88,23 @@ export class ThreadController {
     const method =
       message.method === undefined || message.method === "" ? "notification" : message.method;
     this.updateMonitoringState(method, message);
-    threadRuntimeEvents.record(
+    threadRuntimeEvents.recordNotification(
       this.host.id,
       this.threadId,
-      method,
-      message,
+      {
+        method,
+        params: message.params,
+        id: message.id ?? undefined,
+        emittedAtMs: "emittedAtMs" in message ? message.emittedAtMs : undefined,
+      },
+      this.provider,
       createThreadNotificationResolvers(this.client, this.threadId),
     );
     if (method === "turn/started") this.onMaterialized?.();
   }
 
   handleStderr(text: string) {
-    threadRuntimeEvents.record(this.host.id, this.threadId, "gateway/stderr", {
-      method: "gateway/stderr",
-      params: { text },
-    });
+    threadRuntimeEvents.record(this.host.id, this.threadId, { type: "gateway.stderr", text });
   }
 
   handleClose() {

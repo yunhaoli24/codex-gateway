@@ -28,7 +28,7 @@ const officialTuiClientInfo = {
   version: SUPPORTED_CODEX_VERSION,
 };
 
-type CodexRpcClientEvents = {
+export type CodexRpcClientEvents = {
   notification: RpcEnvelope;
   request: RpcEnvelope;
   stderr: string;

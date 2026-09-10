@@ -1,16 +1,6 @@
 import type { ThreadHistorySeed, ThreadHistoryState } from "~~/shared/thread-history/types";
-import {
-  appendAgentDelta,
-  appendCommandOutputDelta,
-  appendPlanDelta,
-  appendReasoningSummaryDelta,
-  appendReasoningTextDelta,
-} from "~~/shared/thread-history/deltas";
-import { updateTurnDiff } from "~~/shared/thread-history/diff";
+import { applyCanonicalEventToHistory } from "~~/shared/thread-history/canonical-events";
 import { mergeItemIntoLatestTurn } from "~~/shared/thread-history/items";
-import { resolveServerRequestInHistory } from "~~/shared/thread-history/requests";
-import { upsertTurnResponseUsage } from "~~/shared/thread-history/response-usage";
-import { mergeThreadTurns, syncCompletedTurn } from "~~/shared/thread-history/turns";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { applyAppServerEvent } from "../event-handlers";
@@ -21,7 +11,7 @@ import { pinnedKey } from "../thread-utils/identity";
 type HistoryUpdate = (
   history: ThreadHistoryState | null,
   currentThread: ThreadHistorySeed | null,
-) => ThreadHistoryState;
+) => ThreadHistoryState | null;
 
 interface PendingHistoryProjection {
   hostId: number;
@@ -39,69 +29,21 @@ export function registerHistoryProjectionSubscribers() {
   });
   gatewayDomainEvents.on("history-events-project", ({ events }) => {
     batchGatewayHistoryProjections(() => {
-      for (const event of events) applyAppServerEvent(event);
+      for (const event of events) {
+        // The provider boundary has already produced the canonical event. Apply it directly to
+        // the local history instead of translating it back into raw Codex-style `params` and
+        // projecting it a second time through compatibility events. The dispatcher remains the
+        // side-effect path for status, notifications, approvals, and file refreshes.
+        updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
+          applyCanonicalEventToHistory(history, currentThread, event.threadId, event.event),
+        );
+        applyAppServerEvent(event);
+      }
     });
   });
   gatewayDomainEvents.on("history-item-upsert", (event) => {
     updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
       mergeItemIntoLatestTurn(history, currentThread, event.threadId, event.item),
-    );
-  });
-  gatewayDomainEvents.on("history-agent-delta", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      appendAgentDelta(history, currentThread, event.threadId, event.params),
-    );
-  });
-  gatewayDomainEvents.on("history-plan-delta", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      appendPlanDelta(history, currentThread, event.threadId, event.params),
-    );
-  });
-  gatewayDomainEvents.on("history-reasoning-summary-delta", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      appendReasoningSummaryDelta(history, currentThread, event.threadId, event.params),
-    );
-  });
-  gatewayDomainEvents.on("history-reasoning-text-delta", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      appendReasoningTextDelta(history, currentThread, event.threadId, event.params),
-    );
-  });
-  gatewayDomainEvents.on("history-command-output-delta", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      appendCommandOutputDelta(history, currentThread, event.threadId, event.params),
-    );
-  });
-  gatewayDomainEvents.on("history-server-request-resolved", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      resolveServerRequestInHistory(history, currentThread, event.threadId, event.requestId),
-    );
-  });
-  gatewayDomainEvents.on("history-turn-diff-updated", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      updateTurnDiff(history, currentThread, event.threadId, event.params),
-    );
-  });
-  gatewayDomainEvents.on("history-turn-appended", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      mergeThreadTurns(history, currentThread, event.threadId, [event.turn], "append"),
-    );
-  });
-  gatewayDomainEvents.on("history-turn-synced", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      syncCompletedTurn(history, currentThread, event.threadId, event.turn),
-    );
-  });
-  gatewayDomainEvents.on("history-response-usage-upsert", (event) => {
-    updateThreadHistory(event.hostId, event.threadId, (history, currentThread) =>
-      upsertTurnResponseUsage(
-        history,
-        currentThread,
-        event.threadId,
-        event.turnId,
-        event.responseId,
-        event.amount,
-      ),
     );
   });
 }

@@ -1,11 +1,11 @@
 import type { HostRecord, ThreadTimelineTurn } from "~~/shared/types";
 import { parseThreadReadResult } from "~~/shared/runtime/app-server";
 import { asThreadTimelineTurn } from "~~/shared/thread-history/timeline";
-import type { CodexRpcClient } from "../infra/rpc/rpc";
+import type { AgentRpcClient } from "../agent/provider-adapter";
 import { threadSnapshotStore } from "../state/thread-snapshots";
 
 export async function readLegacyTurnItems(
-  client: CodexRpcClient,
+  client: AgentRpcClient,
   host: HostRecord,
   threadId: string,
   turnId: string,

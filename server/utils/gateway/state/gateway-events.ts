@@ -1,5 +1,5 @@
-import type { GatewayEvent, RpcEnvelope } from "~~/shared/types";
-import { rpcEnvelopeCreatedAt } from "~~/shared/types/records";
+import type { GatewayEvent } from "~~/shared/types";
+import type { AgentEvent } from "~~/shared/agent/events";
 import { SERVER_THREAD_CACHE_LIMIT } from "~~/shared/config";
 import { gatewayMemoryState } from "./memory";
 import { randomUUID } from "node:crypto";
@@ -52,21 +52,18 @@ export const gatewayEventStore = {
     };
   },
 
-  add(hostId: number, threadId: string, method: string, payload: RpcEnvelope): GatewayEvent {
-    const event: GatewayEvent = {
+  add(hostId: number, threadId: string, event: AgentEvent, createdAt: string): GatewayEvent {
+    const gatewayEvent: GatewayEvent = {
       id: gatewayMemoryState.nextEventId++,
       hostId,
       threadId,
-      method,
-      payload,
-      // App-server time preserves the true event order across SSH/network latency.
-      // Gateway-generated events have no emittedAtMs and intentionally use receive time.
-      createdAt: rpcEnvelopeCreatedAt(payload),
+      event,
+      createdAt,
     };
-    gatewayMemoryState.events.push(event);
+    gatewayMemoryState.events.push(gatewayEvent);
     this.prune(hostId, threadId, 500);
     this.pruneThreads(SERVER_THREAD_CACHE_LIMIT);
-    return event;
+    return gatewayEvent;
   },
 
   list(hostId: number, threadId: string, afterId = 0, limit = 200): GatewayEvent[] {

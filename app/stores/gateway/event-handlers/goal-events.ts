@@ -3,11 +3,13 @@ import { threadGoalFromUnknown } from "~~/shared/runtime/app-server";
 import type { GatewayEventHandlerRegistry } from "./types";
 
 export const goalEventHandlers: GatewayEventHandlerRegistry = {
-  "thread/goal/updated": (event, params, threadId) => {
-    const goal = threadGoalFromUnknown(params.goal);
+  "thread.goal.updated": (event, threadId) => {
+    const canonical = event.event;
+    if (canonical.type !== "thread.goal.updated") return;
+    const goal = threadGoalFromUnknown(canonical.goal);
     if (goal) useGatewayComposerStore().upsertThreadGoal(event.hostId, threadId, goal);
   },
-  "thread/goal/cleared": (event, _params, threadId) => {
+  "thread.goal.cleared": (event, threadId) => {
     useGatewayComposerStore().clearThreadGoalState(event.hostId, threadId);
   },
 };

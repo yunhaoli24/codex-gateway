@@ -35,6 +35,8 @@ export type {
   TokenUsageBreakdown,
   ReasoningEffort,
 } from "./types/thread";
+export type { AgentProviderId, AgentProviderOption } from "./agent/providers";
+export { agentProviderIdSchema, agentProviderIds, agentProviderOptions } from "./agent/providers";
 export type {
   GatewayMcpServerStatus,
   McpAuthStatus,

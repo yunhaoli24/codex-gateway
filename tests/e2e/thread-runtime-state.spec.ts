@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { E2E_USERNAME, openApp } from "./helpers/app";
+import { gatewayEventFromNotification } from "./helpers/canonical-event";
 import {
   applyGatewayLiveEvent,
   cacheSelectedThreadAndOpenThread,
@@ -23,17 +24,13 @@ const storedRouteSelectionSchema = z.object({
 test("opening completed history does not show fake thinking", async ({ page }) => {
   await openApp(page);
   const threadId = "e2e-completed-thread";
-  const startedEvent = {
+  const startedEvent = gatewayEventFromNotification({
     id: 1,
-    hostId: 1,
     threadId,
     method: "turn/started",
-    payload: {
-      method: "turn/started",
-      params: { threadId, turn: appServerTurnFixture({ id: "turn-1" }) },
-    },
+    params: { threadId, turn: appServerTurnFixture({ id: "turn-1" }) },
     createdAt: "2026-07-02T10:00:00.000Z",
-  };
+  });
   const completedTurn = appServerTurnFixture({
     id: "turn-1",
     status: "completed",
@@ -60,23 +57,20 @@ test("opening completed history does not show fake thinking", async ({ page }) =
       },
     ],
   });
-  const completedEvent = {
+  const completedEvent = gatewayEventFromNotification({
     id: 4,
-    hostId: 1,
     threadId,
     method: "turn/completed",
-    payload: { method: "turn/completed", params: { threadId, turn: completedTurn } },
+    params: { threadId, turn: completedTurn },
     createdAt: "2026-07-02T10:00:01.000Z",
-  };
+  });
   const usageEvents = [
     { responseId: "response-1", amount: "0.0012" },
     { responseId: "response-2", amount: "0.0034" },
-  ].map(({ responseId, amount }, index) => ({
-    id: index + 2,
-    hostId: 1,
-    threadId,
-    method: "rawResponse/completed",
-    payload: {
+  ].map(({ responseId, amount }, index) =>
+    gatewayEventFromNotification({
+      id: index + 2,
+      threadId,
       method: "rawResponse/completed",
       params: {
         threadId,
@@ -85,9 +79,9 @@ test("opening completed history does not show fake thinking", async ({ page }) =
         usage: null,
         usageMetadata: { amount, metadata: null },
       },
-    },
-    createdAt: `2026-07-02T10:00:0${index + 1}.000Z`,
-  }));
+      createdAt: `2026-07-02T10:00:0${index + 1}.000Z`,
+    }),
+  );
   const activeTurn = appServerTurnFixture({
     ...completedTurn,
     status: "inProgress",
@@ -185,14 +179,12 @@ test("opening a cached thread applies terminal events before deriving composer s
         project: defaultGatewayProject(),
         turnsPage: { nextCursor: null, backwardsCursor: null },
         recentEvents: [
-          {
+          gatewayEventFromNotification({
             id: 1,
-            hostId: 1,
             threadId,
             method: "turn/completed",
-            payload: { method: "turn/completed", params: { threadId, turn: completedTurn } },
-            createdAt: new Date().toISOString(),
-          },
+            params: { threadId, turn: completedTurn },
+          }),
         ],
         lastEventId: 1,
       },
@@ -330,17 +322,15 @@ test("live terminal event updates selected thread even when snapshot cursor is a
       },
     },
   });
-  await receiveRealtimeThreadEvent(page, {
-    id: 11,
-    hostId: 1,
-    threadId: cursorThreadId,
-    method: "turn/completed",
-    payload: {
+  await receiveRealtimeThreadEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 11,
+      threadId: cursorThreadId,
       method: "turn/completed",
       params: { threadId: cursorThreadId, turn: completedTurn },
-    },
-    createdAt: new Date().toISOString(),
-  });
+    }),
+  );
 
   await expect(page.getByText("cursor race done")).toBeVisible();
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成");
@@ -355,12 +345,11 @@ test("context compaction duration survives event replay timing", async ({ page }
     history: { thread: { id: threadId, turns: [] } },
     status: "running",
   });
-  await applyGatewayLiveEvent(page, {
-    id: 401,
-    hostId: 1,
-    threadId,
-    method: "item/started",
-    payload: {
+  await applyGatewayLiveEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 401,
+      threadId,
       method: "item/started",
       params: {
         threadId,
@@ -372,15 +361,14 @@ test("context compaction duration survives event replay timing", async ({ page }
           status: "inProgress",
         },
       },
-    },
-    createdAt: "2026-07-02T10:00:02.000Z",
-  });
-  await applyGatewayLiveEvent(page, {
-    id: 402,
-    hostId: 1,
-    threadId,
-    method: "item/completed",
-    payload: {
+      createdAt: "2026-07-02T10:00:02.000Z",
+    }),
+  );
+  await applyGatewayLiveEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 402,
+      threadId,
       method: "item/completed",
       params: {
         threadId,
@@ -392,9 +380,9 @@ test("context compaction duration survives event replay timing", async ({ page }
           status: "completed",
         },
       },
-    },
-    createdAt: "2026-07-02T10:00:09.000Z",
-  });
+      createdAt: "2026-07-02T10:00:09.000Z",
+    }),
+  );
 
   const chatScrollArea = page.getByTestId("chat-scroll-area");
   await expect(chatScrollArea.getByText("压缩上下文")).toBeVisible();
@@ -424,20 +412,19 @@ test("turn completed keeps thread running while context compaction is active", a
     history: { thread: { id: threadId, turns: [] } },
     status: "running",
   });
-  await applyGatewayLiveEvent(page, {
-    id: 410,
-    hostId: 1,
-    threadId,
-    method: "turn/completed",
-    payload: {
+  await applyGatewayLiveEvent(
+    page,
+    gatewayEventFromNotification({
+      id: 410,
+      threadId,
       method: "turn/completed",
       params: {
         threadId,
         turn: activeCompactionTurn,
       },
-    },
-    createdAt: "2026-07-02T10:00:01.000Z",
-  });
+      createdAt: "2026-07-02T10:00:01.000Z",
+    }),
+  );
 
   await expect.poll(() => selectedThreadStatusInStore(page)).toBe("running");
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "停止生成");
