@@ -1,10 +1,14 @@
 import { expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
-import { envFile, upgradeEnvFile } from "../docker-environment";
+import { envFile, mfaEnvFile, upgradeEnvFile } from "../docker-environment";
 import { connectTestSsh, execTestSsh } from "./ssh-client";
 
-export type RemoteRuntimeFixture = "empty-runtime" | "legacy-node" | "legacy-codex";
+export type RemoteRuntimeFixture =
+  | "empty-runtime"
+  | "legacy-node"
+  | "legacy-codex"
+  | "current-codex";
 
 const remoteCodexEnvSchema = z
   .object({
@@ -14,13 +18,16 @@ const remoteCodexEnvSchema = z
     password: z.string().min(1),
     projectPath: z.string().min(1),
     imagePath: z.string().min(1),
-    runtimeFixture: z.enum(["empty-runtime", "legacy-node", "legacy-codex"]).optional(),
+    runtimeFixture: z
+      .enum(["empty-runtime", "legacy-node", "legacy-codex", "current-codex"])
+      .optional(),
     initialNodeVersion: z.string().min(1).nullable().optional(),
     initialCodexVersion: z.string().min(1).nullable().optional(),
     supportedCodexVersion: z.string().min(1).optional(),
     testModel: z.string().min(1).optional(),
     codexBin: z.string().min(1).optional(),
     proxyUrl: z.string().min(1).nullable().optional(),
+    mfaCode: z.string().min(1).optional(),
   })
   .loose();
 
@@ -55,12 +62,19 @@ export async function readUpgradeRemoteEnvs() {
   return z.array(remoteCodexEnvSchema).parse(JSON.parse(await readFile(upgradeEnvFile, "utf8")));
 }
 
+export async function readMfaRemoteEnv() {
+  return remoteCodexEnvSchema.parse(JSON.parse(await readFile(mfaEnvFile, "utf8")));
+}
+
 export async function readContainerCodexVersion(remote: RemoteCodexEnv) {
   return await runRemoteCodexVersion(remote);
 }
 
 export async function execRemoteSsh(remote: RemoteCodexEnv, command: string) {
-  const connection = await connectTestSsh(remote);
+  const connection = await connectTestSsh({
+    ...remote,
+    keyboardInteractiveCode: remote.mfaCode,
+  });
   try {
     return await execTestSsh(connection, command);
   } finally {
@@ -139,6 +153,7 @@ export async function addRemoteHost(
   page: Page,
   remote: RemoteCodexEnv,
   name = `docker-codex-${Date.now()}`,
+  options: { waitForConnection?: boolean } = {},
 ) {
   await openSettingsTab(page, "主机");
   const hostForm = page
@@ -161,8 +176,11 @@ export async function addRemoteHost(
   await hostForm.getByTestId("add-host-button").click();
   const host = uiHostSchema.parse(await (await hostResponsePromise).json());
   await closeSettings(page);
-  await expect(hostConnectedIndicator(page, host.id)).toBeVisible({ timeout: 120_000 });
+  if (options.waitForConnection !== false) {
+    await expect(hostConnectedIndicator(page, host.id)).toBeVisible({ timeout: 120_000 });
+  }
   if (
+    options.waitForConnection !== false &&
     remote.initialCodexVersion !== undefined &&
     remote.initialCodexVersion !== null &&
     remote.supportedCodexVersion !== undefined &&

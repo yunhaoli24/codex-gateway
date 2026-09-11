@@ -11,6 +11,14 @@ RUN mkdir -p /tmp/codex-node \
   && cp -a /usr/local/. /tmp/codex-node/ \
   && npm install -g --prefix /tmp/codex-node @openai/codex@${CODEX_CLI_VERSION}
 
+FROM node:22.23.1-bookworm-slim AS current-codex-runtime
+
+ARG CURRENT_CODEX_CLI_VERSION
+RUN test -n "${CURRENT_CODEX_CLI_VERSION}" \
+  && mkdir -p /tmp/codex-node \
+  && cp -a /usr/local/. /tmp/codex-node/ \
+  && npm install -g --prefix /tmp/codex-node @openai/codex@${CURRENT_CODEX_CLI_VERSION}
+
 FROM debian:bookworm-slim AS ssh-base
 
 ARG E2E_UID=1000
@@ -49,3 +57,19 @@ ARG E2E_GID=1000
 ENV E2E_NODE_DIR=/home/codex/.nvm/versions/node/v22.23.1
 COPY --from=legacy-codex-runtime /tmp/codex-node/ ${E2E_NODE_DIR}/
 RUN chown -R ${E2E_UID}:${E2E_GID} /home/codex/.nvm
+
+FROM ssh-base AS mfa-runtime
+ARG E2E_UID=1000
+ARG E2E_GID=1000
+ENV E2E_NODE_DIR=/home/codex/.nvm/versions/node/v22.23.1
+COPY --from=current-codex-runtime /tmp/codex-node/ ${E2E_NODE_DIR}/
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends libpam-modules \
+  && rm -rf /var/lib/apt/lists/* \
+  && echo 'codex:123456' | chpasswd \
+  && chown -R ${E2E_UID}:${E2E_GID} /home/codex/.nvm
+COPY mfa-sshd_config /etc/ssh/sshd_config
+RUN printf '%s\n' \
+    'auth required pam_unix.so' \
+    'account required pam_permit.so' \
+    'session required pam_permit.so' > /etc/pam.d/sshd

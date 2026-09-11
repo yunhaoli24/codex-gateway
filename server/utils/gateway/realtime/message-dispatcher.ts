@@ -79,6 +79,15 @@ export class RealtimeMessageDispatcher {
       .with({ type: "host.metrics.unsubscribe" }, (value) =>
         this.dispatchEntry(peer, value, this.handlers[value.type]),
       )
+      .with({ type: "host.mfa.submit" }, (value) =>
+        this.dispatchEntry(peer, value, this.handlers[value.type]),
+      )
+      .with({ type: "host.mfa.connect" }, (value) =>
+        this.dispatchEntry(peer, value, this.handlers[value.type]),
+      )
+      .with({ type: "host.mfa.cancel" }, (value) =>
+        this.dispatchEntry(peer, value, this.handlers[value.type]),
+      )
       .with({ type: "project.defaults.read" }, (value) =>
         this.dispatchEntry(peer, value, this.handlers[value.type]),
       )

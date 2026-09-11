@@ -43,6 +43,11 @@ import {
   unsubscribeProjectFiles,
 } from "./handlers/files";
 import { readProjectDefaults } from "./handlers/project-defaults";
+import {
+  handleHostMfaCancel,
+  handleHostMfaConnect,
+  handleHostMfaSubmit,
+} from "./handlers/host-mfa";
 
 export const realtimeMessageDispatcher = new RealtimeMessageDispatcher({
   "auth.authenticate": { auth: "public", handler: authenticatePeer },
@@ -84,5 +89,8 @@ export const realtimeMessageDispatcher = new RealtimeMessageDispatcher({
   "mcp.status.list": listMcpStatuses,
   "mcp.event.stream.start": startMcpEventStream,
   "mcp.event.stream.stop": stopMcpEventStream,
+  "host.mfa.submit": handleHostMfaSubmit,
+  "host.mfa.connect": handleHostMfaConnect,
+  "host.mfa.cancel": handleHostMfaCancel,
   ping,
 });

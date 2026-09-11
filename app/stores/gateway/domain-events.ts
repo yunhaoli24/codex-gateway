@@ -58,6 +58,12 @@ export type GatewayDomainEventMap = {
     actionLabel: string;
   };
   "realtime-host-lifecycle": RealtimeMessage<"host.lifecycle">;
+  "realtime-host-mfa-request": {
+    hostId: number;
+    name: string;
+    instructions: string;
+    prompts: Array<{ prompt: string; echo?: boolean }>;
+  };
   "realtime-host-metrics-snapshot": {
     hostId: number;
     status: HostMetricsCollectorStatus;

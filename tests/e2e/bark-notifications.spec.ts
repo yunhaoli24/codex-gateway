@@ -3,6 +3,7 @@ import { openApp } from "./helpers/app";
 import { configureBarkNotifications, useBarkReceiver } from "./helpers/bark";
 import { sendTextTurn } from "./helpers/remote-codex";
 import { sendRealtimeRequest } from "./helpers/realtime";
+import { AGENT_OUTPUT_TIMEOUT_MS } from "./helpers/timeouts";
 
 test("Bark sends ordinary turn notifications and only notifies when an app-server goal ends", async ({
   page,
@@ -18,10 +19,12 @@ test("Bark sends ordinary turn notifications and only notifies when an app-serve
   const threadId = await remoteWorkspace.startThread(project.id);
 
   await sendTextTurn(page, `E2E 普通通知 ${Date.now()}`);
-  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
-    timeout: 120_000,
-  });
-  await expect.poll(async () => (await bark.readRequests()).length, { timeout: 30_000 }).toBe(1);
+  // This case verifies ordinary completion notification, not tool selection. Waiting for a
+  // command item would make the assertion depend on whether the model elects to call a tool.
+  // Bark delivery is the authoritative end-to-end completion signal under test.
+  await expect
+    .poll(async () => (await bark.readRequests()).length, { timeout: AGENT_OUTPUT_TIMEOUT_MS })
+    .toBe(1);
   expect((await bark.readRequests())[0]?.title).toContain("回合已结束");
   const turnToast = page.locator("[data-sonner-toast]").filter({ hasText: "回合已结束" });
   await expect(turnToast).toBeVisible();
@@ -82,24 +85,15 @@ test("Bark keeps monitoring an active main turn after the last browser closes", 
       ].join("\n"),
     );
   await page.getByTestId("send-turn-button").click();
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            window.__codexGatewayE2e?.views.events.filter(
-              (event) => event.event.type === "turn.started",
-            ).length ?? 0,
-        ),
-      { timeout: 30_000 },
-    )
-    .toBeGreaterThan(0);
+  await waitForInProgressCommand(page);
   await page.close();
 
   // Closing the last browser releases its UI lease, not the active app-server subscription.
   // The background monitor must own it until turn/completed so VS Code-only and closed-page
   // workflows receive the same completion notification as an open Gateway page.
-  await expect.poll(async () => (await bark.readRequests()).length, { timeout: 120_000 }).toBe(1);
+  await expect
+    .poll(async () => (await bark.readRequests()).length, { timeout: AGENT_OUTPUT_TIMEOUT_MS })
+    .toBe(1);
   expect((await bark.readRequests())[0]?.title).toContain("回合已结束");
 });
 
@@ -118,6 +112,13 @@ test("plan-mode user questions render and notify through Sonner and Bark", async
   await page.getByTestId("slash-command-plan").click();
   await expect(page.getByTestId("composer-mode-strip").getByText("计划模式").first()).toBeVisible();
 
+  // Async user questions are advertised by the model catalog, not by Plan mode alone. Exercise
+  // the real capability-bearing model so this test verifies Gateway rendering and notification
+  // delivery instead of asking Luna to call a tool that its official metadata does not expose.
+  await page.getByTestId("model-select").click();
+  await page.getByTestId("model-option-gpt-6-astra").click();
+  await page.getByTestId("model-selector-close").click();
+
   const question = `请选择 E2E 方案 ${Date.now()}`;
   await page
     .getByPlaceholder("输入后续修改要求")
@@ -127,7 +128,7 @@ test("plan-mode user questions render and notify through Sonner and Bark", async
   await page.getByTestId("send-turn-button").click();
 
   const requestCard = page.getByTestId("chat-scroll-area").getByText(question, { exact: true });
-  await expect(requestCard).toBeVisible({ timeout: 120_000 });
+  await expect(requestCard).toBeVisible({ timeout: AGENT_OUTPUT_TIMEOUT_MS });
   // The app-server keeps an async question in both agentMessage.text and
   // agentMessage.questions. The UI must expose only the structured card, not
   // render the protocol summary as a second plain-text question.
@@ -140,3 +141,21 @@ test("plan-mode user questions render and notify through Sonner and Bark", async
   expect(request?.body).toContain(question);
   expect(request?.id).toMatch(/^[A-Za-z0-9_-]{43}$/);
 });
+
+async function waitForInProgressCommand(page: import("@playwright/test").Page) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            window.__codexGatewayE2e?.views.events.filter(
+              (event) =>
+                event.event.type === "timeline.item.upsert" &&
+                event.event.item.type === "commandExecution" &&
+                event.event.item.status === "inProgress",
+            ).length ?? 0,
+        ),
+      { timeout: AGENT_OUTPUT_TIMEOUT_MS },
+    )
+    .toBeGreaterThan(0);
+}

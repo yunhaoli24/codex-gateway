@@ -122,6 +122,10 @@ test "$("$node_bin" --version)" = "v${remote.initialNodeVersion}"
 ${remoteCodexCommand(remote)} --version | grep -F ${JSON.stringify(remote.initialCodexVersion)}
 printf 'legacy Codex runtime verified\\n'
 `,
+    "current-codex": `
+${remoteCodexCommand(remote)} --version | grep -F ${JSON.stringify(remote.supportedCodexVersion)}
+printf 'current Codex runtime verified\\n'
+`,
   } as const;
   const result = await execRemoteSsh(remote, `set -eu\n${checks[remote.runtimeFixture!]}`);
   expect(result.stdout).toContain("verified");

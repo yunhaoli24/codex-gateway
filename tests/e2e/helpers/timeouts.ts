@@ -1,0 +1,1 @@
+export const AGENT_OUTPUT_TIMEOUT_MS = 180_000;

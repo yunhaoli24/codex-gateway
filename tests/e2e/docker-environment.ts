@@ -13,9 +13,10 @@ const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const runtimeDir = join(rootDir, ".e2e-runtime", "ssh-container");
 const envFile = join(runtimeDir, "env.json");
 const upgradeEnvFile = join(runtimeDir, "upgrade-env.json");
+const mfaEnvFile = join(runtimeDir, "mfa-env.json");
 const managedCodexBin = `/home/codex/.nvm/versions/node/v${process.versions.node}/bin/codex`;
 
-type RuntimeFixture = "empty-runtime" | "legacy-node" | "legacy-codex";
+type RuntimeFixture = "empty-runtime" | "legacy-node" | "legacy-codex" | "current-codex";
 
 interface RemoteEnv {
   host: string;
@@ -31,6 +32,7 @@ interface RemoteEnv {
   testModel: string;
   codexBin: string;
   proxyUrl: null;
+  mfaCode?: string;
 }
 
 export async function startDockerEnvironment() {
@@ -76,15 +78,39 @@ export async function startDockerEnvironment() {
       codexBin: "/home/codex/.nvm/versions/node/v22.23.1/bin/codex",
     },
   ];
+  const mfaEnvironment: RemoteEnv = {
+    ...shared,
+    host: firstNonEmptyString([process.env.E2E_MFA_REMOTE_HOST]) ?? "ssh-target-mfa",
+    runtimeFixture: "current-codex",
+    initialNodeVersion: "22.23.1",
+    initialCodexVersion: SUPPORTED_CODEX_VERSION,
+    codexBin: "/home/codex/.nvm/versions/node/v22.23.1/bin/codex",
+    mfaCode: "123456",
+  };
 
-  await Promise.all(environments.map((env) => waitForSsh(env.host, env.port)));
-  for (const env of environments) {
-    await prepareRemoteCodexHome(env);
+  await Promise.all(
+    [...environments, mfaEnvironment].map(async (env) => {
+      try {
+        await waitForSsh(env.host, env.port);
+      } catch (error: unknown) {
+        throw new Error(`SSH readiness failed for ${env.host}:${env.port}`, { cause: error });
+      }
+    }),
+  );
+  for (const env of [...environments, mfaEnvironment]) {
+    try {
+      await prepareRemoteCodexHome(env);
+    } catch (error: unknown) {
+      throw new Error(`SSH fixture preparation failed for ${env.host}:${env.port}`, {
+        cause: error,
+      });
+    }
   }
   await writeRemoteImage(environments[0]!);
   await Promise.all([
     writeFile(envFile, JSON.stringify(environments[0], null, 2)),
     writeFile(upgradeEnvFile, JSON.stringify(environments, null, 2)),
+    writeFile(mfaEnvFile, JSON.stringify(mfaEnvironment, null, 2)),
   ]);
   return environments[0];
 }
@@ -93,19 +119,12 @@ export async function stopDockerEnvironment() {
   await rm(runtimeDir, { recursive: true, force: true });
 }
 
-async function waitForSsh(host: string, port: string) {
+async function waitForSsh(host: string, port: string): Promise<void> {
   const deadline = Date.now() + 60_000;
   let lastError = "";
   while (Date.now() < deadline) {
     try {
       await waitForPort(host, Number(port), 2_000);
-      const connection = await connectTestSsh({
-        host,
-        port,
-        username: "codex",
-        password: firstNonEmptyString([process.env.E2E_REMOTE_PASSWORD]) ?? "codex",
-      });
-      connection.end();
       return;
     } catch (error: unknown) {
       lastError = error instanceof Error ? error.message : String(error);
@@ -143,7 +162,7 @@ async function prepareRemoteCodexHome(env: RemoteEnv) {
   const codexHome = join(runtimeDir, "codex-home");
   await prepareCodexHome(sourceCodexHome, codexHome);
 
-  const connection = await connectTestSsh(env);
+  const connection = await connectTestSsh({ ...env, keyboardInteractiveCode: env.mfaCode });
   try {
     await execTestSsh(connection, "rm -rf /home/codex/.codex && mkdir -p /home/codex/.codex");
     await uploadDirectory(connection, codexHome, "/home/codex/.codex");
@@ -239,7 +258,7 @@ async function uploadFile(sftp: import("ssh2").SFTPWrapper, localPath: string, r
   });
 }
 
-export { envFile, upgradeEnvFile };
+export { envFile, mfaEnvFile, upgradeEnvFile };
 
 async function prepareCodexHome(sourceCodexHome: string, codexHome: string) {
   await rm(codexHome, { recursive: true, force: true });

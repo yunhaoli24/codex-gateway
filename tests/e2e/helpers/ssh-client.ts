@@ -5,6 +5,7 @@ export interface SshTestTarget {
   port: string | number;
   username: string;
   password: string;
+  keyboardInteractiveCode?: string;
 }
 
 export async function connectTestSsh(target: SshTestTarget) {
@@ -13,12 +14,19 @@ export async function connectTestSsh(target: SshTestTarget) {
     client
       .on("ready", () => resolve(client))
       .on("error", reject)
+      .on("keyboard-interactive", (_name, _instructions, _lang, prompts, finish) => {
+        const code = target.keyboardInteractiveCode;
+        // SSH servers may emit a zero-prompt info request after the PAM challenge. Match the
+        // protocol's prompt cardinality instead of manufacturing another answer.
+        finish(code === undefined ? [] : prompts.map(() => code));
+      })
       .connect({
         host: target.host,
         port: Number(target.port),
         username: target.username,
-        password: target.password,
+        ...(target.keyboardInteractiveCode === undefined ? { password: target.password } : {}),
         readyTimeout: 10_000,
+        tryKeyboard: target.keyboardInteractiveCode !== undefined,
       });
   });
 }

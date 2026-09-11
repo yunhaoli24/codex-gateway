@@ -16,7 +16,7 @@ defineProps<{
         {{ subtitle }}
       </span>
     </span>
-    <span v-if="$slots.trailing" class="inline-flex size-4 shrink-0 items-center justify-center">
+    <span v-if="$slots.trailing" class="inline-flex shrink-0 items-center justify-center gap-1">
       <slot name="trailing" />
     </span>
   </span>

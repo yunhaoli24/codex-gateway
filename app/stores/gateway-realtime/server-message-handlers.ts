@@ -9,6 +9,7 @@ import { createTerminalRealtimeHandlers } from "./handlers/terminal";
 import { createThreadRealtimeHandlers } from "./handlers/thread";
 import { createHostMetricsRealtimeHandlers } from "./handlers/host-metrics";
 import { createTmuxSessionsRealtimeHandlers } from "./handlers/tmux-sessions";
+import { createHostMfaRealtimeHandlers } from "./handlers/host-mfa";
 import type {
   RealtimeServerMessageHandlerContext,
   RealtimeServerMessageMap,
@@ -28,6 +29,7 @@ export function createRealtimeServerMessageDispatcher(ctx: RealtimeServerMessage
   const notifications = createNotificationRealtimeHandlers(ctx);
   const hostMetrics = createHostMetricsRealtimeHandlers(ctx);
   const tmuxSessions = createTmuxSessionsRealtimeHandlers(ctx);
+  const hostMfa = createHostMfaRealtimeHandlers();
 
   return (message: RealtimeServerMessage) =>
     match(message)
@@ -72,6 +74,7 @@ export function createRealtimeServerMessageDispatcher(ctx: RealtimeServerMessage
       .with({ type: "host.metrics.status" }, hostMetrics["host.metrics.status"])
       .with({ type: "tmux.sessions.snapshot" }, tmuxSessions["tmux.sessions.snapshot"])
       .with({ type: "tmux.sessions.updated" }, tmuxSessions["tmux.sessions.updated"])
+      .with({ type: "host.mfa.request" }, hostMfa["host.mfa.request"])
       .with({ type: "ready" }, () => handleReady(ctx))
       .with({ type: "config.pinnedThreads.changed" }, () =>
         gatewayDomainEvents.emit("pinned-threads-invalidated", {}),

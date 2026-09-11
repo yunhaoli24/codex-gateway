@@ -91,6 +91,7 @@ export const useAuthStore = defineStore("auth", () => {
     hydrate,
     login,
     logout,
+    clearSession,
     isCurrentSession,
   };
 });

@@ -9,6 +9,7 @@ import { subscribeTerminalEvents } from "./terminal";
 import { subscribeBrowserPreviewEvents } from "./browser-preview";
 import { sendRealtimePeerMessage, stateFor, type RealtimePeer } from "../peer-state";
 import { threadRuntimeStatusHub } from "../../runtime/thread-runtime-status-hub";
+import { subscribeHostMfa } from "./host-mfa";
 
 export function authenticatePeer(
   peer: RealtimePeer,
@@ -21,7 +22,11 @@ export function authenticatePeer(
   const token = request.token;
   const user = userStore.authenticateToken(token);
   if (user === null) {
-    throw new Error("Missing or invalid bearer token");
+    // Authentication failure is terminal for this socket. Closing with the WebSocket policy code
+    // gives every client one transport-level signal to clear its session instead of reconnecting
+    // forever and surfacing repeated "invalid token" notifications.
+    peer.close(1008, "Invalid or expired session");
+    return;
   }
   if (current.authTimer !== undefined) {
     clearTimeout(current.authTimer);
@@ -55,4 +60,5 @@ export function authenticatePeer(
   });
   subscribeTerminalEvents(peer);
   subscribeBrowserPreviewEvents(peer);
+  subscribeHostMfa(peer);
 }

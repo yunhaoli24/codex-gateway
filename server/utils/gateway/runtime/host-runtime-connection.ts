@@ -5,6 +5,7 @@ import type { HostRuntimeSlot } from "./host-runtime-slot";
 import { refreshRunningThreadsForHost } from "./running-thread-sync";
 import { runtimeLog } from "./runtime-log";
 import { activeMainThreadMonitor } from "./active-main-thread-monitor";
+import { hostMfaManager } from "../host-mfa/host-mfa-instance";
 
 export async function connectHostRuntime(slot: HostRuntimeSlot, isCurrent: () => boolean) {
   await runWithGatewayUser(slot.userId, async () => {
@@ -54,8 +55,10 @@ export function publishHostRuntimeFailure(slot: HostRuntimeSlot, error: unknown)
   runWithGatewayUser(slot.userId, () => {
     hostLifecycleBus.emit({
       hostId: slot.hostId,
-      status: "failed",
-      message: messageFromError(error),
+      status: hostMfaManager.isMfaHost(slot.userId, slot.hostId) ? "mfaRequired" : "failed",
+      message: hostMfaManager.isMfaHost(slot.userId, slot.hostId)
+        ? "需要手动输入 MFA 验证码后重新连接"
+        : messageFromError(error),
     });
   });
 }

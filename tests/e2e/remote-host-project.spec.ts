@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { AGENT_OUTPUT_TIMEOUT_MS } from "./helpers/timeouts";
 import { z } from "zod";
 import { expect, test } from "./fixtures/remote-workspace";
 import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
@@ -389,10 +390,10 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   const recentThread = page.getByTestId(`recent-thread-button-${threadId}`);
   await expect(recentThread).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("chat-scroll-area").getByText(marker)).toBeVisible({
-    timeout: 120_000,
+    timeout: AGENT_OUTPUT_TIMEOUT_MS,
   });
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
-    timeout: 120_000,
+    timeout: AGENT_OUTPUT_TIMEOUT_MS,
   });
   // This list is page-session activity, not merely a projection of the current
   // running keys. A completed thread remains discoverable until the page reloads.
@@ -427,10 +428,10 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
   await page.getByTestId("send-turn-button").click();
   await expect.poll(() => chatViewportBottomDistance(page)).toBeLessThanOrEqual(2);
   await expect(page.getByTestId("chat-scroll-area").getByText(afterReloadMarker)).toBeVisible({
-    timeout: 120_000,
+    timeout: AGENT_OUTPUT_TIMEOUT_MS,
   });
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
-    timeout: 120_000,
+    timeout: AGENT_OUTPUT_TIMEOUT_MS,
   });
 
   await page.getByTestId(`thread-button-${threadId}`).click({ button: "right" });

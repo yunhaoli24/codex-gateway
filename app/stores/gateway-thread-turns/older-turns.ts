@@ -1,4 +1,4 @@
-import { OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
+import { CLIENT_THREAD_TURN_CACHE_LIMIT, OLDER_TURN_PAGE_LIMIT } from "~~/shared/config";
 import { threadTurnsFromHistory } from "~~/shared/thread-history/shape";
 import { mergeThreadTurns } from "~~/shared/thread-history/turns";
 import { useGatewayBootstrapStore } from "@/stores/gateway-bootstrap";
@@ -29,6 +29,10 @@ export async function loadOlderTurns(t: Translate, options: { limit?: number } =
   const hostId = navigation.selectedHostId;
   const projectId = navigation.selectedProjectId;
   const threadId = navigation.selectedThreadId;
+  if (threadTurnsFromHistory(views.history).length >= CLIENT_THREAD_TURN_CACHE_LIMIT) {
+    gateway.setError(t("app.threadHistoryCacheLimitReached"), { hostId, projectId, threadId });
+    return;
+  }
   views.loadingOlderTurns = true;
   try {
     const result = await requestThreadTurnsPage({

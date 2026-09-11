@@ -18,13 +18,26 @@ import {
 import type { HostRecord } from "../sidebar-types";
 import { formatRelative, selectedRowClass } from "../sidebar-utils";
 import HostStatusIndicator from "./HostStatusIndicator.vue";
+import HostMfaButton from "./HostMfaButton.vue";
 import SidebarRowLabel from "../SidebarRowLabel.vue";
 import SidebarProjectRow from "./SidebarProjectRow.vue";
 import ThreadRow from "../thread-list/ThreadRow.vue";
 import { requireHostTreeController } from "./controller";
+import { useHostMfaDialog } from "@/composables/host-mfa/useHostMfaDialog";
+import { useGatewayHostMfaStore } from "@/stores/gateway-host-mfa";
 
 defineProps<{ host: HostRecord }>();
 const controller = requireHostTreeController();
+const mfaDialog = useHostMfaDialog();
+const mfaStore = useGatewayHostMfaStore();
+
+function handleMfaClick(hostId: number) {
+  if (mfaStore.hasPendingMfa(hostId)) {
+    mfaDialog.openMfaDialog(hostId);
+    return;
+  }
+  mfaStore.connectMfaHost(hostId);
+}
 </script>
 
 <template>
@@ -50,6 +63,11 @@ const controller = requireHostTreeController();
               <HostStatusIndicator
                 :status="controller.hostConnectionStatuses[host.id]?.status ?? 'idle'"
                 :label="controller.hostConnectionStatuses[host.id]?.message"
+              />
+              <HostMfaButton
+                v-if="controller.hostConnectionStatuses[host.id]?.status === 'mfaRequired'"
+                :host-id="host.id"
+                @click="handleMfaClick"
               />
             </template>
           </SidebarRowLabel>

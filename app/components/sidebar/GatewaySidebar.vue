@@ -17,6 +17,7 @@ import { useGatewayCatalogStore } from "@/stores/gateway-catalog";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import AddProjectDialog from "./AddProjectDialog.vue";
 import HostTree from "./host-tree/HostTree.vue";
+import HostMfaDialog from "./host-tree/HostMfaDialog.vue";
 import PinnedThreadList from "./thread-list/PinnedThreadList.vue";
 import RecentThreadList from "./thread-list/RecentThreadList.vue";
 import ThreadRenameDialog from "./thread-list/ThreadRenameDialog.vue";
@@ -27,6 +28,7 @@ import { useThreadRename } from "./thread-list/useThreadRename";
 import { useRecentThreadActivity } from "./thread-list/useRecentThreadActivity";
 import SidebarWorkspaceToolbar from "./SidebarWorkspaceToolbar.vue";
 import { useTmuxMonitorLauncher } from "@/composables/workspace/useTmuxMonitorLauncher";
+import { provideHostMfaDialog } from "@/composables/host-mfa/useHostMfaDialog";
 import type { HostTreeController } from "./host-tree/controller";
 import type { HostRecord, ProjectRecord } from "./sidebar-types";
 
@@ -43,6 +45,7 @@ const threadRename = useThreadRename();
 const recentActivity = useRecentThreadActivity();
 const workspaceActions = useWorkspaceLaunchActions();
 const tmuxLauncher = useTmuxMonitorLauncher();
+const { mfaDialogHostId, openMfaDialog, closeMfaDialog } = provideHostMfaDialog();
 const {
   hosts,
   pinnedThreads,
@@ -202,6 +205,12 @@ async function openHostMonitor(hostId: number) {
       v-model="threadRename.renameValue.value"
       :submitting="threadRename.submitting.value"
       @submit="threadRename.submitRename"
+    />
+
+    <HostMfaDialog
+      :host-id="mfaDialogHostId"
+      :open="mfaDialogHostId !== null"
+      @update:open="closeMfaDialog"
     />
   </aside>
 </template>

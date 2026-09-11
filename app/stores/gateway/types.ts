@@ -8,6 +8,8 @@ import type {
   ThreadRuntimeStatus,
   UploadedFileRecord,
   FileReference,
+  ProjectDirectoryAvailability,
+  ProjectRecord,
 } from "~~/shared/types";
 
 export type { ThreadRuntimeStatus };
@@ -18,7 +20,8 @@ export type HostConnectionStatus =
   | "restarting"
   | "connecting"
   | "connected"
-  | "failed";
+  | "failed"
+  | "mfaRequired";
 
 export interface ThreadListResponse {
   data?: GatewayThread[];

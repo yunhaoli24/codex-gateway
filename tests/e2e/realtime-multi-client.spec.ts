@@ -11,6 +11,7 @@ import {
   waitForRealtimeClientMessage,
 } from "./helpers/realtime-socket-probe";
 import { sendSteerText, sendTextTurn } from "./helpers/remote-codex";
+import { AGENT_OUTPUT_TIMEOUT_MS } from "./helpers/timeouts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -19,6 +20,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   page,
   remoteWorkspace,
 }) => {
+  test.setTimeout(12 * 60_000);
   const { remote } = remoteWorkspace;
   await installRealtimeSocketProbe(page);
 
@@ -39,10 +41,9 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     .getByPlaceholder("输入后续修改要求")
     .fill(
       [
-        `请执行一个较长命令，然后最终用一句话回复：${firstMarker}`,
+        `请执行一个较长命令，然后最终只回复这个标记：${firstMarker}`,
         "运行 python - <<'PY'",
         "import time",
-        `print('${firstMarker}')`,
         "time.sleep(12)",
         "print('first turn sleep finished')",
         "PY",
@@ -55,6 +56,12 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     page.getByTestId(`thread-button-${threadId}`).locator(".animate-spin"),
   ).toBeVisible();
   await expect.poll(async () => activeRemoteTurnId(page), { timeout: 30_000 }).not.toBe("");
+  // A started turn only proves that App Server accepted the prompt. Wait until the real command is
+  // running before steering so model queue time cannot consume the command-completion deadline or
+  // let the user's own marker text satisfy the later Agent-response assertion.
+  await expect
+    .poll(() => inProgressCommandCount(page), { timeout: AGENT_OUTPUT_TIMEOUT_MS })
+    .toBeGreaterThan(0);
   const steerMarker = `E2E steer ${Date.now()}`;
   const steerMessageOffset = await realtimeClientMessageCount(page);
   await sendSteerText(page, steerMarker);
@@ -67,9 +74,6 @@ test("fans out a real remote app-server thread to multiple browser clients acros
       .getByTestId("steered-conversation-item")
       .getByText(steerMarker),
   ).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("chat-scroll-area").getByText(firstMarker)).toBeVisible({
-    timeout: 120_000,
-  });
   const processToggle = firstIntermediateStepsToggle(page);
   if (
     (await processToggle.isVisible().catch(() => false)) &&
@@ -79,7 +83,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     await expect(processToggle).toHaveAttribute("data-state", "open");
   }
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
-    timeout: 120_000,
+    timeout: AGENT_OUTPUT_TIMEOUT_MS,
   });
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("已完成")).toBeVisible();
   await expect(page.getByText("加载回合内容失败")).toHaveCount(0);
@@ -107,7 +111,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   expect(reconnectSubscription.threadId).toBe(threadId);
   expect(reconnectSubscription.afterEpoch).toEqual(expect.any(String));
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
-    timeout: 120_000,
+    timeout: AGENT_OUTPUT_TIMEOUT_MS,
   });
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("已完成")).toBeVisible();
   await revealVirtualizedChatLocator(page, firstIntermediateStepsToggle(page));
@@ -181,7 +185,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
       .poll(() => threadRuntimeStatus(secondPage, host.id, threadId), { timeout: 30_000 })
       .toBe("running");
     await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
-      timeout: 120_000,
+      timeout: AGENT_OUTPUT_TIMEOUT_MS,
     });
     await expect
       .poll(() => threadRuntimeStatus(secondPage, host.id, threadId), { timeout: 30_000 })
@@ -191,7 +195,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     await expect(secondPage.getByPlaceholder("输入后续修改要求")).toBeEnabled();
     await expect
       .poll(async () => secondPage.getByTestId("chat-scroll-area").getByText(firstMarker).count(), {
-        timeout: 120_000,
+        timeout: AGENT_OUTPUT_TIMEOUT_MS,
       })
       .toBeGreaterThan(0);
     await secondPage.getByTestId("chat-scroll-area").evaluate((root) => {
@@ -238,23 +242,25 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     const secondReply = secondPage
       .getByTestId("chat-scroll-area")
       .getByText(secondMarker, { exact: true });
-    await expect(secondReply).toBeVisible({ timeout: 120_000 });
+    await expect(secondReply).toBeVisible({ timeout: AGENT_OUTPUT_TIMEOUT_MS });
     // The response text can arrive before app-server emits turn/completed. Waiting on the page
     // that started the turn prevents the other client from satisfying "已完成" with the previous
     // turn's state before its queued turn/started event has been projected.
     await expect(secondPage.getByTestId("send-turn-button")).toHaveAttribute(
       "aria-label",
       "已完成",
-      { timeout: 120_000 },
+      { timeout: AGENT_OUTPUT_TIMEOUT_MS },
     );
     await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
-      timeout: 120_000,
+      timeout: AGENT_OUTPUT_TIMEOUT_MS,
     });
     // Assistant text and a transient completed button can precede app-server's terminal turn event.
     // Starting the interrupt case before the authoritative active turn clears legitimately sends
     // turn.steer and tests a different operation. Wait on runtime identity rather than adding a
     // sleep or weakening the protocol assertion below.
-    await expect.poll(async () => activeRemoteTurnId(page), { timeout: 120_000 }).toBe("");
+    await expect
+      .poll(async () => activeRemoteTurnId(page), { timeout: AGENT_OUTPUT_TIMEOUT_MS })
+      .toBe("");
     const imageAttachment = secondPage.getByTestId("thread-image-attachment").last();
     await revealVirtualizedChatLocator(secondPage, imageAttachment);
     await expect(imageAttachment.locator("img")).toHaveAttribute("src", /^blob:/);
@@ -407,5 +413,17 @@ async function threadRuntimeStatus(page: Page, hostId: number, threadId: string)
     ({ hostId, threadId }) =>
       window.__codexGatewayE2e?.runtime.threadStatuses[`${hostId}:${threadId}`] ?? "idle",
     { hostId, threadId },
+  );
+}
+
+async function inProgressCommandCount(page: Page) {
+  return page.evaluate(
+    () =>
+      window.__codexGatewayE2e?.views.events.filter(
+        (event) =>
+          event.event.type === "timeline.item.upsert" &&
+          event.event.item.type === "commandExecution" &&
+          event.event.item.status === "inProgress",
+      ).length ?? 0,
   );
 }

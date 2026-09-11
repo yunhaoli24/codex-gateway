@@ -438,6 +438,7 @@ export const realtimeServerMessageSchema: z.ZodType<RealtimeServerMessage> = z.d
               "connecting",
               "connected",
               "failed",
+              "mfaRequired",
             ]),
             message: z.string(),
             createdAt: z.string().optional(),
@@ -774,6 +775,22 @@ export const realtimeServerMessageSchema: z.ZodType<RealtimeServerMessage> = z.d
             occurredAt: nonEmptyString,
           })
           .strict(),
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("host.mfa.request"),
+        hostId: positiveId,
+        name: z.string(),
+        instructions: z.string(),
+        prompts: z.array(
+          z
+            .object({
+              prompt: z.string(),
+              echo: z.boolean().optional(),
+            })
+            .strict(),
+        ),
       })
       .strict(),
     z
