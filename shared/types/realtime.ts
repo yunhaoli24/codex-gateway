@@ -26,6 +26,7 @@ import type { RemoteGitFileComparison, RemoteGitWorkspaceSnapshot } from "./file
 import type { ProjectFileSearchResult } from "./files";
 import type { GatewayMcpServerStatus } from "./mcp";
 import type { AgentProviderId } from "../agent/providers";
+import type { AgentProjectDefaults } from "./agent-defaults";
 
 export type RealtimeClientMessage =
   | {
@@ -46,6 +47,13 @@ export type RealtimeClientMessage =
   | {
       type: "host.metrics.unsubscribe";
       hostId: number;
+    }
+  | {
+      type: "project.defaults.read";
+      requestId: string;
+      hostId: number;
+      projectId: number;
+      provider?: AgentProviderId;
     }
   | {
       type: "tmux.sessions.subscribe";
@@ -322,6 +330,13 @@ export type RealtimeServerMessage =
         message: string;
         createdAt?: string;
       };
+    }
+  | {
+      type: "project.defaults.snapshot";
+      requestId: string;
+      hostId: number;
+      projectId: number;
+      defaults: AgentProjectDefaults;
     }
   | {
       type: "host.metrics.snapshot";

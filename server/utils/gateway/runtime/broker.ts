@@ -15,6 +15,7 @@ import { ThreadCatalogService } from "./thread-catalog";
 import { ThreadHistoryReader } from "./thread-history-reader";
 import { McpRuntimeService } from "./mcp-runtime";
 import { AppServerFileService } from "./app-server-files";
+import { providerAdapterFor } from "../agent/provider-registry";
 
 class ThreadBroker {
   private readonly registry = new ControllerRegistry();
@@ -122,6 +123,11 @@ class ThreadBroker {
 
   async listModels(host: HostRecord, params: Record<string, unknown>) {
     return this.catalog.listModels(host, params);
+  }
+
+  async readProjectDefaults(host: HostRecord, cwd: string, providerId: AgentProviderId = "codex") {
+    const client = await this.registry.getHostClient(host, providerId);
+    return providerAdapterFor(providerId).readProjectDefaults(client, cwd);
   }
 
   async renameThread(host: HostRecord, threadId: string, name: string) {

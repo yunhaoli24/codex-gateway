@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 import { storeToRefs } from "pinia";
 import {
@@ -11,18 +11,43 @@ import { firstNonEmptyString, trimmedOrFallback, trimmedOrNull } from "~~/shared
 import { useGatewayCatalogStore } from "@/stores/gateway-catalog";
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import { useGatewayProjectDefaultsStore } from "@/stores/gateway-project-defaults";
 
 export function useThreadSettingsControls() {
   const gateway = useGatewayCatalogStore();
   const composer = useGatewayComposerStore();
   const navigation = useGatewayNavigationStore();
+  const projectDefaultsStore = useGatewayProjectDefaultsStore();
   const { models, defaultModel } = storeToRefs(gateway);
   const { selectedThreadSettings } = storeToRefs(composer);
-  const { selectedThreadId } = storeToRefs(navigation);
+  const { selectedHostId, selectedProjectId, selectedThreadId } = storeToRefs(navigation);
   const newThreadModel = ref("");
   const newThreadEffort = ref<ReasoningEffort>("default");
   const newThreadApprovalMode = ref<ApprovalPolicy | "custom">("custom");
   const selectedProvider = ref<AgentProviderId>("codex");
+
+  const projectDefaults = computed(() => {
+    if (selectedHostId.value === null || selectedProjectId.value === null) return null;
+    return projectDefaultsStore.defaultsFor(
+      selectedHostId.value,
+      selectedProjectId.value,
+      selectedProvider.value,
+    );
+  });
+  const newThreadProjectDefaults = computed(() =>
+    selectedThreadId.value === null ? projectDefaults.value : null,
+  );
+
+  watch(
+    [selectedHostId, selectedProjectId, selectedProvider],
+    ([hostId, projectId, provider]) => {
+      if (hostId === null || projectId === null) return;
+      void projectDefaultsStore.ensure(hostId, projectId, provider).catch((error: unknown) => {
+        console.warn("[gateway] failed to resolve remote project defaults", error);
+      });
+    },
+    { immediate: true },
+  );
 
   // Existing-thread controls are computed proxies over the per-thread Pinia state. Do not mirror
   // them into local refs with bidirectional watchers: thread selection, snapshot hydration, and the
@@ -30,13 +55,12 @@ export function useThreadSettingsControls() {
   // back as the thread's setting. Local refs are retained only for the pre-thread composer, where
   // no app-server thread identity exists yet.
   const selectedModel = computed({
+    // An empty new-thread model is the remote-default state: thread.start omits model and effort.
+    // The concrete label comes from config/read, but displaying that value must never turn it into
+    // a Gateway override because Codex may resolve a changed config by the time creation runs.
     get: () =>
       selectedThreadId.value === null
-        ? (firstNonEmptyString([
-            newThreadModel.value,
-            defaultModel.value?.model,
-            defaultModel.value?.id,
-          ]) ?? "")
+        ? newThreadModel.value
         : (trimmedOrNull(selectedThreadSettings.value.model) ?? ""),
     set: (model: string) => {
       if (selectedThreadId.value === null) {
@@ -75,16 +99,7 @@ export function useThreadSettingsControls() {
     },
   });
 
-  const activeModel = computed(() => {
-    if (selectedThreadId.value !== null) return selectedModel.value;
-    return (
-      firstNonEmptyString([
-        selectedModel.value,
-        defaultModel.value?.model,
-        defaultModel.value?.id,
-      ]) ?? ""
-    );
-  });
+  const activeModel = computed(() => selectedModel.value);
   // Plan is an explicit app-server setting update, so it needs a concrete model even during the
   // short interval before an existing thread's settings notification arrives. Keep this effective
   // value separate from activeModel: using the catalog default here must not make the model picker
@@ -94,24 +109,59 @@ export function useThreadSettingsControls() {
       firstNonEmptyString([
         selectedThreadSettings.value.collaborationMode?.settings.model,
         selectedModel.value,
+        newThreadProjectDefaults.value?.model,
         defaultModel.value?.model,
         defaultModel.value?.id,
       ]) ?? "",
   );
-  const activeModelRecord = computed(() =>
-    models.value.find(
+  const activeModelRecord = computed(() => {
+    const match = models.value.find(
       (candidate) => candidate.model === activeModel.value || candidate.id === activeModel.value,
+    );
+    // config/read supplies the actual model selected by the remote config layers. models/list is
+    // used only to enrich that concrete id with display metadata and supported effort choices.
+    if (match !== undefined) return match;
+    if (activeModel.value !== "") return null;
+    const remoteModel = newThreadProjectDefaults.value?.model;
+    return (
+      models.value.find(
+        (candidate) => candidate.model === remoteModel || candidate.id === remoteModel,
+      ) ?? null
+    );
+  });
+  const activeModelLabel = computed(() => {
+    // The remote-default state has no local override label. The picker renders the concrete
+    // config/read value separately, so it remains visually distinct from an explicit selection.
+    if (activeModel.value === "") return "";
+    const model = activeModelRecord.value;
+    return firstNonEmptyString([model?.displayName, model?.model, activeModel.value]) ?? "";
+  });
+  const hostDefaultModelLabel = computed(() => {
+    const model = activeModelRecord.value;
+    return (
+      firstNonEmptyString([
+        model?.displayName,
+        model?.model,
+        newThreadProjectDefaults.value?.model,
+      ]) ?? ""
+    );
+  });
+  // activeEffortValue is the picker's selection state: empty means "follow the host default" and
+  // no override is sent. The effective effort (model-level default) is display-only and resolved
+  // separately for the compact trigger label.
+  const activeEffortValue = computed(() =>
+    selectedEffort.value === "default" ? "" : selectedEffort.value,
+  );
+  const hostDefaultEffortLabel = computed(() =>
+    compactEffortLabel(
+      newThreadProjectDefaults.value?.effort ??
+        activeModelRecord.value?.defaultReasoningEffort ??
+        "",
     ),
   );
-  const activeModelLabel = computed(() => {
-    const model = activeModelRecord.value;
-    return firstNonEmptyString([model?.displayName, model?.model, activeModel.value]) ?? "模型";
-  });
-  const activeEffortValue = computed(() => {
-    if (selectedEffort.value !== "default") return selectedEffort.value;
-    return selectedThreadId.value === null
-      ? (activeModelRecord.value?.defaultReasoningEffort ?? "")
-      : "";
+  const activeEffortCompactLabel = computed(() => {
+    if (selectedEffort.value === "default") return hostDefaultEffortLabel.value;
+    return compactEffortLabel(selectedEffort.value);
   });
   const effortOptions = computed(() => {
     const supportedEfforts = activeModelRecord.value?.supportedReasoningEfforts ?? [];
@@ -127,7 +177,6 @@ export function useThreadSettingsControls() {
     }
     return options;
   });
-  const activeEffortCompactLabel = computed(() => compactEffortLabel(activeEffortValue.value));
 
   function compactEffortLabel(value: string) {
     if (value === "") return "";
@@ -183,6 +232,8 @@ export function useThreadSettingsControls() {
     activeModel,
     collaborationModel,
     activeModelLabel,
+    hostDefaultModelLabel,
+    hostDefaultEffortLabel,
     activeEffortValue,
     activeEffortCompactLabel,
     effortOptions,

@@ -47,6 +47,8 @@ const props = defineProps<{
   loadingModels: boolean;
   activeModel: string;
   activeModelLabel: string;
+  hostDefaultModelLabel: string;
+  hostDefaultEffortLabel: string;
   activeEffortValue: string;
   activeEffortCompactLabel: string;
   effortOptions: Array<{ value: ReasoningEffort; label?: string }>;
@@ -166,6 +168,8 @@ function updateFileReferences(value: ComposerFileReference[], sourceScopeKey: st
           :loading-models="loadingModels"
           :active-model="activeModel"
           :active-model-label="activeModelLabel"
+          :host-default-model-label="hostDefaultModelLabel"
+          :host-default-effort-label="hostDefaultEffortLabel"
           :active-effort-value="activeEffortValue"
           :active-effort-compact-label="activeEffortCompactLabel"
           :effort-options="effortOptions"

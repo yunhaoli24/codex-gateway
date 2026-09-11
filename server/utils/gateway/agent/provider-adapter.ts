@@ -1,5 +1,5 @@
 import type { AgentEvent } from "~~/shared/agent/events";
-import type { HostRecord, RpcEnvelope } from "~~/shared/types";
+import type { AgentProjectDefaults, HostRecord, RpcEnvelope } from "~~/shared/types";
 import type { RpcTransportCloseDetail } from "../infra/rpc/rpc-errors";
 import type { AgentProviderId } from "~~/shared/agent/providers";
 
@@ -76,6 +76,8 @@ export interface ProviderMappedNotification {
 export interface ProviderAdapter {
   readonly id: AgentProviderId;
   createClient(host: HostRecord): AgentRpcClient;
+  /** Resolve the provider's effective new-thread settings for a project configuration scope. */
+  readProjectDefaults(client: AgentRpcClient, cwd: string): Promise<AgentProjectDefaults>;
   /** Handle provider-specific server requests before neutral thread routing. */
   handleServerRequest(client: AgentRpcClient, message: RpcEnvelope): boolean;
   /** Run provider-specific connection lifecycle hooks without exposing them to runtime code. */

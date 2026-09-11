@@ -9,6 +9,7 @@ import { writeGatewayRouteSelection } from "../route-state";
 import { cacheSelectedThreadView, beginViewTransition } from "../thread-open/view-state";
 import { messageFromError } from "../thread-utils/identity";
 import { captureSessionEpoch } from "@/utils/session-epoch";
+import { useGatewayProjectDefaultsStore } from "@/stores/gateway-project-defaults";
 
 export function createProjectActions() {
   let pendingModelRequest: {
@@ -130,6 +131,7 @@ export function createProjectActions() {
         catalog.projectDirectoryAvailability,
         projectId,
       );
+      useGatewayProjectDefaultsStore().clearProject(project.hostId, projectId);
       if (navigation.selectedProjectId !== projectId) {
         await navigation.refreshHostProjects(project.hostId);
         return project;
@@ -157,6 +159,9 @@ export function createProjectActions() {
       config.gatewayConfig.projects = config.gatewayConfig.projects.filter(
         (item) => item.id !== projectId,
       );
+      if (project !== undefined) {
+        useGatewayProjectDefaultsStore().clearProject(project.hostId, projectId);
+      }
       if (navigation.selectedProjectId !== projectId) return;
       const nextProject =
         catalog.projects.find((item) => item.hostId === project?.hostId) ??
