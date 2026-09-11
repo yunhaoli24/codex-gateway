@@ -123,7 +123,7 @@ function updateFileReferences(value: ComposerFileReference[], sourceScopeKey: st
         @clear-goal="emit('clearGoal')"
       />
       <div
-        class="relative rounded-[1.35rem] border border-hairline bg-surface p-2 shadow-lg shadow-ink/10 md:rounded-3xl md:p-[clamp(0.45rem,1vw,0.7rem)]"
+        class="relative rounded-[1.35rem] border border-hairline bg-surface p-2 shadow-lg shadow-ink/10 [container-type:inline-size] md:rounded-3xl md:p-[clamp(0.45rem,1vw,0.7rem)]"
       >
         <SlashCommandMenu
           :open="slashMenuOpen"

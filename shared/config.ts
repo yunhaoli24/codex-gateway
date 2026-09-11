@@ -7,7 +7,11 @@ export const INITIAL_TURN_PAGE_LIMIT = 2;
 export const OLDER_TURN_PAGE_LIMIT = 5;
 export const SERVER_TURN_CACHE_LIMIT = 50;
 export const SERVER_THREAD_CACHE_LIMIT = 100;
-export const CLIENT_THREAD_CACHE_LIMIT = 24;
+// Match the bounded workspace deck used by mature multi-agent clients: inactive conversations are
+// data caches, not permanent mounted sessions. Ten recent threads keeps route switching fast while
+// preventing many long transcripts from accumulating for the lifetime of a browser tab.
+export const CLIENT_THREAD_CACHE_LIMIT = 10;
+export const CLIENT_THREAD_TURN_CACHE_LIMIT = 20;
 export const DEFAULT_BARK_SERVER_URL = "https://api.day.app";
 export const DEFAULT_BARK_GROUP = "Codex Gateway";
 

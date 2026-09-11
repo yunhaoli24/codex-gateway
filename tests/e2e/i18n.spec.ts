@@ -32,14 +32,21 @@ test("defaults to Chinese and can switch to English", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Appearance" })).toBeVisible();
 });
 
-test("can revoke the current session from appearance settings", async ({ page }) => {
+test("returns to login when the current session is revoked", async ({ page }) => {
   await openApp(page);
   const token = await page.evaluate(() => localStorage.getItem("codex-gateway-auth-token"));
   expect(token).toBeTruthy();
 
-  await page.getByTestId("settings-toggle").click();
-  await page.getByRole("tab", { name: "外观" }).click();
-  await page.getByRole("button", { name: "退出登录" }).click();
+  // Revoke through HTTP without touching browser storage. The authenticated realtime connection
+  // must deliver the policy close that clears the stale local session in the same way as expiry.
+  const revokeStatus = await page.evaluate(async (authorization) => {
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: { authorization: `Bearer ${authorization}` },
+    });
+    return response.status;
+  }, token!);
+  expect(revokeStatus).toBe(200);
 
   await expect(page.getByRole("heading", { name: "登录 Codex Gateway" })).toBeVisible();
   const revokedStatus = await page.evaluate(async (authorization) => {

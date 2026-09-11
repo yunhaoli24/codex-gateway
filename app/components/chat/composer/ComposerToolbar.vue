@@ -67,7 +67,7 @@ const emit = defineEmits<{
         <Loader2Icon v-if="uploadingAttachments" class="size-5 animate-spin" />
         <PlusIcon v-else class="size-5" />
       </Button>
-      <div class="hidden sm:block">
+      <div class="composer-approval-control">
         <ApprovalPolicyPicker
           :model-value="selectedApprovalMode"
           @update:model-value="emit('updateSelectedApprovalMode', $event)"
@@ -115,3 +115,17 @@ const emit = defineEmits<{
     </div>
   </div>
 </template>
+
+<style scoped>
+.composer-approval-control {
+  display: none;
+}
+
+/* Dockview can make the composer narrow while the browser viewport remains desktop-sized. Query
+   the control surface itself so approval yields to model, effort, context, and send controls. */
+@container (min-width: 44rem) {
+  .composer-approval-control {
+    display: block;
+  }
+}
+</style>

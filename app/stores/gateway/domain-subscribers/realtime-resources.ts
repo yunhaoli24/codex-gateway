@@ -5,6 +5,7 @@ import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import { useGatewayTerminalStore } from "@/stores/gateway-terminal";
 import { useGatewayHostMetricsDataStore } from "@/stores/gateway-host-metrics/data";
 import { useGatewayTmuxStore } from "@/stores/gateway-tmux";
+import { useGatewayHostMfaStore } from "@/stores/gateway-host-mfa";
 import { gatewayDomainEvents } from "../domain-events";
 import { notificationAction, projectPublishedNotification } from "../notifications/actions";
 
@@ -78,4 +79,7 @@ export function registerRealtimeResourceSubscribers() {
       action: { label: actionLabel, onClick: action.run },
     });
   });
+
+  // Register MFA realtime handler
+  useGatewayHostMfaStore().register();
 }

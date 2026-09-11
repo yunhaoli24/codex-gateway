@@ -24,6 +24,7 @@ export interface RealtimePeerState {
   hostMetricsUnsubscribers: Map<number, () => void>;
   tmuxSessionUnsubscribers: Map<number, () => void>;
   fileWatchUnsubscribers: Map<string, OwnedSubscription>;
+  hostMfaUnsubscribe?: () => void;
 }
 
 const peerStates = new WeakMap<RealtimePeer, RealtimePeerState>();

@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { projectThreadTimelineHistory } from "~~/shared/thread-history/timeline";
+import { retainRecentThreadTurns } from "~~/shared/thread-history/retention";
 import type {
   GatewayEvent,
   GatewayThread,
@@ -55,7 +56,7 @@ export const useGatewayThreadViewStore = defineStore("gateway-thread-view", () =
     // generic history object for live deltas or optimistic input, so normalize only at that data
     // mutation boundary. Thread activation restores both refs directly from threadViews and must
     // not call this function merely because the selected route changed.
-    const projected = projectThreadTimelineHistory(nextHistory);
+    const projected = projectThreadTimelineHistory(retainRecentThreadTurns(nextHistory)!);
     history.value = projected;
     timelineTurns.value = projected.thread.turns;
   }

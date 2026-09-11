@@ -28,6 +28,7 @@ const hostConnectionClassByStatus: Record<string, string> = {
   upgrading: "text-primary",
   restarting: "text-primary",
   connecting: "text-primary",
+  mfaRequired: "text-accent-orange",
   connected: "text-accent-green",
   failed: "text-destructive",
 };
@@ -37,6 +38,7 @@ const hostConnectionLabelKeyByStatus: Record<string, string> = {
   upgrading: "app.hostUpgrading",
   restarting: "app.hostRestarting",
   connecting: "app.hostConnecting",
+  mfaRequired: "app.hostMfaRequired",
   connected: "app.connected",
   failed: "app.hostConnectionFailed",
   idle: "app.hostDisconnected",

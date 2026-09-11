@@ -15,6 +15,7 @@ import { uploadFile, uploadFileResumable } from "./ssh-transfer";
 import { currentGatewayUserId } from "../../state/memory";
 import { EventEmitter } from "@posva/event-emitter";
 import { SshBackgroundTaskScheduler } from "./ssh-background-tasks";
+import { hostMfaManager } from "../../host-mfa/host-mfa-instance";
 
 const SSH_READY_TIMEOUT_MS = 30_000;
 const SSH_KEEPALIVE_INTERVAL_MS = 30_000;
@@ -57,7 +58,7 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
 
   connect(host: HostWithSecret): Promise<Client> {
     const resolved = resolveSshConfig(host);
-    const key = sshConnectionKey(host, resolved);
+    const key = this.connectionKeyFor(host);
     this.scopedHostKeys().set(host.id, key);
 
     const existing = this.clients.get(key);
@@ -77,7 +78,7 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
   }
 
   async execChannelIfConnected(host: HostWithSecret, command: string) {
-    const key = sshConnectionKey(host, resolveSshConfig(host));
+    const key = this.connectionKeyFor(host);
     const connection = this.clients.get(key);
     if (connection === undefined) return null;
     const client = await connection;
@@ -95,7 +96,11 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
   }
 
   connectionKeyFor(host: HostWithSecret) {
-    return sshConnectionKey(host, resolveSshConfig(host));
+    const key = sshConnectionKey(host, resolveSshConfig(host));
+    // A keyboard-interactive challenge is part of the user's SSH authentication, so the
+    // transport must never be shared across Gateway users. Scoping every transport consistently
+    // also keeps the key stable when the first challenge changes a host's runtime MFA state.
+    return `${key}:gateway-user:${currentGatewayUserId() ?? "anonymous"}`;
   }
 
   async exec(
@@ -314,8 +319,7 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
   }
 
   sftp(host: HostWithSecret): Promise<SFTPWrapper> {
-    const resolved = resolveSshConfig(host);
-    const key = sshConnectionKey(host, resolved);
+    const key = this.connectionKeyFor(host);
     this.scopedHostKeys().set(host.id, key);
     return this.sftpChannels.get(host, key, () => this.connect(host));
   }
@@ -338,7 +342,7 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
     const activeKeys = new Set<string>();
     scopedHostKeys.clear();
     for (const host of hosts) {
-      const key = sshConnectionKey(host, resolveSshConfig(host));
+      const key = this.connectionKeyFor(host);
       activeKeys.add(key);
       scopedHostKeys.set(host.id, key);
     }
@@ -351,8 +355,7 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
   }
 
   disconnectHost(host: HostWithSecret) {
-    const key =
-      this.scopedHostKeys().get(host.id) ?? sshConnectionKey(host, resolveSshConfig(host));
+    const key = this.scopedHostKeys().get(host.id) ?? this.connectionKeyFor(host);
     this.disconnectKey(key);
   }
 
@@ -426,6 +429,10 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
         client.end();
         reject(error);
       };
+
+      // Capture the user scope at connection time for use in async MFA callbacks
+      const mfaUserId = currentGatewayUserId();
+
       client
         .on("ready", () => {
           if (this.clientTokens.get(key) !== token) {
@@ -440,6 +447,36 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
         .on("close", () => {
           this.deleteClientIfCurrent(key, token);
           fail(new Error(SSH_CONNECTION_CLOSED_BEFORE_READY));
+        })
+        .on("keyboard-interactive", (name, instructions, _lang, prompts, finish) => {
+          // PAM may follow the actual verification-code challenge with an informational
+          // keyboard-interactive round that contains no prompts. It requires an empty response,
+          // not another user interaction; publishing it as MFA would leave the Host falsely
+          // marked as waiting after authentication has already succeeded.
+          if (prompts.length === 0) {
+            finish([]);
+            return;
+          }
+          if (mfaUserId === null) {
+            // No authenticated user scope — fall back to empty answers, which will likely
+            // cause authentication to fail so the client can retry with a different method.
+            finish([]);
+            return;
+          }
+
+          hostMfaManager
+            .requestMfa(mfaUserId, host.id, host.name, instructions, prompts)
+            .then((answers) => {
+              if (this.clientTokens.get(key) !== token) {
+                finish([]);
+                return;
+              }
+              finish(answers);
+            })
+            .catch(() => {
+              // MFA timed out or was canceled — give empty answers so auth fails
+              finish([]);
+            });
         })
         .connect({
           host: sock ? undefined : resolved.hostName,
@@ -459,6 +496,7 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
           readyTimeout: SSH_READY_TIMEOUT_MS,
           keepaliveInterval: SSH_KEEPALIVE_INTERVAL_MS,
           keepaliveCountMax: SSH_KEEPALIVE_COUNT_MAX,
+          tryKeyboard: true,
         });
     });
   }

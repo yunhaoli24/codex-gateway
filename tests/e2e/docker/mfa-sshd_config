@@ -1,0 +1,7 @@
+UsePAM yes
+PasswordAuthentication no
+KbdInteractiveAuthentication yes
+AuthenticationMethods keyboard-interactive:pam
+PermitRootLogin no
+AllowUsers codex
+Subsystem sftp internal-sftp

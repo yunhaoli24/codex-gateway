@@ -292,6 +292,19 @@ export type RealtimeClientMessage =
       rootPath: string;
     }
   | {
+      type: "host.mfa.connect";
+      hostId: number;
+    }
+  | {
+      type: "host.mfa.submit";
+      hostId: number;
+      code: string;
+    }
+  | {
+      type: "host.mfa.cancel";
+      hostId: number;
+    }
+  | {
       type: "ping";
       nonce?: string;
     };
@@ -326,7 +339,8 @@ export type RealtimeServerMessage =
           | "restarting"
           | "connecting"
           | "connected"
-          | "failed";
+          | "failed"
+          | "mfaRequired";
         message: string;
         createdAt?: string;
       };
@@ -578,6 +592,13 @@ export type RealtimeServerMessage =
       request?: RealtimeClientMessage;
       code?: string;
       details?: Record<string, unknown>;
+    }
+  | {
+      type: "host.mfa.request";
+      hostId: number;
+      name: string;
+      instructions: string;
+      prompts: Array<{ prompt: string; echo?: boolean }>;
     }
   | {
       type: "pong";

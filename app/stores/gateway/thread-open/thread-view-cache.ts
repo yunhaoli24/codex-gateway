@@ -1,6 +1,7 @@
 import type { GatewayEvent, ThreadHistoryState } from "~~/shared/types";
 import { CLIENT_THREAD_CACHE_LIMIT } from "~~/shared/config";
 import { projectThreadTimelineHistory } from "~~/shared/thread-history/timeline";
+import { retainRecentThreadTurns } from "~~/shared/thread-history/retention";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { pinnedKey } from "../thread-utils/identity";
@@ -28,7 +29,12 @@ export function upsertThreadView(view: ThreadViewState) {
   const views = useGatewayThreadViewStore();
   const key = threadViewKey(view.hostId, view.threadId);
   const { [key]: _existing, ...remaining } = views.threadViews;
-  views.threadViews = pruneThreadViews({ ...remaining, [key]: view });
+  const retainedHistory = retainRecentThreadTurns(view.history);
+  const retainedView =
+    retainedHistory === view.history ? view : { ...view, ...projectionFields(retainedHistory) };
+  // Removing and reinserting the key makes plain object insertion order our LRU order. This keeps
+  // the policy colocated with the only cache write boundary instead of maintaining a second list.
+  views.threadViews = pruneThreadViews({ ...remaining, [key]: retainedView });
 }
 
 function pruneThreadViews(threadViews: Record<string, ThreadViewState>) {
@@ -174,6 +180,6 @@ function emptyThreadView(hostId: number, threadId: string): ThreadViewState {
 
 function projectionFields(history: ThreadHistoryState | null) {
   if (history === null) return { history: null, timelineTurns: [] };
-  const projected = projectThreadTimelineHistory(history);
+  const projected = projectThreadTimelineHistory(retainRecentThreadTurns(history)!);
   return { history: projected, timelineTurns: projected.thread.turns };
 }

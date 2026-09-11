@@ -6,7 +6,8 @@ export type HostLifecycleStatus =
   | "restarting"
   | "connecting"
   | "connected"
-  | "failed";
+  | "failed"
+  | "mfaRequired";
 
 export interface HostLifecycleEvent {
   hostId: number;

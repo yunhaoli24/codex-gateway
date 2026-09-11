@@ -22,6 +22,7 @@ import {
 import { hostSessionEvents, type HostSessionClosedEvent } from "./host-session-events";
 import { activeMainThreadMonitor } from "./active-main-thread-monitor";
 import { threadBroker } from "./broker";
+import { hostMfaManager } from "../host-mfa/host-mfa-instance";
 
 class HostRuntimeSupervisor {
   private readonly slots = new Map<string, HostRuntimeSlot>();
@@ -131,10 +132,15 @@ class HostRuntimeSupervisor {
 
     const slot = createHostRuntimeSlot(userId, host);
     this.slots.set(key, slot);
-    this.scheduleConnect(slot, 0);
+    if (!hostMfaManager.isMfaHost(userId, host.id)) {
+      this.scheduleConnect(slot, 0);
+    }
   }
 
   private scheduleExistingSlotIfNeeded(slot: HostRuntimeSlot) {
+    if (hostMfaManager.isMfaHost(slot.userId, slot.hostId)) {
+      return;
+    }
     if (slot.connecting || slot.timer) {
       return;
     }
@@ -147,6 +153,7 @@ class HostRuntimeSupervisor {
     this.clearTimer(slot);
     slot.generation += 1;
     this.slots.delete(key);
+    hostMfaManager.removeHost(slot.userId, slot.hostId);
     activeMainThreadMonitor.forgetHost(slot.userId, slot.hostId);
     const connection = slot.connectPromise;
     if (connection !== null) {
@@ -167,7 +174,31 @@ class HostRuntimeSupervisor {
     if (!slot || slot.connecting || slot.timer) {
       return;
     }
+    if (hostMfaManager.isMfaHost(event.userId, event.hostId)) {
+      // Reconnecting a keyboard-interactive Host without a user present would immediately block
+      // the shared runtime on another verification prompt. Keep it disconnected and expose the
+      // explicit sidebar action that starts a fresh connection attempt when the user is ready.
+      runWithGatewayUser(event.userId, () => {
+        hostLifecycleBus.emit({
+          hostId: event.hostId,
+          status: "mfaRequired",
+          message: "SSH 连接已断开，请手动输入 MFA 验证码后重新连接",
+        });
+      });
+      return;
+    }
     this.scheduleConnect(slot, retryDelay(slot.retryCount));
+  }
+
+  connectOnDemand(userId: number, hostId: number) {
+    const slot = this.slots.get(this.slotKey(userId, hostId));
+    if (!slot) throw new Error(`Host ${hostId} is not configured`);
+    if (!hostMfaManager.isMfaHost(userId, hostId)) {
+      throw new Error(`Host ${hostId} is not waiting for MFA authentication`);
+    }
+    if (slot.connecting) return;
+    slot.retryCount = 0;
+    this.scheduleConnect(slot, 0);
   }
 
   private scheduleConnect(slot: HostRuntimeSlot, delayMs: number) {
@@ -196,7 +227,9 @@ class HostRuntimeSupervisor {
       }
       slot.retryCount += 1;
       publishHostRuntimeFailure(slot, error);
-      this.scheduleConnect(slot, retryDelay(slot.retryCount));
+      if (!hostMfaManager.isMfaHost(slot.userId, slot.hostId)) {
+        this.scheduleConnect(slot, retryDelay(slot.retryCount));
+      }
     } finally {
       if (slot.connectPromise === connection) {
         slot.connectPromise = null;

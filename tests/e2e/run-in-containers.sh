@@ -18,19 +18,27 @@ fi
 export E2E_UID="${E2E_UID:-12345}"
 export E2E_GID="${E2E_GID:-12345}"
 export E2E_CODEX_HOME="${E2E_CODEX_HOME:-$HOME/.codex}"
+# Keep the MFA fixture on the same Codex version as the application protocol gate. The dedicated
+# legacy fixtures own upgrade coverage; mixing a 130 MB upgrade into the MFA browser flow makes
+# authentication timing depend on installation work that the test is not exercising.
+export E2E_SUPPORTED_CODEX_VERSION="$(
+  node --experimental-strip-types --input-type=module -e \
+    "import('./server/utils/gateway/infra/codex/codex-version.ts').then(({ SUPPORTED_CODEX_VERSION }) => process.stdout.write(SUPPORTED_CODEX_VERSION))"
+)"
 
 cleanup() {
   status=$?
   if [ "$status" -ne 0 ]; then
     docker compose -p "$project_name" -f "$compose_file" logs --no-color \
-      gateway-under-test ssh-target >&2 || true
+      gateway-under-test ssh-target ssh-target-legacy-node ssh-target-legacy-codex \
+      ssh-target-mfa >&2 || true
   fi
   docker compose -p "$project_name" -f "$compose_file" down --remove-orphans >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 docker compose -p "$project_name" -f "$compose_file" build \
-  build-runner ssh-target ssh-target-legacy-node ssh-target-legacy-codex
+  build-runner ssh-target ssh-target-legacy-node ssh-target-legacy-codex ssh-target-mfa
 # Build, application server, and browser runner use separate 2 GiB cgroups. Sharing only the
 # gateway network namespace preserves the production-like nip.io subdomain routing used by browser
 # preview tests without coupling process memory.

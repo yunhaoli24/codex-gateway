@@ -55,6 +55,9 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
       .object({ type: z.literal("host.metrics.subscribe"), ...requestIdField, hostId: positiveId })
       .strict(),
     z.object({ type: z.literal("host.metrics.unsubscribe"), hostId: positiveId }).strict(),
+    z.object({ type: z.literal("host.mfa.connect"), hostId: positiveId }).strict(),
+    z.object({ type: z.literal("host.mfa.submit"), hostId: positiveId, code: z.string() }).strict(),
+    z.object({ type: z.literal("host.mfa.cancel"), hostId: positiveId }).strict(),
     z
       .object({
         type: z.literal("project.defaults.read"),

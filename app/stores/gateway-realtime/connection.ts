@@ -86,12 +86,18 @@ export function createRealtimeConnection(options: RealtimeConnectionOptions) {
       }
     });
 
-    socket.addEventListener("close", () => {
+    socket.addEventListener("close", (event) => {
       if (state.generation !== generation) return;
       clearHealthTimer();
       state.connected = false;
       state.socket = null;
       options.onDisconnected(new Error(options.disconnectedMessage()));
+      if (event.code === 1008) {
+        // The server uses policy-close for invalid, expired, and explicitly revoked sessions.
+        // Clear durable auth here so WebSocket-only pages return to Login without a toast loop.
+        auth.clearSession();
+        return;
+      }
       scheduleReconnect();
     });
 
