@@ -25,6 +25,8 @@ defineProps<{
   loadingModels: boolean;
   activeModel: string;
   activeModelLabel: string;
+  hostDefaultModelLabel: string;
+  hostDefaultEffortLabel: string;
   activeEffortValue: string;
   activeEffortCompactLabel: string;
   effortOptions: Array<{ value: ReasoningEffort; label?: string }>;
@@ -43,6 +45,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const selectorOpen = ref(false);
+
+function triggerModelLabel(activeModelLabel: string, hostDefaultModelLabel: string) {
+  // The trigger shows the concrete remote value when known. It deliberately does not assign that
+  // value to activeModel: an empty activeModel is what keeps thread.start free of an override.
+  return activeModelLabel || hostDefaultModelLabel || t("app.modelCodexDefault");
+}
 
 function providerLabel(option: AgentProviderOption) {
   return t(option.labelKey);
@@ -76,14 +84,18 @@ function preventInitialFocus(event: Event) {
       >
         <span class="flex min-w-0 items-center gap-1.5 sm:hidden">
           <span class="truncate text-ink">{{
-            loadingModels ? t("app.loadingModels") : activeModelLabel
+            loadingModels
+              ? t("app.loadingModels")
+              : triggerModelLabel(activeModelLabel, hostDefaultModelLabel)
           }}</span>
           <span v-if="activeEffortCompactLabel" class="shrink-0 text-ink-muted">
             {{ activeEffortCompactLabel }}
           </span>
         </span>
         <span class="hidden truncate text-ink sm:inline">{{
-          loadingModels ? t("app.loadingModels") : activeModelLabel
+          loadingModels
+            ? t("app.loadingModels")
+            : triggerModelLabel(activeModelLabel, hostDefaultModelLabel)
         }}</span>
         <span v-if="activeEffortCompactLabel" class="hidden shrink-0 text-ink-muted sm:inline">
           {{ activeEffortCompactLabel }}
@@ -117,6 +129,18 @@ function preventInitialFocus(event: Event) {
         <ModelSelectorSeparator class="my-1" />
         <ModelSelectorGroup :heading="t('app.reasoningEffort')">
           <ModelSelectorItem
+            value="effort:default"
+            data-testid="effort-option-default"
+            class="min-h-11 rounded-lg px-3 text-sm text-ink"
+            @select="selectEffort('default')"
+          >
+            <span>{{ t("app.effortHostDefault") }}</span>
+            <span v-if="hostDefaultEffortLabel" class="ml-1.5 text-xs text-ink-muted">
+              {{ hostDefaultEffortLabel }}
+            </span>
+            <CheckIcon v-if="activeEffortValue === ''" class="ml-auto size-4 text-primary" />
+          </ModelSelectorItem>
+          <ModelSelectorItem
             v-for="option in effortOptions"
             :key="option.value"
             :value="`effort:${option.value}`"
@@ -132,6 +156,21 @@ function preventInitialFocus(event: Event) {
         </ModelSelectorGroup>
         <ModelSelectorSeparator class="my-1" />
         <ModelSelectorGroup :heading="t('app.model')">
+          <ModelSelectorItem
+            value="model:host-default"
+            data-testid="model-option-host-default"
+            class="min-h-11 rounded-lg px-3 text-sm text-ink"
+            @select="selectModel('')"
+          >
+            <span class="truncate">{{ t("app.modelHostDefault") }}</span>
+            <span
+              v-if="hostDefaultModelLabel"
+              class="ml-1.5 shrink-0 truncate text-xs text-ink-muted"
+            >
+              {{ hostDefaultModelLabel }}
+            </span>
+            <CheckIcon v-if="activeModel === ''" class="ml-auto size-4 text-primary" />
+          </ModelSelectorItem>
           <ModelSelectorItem
             v-for="modelOption in models"
             :key="modelOption.id"

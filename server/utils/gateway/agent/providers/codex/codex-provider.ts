@@ -19,12 +19,14 @@ import { codexRuntime } from "../../../infra/host-services";
 import { runtimeLog } from "../../../runtime/runtime-log";
 import { buildCurrentTimeReadResponse, isCurrentTimeReadRequest } from "./codex-server-requests";
 import { mapCodexNotification } from "./codex-event-mapper";
+import { readCodexProjectDefaults } from "./codex-project-defaults";
 
 export const codexProviderAdapter: ProviderAdapter = {
   id: "codex",
   createClient(host: HostRecord): AgentRpcClient {
     return new CodexRpcClient(host);
   },
+  readProjectDefaults: readCodexProjectDefaults,
   handleServerRequest(client: AgentRpcClient, message: RpcEnvelope) {
     if (!isCurrentTimeReadRequest(message)) return false;
     if (message.id !== undefined) client.respond(message.id, buildCurrentTimeReadResponse());

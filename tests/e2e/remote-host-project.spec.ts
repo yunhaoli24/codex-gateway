@@ -21,6 +21,62 @@ import {
   waitForSelectedThreadId,
 } from "./helpers/remote-codex";
 
+test("new threads display and inherit the remote Codex defaults", async ({
+  page,
+  remoteWorkspace,
+}) => {
+  await installRealtimeSocketProbe(page);
+  await openApp(page);
+  const { remote } = remoteWorkspace;
+  const config = await execRemoteSsh(
+    remote,
+    `awk -F ' *= *' '/^model = / { gsub(/"/, "", $2); print "model=" $2 } /^model_reasoning_effort = / { gsub(/"/, "", $2); print "effort=" $2 }' "\${CODEX_HOME:-$HOME/.codex}/config.toml"`,
+  );
+  const parsedConfig: Record<string, string> = {};
+  for (const line of config.stdout.trim().split("\n")) {
+    const separator = line.indexOf("=");
+    if (separator < 1) continue;
+    parsedConfig[line.slice(0, separator)] = line.slice(separator + 1);
+  }
+  const configured = z
+    .object({ model: z.string().min(1), effort: z.string().min(1) })
+    .parse(parsedConfig);
+
+  const { project } = await remoteWorkspace.provision({
+    hostName: `remote-defaults-${Date.now()}`,
+  });
+  await page.getByTestId(`project-button-${project.id}`).click();
+
+  const picker = page.getByTestId("model-select");
+  await expect(picker).not.toContainText(/主机默认|Codex 默认/);
+  await expect(picker).toContainText(effortDisplayLabel(configured.effort));
+  await picker.click();
+  const configuredModelOption = page.getByTestId(`model-option-${configured.model}`);
+  await expect(configuredModelOption).toBeVisible();
+  const configuredModelLabel = (await configuredModelOption.innerText()).trim();
+  await expect(page.getByTestId("model-option-host-default")).toContainText(configuredModelLabel);
+  await expect(page.getByTestId("effort-option-default")).toContainText(
+    effortDisplayLabel(configured.effort),
+  );
+  await page.getByTestId("model-selector-close").click();
+
+  const offset = await realtimeClientMessageCount(page);
+  await page.getByPlaceholder("输入后续修改要求").fill("/");
+  await page.getByTestId("slash-command-new").click();
+  const threadStart = z
+    .object({
+      hostId: z.number(),
+      projectId: z.number(),
+      model: z.string().nullable().optional(),
+      effort: z.string().nullable().optional(),
+    })
+    .loose()
+    .parse(await waitForRealtimeClientMessage(page, "thread.start", offset));
+  expect(threadStart).toMatchObject({ projectId: project.id });
+  expect(threadStart.model).toBeUndefined();
+  expect(threadStart.effort).toBeUndefined();
+});
+
 test("references real project files as structured turn context", async ({
   page,
   remoteWorkspace,
@@ -649,4 +705,15 @@ function timestampForRolloutFile(date: Date) {
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function effortDisplayLabel(value: string) {
+  const labels: Record<string, string> = {
+    low: "Light",
+    light: "Light",
+    medium: "Medium",
+    high: "High",
+    xhigh: "Extra High",
+  };
+  return labels[value] ?? value;
 }

@@ -33,6 +33,13 @@ export function expectProjectFileSearchResults(message: RealtimeResponseMessage)
   return message;
 }
 
+export function expectProjectDefaultsSnapshot(message: RealtimeResponseMessage) {
+  if (message.type !== "project.defaults.snapshot") {
+    unexpectedResponse("project.defaults.snapshot", message.type);
+  }
+  return message;
+}
+
 export function expectFileWatchReady(message: RealtimeResponseMessage) {
   if (message.type !== "file.watch.ready") {
     unexpectedResponse("file.watch.ready", message.type);

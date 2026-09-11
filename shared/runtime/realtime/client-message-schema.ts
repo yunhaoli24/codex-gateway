@@ -56,6 +56,15 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
       .strict(),
     z.object({ type: z.literal("host.metrics.unsubscribe"), hostId: positiveId }).strict(),
     z
+      .object({
+        type: z.literal("project.defaults.read"),
+        ...requestIdField,
+        hostId: positiveId,
+        projectId: positiveId,
+        provider: agentProviderIdSchema.optional(),
+      })
+      .strict(),
+    z
       .object({ type: z.literal("tmux.sessions.subscribe"), ...requestIdField, hostId: positiveId })
       .strict(),
     z

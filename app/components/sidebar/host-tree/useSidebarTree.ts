@@ -12,7 +12,6 @@ import {
   threadKey,
 } from "../sidebar-utils";
 import type { PinnedThreadRecord, ProjectRecord } from "../sidebar-types";
-import { firstNonEmptyString } from "~~/shared/utils/strings";
 
 export function useSidebarTree(longPressTriggered: Ref<boolean>) {
   const store = useGatewayCatalogStore();
@@ -133,11 +132,10 @@ export function useSidebarTree(longPressTriggered: Ref<boolean>) {
   }
 
   function startThreadInProject(project: ProjectRecord) {
+    // The sidebar quick-start never carries a user model selection, so it must not pin the
+    // catalog default: starting without an override lets the host's own configuration decide.
     void threadView.startThread(
-      {
-        model:
-          firstNonEmptyString([store.defaultModel?.model, store.defaultModel?.id]) ?? undefined,
-      },
+      {},
       {
         hostId: project.hostId,
         projectId: project.id,

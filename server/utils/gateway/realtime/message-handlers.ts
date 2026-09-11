@@ -42,6 +42,7 @@ import {
   subscribeProjectFiles,
   unsubscribeProjectFiles,
 } from "./handlers/files";
+import { readProjectDefaults } from "./handlers/project-defaults";
 
 export const realtimeMessageDispatcher = new RealtimeMessageDispatcher({
   "auth.authenticate": { auth: "public", handler: authenticatePeer },
@@ -49,6 +50,7 @@ export const realtimeMessageDispatcher = new RealtimeMessageDispatcher({
   "host.lifecycle.unsubscribe": unsubscribeHostLifecycle,
   "host.metrics.subscribe": subscribeHostMetrics,
   "host.metrics.unsubscribe": unsubscribeHostMetrics,
+  "project.defaults.read": readProjectDefaults,
   "tmux.sessions.subscribe": subscribeTmuxSessions,
   "tmux.sessions.refresh": refreshTmuxSessions,
   "tmux.sessions.unsubscribe": unsubscribeTmuxSessions,
