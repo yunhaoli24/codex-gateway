@@ -25,19 +25,36 @@ import ThreadRow from "../thread-list/ThreadRow.vue";
 import { requireHostTreeController } from "./controller";
 import { useHostMfaDialog } from "@/composables/host-mfa/useHostMfaDialog";
 import { useGatewayHostMfaStore } from "@/stores/gateway-host-mfa";
+import { ref, watch } from "vue";
 
-defineProps<{ host: HostRecord }>();
+const props = defineProps<{ host: HostRecord }>();
 const controller = requireHostTreeController();
 const mfaDialog = useHostMfaDialog();
 const mfaStore = useGatewayHostMfaStore();
 
 function handleMfaClick(hostId: number) {
   if (mfaStore.hasPendingMfa(hostId)) {
+    // This prompt came from a live SSH keyboard-interactive exchange, so no new connection is
+    // needed and the code can be entered immediately after the explicit button click.
     mfaDialog.openMfaDialog(hostId);
     return;
   }
+  waitingForMfaPrompt.value = true;
   mfaStore.connectMfaHost(hostId);
 }
+
+const waitingForMfaPrompt = ref(false);
+
+// A pending request is only actionable after this click starts a fresh SSH attempt. Background
+// detection must keep the button closed until the user explicitly asks to reconnect.
+watch(
+  () => mfaStore.hasPendingMfa(props.host.id),
+  (pending) => {
+    if (!pending || !waitingForMfaPrompt.value) return;
+    waitingForMfaPrompt.value = false;
+    mfaDialog.openMfaDialog(props.host.id);
+  },
+);
 </script>
 
 <template>
@@ -65,8 +82,13 @@ function handleMfaClick(hostId: number) {
                 :label="controller.hostConnectionStatuses[host.id]?.message"
               />
               <HostMfaButton
-                v-if="controller.hostConnectionStatuses[host.id]?.status === 'mfaRequired'"
+                v-if="
+                  ['mfaRequired', 'mfaConnecting'].includes(
+                    controller.hostConnectionStatuses[host.id]?.status ?? '',
+                  )
+                "
                 :host-id="host.id"
+                :connecting="controller.hostConnectionStatuses[host.id]?.status === 'mfaConnecting'"
                 @click="handleMfaClick"
               />
             </template>

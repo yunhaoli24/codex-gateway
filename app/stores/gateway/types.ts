@@ -19,6 +19,7 @@ export type HostConnectionStatus =
   | "upgrading"
   | "restarting"
   | "connecting"
+  | "mfaConnecting"
   | "connected"
   | "failed"
   | "mfaRequired";

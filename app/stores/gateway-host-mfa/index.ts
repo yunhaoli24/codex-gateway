@@ -36,11 +36,12 @@ export const useGatewayHostMfaStore = defineStore("gateway-host-mfa", () => {
     const realtime = useGatewayRealtimeStore();
     realtime.send({ type: "host.mfa.submit", hostId, code });
     clearPendingMfa(hostId);
-    useGatewayCatalogStore().setHostConnectionStatus(hostId, "connecting");
+    useGatewayCatalogStore().setHostConnectionStatus(hostId, "mfaConnecting");
   }
 
   function connectMfaHost(hostId: number) {
     const realtime = useGatewayRealtimeStore();
+    useGatewayCatalogStore().setHostConnectionStatus(hostId, "mfaConnecting");
     realtime.send({ type: "host.mfa.connect", hostId });
   }
 

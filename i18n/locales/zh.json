@@ -314,6 +314,7 @@
     "hostConnecting": "正在连接",
     "hostConnectionFailed": "连接失败",
     "hostMfaRequired": "需要 MFA 验证",
+    "hostMfaConnecting": "正在连接 MFA 主机",
     "hostMfaTitle": "需要 MFA 验证",
     "hostMfaDescription": "请输入 {host} 的验证码",
     "hostMfaCodeLabel": "验证码",
