@@ -29,8 +29,11 @@ export async function loadOlderTurns(t: Translate, options: { limit?: number } =
   const hostId = navigation.selectedHostId;
   const projectId = navigation.selectedProjectId;
   const threadId = navigation.selectedThreadId;
+  // This is a recent-turn FIFO cache, not a second history store. Once it is full, older-page
+  // loading would immediately evict the page just fetched while realtime events continue to
+  // append normally. Stop pagination silently instead of surfacing a recoverable cache condition
+  // as an error and keep the opaque cursor for a later fresh activation.
   if (threadTurnsFromHistory(views.history).length >= CLIENT_THREAD_TURN_CACHE_LIMIT) {
-    gateway.setError(t("app.threadHistoryCacheLimitReached"), { hostId, projectId, threadId });
     return;
   }
   views.loadingOlderTurns = true;

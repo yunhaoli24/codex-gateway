@@ -363,7 +363,6 @@
     "interruptTurnFailed": "Failed to stop generation",
     "noActiveTurnToInterrupt": "No active turn to stop",
     "loadOlderTurnsFailed": "Failed to load older messages",
-    "threadHistoryCacheLimitReached": "This conversation has reached the in-memory history limit. Reload the page to browse a different history window.",
     "loadTurnItemsFailed": "Failed to load Turn content",
     "misalignmentRecoveryTitle": "Codex needs confirmation to continue",
     "misalignmentRecoveryConfirm": "Send correction",
