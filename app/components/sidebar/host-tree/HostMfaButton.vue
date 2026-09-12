@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ShieldAlertIcon } from "@lucide/vue";
+import { LoaderCircleIcon, ShieldAlertIcon } from "@lucide/vue";
 import { Button } from "@codex-gateway/ui/button";
+import { computed } from "vue";
 
-const { hostId } = defineProps<{
+const props = defineProps<{
   hostId: number;
+  connecting?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -11,20 +13,22 @@ const emit = defineEmits<{
 }>();
 
 function handleClick() {
-  emit("click", hostId);
+  emit("click", props.hostId);
 }
+
+const icon = computed(() => (props.connecting ? LoaderCircleIcon : ShieldAlertIcon));
 </script>
 
 <template>
   <Button
-    :data-testid="`host-mfa-button-${hostId}`"
+    :data-testid="`host-mfa-button-${props.hostId}`"
     variant="ghost"
     size="icon"
     class="size-5 shrink-0 rounded-full p-0 text-accent-orange hover:bg-accent-orange/10"
-    :title="$t('app.hostMfaRequired')"
-    :aria-label="$t('app.hostMfaRequired')"
+    :title="$t(props.connecting ? 'app.hostMfaConnecting' : 'app.hostMfaRequired')"
+    :aria-label="$t(props.connecting ? 'app.hostMfaConnecting' : 'app.hostMfaRequired')"
     @click.stop="handleClick"
   >
-    <ShieldAlertIcon class="size-3.5" />
+    <component :is="icon" class="size-3.5" :class="{ 'animate-spin': props.connecting }" />
   </Button>
 </template>

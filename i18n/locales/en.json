@@ -314,6 +314,7 @@
     "hostConnecting": "Connecting",
     "hostConnectionFailed": "Connection failed",
     "hostMfaRequired": "MFA required",
+    "hostMfaConnecting": "Connecting to MFA host",
     "hostMfaTitle": "MFA Verification Required",
     "hostMfaDescription": "Enter the verification code for {host}",
     "hostMfaCodeLabel": "Verification code",

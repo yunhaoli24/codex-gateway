@@ -80,10 +80,14 @@ export function registerGatewayLifecycleSubscribers() {
     ) {
       return;
     }
+    const status =
+      event.status === "connecting" && current?.status === "mfaConnecting"
+        ? "mfaConnecting"
+        : event.status;
     catalog.hostConnectionStatuses = {
       ...catalog.hostConnectionStatuses,
       [event.hostId]: {
-        status: event.status,
+        status,
         message: event.message,
         updatedAt: Number.isFinite(eventTime) ? eventTime : Date.now(),
       },
