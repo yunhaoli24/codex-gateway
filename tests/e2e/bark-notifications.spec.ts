@@ -11,7 +11,7 @@ test("Bark sends ordinary turn notifications and only notifies when an app-serve
 }) => {
   const bark = await useBarkReceiver();
   await openApp(page);
-  await configureBarkNotifications(page, bark.url);
+  await configureBarkNotifications(page, bark.url, bark.deviceKey);
 
   const { host, project } = await remoteWorkspace.provision({
     hostName: `bark-notification-host-${Date.now()}`,
@@ -66,7 +66,7 @@ test("Bark keeps monitoring an active main turn after the last browser closes", 
 }) => {
   const bark = await useBarkReceiver();
   await openApp(page);
-  await configureBarkNotifications(page, bark.url);
+  await configureBarkNotifications(page, bark.url, bark.deviceKey);
 
   const { project } = await remoteWorkspace.provision({
     hostName: `bark-handoff-host-${Date.now()}`,
@@ -103,7 +103,7 @@ test("plan-mode user questions render and notify through Sonner and Bark", async
 }) => {
   const bark = await useBarkReceiver();
   await openApp(page);
-  await configureBarkNotifications(page, bark.url);
+  await configureBarkNotifications(page, bark.url, bark.deviceKey);
 
   const hostName = `bark-plan-question-host-${Date.now()}`;
   const { project } = await remoteWorkspace.provision({ hostName });

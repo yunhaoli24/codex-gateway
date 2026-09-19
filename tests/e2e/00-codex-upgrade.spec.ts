@@ -233,7 +233,10 @@ rm -f "$daemon_dir"/app-server.pid "$daemon_dir"/app-server.pid.lock "$daemon_di
   await expect(page.getByTestId("chat-scroll-area").getByText(marker)).toBeVisible({
     timeout: 120_000,
   });
-  await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("已完成")).toBeVisible({
+  // The response marker proves the browser reached the daemon-backed app-server. The composer
+  // is the user-facing completion state for the selected turn; the sidebar row can lag while
+  // its activity projection catches up and is not part of this daemon transport assertion.
+  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
     timeout: 120_000,
   });
 });
