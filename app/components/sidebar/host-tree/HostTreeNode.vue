@@ -55,6 +55,15 @@ watch(
     mfaDialog.openMfaDialog(props.host.id);
   },
 );
+
+watch(
+  () => controller.value.hostConnectionStatuses[props.host.id]?.status,
+  (status) => {
+    if (status === "connected" || status === "failed") {
+      waitingForMfaPrompt.value = false;
+    }
+  },
+);
 </script>
 
 <template>
@@ -80,6 +89,7 @@ watch(
               <HostStatusIndicator
                 :status="controller.hostConnectionStatuses[host.id]?.status ?? 'idle'"
                 :label="controller.hostConnectionStatuses[host.id]?.message"
+                @retry="handleMfaClick(host.id)"
               />
               <HostMfaButton
                 v-if="

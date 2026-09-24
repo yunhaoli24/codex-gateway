@@ -193,10 +193,10 @@ class HostRuntimeSupervisor {
   connectOnDemand(userId: number, hostId: number) {
     const slot = this.slots.get(this.slotKey(userId, hostId));
     if (!slot) throw new Error(`Host ${hostId} is not configured`);
-    if (!hostMfaManager.isMfaHost(userId, hostId)) {
-      throw new Error(`Host ${hostId} is not waiting for MFA authentication`);
-    }
     if (slot.connecting) return;
+    // A transport can fail before SSH reaches keyboard-interactive, so the server cannot know
+    // that this is an MFA host yet. This explicit retry covers both cases; requestMfa() publishes
+    // the prompt if the remote server asks for MFA during this attempt.
     slot.retryCount = 0;
     this.scheduleConnect(slot, 0);
   }
