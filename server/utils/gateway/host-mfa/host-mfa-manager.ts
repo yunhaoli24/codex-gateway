@@ -11,7 +11,7 @@ interface MfaPendingRequest {
   timer: ReturnType<typeof setTimeout>;
 }
 
-const MFA_TIMEOUT_MS = 120_000;
+export const HOST_MFA_TIMEOUT_MS = 120_000;
 
 export class HostMfaManager {
   readonly events = new HostMfaEventBus();
@@ -72,7 +72,7 @@ export class HostMfaManager {
         this.pending.delete(key);
         this.awaitedHosts.delete(key);
         reject(new Error("MFA request timed out"));
-      }, MFA_TIMEOUT_MS);
+      }, HOST_MFA_TIMEOUT_MS);
 
       this.pending.set(key, {
         userId,

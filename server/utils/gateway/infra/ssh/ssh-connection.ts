@@ -16,6 +16,7 @@ import { currentGatewayUserId } from "../../state/memory";
 import { EventEmitter } from "@posva/event-emitter";
 import { SshBackgroundTaskScheduler } from "./ssh-background-tasks";
 import { hostMfaManager } from "../../host-mfa/host-mfa-instance";
+import { HOST_MFA_TIMEOUT_MS } from "../../host-mfa/host-mfa-manager";
 
 const SSH_READY_TIMEOUT_MS = 30_000;
 const SSH_KEEPALIVE_INTERVAL_MS = 30_000;
@@ -424,6 +425,11 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
           return;
         }
         settled = true;
+        if (mfaUserId !== null) {
+          // The SSH client can time out while waiting for the user's MFA answer. Remove the
+          // pending request with the transport so a later code cannot target a dead socket.
+          hostMfaManager.cancelMfa(mfaUserId, host.id);
+        }
         this.deleteClientIfCurrent(key, token);
         sock?.destroy();
         client.end();
@@ -493,7 +499,10 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
                   resolved.privateKeyPath !== ""
                 ? readFileSync(expandHome(resolved.privateKeyPath))
                 : undefined,
-          readyTimeout: SSH_READY_TIMEOUT_MS,
+          // ssh2 keeps this timer running while keyboard-interactive waits for the MFA answer.
+          // Include the user-input window or a valid challenge is misreported as a handshake
+          // failure before the sidebar can finish authentication.
+          readyTimeout: SSH_READY_TIMEOUT_MS + HOST_MFA_TIMEOUT_MS,
           keepaliveInterval: SSH_KEEPALIVE_INTERVAL_MS,
           keepaliveCountMax: SSH_KEEPALIVE_COUNT_MAX,
           tryKeyboard: true,
