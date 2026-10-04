@@ -245,8 +245,14 @@ export class ThreadController {
       parseThreadResumeResult,
     );
     this.subscribed = true;
-    this.resumeSettings = extractThreadSettings(resumed);
     const snapshot = this.getOpenSnapshot();
+    // Resume exposes model/effort/mode but not summary. Preserve settings learned from the official
+    // thread/settings/updated notification, then overlay only fields actually carried by resume.
+    // Do not guess a model default here: Gateway's summary opt-in belongs to the start request.
+    this.resumeSettings = {
+      ...snapshot?.threadSettings,
+      ...extractThreadSettings(resumed),
+    };
     if (snapshot !== null) {
       this.setOpenSnapshot({ ...snapshot, threadSettings: this.resumeSettings });
     }

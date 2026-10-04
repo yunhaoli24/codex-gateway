@@ -58,6 +58,7 @@ export function requestStartThread(options: ComposerTurnOptions) {
       provider: options.provider,
       model: options.model === "" ? undefined : options.model,
       effort: options.effort === "" ? undefined : options.effort,
+      summary: options.summary,
       approvalPolicy: options.approvalPolicy ?? undefined,
     }),
     expectThreadStarted,

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { RealtimeClientMessage } from "../../types";
 import { agentProviderIdSchema } from "../../agent/providers";
+import { reasoningSummarySchema } from "../../reasoning-summary";
 import {
   nonEmptyString,
   nonNegativeId,
@@ -146,6 +147,7 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
         provider: agentProviderIdSchema.optional(),
         model: nullableString,
         effort: nullableString,
+        summary: reasoningSummarySchema.nullable().optional(),
         approvalPolicy,
       })
       .strict(),
@@ -160,6 +162,7 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
         cwd: nullableString,
         model: nullableString,
         effort: nullableString,
+        summary: reasoningSummarySchema.nullable().optional(),
         approvalPolicy,
         collaborationMode,
         images: z.array(imageInput).optional(),
@@ -218,6 +221,7 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
         turnId: nonEmptyString,
         model: nullableString,
         effort: nullableString,
+        summary: reasoningSummarySchema.nullable().optional(),
       })
       .strict(),
     z

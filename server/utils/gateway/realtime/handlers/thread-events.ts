@@ -1,6 +1,7 @@
 import type { GatewayEvent, HostRecord, RealtimeClientMessage } from "~~/shared/types";
 import { requireRecord } from "../../http/validation/common";
 import { threadOpenSchema, threadStartSchema } from "../../http/validation/threads";
+import { buildThreadStartParams } from "../../protocol/thread-payload";
 import { threadBroker } from "../../runtime/broker";
 import type { ThreadSubscriptionLease } from "../../runtime/controller-registry";
 import { threadRuntimeEvents } from "../../runtime/thread-runtime-events";
@@ -116,12 +117,7 @@ export async function startThread(
   const host = requireRecord(hostStore.getWithSecret(input.hostId), "Host not found");
   const result = await threadBroker.startThread(
     host,
-    {
-      cwd: input.cwd === "" ? undefined : input.cwd,
-      model: input.model === "" ? undefined : input.model,
-      effort: input.effort === "" ? undefined : input.effort,
-      approvalPolicy: input.approvalPolicy ?? undefined,
-    },
+    buildThreadStartParams(input),
     input.projectId ?? null,
     input.provider,
   );

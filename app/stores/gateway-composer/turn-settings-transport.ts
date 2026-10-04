@@ -6,7 +6,7 @@ export function requestRunningTurnSettingsUpdate(input: {
   hostId: number;
   threadId: string;
   turnId: string;
-  settings: Pick<ThreadSettingsState, "model" | "effort">;
+  settings: Pick<ThreadSettingsState, "model" | "effort" | "summary">;
 }) {
   return useGatewayRealtimeStore().request(
     (requestId) => ({
@@ -17,6 +17,7 @@ export function requestRunningTurnSettingsUpdate(input: {
       turnId: input.turnId,
       model: input.settings.model,
       effort: input.settings.effort,
+      summary: input.settings.summary,
     }),
     expectTurnSettingsUpdated,
   );

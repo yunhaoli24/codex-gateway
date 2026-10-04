@@ -92,7 +92,10 @@ export function createThreadSettingsActions() {
         });
         const runtime = useGatewayThreadRuntimeStore();
         const turnId = runtime.activeTurnIdsByThreadKey[pinnedKey(hostId, threadId)];
-        if (turnId !== undefined && ("model" in settings || "effort" in settings)) {
+        if (
+          turnId !== undefined &&
+          ("model" in settings || "effort" in settings || "summary" in settings)
+        ) {
           await requestRunningTurnSettingsUpdate({
             hostId,
             threadId,

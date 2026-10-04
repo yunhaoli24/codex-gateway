@@ -3,6 +3,7 @@ import type {
   ApprovalPolicy,
   HostRecord,
   ReasoningEffort,
+  ReasoningSummary,
   ThreadCollaborationMode,
   ThreadSettingsState,
   ThreadTokenUsageState,
@@ -29,6 +30,7 @@ export interface TurnStartInput {
   clientUserMessageId?: string | null;
   model?: string | null;
   effort?: ReasoningEffort | null;
+  summary?: ReasoningSummary | null;
   approvalPolicy?: ApprovalPolicy | null;
   collaborationMode?: ThreadCollaborationMode | null;
   images?: Array<{

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { RealtimeServerMessage } from "../../types";
+import { reasoningSummarySchema } from "../../reasoning-summary";
 import { threadTimelineItemTypes } from "../../thread-history/types";
 import {
   gatewayThreadSchema,
@@ -101,6 +102,7 @@ const threadSettingsSchema = z
   .object({
     model: nullableString,
     effort: nullableString,
+    summary: reasoningSummarySchema.nullable().optional(),
     approvalPolicy: z.enum(["untrusted", "on-request", "never"]).nullable().optional(),
     collaborationMode: z
       .object({

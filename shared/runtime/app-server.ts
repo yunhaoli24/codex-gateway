@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { reasoningSummarySchema } from "../reasoning-summary";
 import type {
   ApprovalPolicy,
   ThreadCollaborationMode,
@@ -71,6 +72,7 @@ const appServerThreadSettingsSchema = z
   .object({
     model: z.string().min(1),
     effort: z.string().nullable().optional(),
+    summary: reasoningSummarySchema.nullable(),
     approvalPolicy: z.unknown(),
     collaborationMode: appServerCollaborationModeSchema,
   })
@@ -97,6 +99,7 @@ export function threadSettingsFromAppServer(value: unknown): ThreadSettingsState
   return {
     model: parsed.data.model,
     effort: parsed.data.effort ?? null,
+    summary: parsed.data.summary,
     approvalPolicy: approvalPolicyFromAppServer(parsed.data.approvalPolicy),
     collaborationMode: threadCollaborationModeFromAppServer(parsed.data.collaborationMode),
   };

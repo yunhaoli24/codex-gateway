@@ -67,7 +67,12 @@ watch(inProgress, (active) => (active ? resume() : pause()), { immediate: true }
         :threshold="48"
         :follow-key="text.length"
       >
-        <MarkdownContent :content="text" :streaming="inProgress" compact />
+        <MarkdownContent
+          :content="text"
+          :streaming="inProgress"
+          compact
+          data-testid="reasoning-summary-content"
+        />
       </ChatStickToBottomScrollArea>
     </DeferredCollapsibleContent>
   </Collapsible>

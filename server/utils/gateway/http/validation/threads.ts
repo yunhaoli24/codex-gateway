@@ -2,6 +2,7 @@ import { z } from "zod";
 import { INITIAL_TURN_PAGE_LIMIT } from "~~/shared/config";
 import { optionalPositiveInt } from "./common";
 import { agentProviderIdSchema } from "~~/shared/agent/providers";
+import { reasoningSummarySchema } from "~~/shared/reasoning-summary";
 
 export const threadListSchema = z.object({
   hostId: z.coerce.number().int().positive(),
@@ -37,6 +38,7 @@ export const threadRenameSchema = z.object({
 export const threadSettingFields = {
   model: z.string().trim().nullable().optional(),
   effort: z.string().trim().min(1).nullable().optional(),
+  summary: reasoningSummarySchema.nullable().optional(),
   approvalPolicy: z.enum(["untrusted", "on-request", "never"]).nullable().optional(),
 };
 

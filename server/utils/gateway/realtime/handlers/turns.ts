@@ -57,6 +57,7 @@ export async function updateTurnSettings(
   const result = await threadBroker.updateTurnSettings(host, request.threadId, request.turnId, {
     model: request.model,
     effort: request.effort,
+    summary: request.summary,
   });
   sendRealtimePeerMessage(peer, {
     type: "turn.settings.updated",

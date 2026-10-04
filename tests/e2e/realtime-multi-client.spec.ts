@@ -35,8 +35,8 @@ test("refreshes thread settings after a disconnected browser reconnects", async 
   });
   const secondPage = await secondContext.newPage();
   await installRealtimeSocketProbe(secondPage);
-  await openApp(secondPage, { resetConfig: false });
   try {
+    await openApp(secondPage, { resetConfig: false });
     await expect
       .poll(async () => currentSelectedThreadId(secondPage), { timeout: 30_000 })
       .toBe(threadId);
@@ -159,6 +159,13 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("已完成")).toBeVisible();
   await expect(page.getByText("加载回合内容失败")).toHaveCount(0);
   await revealVirtualizedChatLocator(page, firstIntermediateStepsToggle(page));
+  // Open the completed process as a reader would before inspecting its lazy-rendered Markdown.
+  // A short command can finish and auto-collapse before any assertion about streaming text runs.
+  if ((await firstIntermediateStepsToggle(page).getAttribute("data-state")) === "closed") {
+    await firstIntermediateStepsToggle(page).click();
+  }
+  await revealVirtualizedChatLocator(page, page.getByTestId("reasoning-summary-content").first());
+  await expect(page.getByTestId("reasoning-summary-content").first()).not.toBeEmpty();
   // This scenario owns realtime reconnection and cross-browser fanout. Whether completion
   // auto-collapses is intentionally covered by the scroll suite because it depends on whether the
   // reader is still bottom-pinned. Close it through the same control a user uses before checking

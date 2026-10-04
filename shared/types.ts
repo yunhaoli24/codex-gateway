@@ -36,6 +36,7 @@ export type {
   MisalignmentErrorDetails,
   TokenUsageBreakdown,
   ReasoningEffort,
+  ReasoningSummary,
 } from "./types/thread";
 export type { AgentProviderId, AgentProviderOption } from "./agent/providers";
 export { agentProviderIdSchema, agentProviderIds, agentProviderOptions } from "./agent/providers";

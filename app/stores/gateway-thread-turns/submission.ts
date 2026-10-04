@@ -105,6 +105,7 @@ export async function sendTurn(
       composer.updateSelectedThreadSettings({
         ...(options.model !== undefined ? { model: options.model } : {}),
         ...(options.effort !== undefined ? { effort: options.effort } : {}),
+        ...(options.summary !== undefined ? { summary: options.summary } : {}),
         ...(options.approvalPolicy !== undefined ? { approvalPolicy: options.approvalPolicy } : {}),
       });
     }

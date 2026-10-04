@@ -2,6 +2,9 @@ import type { GatewayEvent, ProjectRecord } from "./records";
 import type { ThreadTimelineHistoryState } from "../thread-history/types";
 import type { AgentProviderId } from "../agent/providers";
 import type { AppServerThread } from "../runtime/app-server";
+import type { ReasoningSummary } from "../reasoning-summary";
+
+export type { ReasoningSummary } from "../reasoning-summary";
 
 export type {
   AppServerSessionSource,
@@ -102,6 +105,7 @@ export interface ThreadCollaborationMode {
 export interface ThreadSettingsState {
   model?: string | null;
   effort?: ReasoningEffort | null;
+  summary?: ReasoningSummary | null;
   approvalPolicy?: ApprovalPolicy | null;
   collaborationMode?: ThreadCollaborationMode | null;
 }
@@ -142,6 +146,7 @@ export interface ComposerTurnOptions {
   provider?: AgentProviderId;
   model?: string | null;
   effort?: ReasoningEffort | null;
+  summary?: ReasoningSummary | null;
   approvalPolicy?: ApprovalPolicy | null;
   collaborationMode?: ThreadCollaborationMode | null;
   images?: Array<{
