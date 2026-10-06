@@ -89,11 +89,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     .fill(
       [
         `请执行一个较长命令，然后最终只回复这个标记：${firstMarker}`,
-        "运行 python - <<'PY'",
-        "import time",
-        "time.sleep(12)",
-        "print('first turn sleep finished')",
-        "PY",
+        "运行 sleep 12; printf 'first turn sleep finished\\n'",
       ].join("\n"),
     );
   await page.getByTestId("send-turn-button").click();
@@ -109,6 +105,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   await expect
     .poll(() => inProgressCommandCount(page), { timeout: AGENT_OUTPUT_TIMEOUT_MS })
     .toBeGreaterThan(0);
+  const firstTurnId = await activeRemoteTurnId(page);
   const steerMarker = `E2E steer ${Date.now()}`;
   const steerDisplayText = `追加要求：${steerMarker}`;
   const steerMessageOffset = await realtimeClientMessageCount(page);
@@ -158,14 +155,28 @@ test("fans out a real remote app-server thread to multiple browser clients acros
   });
   await expect(page.getByTestId(`thread-button-${threadId}`).getByLabel("已完成")).toBeVisible();
   await expect(page.getByText("加载回合内容失败")).toHaveCount(0);
+  const firstReply = page
+    .locator(`[data-row-key*="turn-${firstTurnId}:final:"] .markdown-content`)
+    .first();
+  await revealVirtualizedChatLocator(page, firstReply);
+  await expect(firstReply).not.toBeEmpty();
+  // Steer can legitimately change the reply requested by the first prompt. Compare the actual
+  // completed answer before/after eviction rather than prescribing the model's earlier marker.
+  const firstReplyText = await firstReply.innerText();
   await revealVirtualizedChatLocator(page, firstIntermediateStepsToggle(page));
-  // Open the completed process as a reader would before inspecting its lazy-rendered Markdown.
-  // A short command can finish and auto-collapse before any assertion about streaming text runs.
+  // Inspect the command the user requested. Upstream can legitimately return encrypted reasoning
+  // with an empty summary, so requiring reasoning prose makes realtime coverage model-dependent.
+  // A short command can finish and auto-collapse before assertions about streaming text run.
   if ((await firstIntermediateStepsToggle(page).getAttribute("data-state")) === "closed") {
     await firstIntermediateStepsToggle(page).click();
   }
-  await revealVirtualizedChatLocator(page, page.getByTestId("reasoning-summary-content").first());
-  await expect(page.getByTestId("reasoning-summary-content").first()).not.toBeEmpty();
+  const firstCommand = page
+    .locator(`[data-row-key*="turn-${firstTurnId}:intermediate:"]`)
+    .filter({ has: page.getByTestId("command-status-completed"), hasText: "sleep 12" })
+    .first();
+  await revealVirtualizedChatLocator(page, firstCommand);
+  await firstCommand.getByRole("button").first().click();
+  await expect(firstCommand.locator("pre")).toContainText("first turn sleep finished");
   // This scenario owns realtime reconnection and cross-browser fanout. Whether completion
   // auto-collapses is intentionally covered by the scroll suite because it depends on whether the
   // reader is still bottom-pinned. Close it through the same control a user uses before checking
@@ -430,6 +441,33 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     );
     expect(await activeRealtimeSocketCount(page)).toBe(1);
     expect(await activeRealtimeSocketCount(secondPage)).toBe(1);
+
+    // This existing real conversation now has six user Turns. The oldest collapsed tools should
+    // have left Pinia, not merely the virtual DOM. Reopening fetches the official history again;
+    // closing releases it immediately without losing its user message or final answer.
+    const cachedFirstTurnCommandCount = () =>
+      page.evaluate(
+        (turnId) =>
+          window.__codexGatewayE2e?.views.history?.thread.turns
+            .find((turn) => turn.id === turnId)
+            ?.items.filter((item) => item.type === "commandExecution").length,
+        firstTurnId,
+      );
+    await expect.poll(cachedFirstTurnCommandCount).toBe(0);
+    const oldToggle = page.locator(
+      `[data-row-key$=":turn-${firstTurnId}:intermediate-header"] button`,
+    );
+    await revealVirtualizedChatLocator(page, oldToggle);
+    await oldToggle.click();
+    await expect.poll(cachedFirstTurnCommandCount, { timeout: 120_000 }).toBeGreaterThan(0);
+    await revealVirtualizedChatLocator(page, firstCommand);
+    await firstCommand.getByRole("button").first().click();
+    await expect(firstCommand.locator("pre")).toContainText("first turn sleep finished");
+    await revealVirtualizedChatLocator(page, oldToggle);
+    await oldToggle.click();
+    await expect.poll(cachedFirstTurnCommandCount).toBe(0);
+    await revealVirtualizedChatLocator(page, firstReply);
+    await expect(firstReply).toHaveText(firstReplyText);
   } finally {
     await secondContext.close();
   }
@@ -441,11 +479,7 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     .fill(
       [
         `请执行一个较长命令来等待中断：${interruptMarker}`,
-        "运行 python - <<'PY'",
-        "import time",
-        "time.sleep(30)",
-        "print('interrupt target finished')",
-        "PY",
+        "运行 sleep 30; printf 'interrupt target finished\\n'",
       ].join("\n"),
     );
   await page.getByTestId("send-turn-button").click();
@@ -588,13 +622,5 @@ async function threadRuntimeStatus(page: Page, hostId: number, threadId: string)
 }
 
 async function inProgressCommandCount(page: Page) {
-  return page.evaluate(
-    () =>
-      window.__codexGatewayE2e?.views.events.filter(
-        (event) =>
-          event.event.type === "timeline.item.upsert" &&
-          event.event.item.type === "commandExecution" &&
-          event.event.item.status === "inProgress",
-      ).length ?? 0,
-  );
+  return page.getByTestId("command-status-running").count();
 }

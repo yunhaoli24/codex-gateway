@@ -1,7 +1,8 @@
 import type { GatewayEvent, ThreadHistoryState, ThreadTimelineHistoryState } from "~~/shared/types";
 import { CLIENT_THREAD_CACHE_LIMIT } from "~~/shared/config";
 import { projectThreadTimelineHistory } from "~~/shared/thread-history/timeline";
-import { retainRecentThreadTurns } from "~~/shared/thread-history/retention";
+import { retainThreadHistory } from "~~/shared/thread-history/retention";
+import { retainThreadEvents } from "@/stores/gateway-thread-view/memory/events";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { pinnedKey } from "../thread-utils/identity";
@@ -29,12 +30,18 @@ export function upsertThreadView(view: ThreadViewState) {
   const views = useGatewayThreadViewStore();
   const key = threadViewKey(view.hostId, view.threadId);
   const { [key]: _existing, ...remaining } = views.threadViews;
-  const retainedHistory = retainRecentThreadTurns(view.history);
+  const retainedHistory = retainThreadHistory(
+    view.history,
+    views.expandedTurnId(view.hostId, view.threadId),
+  );
   const retainedView =
     retainedHistory === view.history ? view : { ...view, ...projectionFields(retainedHistory) };
   // Removing and reinserting the key makes plain object insertion order our LRU order. This keeps
   // the policy colocated with the only cache write boundary instead of maintaining a second list.
-  views.threadViews = pruneThreadViews({ ...remaining, [key]: retainedView });
+  views.threadViews = pruneThreadViews({
+    ...remaining,
+    [key]: { ...retainedView, events: retainThreadEvents(retainedView.events) },
+  });
 }
 
 function pruneThreadViews(threadViews: Record<string, ThreadViewState>) {
@@ -154,7 +161,7 @@ export function appendEventsToThreadView(events: GatewayEvent[]) {
   const fresh = events.filter((event) => event.id > view.lastEventId);
   if (fresh.length === 0) return;
   patchThreadView(first.hostId, first.threadId, {
-    events: [...view.events, ...fresh].slice(-500),
+    events: retainThreadEvents([...view.events, ...fresh]),
     lastEventId: fresh.at(-1)!.id,
   });
 }
@@ -194,6 +201,6 @@ function projectionFields(history: ThreadHistoryState | null): {
   history: ThreadTimelineHistoryState | null;
 } {
   if (history === null) return { history: null };
-  const projected = projectThreadTimelineHistory(retainRecentThreadTurns(history)!);
+  const projected = projectThreadTimelineHistory(history);
   return { history: projected };
 }

@@ -23,6 +23,11 @@ export function mergeTurnItems(
 
 export function mergeThreadItem(existing: ThreadHistoryItem, incoming: ThreadHistoryItem) {
   const merged = { ...existing, ...incoming };
+  // Cache-only window metadata must not leak onto authoritative full command output.
+  if (incoming.aggregatedOutput !== undefined) {
+    merged.outputTotalLength = incoming.outputTotalLength;
+    merged.outputWindowEnd = incoming.outputWindowEnd;
+  }
   if (existing?.type === "fileChange" || incoming?.type === "fileChange") {
     merged.changes = mergeFileChanges(existing?.changes, incoming?.changes);
   }

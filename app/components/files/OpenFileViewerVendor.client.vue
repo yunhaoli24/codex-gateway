@@ -44,6 +44,7 @@ async function mountViewer(): Promise<void> {
 
     const pdfOptions = {
       workerSrc: runtime.pdfWorkerUrl,
+      legacyWorkerSrc: runtime.pdfLegacyWorkerUrl,
     };
     viewer = runtime.createViewer({
       container: target,

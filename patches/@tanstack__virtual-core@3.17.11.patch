@@ -1,7 +1,7 @@
 diff --git a/dist/cjs/index.cjs b/dist/cjs/index.cjs
 --- a/dist/cjs/index.cjs
 +++ b/dist/cjs/index.cjs
-@@ -1137,4 +1137,4 @@ class Virtualizer {
+@@ -1198,4 +1198,4 @@ class Virtualizer {
 -    if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
 +    if (isIOSWebKit() && this.scrollState === null && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
        this._iosDeferredAdjustment += delta;
@@ -10,7 +10,7 @@ diff --git a/dist/cjs/index.cjs b/dist/cjs/index.cjs
 diff --git a/dist/esm/index.js b/dist/esm/index.js
 --- a/dist/esm/index.js
 +++ b/dist/esm/index.js
-@@ -1135,4 +1135,4 @@ class Virtualizer {
+@@ -1196,4 +1196,4 @@ class Virtualizer {
 -    if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
 +    if (isIOSWebKit() && this.scrollState === null && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
        this._iosDeferredAdjustment += delta;
@@ -19,7 +19,7 @@ diff --git a/dist/esm/index.js b/dist/esm/index.js
 diff --git a/src/index.ts b/src/index.ts
 --- a/src/index.ts
 +++ b/src/index.ts
-@@ -702,5 +702,10 @@ export class Virtualizer<
+@@ -755,5 +755,10 @@ export class Virtualizer<
 +    // `isScrolling` also becomes true when scrollToIndex/scrollToEnd receives its own scroll-event
 +    // read-back. That is a Core-owned transaction, not native touch momentum: deferring dynamic
 +    // row corrections there lets the estimated last row settle above the real bottom on WebKit.

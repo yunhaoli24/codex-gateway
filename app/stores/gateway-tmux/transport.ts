@@ -8,7 +8,8 @@ import type {
 } from "~~/shared/types";
 import { gatewayApi } from "@/utils/gateway-api";
 
-const tmuxApiRoot = (hostId: number) => `/api/hosts/${hostId}/tmux`;
+// Preserve the route pattern across this helper, so Nuxt 4.6 can validate each derived endpoint.
+const tmuxApiRoot = (hostId: number): `/api/hosts/${number}/tmux` => `/api/hosts/${hostId}/tmux`;
 
 export function fetchTmuxMonitors() {
   return gatewayApi<TmuxMonitorListResult>("/api/tmux/monitors");

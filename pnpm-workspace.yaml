@@ -7,6 +7,11 @@
 packages:
   - "packages/*"
 
+# Installation/postinstall owns vendor builds. Running lint must never implicitly reinstall and
+# rebuild all workspace packages via pnpm's default verifyDepsBeforeRun=install behavior.
+verifyDepsBeforeRun: false
+minimumReleaseAgeExcludePrune: true
+
 allowBuilds:
   "@parcel/watcher": true
   better-sqlite3: true
@@ -17,13 +22,19 @@ allowBuilds:
   vue-demi: true
 
 minimumReleaseAgeExclude:
+  # Reviewed releases: Dockview fixes disposed-panel leaks; EMF adds the browser-only export.
+  # Scope the release-age exception to these exact versions, not to their future releases.
+  - "dockview@8.4.1"
+  - "dockview-core@8.4.1"
+  - "dockview-vue@8.4.1"
+  - "emf-converter@4.11.2"
   - "katex@0.18.0"
-  - "@nuxt/kit@4.5.1"
-  - "@nuxt/nitro-server@4.5.1"
-  - "@nuxt/schema@4.5.1"
-  - "@nuxt/vite-builder@4.5.1"
+  - "@nuxt/kit@4.5.1 || 4.6.0"
+  - "@nuxt/nitro-server@4.5.1 || 4.6.0"
+  - "@nuxt/schema@4.5.1 || 4.6.0"
+  - "@nuxt/vite-builder@4.5.1 || 4.6.0"
   - "@nuxt/devtools@3.3.1"
-  - "nuxt@4.5.1"
+  - nuxt@4.5.1 || 4.6.0
   - "@open-file-viewer/core@0.1.32"
   - "@oxc-parser/binding-android-arm-eabi@0.142.0"
   - "@oxc-parser/binding-android-arm64@0.142.0"
@@ -87,17 +98,30 @@ minimumReleaseAgeExclude:
   - "@oxlint/binding-win32-ia32-msvc@1.76.0"
   - "@oxlint/binding-win32-x64-msvc@1.76.0"
   - "oxlint@1.76.0"
-  - "@tanstack/virtual-core@3.17.8"
+  - "@tanstack/virtual-core@3.17.11"
   - "@tanstack/vue-virtual@3.13.36"
+  - "@ai-sdk/gateway@4.0.104"
+  - "@ai-sdk/provider-utils@5.0.54"
+  - "@ai-sdk/provider@4.0.22"
+  - ai@7.0.128
+  - motion-v@2.6.0
+  - "@nuxt/cli@4.0.0"
+  - "@nuxt/vite-server@4.6.0"
 
 overrides:
-  # Open File Viewer imports these plugins from its browser entry. Their newer releases pull the
-  # Node-only @napi-rs/canvas binding into Rolldown's static graph, which cannot be emitted as a
-  # browser chunk. Keep the last browser-buildable pair until the upstream packages restore a
-  # browser-specific export; this is intentionally narrower than pinning the entire viewer tree.
-  "@aiden0z/pptx-renderer": 1.2.4
-  crossws: 0.4.7
-  emf-converter: 2.0.2
+  # Nitro 2 still uses H3 1's event/response APIs; H3 2 requires Nitro 3. Keep the application's
+  # direct H3 version aligned with Nuxt's runtime instead of mixing two incompatible event APIs.
+  # CrossWS 0.4 supplies the binary-message API used by our shared terminal transport.
+  crossws: 0.4.12
+  # Open File Viewer still requests EMF 3, which statically imports Node-only canvas bindings.
+  # EMF 4 exposes a real browser condition and retains convertMetafileToDataUrl's options API.
+  # Select that upstream browser implementation instead of maintaining aliases or native stubs.
+  emf-converter: 4.11.2
+  # The plugin's default range remains on KaTeX 0.18. Keep its renderer and our 0.19 CSS/fonts
+  # on the same release; the public renderToString API is unchanged by the strict-mode update.
+  "@mdit/plugin-katex>katex": 0.19.0
 
 patchedDependencies:
-  "@tanstack/virtual-core@3.17.8": patches/@tanstack__virtual-core@3.17.8.patch
+  # 3.17.11 fixes stale scroll-end offsets, but still defers its own programmatic WebKit scroll.
+  # Preserve this narrow core fix until upstream distinguishes native gestures from scrollState.
+  "@tanstack/virtual-core@3.17.11": patches/@tanstack__virtual-core@3.17.11.patch

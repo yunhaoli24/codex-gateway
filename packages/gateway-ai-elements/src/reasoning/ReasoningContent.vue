@@ -26,7 +26,7 @@ const slotContent = computed<string | undefined>(() => {
   return text || undefined;
 });
 
-const md = computed(() => (slotContent.value ?? props.content ?? "") as string);
+const md = computed(() => slotContent.value ?? props.content);
 </script>
 
 <template>

@@ -12,7 +12,11 @@ export type MarkdownCodeFenceRenderer = (fence: MarkdownCodeFence) => Promise<st
 export interface MarkdownRenderer {
   hasCodeFences(content: string): boolean;
   render(content: string): string;
-  renderEnhanced(content: string, renderFence: MarkdownCodeFenceRenderer): Promise<string>;
+  renderEnhanced(
+    content: string,
+    renderFence: MarkdownCodeFenceRenderer,
+    signal?: AbortSignal,
+  ): Promise<string>;
 }
 
 export function createMarkdownRenderer(): MarkdownRenderer {
@@ -27,7 +31,9 @@ export function createMarkdownRenderer(): MarkdownRenderer {
   markdown.use(katex, {
     delimiters: "all",
     throwOnError: false,
-    strict: false,
+    // Plugin 1.1.3 owns KaTeX's strict callback through logger; strict:false is overwritten.
+    // Keep tolerant rendering for model-authored math via the plugin's documented hook.
+    logger: (): "ignore" => "ignore",
     trust: false,
   });
 
@@ -58,9 +64,11 @@ export function createMarkdownRenderer(): MarkdownRenderer {
     render(content) {
       return renderTokens(parse(content));
     },
-    async renderEnhanced(content, renderFence) {
+    async renderEnhanced(content, renderFence, signal) {
+      signal?.throwIfAborted();
       const tokens = parse(content);
       for (const token of tokens) {
+        signal?.throwIfAborted();
         if (token.type !== "fence") {
           continue;
         }
@@ -68,6 +76,7 @@ export function createMarkdownRenderer(): MarkdownRenderer {
           content: token.content,
           language: token.info,
         });
+        signal?.throwIfAborted();
         if (highlightedHtml !== undefined) {
           highlightedFences.set(token, highlightedHtml);
         }

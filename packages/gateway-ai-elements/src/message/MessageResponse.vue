@@ -25,7 +25,9 @@ const slotContent = computed<string | undefined>(() => {
   return text || undefined;
 });
 
-const md = computed(() => (slotContent.value ?? props.content ?? "") as string);
+// Markdown 2 uses Comark and makes heavy renderers opt-in. Business messages already use the
+// browser runtime's MarkdownContent; this generic shell needs only the upstream core renderer.
+const md = computed(() => slotContent.value ?? props.content ?? "");
 </script>
 
 <template>

@@ -131,6 +131,9 @@ function tabContextMenu({ panel, api }: GetTabContextMenuItemsParams) {
       lets a restored grid contribute its stale intrinsic height during a keyed thread switch,
       which can shorten the whole workspace even though every panel agrees with its host.
     -->
+    <!-- Core already provides tab-strip arrow navigation and ARIA semantics. The optional
+         keyboardNavigation keymap requires dockview-enterprise and its licensed module; do not
+         enable an unregistered enterprise feature in this community Dockview installation. -->
     <div ref="dockviewHost" class="gateway-dockview h-0 min-h-0 w-full flex-1 overflow-hidden">
       <DockviewVue
         class="h-full w-full"
@@ -141,7 +144,6 @@ function tabContextMenu({ panel, api }: GetTabContextMenuItemsParams) {
         floating-group-bounds="boundedWithinViewport"
         :disable-floating-groups="layout === 'mobile'"
         :locked="layout === 'mobile'"
-        :keyboard-navigation="true"
         :get-tab-context-menu-items="layout === 'desktop' ? tabContextMenu : undefined"
         @ready="lifecycle.ready"
       />

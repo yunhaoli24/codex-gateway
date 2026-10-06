@@ -28,8 +28,8 @@ COPY scripts ./scripts
 COPY shared ./shared
 COPY server ./server
 COPY app ./app
-# Nuxt 4.5.1 buildCache can restore the Vue bundle without wiring its renderer virtual modules
-# (nuxt/nuxt#35894). Keep dependency layers cached, but always produce a complete app bundle.
+# Reuse precompiled packages from the deps layer. Nuxt 4.6 includes the former renderer-cache
+# fixes; application sources stay in this separate layer so an edit rebuilds the app bundle.
 RUN pnpm exec nuxt build --logLevel silent
 
 FROM node:${NODE_VERSION} AS runner

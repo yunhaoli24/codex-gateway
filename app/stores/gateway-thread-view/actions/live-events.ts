@@ -9,6 +9,7 @@ import {
 import { pinnedKey } from "@/stores/gateway/thread-utils/identity";
 import { gatewayDomainEvents } from "@/stores/gateway/domain-events";
 import { useEventListener, useTimeoutFn } from "@vueuse/core";
+import { retainThreadEvents } from "../memory/events";
 
 const BACKGROUND_FLUSH_DELAY_MS = 100;
 
@@ -87,7 +88,7 @@ export function createThreadLiveEventActions() {
           (event) => event.id > (views.appliedEventId ?? views.lastEventId),
         );
         if (fresh.length) {
-          views.events = [...views.events, ...fresh].slice(-500);
+          views.events = retainThreadEvents([...views.events, ...fresh]);
           views.lastEventId = fresh.at(-1)!.id;
         }
       } else {
@@ -120,7 +121,7 @@ export function createThreadLiveEventActions() {
     if (event.id <= appliedEventId) return;
 
     if (selected) {
-      views.events = [...views.events, event].slice(-500);
+      views.events = retainThreadEvents([...views.events, event]);
       views.lastEventId = Math.max(views.lastEventId, event.id);
     } else {
       appendEventsToThreadView([event]);

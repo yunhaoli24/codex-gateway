@@ -77,11 +77,7 @@ test("Bark keeps monitoring an active main turn after the last browser closes", 
     .fill(
       [
         "运行下面的命令，命令结束后简短回复。",
-        "python - <<'PY'",
-        "import time",
-        "time.sleep(8)",
-        "print('browser lease handoff finished')",
-        "PY",
+        "sleep 8; printf 'browser lease handoff finished\\n'",
       ].join("\n"),
     );
   await page.getByTestId("send-turn-button").click();
@@ -153,18 +149,8 @@ test("plan-mode user questions render and notify through Sonner and Bark", async
 
 async function waitForInProgressCommand(page: import("@playwright/test").Page) {
   await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            window.__codexGatewayE2e?.views.events.filter(
-              (event) =>
-                event.event.type === "timeline.item.upsert" &&
-                event.event.item.type === "commandExecution" &&
-                event.event.item.status === "inProgress",
-            ).length ?? 0,
-        ),
-      { timeout: AGENT_OUTPUT_TIMEOUT_MS },
-    )
+    .poll(() => page.getByTestId("command-status-running").count(), {
+      timeout: AGENT_OUTPUT_TIMEOUT_MS,
+    })
     .toBeGreaterThan(0);
 }

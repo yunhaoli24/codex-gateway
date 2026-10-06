@@ -15,6 +15,7 @@ const estimatedItemHeights: Partial<Record<ThreadTimelineItem["type"], number>> 
 };
 
 export type ThreadTimelineRow =
+  | { key: string; type: "loadMore"; turnId: string; loading: boolean }
   | {
       key: string;
       type: "intermediateHeader";
@@ -74,6 +75,15 @@ export function buildThreadTimelineRows(input: {
       timing,
       agentActionsAvailable: input.agentActionsAvailable,
     });
+    if (intermediateOpen && typeof turn.olderItemsCursor === "string") {
+      const header = rows.findIndex((row) => row.type === "intermediateHeader");
+      rows.splice(header + 1, 0, {
+        key: `${input.threadId}:turn-${turn.id}:load-more`,
+        type: "loadMore",
+        turnId: turn.id,
+        loading: intermediateLoading,
+      });
+    }
     // Completed turns normally render timing beside the final answer's copy action. Keep a
     // standalone row only for interrupted/error turns that never produced an Agent answer.
     if (
@@ -173,7 +183,7 @@ export function reuseUnchangedTimelineRows(
 
 export function estimateThreadTimelineRow(row: ThreadTimelineRow | undefined) {
   if (row === undefined) return 96;
-  if (row.type === "intermediateHeader") return 48;
+  if (row.type === "intermediateHeader" || row.type === "loadMore") return 48;
   if (row.type === "turnDuration") return 28;
   return estimatedItemHeights[row.item.type] ?? 96;
 }
@@ -219,6 +229,9 @@ function hasTimingValue(timing: DisplayedTurnTiming) {
 
 function sameTimelineRow(left: ThreadTimelineRow, right: ThreadTimelineRow) {
   if (left.type !== right.type) return false;
+  if (left.type === "loadMore" && right.type === "loadMore") {
+    return left.turnId === right.turnId && left.loading === right.loading;
+  }
   if (left.type === "intermediateHeader" && right.type === "intermediateHeader") {
     return (
       left.count === right.count &&

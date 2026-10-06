@@ -1,11 +1,11 @@
 import { useDebounceFn } from "@vueuse/core";
-import { computed, nextTick, ref, watch, type WatchSource } from "vue";
+import { computed, nextTick, onScopeDispose, ref, watch, type WatchSource } from "vue";
 
 interface StreamRenderSchedulerOptions<TInput, TOutput> {
   source: WatchSource<TInput>;
   renderImmediately: (input: TInput) => TOutput;
   shouldEnhance: (input: TInput) => boolean;
-  renderEnhanced: (input: TInput) => Promise<TOutput>;
+  renderEnhanced: (input: TInput, signal: AbortSignal) => Promise<TOutput>;
   streaming?: WatchSource<boolean>;
   delay?: number;
   maxWait?: number;
@@ -24,29 +24,33 @@ export function useStreamRenderScheduler<TInput, TOutput>(
 ) {
   const output = ref<TOutput>();
   const enhancing = ref(false);
-  let latestInput: TInput;
+  let latestInput: { value: TInput } | undefined;
+  const controller = new AbortController();
   let version = 0;
   let running = false;
   let rerunAfterCurrentJob = false;
 
   const runEnhanced = async () => {
+    if (controller.signal.aborted || latestInput === undefined) return;
     if (running) {
       rerunAfterCurrentJob = true;
       return;
     }
-    if (!options.shouldEnhance(latestInput)) return;
+    if (!options.shouldEnhance(latestInput.value)) return;
 
     running = true;
     enhancing.value = true;
     const jobVersion = version;
-    const jobInput = latestInput;
+    const jobInput = latestInput.value;
     try {
-      const enhanced = await options.renderEnhanced(jobInput);
-      if (version === jobVersion) output.value = enhanced;
+      const enhanced = await options.renderEnhanced(jobInput, controller.signal);
+      if (!controller.signal.aborted && version === jobVersion) output.value = enhanced;
+    } catch (error: unknown) {
+      if (!controller.signal.aborted) throw error;
     } finally {
       running = false;
       enhancing.value = false;
-      if (rerunAfterCurrentJob) {
+      if (!controller.signal.aborted && rerunAfterCurrentJob) {
         rerunAfterCurrentJob = false;
         void scheduleEnhanced();
       }
@@ -57,10 +61,21 @@ export function useStreamRenderScheduler<TInput, TOutput>(
     maxWait: options.maxWait ?? 400,
   });
 
+  onScopeDispose(() => {
+    // Virtual rows are deliberately disposable. Cancel VueUse's pending debounce and stop the
+    // fence/line loop at its next await; an already-running Shiki call cannot be interrupted.
+    // A version check alone would still keep the unmounted row's input and rerun chain alive.
+    controller.abort();
+    scheduleEnhanced.cancel();
+    rerunAfterCurrentJob = false;
+    latestInput = undefined;
+    output.value = undefined;
+  });
+
   watch(
     options.source,
     (input) => {
-      latestInput = input;
+      latestInput = { value: input };
       version += 1;
       output.value = options.renderImmediately(input);
       if (options.shouldEnhance(input)) {
@@ -75,7 +90,13 @@ export function useStreamRenderScheduler<TInput, TOutput>(
     watch(
       options.streaming,
       (streaming, wasStreaming) => {
-        if (streaming || !wasStreaming || !options.shouldEnhance(latestInput)) return;
+        if (
+          streaming ||
+          !wasStreaming ||
+          latestInput === undefined ||
+          !options.shouldEnhance(latestInput.value)
+        )
+          return;
         // A completed item no longer receives deltas, so do not wait for the debounce window
         // before showing its final Shiki result. nextTick lets the final content/source watcher
         // commit first while runEnhanced still keeps the single in-flight job invariant.

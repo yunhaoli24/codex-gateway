@@ -31,7 +31,8 @@ const markdownScheduler = useStreamRenderScheduler({
   source: () => [props.content || "", props.diffLanguage] as const,
   renderImmediately: ([content]) => renderMarkdownImmediately(content),
   shouldEnhance: ([content]) => markdown.hasCodeFences(content),
-  renderEnhanced: ([content, diffLanguage]) => renderMarkdownEnhanced(content, diffLanguage),
+  renderEnhanced: ([content, diffLanguage], signal) =>
+    renderMarkdownEnhanced(content, diffLanguage, signal),
   streaming: () => props.streaming,
 });
 
@@ -41,22 +42,27 @@ function renderMarkdownImmediately(content: string) {
   return markdown.render(content);
 }
 
-async function renderMarkdownEnhanced(content: string, diffLanguage: string) {
-  return await markdown.renderEnhanced(content, async (fence) => {
-    const normalizedLanguage = normalizeLanguage(fence.language);
-    if (normalizedLanguage === "diff") {
-      return `<pre class="syntax-highlight language-diff"><code>${await renderDiff(fence.content, diffLanguage)}</code></pre>`;
-    }
-    return `<pre class="shiki-block syntax-highlight language-${normalizeLanguage(normalizedLanguage || "text")}"><code>${await highlightCode(fence.content, normalizedLanguage)}</code></pre>`;
-  });
+async function renderMarkdownEnhanced(content: string, diffLanguage: string, signal: AbortSignal) {
+  return await markdown.renderEnhanced(
+    content,
+    async (fence) => {
+      const normalizedLanguage = normalizeLanguage(fence.language);
+      if (normalizedLanguage === "diff") {
+        return `<pre class="syntax-highlight language-diff"><code>${await renderDiff(fence.content, diffLanguage, signal)}</code></pre>`;
+      }
+      return `<pre class="shiki-block syntax-highlight language-${normalizeLanguage(normalizedLanguage || "text")}"><code>${await highlightCode(fence.content, normalizedLanguage)}</code></pre>`;
+    },
+    signal,
+  );
 }
 
-async function renderDiff(value: string, language: string) {
+async function renderDiff(value: string, language: string, signal: AbortSignal) {
   const normalizedLanguage = normalizeLanguage(language);
   const lines: string[] = [];
   // This runs only after the shared streaming scheduler settles. Keep it sequential: launching
   // hundreds of Shiki jobs with Promise.all makes a large completed patch contend with UI layout.
   for (const line of value.split("\n")) {
+    signal.throwIfAborted();
     const className = diffLineClass(line);
     lines.push(
       `<span class="${className}">${await renderDiffLine(line, normalizedLanguage)}</span>`,

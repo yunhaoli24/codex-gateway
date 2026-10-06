@@ -9,6 +9,7 @@ import { useGatewayThreadRuntimeStore } from "@/stores/gateway-thread-runtime";
 import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { runtimeStatusFromThreadState } from "../thread-utils/status";
 import type { ThreadSnapshotMessage } from "./transport";
+import { retainThreadEvents } from "@/stores/gateway-thread-view/memory/events";
 
 export function applyOpenedThreadResult(threadId: string, result: ThreadOpenResult) {
   const gateway = useGatewayCatalogStore();
@@ -97,7 +98,7 @@ function applyCommonThreadResult(
   const hostId = result.hostId ?? navigation.selectedHostId;
   if (hostId === null) return;
   useGatewayThreadActivityStore().upsertGatewayThread(result.thread, gateway.projects);
-  views.events = result.recentEvents;
+  views.events = retainThreadEvents(result.recentEvents);
   views.oldestTimelineCursor = result.oldestTimelineCursor;
   views.lastEventId = explicitLastEventId ?? result.recentEvents.at(-1)?.id ?? 0;
   views.eventEpoch = result.eventEpoch;

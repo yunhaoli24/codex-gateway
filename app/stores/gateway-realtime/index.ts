@@ -98,7 +98,7 @@ export const useGatewayRealtimeStore = defineStore("gateway-realtime", (): Gatew
   function resetForSessionChange() {
     connection.reset();
     subscriptions.reset();
-    gatewayDomainEvents.emit("gateway-session-reset", {});
+    gatewayDomainEvents.emit("gateway-session-reset");
   }
 
   async function restoreTerminalSessions() {

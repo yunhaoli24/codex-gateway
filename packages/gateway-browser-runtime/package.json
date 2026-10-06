@@ -25,25 +25,25 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mdit/plugin-katex": "1.1.1",
-    "@open-file-viewer/core": "0.1.43",
-    "katex": "0.18.7",
+    "@mdit/plugin-katex": "1.1.3",
+    "@open-file-viewer/core": "0.1.49",
+    "katex": "0.19.0",
     "markdown-it": "^15.0.2",
-    "pdfjs-dist": "6.2.108"
+    "pdfjs-dist": "6.4.299"
   },
   "devDependencies": {
-    "@shikijs/core": "4.4.3",
-    "@shikijs/engine-javascript": "4.4.3",
-    "@shikijs/langs": "4.4.3",
-    "@shikijs/themes": "4.4.3",
-    "@shikijs/types": "4.4.3",
-    "@types/node": "^26.6.2",
-    "oxfmt": "0.68.0",
+    "@shikijs/core": "4.5.0",
+    "@shikijs/engine-javascript": "4.5.0",
+    "@shikijs/langs": "4.5.0",
+    "@shikijs/themes": "4.5.0",
+    "@shikijs/types": "4.5.0",
+    "@types/node": "^26.6.4",
+    "oxfmt": "0.71.0",
     "rimraf": "^6.1.3",
-    "rolldown": "1.2.9",
-    "shiki": "4.4.3",
-    "shiki-codegen": "4.4.3",
+    "rolldown": "1.2.12",
+    "shiki": "4.5.0",
+    "shiki-codegen": "4.5.0",
     "typescript": "^6.0.3",
-    "vite": "8.3.0"
+    "vite": "8.3.2"
   }
 }

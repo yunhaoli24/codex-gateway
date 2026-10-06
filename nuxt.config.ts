@@ -9,6 +9,10 @@ export default defineNuxtConfig({
     server: false,
   },
   experimental: {
+    // Nuxt 4.6 owns the route type tree (fetchdts), avoiding Nitro's deep InternalApi unions.
+    // Keep unknown API paths as type errors so a renamed endpoint fails lint before the E2E run.
+    routeTypedFetch: true,
+    strictRouteTypes: true,
     checkOutdatedBuildInterval: 5 * 60_000,
     emitRouteChunkError: "automatic-immediate",
     // Nuxt 4.5 reuses Vite's watcher instead of opening a second watcher tree.

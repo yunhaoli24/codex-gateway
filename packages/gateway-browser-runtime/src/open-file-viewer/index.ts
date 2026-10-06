@@ -5,8 +5,11 @@ import "@open-file-viewer/core/style.css";
 // publish, and rebase the worker together with its deployment base URL. That avoids a hardcoded
 // public path/resource manifest while the app still imports only this package's semantic entry.
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import pdfLegacyWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
-export { pdfWorkerUrl };
+// Viewer 0.1.46+ chooses the PDF.js engine by browser capabilities. Supply both workers from
+// the same PDF.js release so its official legacy engine works on older mobile browsers too.
+export { pdfWorkerUrl, pdfLegacyWorkerUrl };
 
 export {
   createViewer,

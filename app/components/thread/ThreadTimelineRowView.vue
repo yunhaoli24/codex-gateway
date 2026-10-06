@@ -4,6 +4,8 @@ import ThreadItemView from "@/components/thread/ThreadItemView.vue";
 import TurnDurationLabel from "@/components/thread/TurnDurationLabel.vue";
 import TurnUsageAmountLabel from "@/components/thread/TurnUsageAmountLabel.vue";
 import type { ThreadTimelineRow } from "@/components/thread/timeline-rows";
+import { Button } from "@codex-gateway/ui/button";
+const { t } = useI18n();
 
 const props = defineProps<{
   row: ThreadTimelineRow;
@@ -13,6 +15,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   intermediateToggle: [turnId: string, open: boolean];
+  loadMore: [turnId: string];
 }>();
 
 // Read the reactive row directly. App-server stream reducers update nested item proxies in place;
@@ -28,6 +31,16 @@ const emit = defineEmits<{
     :loading="props.row.loading"
     @toggle="emit('intermediateToggle', props.row.turnId, $event)"
   />
+  <Button
+    v-else-if="props.row.type === 'loadMore'"
+    variant="ghost"
+    size="sm"
+    data-testid="load-older-items-button"
+    :disabled="props.row.loading"
+    @click="emit('loadMore', props.row.turnId)"
+  >
+    {{ props.row.loading ? t("app.loadingOlder") : t("app.loadOlderItems") }}
+  </Button>
   <ThreadItemView
     v-else-if="props.row.type === 'item'"
     :item="props.row.item"

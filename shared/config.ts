@@ -5,14 +5,16 @@ import type { GatewayConfig, GatewayNotificationSettings } from "./types";
 // mounts. A same-page cached view may retain a wider depth that the user already loaded.
 export const INITIAL_TURN_PAGE_LIMIT = 2;
 export const TIMELINE_PAGE_LIMIT = 100;
-export const CLIENT_THREAD_TIMELINE_ENTRY_LIMIT = 1000;
 export const SERVER_TURN_CACHE_LIMIT = 50;
 export const SERVER_THREAD_CACHE_LIMIT = 100;
 // Match the bounded workspace deck used by mature multi-agent clients: inactive conversations are
 // data caches, not permanent mounted sessions. Ten recent threads keeps route switching fast while
 // preventing many long transcripts from accumulating for the lifetime of a browser tab.
 export const CLIENT_THREAD_CACHE_LIMIT = 10;
-export const CLIENT_THREAD_TURN_CACHE_LIMIT = 20;
+// Recent intermediate work remains warm; old collapsed work can always be fetched from Codex.
+// Limit the noisy command string independently: virtualizing its row does not bound Pinia data.
+export const CLIENT_COMMAND_OUTPUT_CHARS = 128 * 1024;
+export const CLIENT_THREAD_INTERMEDIATE_TURNS = 3;
 export const DEFAULT_BARK_SERVER_URL = "https://api.day.app";
 export const DEFAULT_BARK_GROUP = "Codex Gateway";
 

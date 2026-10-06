@@ -77,7 +77,7 @@ export function createRealtimeServerMessageDispatcher(ctx: RealtimeServerMessage
       .with({ type: "host.mfa.request" }, hostMfa["host.mfa.request"])
       .with({ type: "ready" }, () => handleReady(ctx))
       .with({ type: "config.pinnedThreads.changed" }, () =>
-        gatewayDomainEvents.emit("pinned-threads-invalidated", {}),
+        gatewayDomainEvents.emit("pinned-threads-invalidated"),
       )
       .with({ type: "error" }, (error) => handleRealtimeError(ctx, error))
       .with({ type: "pong" }, ({ nonce }) => ctx.acknowledgePong(nonce))
@@ -111,8 +111,8 @@ function handleReady(ctx: RealtimeServerMessageHandlerContext) {
   ctx.resubscribe();
   void ctx.restoreTerminalSessions();
   if (reconnect) {
-    gatewayDomainEvents.emit("pinned-threads-invalidated", {});
-    gatewayDomainEvents.emit("realtime-reconnected", {});
+    gatewayDomainEvents.emit("pinned-threads-invalidated");
+    gatewayDomainEvents.emit("realtime-reconnected");
   }
 }
 

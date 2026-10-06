@@ -1,10 +1,10 @@
-import type { NitroFetchOptions, NitroFetchRequest } from "nitropack";
+import type { AnyServerRouteMethod, TypedFetchOptions, TypedFetchRequest } from "nuxt/app";
 import { FetchError } from "ofetch";
 import { useAuthStore } from "@/stores/auth";
 
 export function gatewayApi<T>(
-  request: NitroFetchRequest,
-  options: NitroFetchOptions<NitroFetchRequest> = {},
+  request: TypedFetchRequest,
+  options: TypedFetchOptions<TypedFetchRequest, AnyServerRouteMethod> = {},
 ) {
   const auth = useAuthStore();
   auth.hydrate();

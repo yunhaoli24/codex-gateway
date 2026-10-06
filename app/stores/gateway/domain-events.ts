@@ -23,11 +23,13 @@ type RealtimeMessage<T extends RealtimeServerMessage["type"]> = Extract<
 >;
 
 export type GatewayDomainEventMap = {
-  "gateway-session-reset": Record<never, never>;
+  // EventEmitter 2 supports argument tuples. [] means no payload; Record<never, never> becomes
+  // {}, which accepts every non-nullish primitive and does not actually enforce an empty object.
+  "gateway-session-reset": [];
   "gateway-config-applied": { config: GatewayConfig };
   "host-removed": { hostId: number };
-  "pinned-threads-invalidated": Record<never, never>;
-  "realtime-reconnected": Record<never, never>;
+  "pinned-threads-invalidated": [];
+  "realtime-reconnected": [];
   "realtime-error-reported": {
     message: string;
     hostId: number | null;

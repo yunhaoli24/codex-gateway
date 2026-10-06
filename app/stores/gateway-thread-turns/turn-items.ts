@@ -1,6 +1,4 @@
-import { TIMELINE_PAGE_LIMIT } from "~~/shared/config";
 import { mergeTurnItems } from "~~/shared/thread-history/item-merge";
-import { timelinePagesItemsForTurn } from "~~/shared/thread-history/app-server-timeline";
 import { useGatewayBootstrapStore } from "@/stores/gateway-bootstrap";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
@@ -12,9 +10,8 @@ import {
   pinnedKey,
 } from "@/stores/gateway/thread-utils/identity";
 import { captureSessionEpoch } from "@/utils/session-epoch";
-import { requestThreadTimelinePage } from "./transport";
+import { readTurnTimelinePage } from "./read-turn-page";
 import type { Translate } from "./types";
-import type { AppServerTimelinePage } from "~~/shared/runtime/app-server";
 
 export async function loadTurnItems(t: Translate, turnId: string) {
   const navigation = useGatewayNavigationStore();
@@ -32,31 +29,13 @@ export async function loadTurnItems(t: Translate, turnId: string) {
   const sessionIsCurrent = captureSessionEpoch();
   turns.setTurnItemsLoading(hostId, threadId, turnId, true);
   try {
-    const pages: AppServerTimelinePage[] = [];
-    const seenCursors = new Set<string>();
-    let cursor: string | null = null;
-    let reachedTurnStart = false;
-    do {
-      const page = await requestThreadTimelinePage({
-        hostId,
-        threadId,
-        cursor,
-        limit: TIMELINE_PAGE_LIMIT,
-      });
-      pages.push(page);
-      reachedTurnStart = page.data.some(
-        (entry) => entry.type === "turnStarted" && entry.turnId === turnId,
-      );
-      cursor = reachedTurnStart ? null : page.nextCursor;
-      if (cursor !== null) {
-        if (seenCursors.has(cursor)) {
-          throw new Error("App Server returned a repeated thread item cursor");
-        }
-        seenCursors.add(cursor);
-      }
-    } while (cursor !== null);
-
-    const items = timelinePagesItemsForTurn(pages, turnId);
+    const { items, nextCursor, complete } = await readTurnTimelinePage({
+      hostId,
+      threadId,
+      turnId,
+      cursor: turn.olderItemsCursor,
+      sessionIsCurrent,
+    });
 
     if (!sessionIsCurrent()) return false;
     const view = views.threadViews[pinnedKey(hostId, threadId)];
@@ -67,12 +46,13 @@ export async function loadTurnItems(t: Translate, turnId: string) {
         ? {
             ...candidate,
             items: mergeTurnItems(items, candidate.items ?? []),
-            itemsView: reachedTurnStart ? ("full" as const) : candidate.itemsView,
+            itemsView: complete ? ("full" as const) : ("summary" as const),
+            olderItemsCursor: nextCursor,
           }
         : candidate,
     );
-    // Publish only the complete item sequence. Inserting each page would temporarily move the
-    // final answer and force several virtualizer remeasurements for one disclosure action.
+    // Commit one bounded page atomically. Do not accumulate every page before publishing: a turn
+    // can contain thousands of intermediate items even though only a handful fit the viewport.
     patchThreadView(hostId, threadId, {
       history: { thread: { ...history.thread, turns: nextTurns } },
     });

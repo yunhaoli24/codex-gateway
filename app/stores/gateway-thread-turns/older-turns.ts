@@ -1,6 +1,5 @@
-import { CLIENT_THREAD_TURN_CACHE_LIMIT, TIMELINE_PAGE_LIMIT } from "~~/shared/config";
+import { TIMELINE_PAGE_LIMIT } from "~~/shared/config";
 import { timelinePageToTurns } from "~~/shared/thread-history/app-server-timeline";
-import { threadTurnsFromHistory } from "~~/shared/thread-history/shape";
 import { mergeThreadTurns } from "~~/shared/thread-history/turns";
 import { useGatewayBootstrapStore } from "@/stores/gateway-bootstrap";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
@@ -30,13 +29,6 @@ export async function loadOlderTurns(t: Translate, options: { limit?: number } =
   const hostId = navigation.selectedHostId;
   const projectId = navigation.selectedProjectId;
   const threadId = navigation.selectedThreadId;
-  // This is a recent-turn FIFO cache, not a second history store. Once it is full, older-page
-  // loading would immediately evict the page just fetched while realtime events continue to
-  // append normally. Stop pagination silently instead of surfacing a recoverable cache condition
-  // as an error and keep the opaque cursor for a later fresh activation.
-  if (threadTurnsFromHistory(views.history).length >= CLIENT_THREAD_TURN_CACHE_LIMIT) {
-    return;
-  }
   views.loadingOlderTurns = true;
   try {
     const page = await requestThreadTimelinePage({

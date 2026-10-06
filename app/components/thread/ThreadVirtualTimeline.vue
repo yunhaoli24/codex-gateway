@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from "vue";
+import { computed, onScopeDispose, ref, toRef, watch } from "vue";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import type { ThreadRuntimeStatus, ThreadTimelineTurn } from "~~/shared/types";
 import { Button } from "@codex-gateway/ui/button";
 import ThreadTimelineRowView from "@/components/thread/ThreadTimelineRowView.vue";
@@ -39,6 +40,13 @@ const { t } = useI18n();
 const composer = useGatewayComposerStore();
 const threadTurns = useGatewayThreadTurnsStore();
 const runtime = useGatewayThreadRuntimeStore();
+const views = useGatewayThreadViewStore();
+
+onScopeDispose(() => {
+  if (props.hostId !== null && props.threadId !== null) {
+    views.setExpandedTurn(props.hostId, props.threadId, null);
+  }
+});
 const userDetachedFromLatest = ref(false);
 const projectId = computed(() => props.projectId ?? null);
 const planModeActive = computed(() => selectedThreadMode() === "plan");
@@ -111,6 +119,17 @@ function selectedThreadMode() {
   );
 }
 
+watch(
+  () => props.turns.find((turn) => isIntermediateOpen(turn.id))?.id ?? null,
+  (turnId) => {
+    if (props.hostId === null || props.threadId === null) return;
+    // Reuse the accordion's one selection. Protect it before a requested page commits; a second
+    // visibility tracker would add state even though collapsed rows already leave the virtual list.
+    views.setExpandedTurn(props.hostId, props.threadId, turnId);
+  },
+  { flush: "sync", immediate: true },
+);
+
 function handleReachStart() {
   if (props.oldestTimelineCursor && !props.loadingOlder) emit("loadOlder");
 }
@@ -125,8 +144,13 @@ async function handleIntermediateToggle(turnId: string, open: boolean) {
     return;
   }
   const turn = props.turns.find((candidate) => candidate.id === turnId);
-  if (turn?.itemsView !== "full" && !(await threadTurns.loadTurnItems(turnId))) return;
   setIntermediateOpen(turnId, true);
+  if (
+    turn?.itemsView !== "full" &&
+    turn?.olderItemsCursor === undefined &&
+    !(await threadTurns.loadTurnItems(turnId))
+  )
+    return;
 }
 
 function estimateRowSize(row: unknown) {
@@ -185,6 +209,7 @@ watch(
         :host-id="hostId"
         :thread-id="threadId"
         @intermediate-toggle="handleIntermediateToggle"
+        @load-more="threadTurns.loadTurnItems($event)"
       />
     </template>
   </VirtualTimelineViewport>

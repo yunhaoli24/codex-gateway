@@ -60,6 +60,9 @@ export interface ThreadPendingApproval extends Record<string, unknown> {
 }
 
 export interface ThreadHistoryItem extends Record<string, unknown> {
+  /** Client cache metadata only; never sent back as an App Server item. */
+  outputTotalLength?: number;
+  outputWindowEnd?: number;
   id?: string | number | null;
   clientId?: string | number | null;
   turnId?: string | number | null;
@@ -161,6 +164,8 @@ export interface ThreadHistoryTurn {
   status?: ThreadHistoryStatus;
   items?: ThreadHistoryItem[];
   itemsView?: "notLoaded" | "summary" | "full";
+  /** Opaque App Server continuation for a partially loaded client disclosure. */
+  olderItemsCursor?: string | null;
   error?: {
     message?: string | null;
     codexErrorInfo?: unknown;

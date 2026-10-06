@@ -7,7 +7,9 @@ import {
   TerminalIcon,
   XCircleIcon,
 } from "@lucide/vue";
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { Button } from "@codex-gateway/ui/button";
+import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { Loader } from "@codex-gateway/ai-elements/loader";
 import { ConfirmationAction } from "@codex-gateway/ai-elements/confirmation";
 import { Badge } from "@codex-gateway/ui/badge";
@@ -30,6 +32,31 @@ const { t } = useI18n();
 const title = computed(() => commandDisplayLabel(props.item.command));
 const rawOutput = computed(() => props.item.aggregatedOutput || threadItemResultText(props.item));
 const output = computed(() => rawOutput.value);
+const loadingOutput = ref(false);
+const turns = useGatewayThreadTurnsStore();
+const outputStart = computed(
+  () => (props.item.outputWindowEnd ?? rawOutput.value.length) - rawOutput.value.length,
+);
+const hasLaterOutput = computed(
+  () => (props.item.outputWindowEnd ?? 0) < (props.item.outputTotalLength ?? 0),
+);
+
+async function loadOutputWindow(end?: number) {
+  if (props.hostId === null || props.threadId === null || typeof props.item.turnId !== "string")
+    return;
+  loadingOutput.value = true;
+  try {
+    await turns.loadCommandOutputWindow({
+      hostId: props.hostId,
+      threadId: props.threadId,
+      turnId: props.item.turnId,
+      item: props.item,
+      outputEnd: end,
+    });
+  } finally {
+    loadingOutput.value = false;
+  }
+}
 const commandStatus = computed(() =>
   typeof props.item.status === "string" ? props.item.status : props.item.status?.type,
 );
@@ -116,6 +143,31 @@ async function respond(result: unknown) {
       </span>
     </CollapsibleTrigger>
     <DeferredCollapsibleContent :open="open">
+      <!-- Height bounding and virtualization do not release the command string in Pinia. Browse
+           old output in bounded windows of the authoritative item instead of restoring it all. -->
+      <div
+        v-if="outputStart > 0 || hasLaterOutput"
+        class="flex items-center gap-2 pt-2 text-xs text-ink-faint"
+      >
+        <span>{{ t("app.commandOutputWindow") }}</span>
+        <Button
+          v-if="outputStart > 0"
+          variant="ghost"
+          size="sm"
+          data-testid="load-earlier-command-output"
+          :disabled="loadingOutput || isInProgress"
+          @click="loadOutputWindow(outputStart)"
+          >{{ t("app.loadEarlierOutput") }}</Button
+        >
+        <Button
+          v-if="hasLaterOutput"
+          variant="ghost"
+          size="sm"
+          :disabled="loadingOutput"
+          @click="loadOutputWindow()"
+          >{{ t("app.backToLatest") }}</Button
+        >
+      </div>
       <CodexApprovalConfirmation
         v-if="pendingApproval"
         class="mt-2"
