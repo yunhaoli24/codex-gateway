@@ -581,6 +581,30 @@ done
 
   await fileTab(page, nestedPythonPath).click();
 
+  // Moving the browser between monitors changes its container dimensions. Exercise the user's
+  // actual split, then restore it after a reload; do not fabricate Dockview JSON or resize panels
+  // through private APIs, which would bypass the wrapper's proportionalLayout option.
+  const originalViewport = page.viewportSize();
+  if (originalViewport === null) throw new Error("Missing browser viewport");
+  for (const viewport of [
+    { width: 2400, height: 1200 },
+    { width: 1100, height: 760 },
+    originalViewport,
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect
+      .poll(async () => {
+        const [agentBox, filesBox] = await Promise.all([
+          page.getByTestId("chat-main-pane").boundingBox(),
+          panel.boundingBox(),
+        ]);
+        if (agentBox === null || filesBox === null) return Number.POSITIVE_INFINITY;
+        return Math.abs(agentBox.width / (agentBox.width + filesBox.width) - dockWidthRatio);
+      })
+      .toBeLessThan(0.03);
+    await assertDockviewPanelsFillHost(page);
+  }
+
   await reloadApp(page);
   await seedGatewayThread(page, {
     hostId: host.id,
