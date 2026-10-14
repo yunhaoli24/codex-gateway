@@ -52,8 +52,12 @@ export function writeGatewayRouteSelection(
     return;
   }
 
-  const method = options.replace === false ? "pushState" : "replaceState";
-  window.history[method](window.history.state, "", nextUrl);
+  // Nuxt's built-in update reload uses the router's fullPath. Writing browser history directly
+  // leaves that route stale and can reopen the previous conversation after an automatic reload.
+  // Let the official router own URL updates now that the workspace is a Nuxt page.
+  const router = useRouter();
+  if (options.replace === false) void router.push(nextUrl);
+  else void router.replace(nextUrl);
 }
 
 function setRouteParam(url: URL, key: string, value: string | number | null | undefined) {

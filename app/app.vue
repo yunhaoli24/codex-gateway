@@ -17,14 +17,12 @@ const navigation = useGatewayNavigationStore();
 const threadView = useGatewayThreadViewStore();
 const realtime = useGatewayRealtimeStore();
 const auth = useAuthStore();
-const device = useDevice();
 const { initializing } = storeToRefs(bootstrap);
 const { selectedThreadId } = storeToRefs(navigation);
 const { currentThread } = storeToRefs(threadView);
 const { initialized, isAuthenticated, token } = storeToRefs(auth);
 const mounted = ref(false);
 let activeSessionToken = "";
-const layoutName = computed(() => (device.isMobileOrTablet ? "mobile" : "default"));
 const pageTitle = computed(() => {
   if (!selectedThreadId.value || !currentThread.value) {
     return "Codex Gateway";
@@ -87,5 +85,5 @@ watch(
   >
   <Toaster rich-colors position="top-right" />
   <LoginScreen v-if="mounted && !isAuthenticated" />
-  <NuxtLayout v-else :name="layoutName" />
+  <NuxtPage v-else />
 </template>
