@@ -180,6 +180,23 @@ done
             status: "completed",
             items: [
               {
+                id: "file-preview-patch",
+                type: "fileChange",
+                status: "completed",
+                changes: [
+                  {
+                    path: remotePath,
+                    kind: { type: "update" },
+                    diff: '@@ -2 +2 @@\n-  return "codex-gateway-file-baseline";\n+  return "codex-gateway-file-preview";',
+                  },
+                  {
+                    path: reviewDeletedPath,
+                    kind: { type: "delete" },
+                    diff: "-deleted file baseline",
+                  },
+                ],
+              },
+              {
                 id: "file-preview-agent-message",
                 type: "agentMessage",
                 phase: "final_answer",
@@ -193,12 +210,22 @@ done
   });
 
   await expect(filesWorkspaceTab(page)).toBeVisible();
-  await page.getByRole("link", { name: "preview target" }).click();
+  await page
+    .getByRole("button", { name: /中间过程/ })
+    .first()
+    .click();
+  await expect(page.getByRole("button", { name: `打开文件：${reviewDeletedPath}` })).toBeDisabled();
+  const diffToggle = page.getByRole("button", { name: `收起差异：${remotePath}` }).first();
+  await diffToggle.click();
+  await page.getByRole("button", { name: `打开文件：${remotePath}` }).click();
   const panel = page.getByTestId("workspace-file-panel");
   await expect(panel).toBeVisible();
   await page.getByRole("button", { name: "向右分屏" }).click();
   await expect(page.getByTestId("chat-main-pane")).toBeVisible();
   await expect(panel).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: `展开差异：${remotePath}` }).first(),
+  ).toHaveAttribute("data-state", "closed");
   const [agentDockBox, filesDockBox] = await Promise.all([
     page.getByTestId("chat-main-pane").boundingBox(),
     panel.boundingBox(),
@@ -306,6 +333,8 @@ done
   for (let level = 1; level <= 14; level += 1) {
     await tree.getByText(`level-${String(level).padStart(2, "0")}`, { exact: true }).click();
   }
+  // The row count can already exceed 90 before the last lazy directory finishes loading.
+  await expect(tree.getByText("file-14-6.log", { exact: true })).toBeVisible();
   await expect.poll(() => tree.getByRole("treeitem").count()).toBeGreaterThan(90);
   const expandedTreeGeometry = await treeScroll.evaluate(async (element) => {
     element.scrollTop = Math.floor((element.scrollHeight - element.clientHeight) / 2);

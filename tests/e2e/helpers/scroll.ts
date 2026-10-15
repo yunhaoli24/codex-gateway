@@ -386,7 +386,9 @@ async function diffViewport(page: Page, path: string) {
   // The rendered code is replaced as streaming Markdown is enhanced, so text nodes are not stable
   // anchors. The file's Collapsible root persists across that replacement, so locate the bounded
   // viewport from the user-visible file trigger instead of from transient highlighted code.
-  return trigger.locator("..").locator('[data-slot="scroll-area-viewport"]');
+  return trigger
+    .locator('xpath=ancestor::*[@data-slot="collapsible"][1]')
+    .locator('[data-slot="scroll-area-viewport"]');
 }
 
 function escapeRegExp(value: string) {

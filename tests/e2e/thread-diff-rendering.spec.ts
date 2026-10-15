@@ -57,9 +57,12 @@ test("file diff blocks can collapse and expand after virtual timeline measuremen
   });
 
   await openIntermediateSteps(page);
-  const toggle = page.getByRole("button", { name: /src\/example\.py/ });
+  const fileName = page.getByRole("button", { name: `打开文件：${changedFilePath}` });
+  const toggle = page
+    .getByRole("button", { name: /(?:展开|收起)差异：.*src\/example\.py/ })
+    .first();
   const diffText = page.getByText("new_value =");
-  await expect(toggle.locator("span[title]")).toHaveAttribute("title", changedFilePath);
+  await expect(fileName).toHaveAttribute("title", changedFilePath);
   await expect(toggle).toHaveAttribute("data-state", "open");
   await expect(diffText).toBeVisible();
   await expect
@@ -198,10 +201,9 @@ test("streaming diff keeps user-selected horizontal scroll position", async ({ p
   });
 
   await openIntermediateSteps(page);
-  await expect(page.getByRole("button", { name: /src\/wide\.py/ })).toHaveAttribute(
-    "data-state",
-    "open",
-  );
+  await expect(
+    page.getByRole("button", { name: /收起差异：src\/wide\.py/ }).first(),
+  ).toHaveAttribute("data-state", "open");
   await expect(page.getByText("wide_line_001")).toBeVisible();
   const chosenScrollLeft = await setDiffScrollLeft(page, "src/wide.py", 96);
   expect(chosenScrollLeft).toBeGreaterThan(0);
@@ -299,10 +301,9 @@ test("switching threads keeps asynchronously rendered diff content in normal flo
   await page.getByTestId(`thread-button-${shortThreadId}`).click();
   await expect(page.getByText("short thread content")).toBeVisible();
   await page.getByTestId(`thread-button-${diffThreadId}`).click();
-  await expect(page.getByRole("button", { name: /src\/async\.py/ })).toHaveAttribute(
-    "data-state",
-    "open",
-  );
+  await expect(
+    page.getByRole("button", { name: /收起差异：src\/async\.py/ }).first(),
+  ).toHaveAttribute("data-state", "open");
   await expect(page.getByText("async_diff_line_120")).toBeVisible();
   await expect(page.getByText(finalMarker)).toBeVisible();
   await expect.poll(() => diffEndsBeforeText(page, finalMarker)).toBe(true);

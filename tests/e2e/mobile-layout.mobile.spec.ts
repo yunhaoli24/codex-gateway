@@ -766,14 +766,43 @@ printf '%s\n' '# Mobile File Workspace' 'Rendered from the remote tree.' > ${she
     project: { ...project },
     threadId,
     currentThread: { id: threadId, name: "Mobile Files", cwd: rootPath },
-    history: { thread: { id: threadId, turns: [] } },
+    history: {
+      thread: {
+        id: threadId,
+        turns: [
+          {
+            id: "mobile-file-edit-turn",
+            status: "completed",
+            items: [
+              {
+                id: "mobile-file-edit",
+                type: "fileChange",
+                status: "completed",
+                changes: [
+                  {
+                    path,
+                    kind: { type: "update" },
+                    diff: "-# Mobile File Baseline\n+# Mobile File Workspace",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
     status: "completed",
   });
 
-  await page.locator('[data-testid="workspace-dock-tab"][data-panel-kind="files"]').click();
+  await page
+    .getByRole("button", { name: /中间过程/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: `打开文件：${path}` }).click();
   await expect(page.getByRole("button", { name: "向右分屏" })).toHaveCount(0);
   const panel = page.getByTestId("workspace-file-panel");
   await expect(panel).toBeVisible();
+  await expect(panel.locator(".markdown-content h1")).toHaveText("Mobile File Workspace");
   await page.getByRole("button", { name: "文件树", exact: true }).click();
   const tree = page.getByTestId("remote-file-tree");
   await expect(tree).toBeVisible();

@@ -35,12 +35,16 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
+  open: [path: string];
   download: [path: string];
   copyPath: [path: string];
   delete: [path: string];
 }>();
 
 const { longPressContextMenuHandlers } = useLongPressContextMenu({ menuWidthEstimate: 192 });
+
+// Reka's select event also fires when activating the already selected row. Model updates alone
+// miss that case after a timeline link reveals the file, leaving the mobile tree sheet open.
 </script>
 
 <template>
@@ -52,6 +56,7 @@ const { longPressContextMenuHandlers } = useLongPressContextMenu({ menuWidthEsti
         :value="node"
         :data-file-path="node.path"
         :level="level"
+        @select="node.type === 'file' && emit('open', node.path)"
         class="flex h-8 w-max min-w-full cursor-default items-center gap-1.5 rounded-md pr-2 text-sm text-ink-muted outline-none hover:bg-canvas-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary/35 data-selected:bg-primary/10 data-selected:text-ink"
         :style="{ paddingInlineStart: `${Math.max(0, level - 1) * 1.125 + 0.5}rem` }"
       >

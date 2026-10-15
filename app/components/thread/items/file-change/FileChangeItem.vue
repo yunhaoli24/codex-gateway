@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import type { ThreadFileChange, ThreadHistoryItem } from "~~/shared/types";
-import { ChevronDownIcon, ChevronRightIcon, FilePenIcon, Loader2Icon } from "@lucide/vue";
+import { FilePenIcon, Loader2Icon } from "@lucide/vue";
 import { computed, ref, watch } from "vue";
 import { Badge } from "@codex-gateway/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@codex-gateway/ui/collapsible";
+import { Collapsible, CollapsibleContent } from "@codex-gateway/ui/collapsible";
 import FileChangeApprovalBar from "./FileChangeApprovalBar.vue";
 import FileChangeDiffPanel from "./FileChangeDiffPanel.vue";
 import FileChangeOutputPanel from "./FileChangeOutputPanel.vue";
-import { fileChangeKey, fileChangeKind, fileChangePath } from "./utils";
-import { useFilePreviewContext } from "@/composables/files/useFilePreviewContext";
-import { workspacePathDisplayLabel } from "@/utils/thread-item-display";
+import FileChangeHeader from "./FileChangeHeader.vue";
+import { fileChangeKey } from "./utils";
 import { threadItemResultText } from "@/utils/thread-items";
 
 const props = defineProps<{
@@ -18,7 +17,6 @@ const props = defineProps<{
   threadId: string | null;
 }>();
 const { t } = useI18n();
-const filePreviewContext = useFilePreviewContext();
 const fileChanges = computed(() => (Array.isArray(props.item.changes) ? props.item.changes : []));
 const openChangeKeys = ref(new Set<string>());
 const initializedChangeKeys = new Set<string>();
@@ -37,18 +35,6 @@ const title = computed(() => {
   }
   return t("app.filesChanged", { count: fileChanges.value.length });
 });
-
-function changeKindLabel(change: ThreadFileChange) {
-  const kind = fileChangeKind(change).toLowerCase();
-  if (kind.includes("add") || kind === "create") return t("app.fileAdded");
-  if (kind.includes("delete") || kind === "remove") return t("app.fileDeleted");
-  if (kind.includes("move") || kind.includes("rename")) return t("app.fileMoved");
-  return t("app.fileUpdated");
-}
-
-function changeDisplayPath(change: ThreadFileChange) {
-  return workspacePathDisplayLabel(fileChangePath(change), filePreviewContext?.workspaceRoot.value);
-}
 
 function isChangeOpen(change: ThreadFileChange) {
   return openChangeKeys.value.has(fileChangeKey(change));
@@ -115,21 +101,7 @@ watch(
         class="rounded-lg border border-hairline bg-surface"
         @update:open="setChangeOpen(change, $event)"
       >
-        <CollapsibleTrigger as-child>
-          <button
-            type="button"
-            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas-soft"
-          >
-            <ChevronDownIcon v-if="open" class="size-4 shrink-0 text-ink-faint" />
-            <ChevronRightIcon v-else class="size-4 shrink-0 text-ink-faint" />
-            <span
-              class="min-w-0 flex-1 truncate font-mono text-[0.8125rem] text-ink-secondary"
-              :title="fileChangePath(change)"
-              >{{ changeDisplayPath(change) }}</span
-            >
-            <Badge variant="outline">{{ changeKindLabel(change) }}</Badge>
-          </button>
-        </CollapsibleTrigger>
+        <FileChangeHeader :change="change" :open="open" :host-id="hostId" :thread-id="threadId" />
         <CollapsibleContent>
           <FileChangeDiffPanel v-if="open" :change="change" :streaming="isInProgress" />
         </CollapsibleContent>

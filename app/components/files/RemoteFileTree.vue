@@ -77,9 +77,7 @@ useRemoteFileTreeReveal({
 
 function selectNode(node: FileTreeNode | undefined) {
   selected.value = node;
-  if (node?.type === "file") {
-    emit("open", node.path);
-  } else if (node?.type === "directory") {
+  if (node?.type === "directory") {
     void expandUnloadedDirectory(node.path);
   }
 }
@@ -184,6 +182,7 @@ function fileTreeNode(value: unknown) {
               ? gitWorkspace.descendantChangeCount(fileTreeNode(item.value).path)
               : 0
           "
+          @open="emit('open', $event)"
           @download="fileActions.downloadFile"
           @copy-path="fileActions.copyAbsolutePath"
           @delete="fileActions.requestDelete"
