@@ -30,51 +30,17 @@ function codexPathBootstrap(options: { requireCodex: boolean }) {
 }
 
 export function codexRemoteAppServerProxyPayload() {
+  // Version preparation already ensures the official daemon is ready. The transport must only
+  // attach; starting or repairing here creates a second lifecycle competing with upgrades.
+  return codexRemotePayload('exec "$CODEX_BIN" app-server proxy');
+}
+
+export function codexRemoteDaemonPayload(command: string) {
   return codexRemotePayload(`
 set -eu
-socket="\${CODEX_HOME:-$HOME/.codex}/app-server-control/app-server-control.sock"
-control_dir="$(dirname "$socket")"
-log_file="$control_dir/codex-gateway-app-server.log"
+cd "$HOME"
 ${ensureGatewayCodexConfigFeatureSnippet()}
-${appServerSocketHasListenerSnippet()}
-if [ -S "$socket" ] && ! codex_gateway_socket_has_listener; then
-  rm -f "$socket"
-fi
-if ! [ -S "$socket" ]; then
-  # The official socket is already scoped by CODEX_HOME/HOME. Keep the detached process log
-  # beside it as well: /tmp is shared by every Unix user, so a fixed filename there lets one
-  # user's app-server block another user's launch before Codex can create its private socket.
-  mkdir -p "$control_dir"
-  # Bootstrap is an official synchronous lifecycle command: it installs/selects the managed
-  # daemon and waits until the app-server socket is ready. Do not background it from SSH; the
-  # bootstrap process owns the daemon handoff and must stay attached until that handoff completes.
-  "$CODEX_BIN" app-server daemon bootstrap --remote-control >"$log_file" 2>&1
-fi
-if ! [ -S "$socket" ] || ! codex_gateway_socket_has_listener; then
-  echo "Codex app-server did not create a listening socket: $socket" >&2
-  if [ -r "$log_file" ]; then
-    echo "Codex app-server stderr (last 80 lines from $log_file):" >&2
-    tail -n 80 "$log_file" >&2 || true
-  fi
-  exit 1
-fi
-exec "$CODEX_BIN" app-server proxy
-`);
-}
-
-export function codexRemoteAppServerExistingProxyPayload() {
-  return codexRemotePayload('"$CODEX_BIN" app-server proxy');
-}
-
-export function codexRemoteAppServerRuntimeStatePayload() {
-  return codexRemotePayload(`
-socket="\${CODEX_HOME:-$HOME/.codex}/app-server-control/app-server-control.sock"
-${appServerSocketHasListenerSnippet()}
-if [ -S "$socket" ] && codex_gateway_socket_has_listener; then
-  echo '{"status":"running","backend":"socket"}'
-else
-  echo '{"status":"stopped"}'
-fi
+exec "$CODEX_BIN" app-server daemon ${command}
 `);
 }
 
@@ -95,61 +61,6 @@ if [ "$CODEX_BIN" = "$standalone_bin" ] ||
 else
   printf '%s\\n' "installation-layout npm-or-external"
 fi
-`);
-}
-
-export function codexRemoteTerminateUnmanagedAppServerPayload() {
-  return codexRemotePayload(`
-set -eu
-socket="\${CODEX_HOME:-$HOME/.codex}/app-server-control/app-server-control.sock"
-${appServerSocketHasListenerSnippet()}
-if [ ! -S "$socket" ]; then
-  exit 0
-fi
-pid=""
-inode=""
-if [ -r /proc/net/unix ]; then
-  listener_socket="$(codex_gateway_socket_path)"
-  inode="$(awk -v socket="$listener_socket" '$NF == socket { print $7; exit }' /proc/net/unix)"
-fi
-if [ -n "$inode" ]; then
-  for fd in /proc/[0-9]*/fd/*; do
-    target="$(readlink "$fd" 2>/dev/null || true)"
-    if [ "$target" = "socket:[$inode]" ]; then
-      pid="\${fd#/proc/}"
-      pid="\${pid%%/*}"
-      break
-    fi
-  done
-fi
-if [ -z "$pid" ] && command -v ss >/dev/null 2>&1; then
-  listener_socket="$(codex_gateway_socket_path)"
-  pid="$(ss -xlpH 2>/dev/null | awk -v socket="$listener_socket" '
-    index($0, socket) {
-      if (match($0, /pid=[0-9]+/)) {
-        print substr($0, RSTART + 4, RLENGTH - 4)
-        exit
-      }
-    }
-  ')"
-fi
-if [ -z "$pid" ] && command -v fuser >/dev/null 2>&1; then
-  pid="$(fuser "$socket" 2>/dev/null | tr ' ' '\\n' | sed '/^$/d' | head -n 1 || true)"
-fi
-if [ -z "$pid" ]; then
-  echo "Unable to identify unmanaged app-server PID for $socket" >&2
-  exit 1
-fi
-kill -TERM "$pid"
-for i in $(seq 1 100); do
-  if ! kill -0 "$pid" 2>/dev/null; then
-    rm -f "$socket"
-    exit 0
-  fi
-  sleep 0.1
-done
-echo "Unmanaged app-server did not stop after SIGTERM: $pid" >&2
-exit 1
 `);
 }
 
@@ -225,33 +136,5 @@ awk '
   }
 ' "$config_file" > "$config_tmp" && mv "$config_tmp" "$config_file"
 true
-`;
-}
-
-function appServerSocketHasListenerSnippet() {
-  return `
-codex_gateway_socket_path() {
-  if [ -L "$socket" ]; then
-    target="$(readlink "$socket" 2>/dev/null || true)"
-    case "$target" in
-      /*) printf '%s\\n' "$target" ;;
-      *) printf '%s/%s\\n' "$(dirname "$socket")" "$target" ;;
-    esac
-    return
-  fi
-  printf '%s\\n' "$socket"
-}
-
-codex_gateway_socket_has_listener() {
-  if ! [ -S "$socket" ]; then
-    return 1
-  fi
-  if [ -r /proc/net/unix ]; then
-    listener_socket="$(codex_gateway_socket_path)"
-    awk -v socket="$listener_socket" '$NF == socket && $4 == "00010000" { found = 1 } END { exit found ? 0 : 1 }' /proc/net/unix
-    return $?
-  fi
-  return 0
-}
 `;
 }

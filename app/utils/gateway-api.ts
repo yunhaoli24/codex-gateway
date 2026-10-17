@@ -1,4 +1,9 @@
-import type { AnyServerRouteMethod, TypedFetchOptions, TypedFetchRequest } from "nuxt/app";
+import type {
+  AnyServerRouteMethod,
+  TypedFetch,
+  TypedFetchOptions,
+  TypedFetchRequest,
+} from "nuxt/app";
 import { FetchError } from "ofetch";
 import { useAuthStore } from "@/stores/auth";
 
@@ -12,7 +17,10 @@ export function gatewayApi<T>(
   if (auth.token !== "") {
     headers.set("authorization", `Bearer ${auth.token}`);
   }
-  return $fetch<T>(request, {
+  // Use Nuxt's browser contract explicitly: tooling also loads Nitro's global $fetch declaration,
+  // whose third generic parameter is options rather than Nuxt's HTTP method.
+  const fetchApi: TypedFetch = $fetch;
+  return fetchApi<T, TypedFetchRequest, AnyServerRouteMethod>(request, {
     ...options,
     headers,
   }).catch((error: unknown) => {

@@ -20,10 +20,10 @@ export default defineGatewayEventHandler(async (event): Promise<UploadResult> =>
     if (!parts.length) {
       return { files: [] };
     }
-    const remoteRoot = await remoteFiles.createUploadDirectory(host);
     const files = [];
     for (const part of parts) {
-      const remotePath = `${remoteRoot}/${part.safeName}`;
+      const remoteRoot = await remoteFiles.createUploadDirectory(host);
+      const remotePath = `${remoteRoot}/${part.originalName}`;
       await remoteFiles.uploadFile(host, part.localPath, remotePath);
       files.push({
         name: part.originalName,

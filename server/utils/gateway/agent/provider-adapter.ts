@@ -47,8 +47,6 @@ export interface AgentRpcClient {
   respond(id: string | number, result: unknown): void;
   respondError(id: string | number, code: number, message: string, data?: unknown): void;
   close(): void;
-  hasDeferredUpgrade?(): boolean;
-  resolveDeferredUpgrade?(): void;
 }
 
 export type ProviderMappingResult =
@@ -80,8 +78,6 @@ export interface ProviderAdapter {
   readProjectDefaults(client: AgentRpcClient, cwd: string): Promise<AgentProjectDefaults>;
   /** Handle provider-specific server requests before neutral thread routing. */
   handleServerRequest(client: AgentRpcClient, message: RpcEnvelope): boolean;
-  /** Run provider-specific connection lifecycle hooks without exposing them to runtime code. */
-  handleNotification(client: AgentRpcClient, host: HostRecord, message: RpcEnvelope): void;
   /**
    * Translate a provider notification into a canonical AgentEvent.
    * Invalid and unsupported notifications return a diagnostic result instead

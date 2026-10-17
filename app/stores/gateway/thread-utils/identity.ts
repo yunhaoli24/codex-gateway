@@ -3,6 +3,7 @@ import { firstNonEmptyString } from "~~/shared/utils/strings";
 import { unknownGatewayErrorFromError } from "../errors";
 
 export interface ErrorMessageLabels {
+  serverShuttingDown: string;
   scope: string;
   host: string;
   ssh: string;
@@ -16,6 +17,8 @@ export interface ErrorMessageLabels {
 }
 
 const defaultErrorLabels: ErrorMessageLabels = {
+  serverShuttingDown:
+    "Codex app-server is restarting. Wait for it to reconnect before trying again.",
   scope: "scope",
   host: "host",
   ssh: "ssh",
@@ -38,6 +41,7 @@ export function messageFromError(
 
 export function errorMessageLabels(t: (key: string) => string): ErrorMessageLabels {
   return {
+    serverShuttingDown: t("app.appServerShuttingDown"),
     scope: t("app.errorScope"),
     host: t("app.errorHost"),
     ssh: t("app.errorSsh"),

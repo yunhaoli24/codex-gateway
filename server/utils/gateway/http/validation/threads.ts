@@ -2,6 +2,7 @@ import { z } from "zod";
 import { INITIAL_TIMELINE_PAGE_LIMIT } from "~~/shared/config";
 import { agentProviderIdSchema } from "~~/shared/agent/providers";
 import { reasoningSummarySchema } from "~~/shared/reasoning-summary";
+import { uploadedFileSchema } from "~~/shared/runtime/uploaded-file";
 
 export const threadListSchema = z.object({
   hostId: z.coerce.number().int().positive(),
@@ -92,17 +93,7 @@ export const turnStartSchema = z.object({
   ...threadSettingFields,
   collaborationMode: collaborationModeSchema,
   images: z.array(imageInputSchema).default([]),
-  files: z
-    .array(
-      z.object({
-        path: z.string().trim().min(1),
-        name: z.string().trim().min(1),
-        mimeType: z.string().trim().nullable().optional(),
-        size: z.coerce.number().int().min(0),
-        isImage: z.boolean(),
-      }),
-    )
-    .default([]),
+  files: z.array(uploadedFileSchema).default([]),
   references: z.array(fileReferenceSchema).max(10).default([]),
 });
 
@@ -113,6 +104,7 @@ export const turnSteerSchema = z.object({
   text: z.string().trim().default(""),
   clientUserMessageId: z.string().trim().nullable().optional(),
   images: z.array(imageInputSchema).default([]),
+  files: z.array(uploadedFileSchema).default([]),
   references: z.array(fileReferenceSchema).max(10).default([]),
 });
 

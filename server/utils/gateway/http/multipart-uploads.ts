@@ -13,7 +13,6 @@ export interface ParsedUploadFile {
   originalName: string;
   mimeType: string | null;
   localPath: string;
-  safeName: string;
   size: number;
 }
 
@@ -64,13 +63,17 @@ export function streamMultipartUploads(event: H3Event, tempDir: string) {
         return;
       }
       const originalName = basename(filename);
+      if (originalName === "." || originalName === ".." || originalName.includes("\0")) {
+        limitError = createError({ statusCode: 400, statusMessage: "Invalid attachment filename" });
+        stream.resume();
+        return;
+      }
       const safeName = `${randomUUID()}${extname(originalName)}`;
       const localPath = join(tempDir, safeName);
       const file: ParsedUploadFile = {
         originalName,
         mimeType: mimeType === "" ? null : mimeType,
         localPath,
-        safeName,
         size: 0,
       };
       stream.on("data", (chunk: Buffer) => {

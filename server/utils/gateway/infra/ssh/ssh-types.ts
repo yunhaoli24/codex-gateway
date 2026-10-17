@@ -41,7 +41,6 @@ export interface RemoteCodexVersionState {
   supportedVersion: string;
   beforeVersion: string;
   upgraded: boolean;
-  deferredUpgrade?: boolean;
 }
 
 export type CodexInstallationLayout = "standalone" | "npm-or-external";

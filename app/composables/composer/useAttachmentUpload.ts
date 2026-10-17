@@ -1,4 +1,5 @@
 import { ref, type Ref } from "vue";
+import { nanoid } from "nanoid";
 import { gatewayApi } from "@/utils/gateway-api";
 import type { UploadedFileRecord } from "~~/shared/types";
 import type { ComposerAttachment } from "./useComposerDraft";
@@ -41,7 +42,7 @@ export function useAttachmentUpload(
       const dataUrl = await dataUrlFromFile(file);
       if (!sessionIsCurrent()) return;
       attachedFiles.value.push({
-        id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${file.name}`,
+        id: nanoid(),
         name: file.name || "pasted-image.png",
         path: "",
         mimeType: file.type || null,
@@ -71,7 +72,7 @@ export function useAttachmentUpload(
       attachedFiles.value.push(
         ...result.files.map((file) => ({
           ...file,
-          id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${file.name}`,
+          id: nanoid(),
         })),
       );
     } catch (error: unknown) {

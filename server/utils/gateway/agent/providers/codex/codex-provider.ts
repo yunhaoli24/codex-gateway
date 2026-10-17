@@ -15,8 +15,6 @@ import type {
 } from "../../provider-adapter";
 import type { HostRecord, RpcEnvelope } from "~~/shared/types";
 import { CodexRpcClient } from "../../../infra/rpc/rpc";
-import { codexRuntime } from "../../../infra/host-services";
-import { runtimeLog } from "../../../runtime/runtime-log";
 import { buildCurrentTimeReadResponse, isCurrentTimeReadRequest } from "./codex-server-requests";
 import { mapCodexNotification } from "./codex-event-mapper";
 import { readCodexProjectDefaults } from "./codex-project-defaults";
@@ -31,21 +29,6 @@ export const codexProviderAdapter: ProviderAdapter = {
     if (!isCurrentTimeReadRequest(message)) return false;
     if (message.id !== undefined) client.respond(message.id, buildCurrentTimeReadResponse());
     return true;
-  },
-  handleNotification(client: AgentRpcClient, host: HostRecord, message: RpcEnvelope) {
-    if (message.method !== "turn/completed" || !clientHasDeferredUpgrade(client)) return;
-    void codexRuntime
-      .completeDeferredUpgrade(host)
-      .then((stopped) => {
-        if (stopped === true) resolveDeferredUpgrade(client);
-      })
-      .catch((error) => {
-        runtimeLog("deferred Codex upgrade check failed", {
-          hostId: host.id,
-          hostName: host.name,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      });
   },
   mapNotification(notification: ProviderNotification): ProviderMappingResult {
     const mapped = mapCodexNotification(notification);
@@ -71,14 +54,6 @@ export const codexProviderAdapter: ProviderAdapter = {
     };
   },
 };
-
-function clientHasDeferredUpgrade(client: AgentRpcClient) {
-  return client.hasDeferredUpgrade?.() === true;
-}
-
-function resolveDeferredUpgrade(client: AgentRpcClient) {
-  client.resolveDeferredUpgrade?.();
-}
 
 function isKnownCodexNotificationMethod(method: string) {
   return [

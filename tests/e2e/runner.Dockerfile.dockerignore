@@ -7,8 +7,6 @@
 !packages/**
 packages/*/dist
 packages/*/node_modules
-!patches/
-!patches/**
 !public/
 !public/**
 !scripts/

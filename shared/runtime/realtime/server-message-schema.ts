@@ -8,6 +8,7 @@ import {
   threadAttachmentSchema,
   threadGoalSchema,
   threadTimelinePageSchema,
+  threadItemsReadResponseSchema,
 } from "../app-server";
 import { agentEventSchema } from "../../agent/events";
 import { realtimeClientMessageSchema } from "./client-message-schema";
@@ -598,6 +599,14 @@ export const realtimeServerMessageSchema: z.ZodType<RealtimeServerMessage> = z.d
         data: threadTimelinePageSchema.shape.data,
         nextCursor: z.string().nullable(),
         activeRealtimeSessionAtPageStart: z.string().nullable(),
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("thread.items.result"),
+        ...requestIdField,
+        ...threadScopeFields,
+        data: threadItemsReadResponseSchema.shape.data,
       })
       .strict(),
     z

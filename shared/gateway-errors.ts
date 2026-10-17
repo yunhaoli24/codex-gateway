@@ -1,7 +1,18 @@
 import { recordFromUnknown } from "./utils/records";
 
 export const STALE_THREAD_CURSOR_ERROR_CODE = "staleThreadCursor";
+export const APP_SERVER_SHUTTING_DOWN_ERROR_CODE = "serverShuttingDown";
 const STALE_THREAD_CURSOR_ERROR_PREFIX = "invalid thread timeline cursor";
+
+export function isAppServerShuttingDownError(error: unknown) {
+  const candidate = recordFromUnknown(error);
+  // -32600 also covers unrelated invalid requests. Only the official structured reason marks
+  // graceful shutdown; message matching would misclassify failures and tempt unsafe send retries.
+  return (
+    candidate?.rpcCode === -32600 &&
+    recordFromUnknown(candidate.rpcData)?.reason === APP_SERVER_SHUTTING_DOWN_ERROR_CODE
+  );
+}
 
 export function isStaleThreadCursorErrorLike(error: unknown) {
   const candidate = recordFromUnknown(error);

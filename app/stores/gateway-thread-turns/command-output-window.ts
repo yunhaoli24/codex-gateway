@@ -1,6 +1,5 @@
 import type { ThreadHistoryItem } from "~~/shared/types";
 import { itemId } from "~~/shared/thread-history/item-identity";
-import { commandOutputWindow } from "~~/shared/thread-history/retention";
 import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { useGatewayBootstrapStore } from "@/stores/gateway-bootstrap";
 import { patchThreadView } from "@/stores/gateway/thread-open/thread-view-cache";
@@ -10,7 +9,7 @@ import {
   pinnedKey,
 } from "@/stores/gateway/thread-utils/identity";
 import { captureSessionEpoch } from "@/utils/session-epoch";
-import { readTurnTimelinePage } from "./read-turn-page";
+import { requestThreadItems } from "./transport";
 import type { Translate } from "./types";
 
 export interface CommandOutputWindowRequest {
@@ -25,19 +24,26 @@ export async function loadCommandOutputWindow(t: Translate, input: CommandOutput
   const { hostId, threadId, turnId, item, outputEnd } = input;
   const sessionIsCurrent = captureSessionEpoch();
   try {
-    const { items } = await readTurnTimelinePage({
+    const { data } = await requestThreadItems({
       hostId,
       threadId,
       turnId,
-      itemId: itemId(item),
-      sessionIsCurrent,
+      itemIds: [itemId(item)],
+      outputEnd,
     });
     if (!sessionIsCurrent()) return;
-    const body = items.find((candidate) => itemId(candidate) === itemId(item));
+    const entry = data.find((candidate) => itemId(candidate.item) === itemId(item));
     const views = useGatewayThreadViewStore();
     const history = views.threadViews[pinnedKey(hostId, threadId)]?.history;
-    if (body === undefined || history == null) return;
-    const restored = commandOutputWindow(body, outputEnd);
+    if (entry === undefined || history == null) return;
+    // Persisted commands can be Codex's own shorter head/tail summary. Replace the live item,
+    // including its window metadata, rather than carrying offsets from a different output string.
+    const restored = {
+      ...entry.item,
+      turnId: entry.turnId,
+      startedAtMs: entry.startedAtMs,
+      completedAtMs: entry.completedAtMs,
+    };
     patchThreadView(hostId, threadId, {
       history: {
         thread: {

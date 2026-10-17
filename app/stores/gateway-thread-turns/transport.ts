@@ -2,6 +2,7 @@ import type { ComposerTurnOptions } from "~~/shared/types";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import {
   expectThreadTimelinePage,
+  expectThreadItemsResult,
   expectTurnInterruptAccepted,
   expectTurnStartAccepted,
   expectTurnSteerAccepted,
@@ -56,6 +57,19 @@ export function requestThreadTimelinePage(input: {
   );
 }
 
+export function requestThreadItems(input: {
+  hostId: number;
+  threadId: string;
+  turnId: string;
+  itemIds: string[];
+  outputEnd?: number;
+}) {
+  return useGatewayRealtimeStore().request(
+    (requestId) => ({ type: "thread.items.read", requestId, ...input }),
+    expectThreadItemsResult,
+  );
+}
+
 export function requestTurnSteer(input: {
   hostId: number;
   threadId: string;
@@ -74,6 +88,7 @@ export function requestTurnSteer(input: {
       text: input.text,
       clientUserMessageId: input.clientUserMessageId,
       images: input.options.images ?? [],
+      files: input.options.files ?? [],
       references: input.options.references ?? [],
     }),
     expectTurnSteerAccepted,

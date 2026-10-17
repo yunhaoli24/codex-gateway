@@ -564,6 +564,7 @@
     "serverRequestResolved": "Request handled",
     "invalidJsonResponse": "Response is not valid JSON",
     "appServerError": "app-server error",
+    "appServerShuttingDown": "Codex is updating or restarting. Wait for it to reconnect before trying again.",
     "appServerErrorCode": "Error type: {code}",
     "appServerWillRetry": "app-server is retrying automatically",
     "appServerWillNotRetry": "app-server will not retry automatically",

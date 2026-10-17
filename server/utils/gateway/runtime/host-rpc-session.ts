@@ -80,7 +80,6 @@ export class HostRpcSession {
       },
       message,
     );
-    this.provider.handleNotification(this.client, this.host, message);
     const threadId = threadIdFromNotification(message) ?? this.mcpEventStreamThreadId(message);
     if (threadId === null) {
       return;

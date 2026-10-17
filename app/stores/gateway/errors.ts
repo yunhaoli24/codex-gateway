@@ -106,7 +106,7 @@ export function unknownGatewayErrorFromError(
   labels: ErrorMessageLabels,
 ) {
   const payload = gatewayErrorPayload(error);
-  const message = gatewayErrorMessage(error, fallback);
+  const message = gatewayErrorMessage(error, fallback, labels);
   const details = payload?.details;
   if (details === null || typeof details !== "object") {
     return new UnknownGatewayDisplayError(message);

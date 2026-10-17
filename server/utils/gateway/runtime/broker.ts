@@ -4,12 +4,6 @@ import type {
   ThreadGoalStatus,
   ThreadSettingsState,
 } from "~~/shared/types";
-import {
-  parseEmptyAppServerResponse,
-  parseThreadAttachmentAddResponse,
-  parseThreadAttachmentsPage,
-  parseThreadAttachmentRemoveResponse,
-} from "~~/shared/runtime/app-server";
 import { INITIAL_TIMELINE_PAGE_LIMIT } from "~~/shared/config";
 import type { ServerRequestResponseInput, TurnStartInput, TurnSteerInput } from "./types";
 import { ControllerRegistry, type ThreadSubscriptionLease } from "./controller-registry";
@@ -22,6 +16,7 @@ import { ThreadHistoryReader } from "./thread-history-reader";
 import { McpRuntimeService } from "./mcp-runtime";
 import { AppServerFileService } from "./app-server-files";
 import { providerAdapterFor } from "../agent/provider-registry";
+import { ThreadAttachmentService } from "./thread-attachments";
 
 class ThreadBroker {
   private readonly registry = new ControllerRegistry();
@@ -33,6 +28,7 @@ class ThreadBroker {
   private readonly catalog = new ThreadCatalogService(this.registry);
   private readonly mcp = new McpRuntimeService(this.registry);
   private readonly files = new AppServerFileService(this.registry);
+  private readonly attachments = new ThreadAttachmentService(this.registry);
 
   async openThread(
     host: HostRecord,
@@ -151,6 +147,10 @@ class ThreadBroker {
     return this.historyReader.listTimelinePage(host, threadId, cursor, limit);
   }
 
+  async readThreadItems(host: HostRecord, threadId: string, turnId: string, itemIds: string[]) {
+    return this.historyReader.readItems(host, threadId, turnId, itemIds);
+  }
+
   async addThreadAttachment(
     host: HostRecord,
     input: {
@@ -160,38 +160,21 @@ class ThreadBroker {
       payload: unknown;
     },
   ) {
-    const client = await this.registry.getHostClient(host);
-    return parseThreadAttachmentAddResponse(
-      await client.request("thread/attachment/add", input, 120_000),
-    );
+    return this.attachments.add(host, input);
   }
 
   async listThreadAttachments(
     host: HostRecord,
     input: { threadId: string; cursor?: string | null; limit?: number },
   ) {
-    const client = await this.registry.getHostClient(host);
-    return parseThreadAttachmentsPage(
-      await client.request(
-        "thread/attachment/list",
-        {
-          threadId: input.threadId,
-          cursor: input.cursor ?? null,
-          limit: input.limit ?? 100,
-        },
-        120_000,
-      ),
-    );
+    return this.attachments.list(host, input);
   }
 
   async removeThreadAttachment(
     host: HostRecord,
     input: { threadId: string; attachmentType: string; identityKey: string },
   ) {
-    const client = await this.registry.getHostClient(host);
-    return parseThreadAttachmentRemoveResponse(
-      await client.request("thread/attachment/remove", input, 120_000, parseEmptyAppServerResponse),
-    );
+    return this.attachments.remove(host, input);
   }
 
   async getHostClient(host: HostRecord) {

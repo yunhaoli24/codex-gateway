@@ -113,6 +113,15 @@ export type RealtimeClientMessage =
       limit?: number;
     }
   | {
+      type: "thread.items.read";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      turnId: string;
+      itemIds: string[];
+      outputEnd?: number;
+    }
+  | {
       type: "thread.attachments.list";
       requestId: string;
       hostId: number;
@@ -174,6 +183,7 @@ export type RealtimeClientMessage =
       text: string;
       clientUserMessageId?: string | null;
       images?: ComposerTurnOptions["images"];
+      files?: ComposerTurnOptions["files"];
       references?: ComposerTurnOptions["references"];
     }
   | {
@@ -455,6 +465,13 @@ export type RealtimeServerMessage =
       data: import("../runtime/app-server").AppServerTimelinePage["data"];
       nextCursor: string | null;
       activeRealtimeSessionAtPageStart: string | null;
+    }
+  | {
+      type: "thread.items.result";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      data: import("../runtime/app-server").AppServerItemsReadResponse["data"];
     }
   | {
       type: "thread.attachments.page";

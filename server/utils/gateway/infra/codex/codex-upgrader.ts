@@ -36,21 +36,9 @@ export class CodexUpgrader {
     resources: CodexUpgradeResources,
     attempt: number,
   ) {
-    return await this.withPreparedUpgrade(host, version, resources, attempt, (install) =>
-      install(),
-    );
-  }
-
-  async withPreparedUpgrade<T>(
-    host: HostWithSecret,
-    version: string,
-    resources: CodexUpgradeResources,
-    attempt: number,
-    callback: (install: () => Promise<string>) => Promise<T>,
-  ) {
     if (resources.artifactLease !== null) {
       const artifacts = resources.artifactLease.artifacts;
-      return await callback(() => this.installOnce(host, version, artifacts, attempt, resources));
+      return await this.installOnce(host, version, artifacts, attempt, resources);
     }
     const platformProbeStartedAt = Date.now();
     codexUpgradeLog("remote platform probe started", host, { targetVersion: version });
@@ -72,7 +60,7 @@ export class CodexUpgrader {
       durationMs: Date.now() - artifactStartedAt,
       codexArchiveBytes: artifacts.standaloneArchive.size,
     });
-    return await callback(() => this.installOnce(host, version, artifacts, attempt, resources));
+    return await this.installOnce(host, version, artifacts, attempt, resources);
   }
 
   private async readRemotePlatform(host: HostWithSecret) {
@@ -203,7 +191,6 @@ export class CodexUpgrader {
       const resetIdleTimer = () => {
         if (idleTimer !== null) clearTimeout(idleTimer);
         idleTimer = setTimeout(() => {
-          this.ssh.disconnectHost(host);
           channel.close();
           settle(() =>
             reject(
@@ -223,7 +210,6 @@ export class CodexUpgrader {
 
       resetIdleTimer();
       totalTimer = setTimeout(() => {
-        this.ssh.disconnectHost(host);
         channel.close();
         settle(() => reject(new Error("Timed out installing remote Codex after 10m total")));
       }, UPGRADE_TOTAL_TIMEOUT_MS);

@@ -11,14 +11,12 @@ import {
   type RpcTransport,
 } from "./rpc-transport";
 import { type RpcTransportCloseDetail } from "./rpc-errors";
-import { parseInitializeResponse } from "~~/shared/runtime/app-server";
 
 export type RpcNotificationHandler = (message: RpcEnvelope) => void;
 export type RpcResponseParser<T> = (value: unknown) => T;
 
 export interface CodexRpcClientOptions {
   skipVersionCheck?: boolean;
-  requireExistingAppServer?: boolean;
   transportFactory?: (host: HostRecord, options: CodexRpcTransportOptions) => RpcTransport;
 }
 
@@ -42,7 +40,6 @@ export class CodexRpcClient extends EventEmitter<CodexRpcClientEvents> {
   private connectionGeneration = 0;
   private readonly requests = new RpcRequestBroker();
   private transport: RpcTransport | null = null;
-  private deferredUpgrade = false;
 
   constructor(
     private readonly host: HostRecord,
@@ -77,7 +74,6 @@ export class CodexRpcClient extends EventEmitter<CodexRpcClientEvents> {
         ? null
         : await codexRuntime.ensureCodexVersion(this.host);
     this.assertCurrentConnection(generation);
-    this.deferredUpgrade = versionState?.deferredUpgrade === true;
 
     try {
       await this.connectRemoteProxyWebSocket(generation);
@@ -137,28 +133,6 @@ export class CodexRpcClient extends EventEmitter<CodexRpcClientEvents> {
     });
   }
 
-  async probeRuntimeVersion() {
-    const generation = this.connectionGeneration;
-    await this.connectRemoteProxyWebSocket(generation);
-    try {
-      const result = await this.request(
-        "initialize",
-        {
-          clientInfo: {
-            ...officialTuiClientInfo,
-          },
-          capabilities: {},
-        },
-        30_000,
-        parseInitializeResponse,
-      );
-      this.notify("initialized", {});
-      return result.userAgent ?? null;
-    } finally {
-      this.close();
-    }
-  }
-
   request(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;
   request<T>(
     method: string,
@@ -209,18 +183,9 @@ export class CodexRpcClient extends EventEmitter<CodexRpcClientEvents> {
     this.transport = null;
   }
 
-  hasDeferredUpgrade() {
-    return this.deferredUpgrade;
-  }
-
-  resolveDeferredUpgrade() {
-    this.deferredUpgrade = false;
-  }
-
   private async connectRemoteProxyWebSocket(generation: number) {
     this.assertCurrentConnection(generation);
     const transportOptions: CodexRpcTransportOptions = {
-      requireExistingAppServer: this.options.requireExistingAppServer === true,
       onMessage: (payload) => this.handleMessage(payload),
       onStderr: (text) => this.emit("stderr", text),
       // A failed upgrade/retry attempt can close after its replacement transport is already live.

@@ -4,6 +4,8 @@ import { normalizeNotificationSettings } from "~~/shared/config";
 import {
   isStaleThreadCursorErrorLike,
   STALE_THREAD_CURSOR_ERROR_CODE,
+  isAppServerShuttingDownError,
+  APP_SERVER_SHUTTING_DOWN_ERROR_CODE,
 } from "~~/shared/gateway-errors";
 import { userStore } from "../auth/users";
 import { hostRuntimeSupervisor } from "../runtime/host-runtime-supervisor";
@@ -167,6 +169,7 @@ function serializeError(error: unknown): Record<string, unknown> {
 }
 
 function statusCodeFromError(error: unknown) {
+  if (isAppServerShuttingDownError(error)) return 503;
   if (isStaleThreadCursorErrorLike(error)) {
     return 409;
   }
@@ -178,7 +181,8 @@ function statusCodeFromError(error: unknown) {
   return 502;
 }
 
-function publicErrorCode(error: unknown) {
+export function publicErrorCode(error: unknown) {
+  if (isAppServerShuttingDownError(error)) return APP_SERVER_SHUTTING_DOWN_ERROR_CODE;
   const code = recordFromUnknown(error)?.code;
   if (typeof code === "string") {
     return code;
@@ -189,7 +193,10 @@ function publicErrorCode(error: unknown) {
   return undefined;
 }
 
-function publicErrorMessage(error: unknown) {
+export function publicErrorMessage(error: unknown) {
+  if (isAppServerShuttingDownError(error)) {
+    return "Codex app-server is shutting down for an update or restart. Wait for it to reconnect before trying again.";
+  }
   if (error instanceof CodexRpcError) {
     return firstNonEmptyString([error.message]) ?? `Codex RPC ${error.rpcMethod} failed`;
   }

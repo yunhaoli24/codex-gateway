@@ -9,6 +9,7 @@ import type {
   ThreadTokenUsageState,
   ThreadTimelineHistoryState,
   RpcEnvelope,
+  UploadedFileRecord,
 } from "~~/shared/types";
 
 export const DEFAULT_TIMELINE_PAGE_LIMIT = 100;
@@ -37,13 +38,7 @@ export interface TurnStartInput {
     url?: string;
     detail?: "low" | "high" | "auto" | "original";
   }>;
-  files?: Array<{
-    path: string;
-    name: string;
-    mimeType?: string | null;
-    size: number;
-    isImage: boolean;
-  }>;
+  files?: UploadedFileRecord[];
   additionalContext?: Record<string, { value: string; kind: "untrusted" | "application" }>;
 }
 
@@ -51,6 +46,7 @@ export interface TurnSteerInput {
   text: string;
   expectedTurnId: string;
   clientUserMessageId?: string | null;
+  files?: UploadedFileRecord[];
   images?: Array<{
     path?: string;
     url?: string;

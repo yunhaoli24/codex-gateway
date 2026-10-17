@@ -1,6 +1,5 @@
 import { TIMELINE_PAGE_LIMIT } from "~~/shared/config";
 import { timelinePagesItemsForTurn } from "~~/shared/thread-history/app-server-timeline";
-import { itemId } from "~~/shared/thread-history/item-identity";
 import { requestThreadTimelinePage } from "./transport";
 
 /** Skip unrelated pages without retaining them. Disclosure reads one target page per click, not
@@ -10,7 +9,6 @@ export async function readTurnTimelinePage(input: {
   threadId: string;
   turnId: string;
   cursor?: string | null;
-  itemId?: string;
   sessionIsCurrent: () => boolean;
 }) {
   let cursor = input.cursor ?? null;
@@ -26,11 +24,7 @@ export async function readTurnTimelinePage(input: {
     const reachedStart = page.data.some(
       (entry) => entry.type === "turnStarted" && entry.turnId === input.turnId,
     );
-    if (
-      input.itemId === undefined
-        ? items.length > 0 || reachedStart
-        : items.some((item) => itemId(item) === input.itemId)
-    ) {
+    if (items.length > 0 || reachedStart) {
       return {
         items,
         nextCursor: reachedStart ? null : page.nextCursor,

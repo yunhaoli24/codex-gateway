@@ -156,8 +156,17 @@ export class RemoteFileService {
   }
 
   async createUploadDirectory(host: HostWithSecret) {
-    const script =
-      'root="${TMPDIR:-/tmp}/codex-gateway-uploads"; mkdir -p "$root"; mktemp -d "$root/upload.XXXXXXXXXX"';
+    // Match the official TUI's attachment layout on the app-server host. Each file gets its
+    // own directory so original names survive, including two uploads with the same filename.
+    // Resolve CODEX_HOME in the login shell used by Codex; /tmp is not durable attachment storage.
+    const script = `
+set -eu
+umask 077
+root="\${CODEX_HOME:-$HOME/.codex}/attachments/${randomUUID()}"
+mkdir -p "$root"
+cd "$root"
+pwd -P
+`;
     const result = await this.ssh.exec(host, remoteLoginShellCommand(script));
     if (result.code !== 0) {
       throw new Error(result.stderr || "Failed to create remote upload directory");

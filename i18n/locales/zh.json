@@ -564,6 +564,7 @@
     "serverRequestResolved": "请求已处理",
     "invalidJsonResponse": "响应不是合法 JSON",
     "appServerError": "app-server 错误",
+    "appServerShuttingDown": "Codex 正在升级或重启，请等待重新连接后再操作。",
     "appServerErrorCode": "错误类型：{code}",
     "appServerWillRetry": "app-server 正在自动重试",
     "appServerWillNotRetry": "app-server 不会自动重试",

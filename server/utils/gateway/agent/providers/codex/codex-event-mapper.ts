@@ -423,6 +423,10 @@ export function mapCodexNotification(notification: CodexNotification): MapperRes
 }
 
 const ambientCodexNotifications = new Set([
+  // Codex 0.163 stores one read receipt per remote thread, shared by that SSH account.
+  // Recognize its notification here without treating it as a Gateway user's read action:
+  // multiple Gateway users can share this daemon and must not acknowledge each other's work.
+  "thread/readState/changed",
   "thread/archived",
   "thread/deleted",
   "thread/unarchived",

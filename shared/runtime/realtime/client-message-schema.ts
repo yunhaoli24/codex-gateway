@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { RealtimeClientMessage } from "../../types";
 import { agentProviderIdSchema } from "../../agent/providers";
 import { reasoningSummarySchema } from "../../reasoning-summary";
+import { uploadedFileSchema } from "../uploaded-file";
 import { webPushEndpointSchema, webPushSubscriptionSchema } from "../../notifications/web-push";
 import {
   nonEmptyString,
@@ -18,15 +19,6 @@ const imageInput = z
     path: z.string().optional(),
     url: z.string().optional(),
     detail: z.enum(["low", "high", "auto", "original"]).optional(),
-  })
-  .strict();
-const fileInput = z
-  .object({
-    path: z.string(),
-    name: z.string(),
-    mimeType: nullableString,
-    size: z.number().nonnegative(),
-    isImage: z.boolean(),
   })
   .strict();
 const collaborationMode = z
@@ -130,6 +122,16 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
       .strict(),
     z
       .object({
+        type: z.literal("thread.items.read"),
+        ...requestIdField,
+        ...threadScopeFields,
+        turnId: nonEmptyString,
+        itemIds: z.array(nonEmptyString).min(1).max(100),
+        outputEnd: z.number().int().nonnegative().optional(),
+      })
+      .strict(),
+    z
+      .object({
         type: z.literal("thread.attachments.list"),
         ...requestIdField,
         ...threadScopeFields,
@@ -183,7 +185,7 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
         approvalPolicy,
         collaborationMode,
         images: z.array(imageInput).optional(),
-        files: z.array(fileInput).optional(),
+        files: z.array(uploadedFileSchema).optional(),
         references: z
           .array(
             z
@@ -207,6 +209,7 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
         text: z.string(),
         clientUserMessageId: nullableString,
         images: z.array(imageInput).optional(),
+        files: z.array(uploadedFileSchema).optional(),
         references: z
           .array(
             z

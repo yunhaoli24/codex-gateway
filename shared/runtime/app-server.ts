@@ -236,6 +236,29 @@ export function parseThreadTimelinePage(value: unknown) {
   return threadTimelinePageSchema.parse(value);
 }
 
+// Item lookup and timeline paging have different wire contracts. Keep this response separate:
+// detail reads return only requested persisted items, never timeline positions or cursors.
+export const threadItemsReadResponseSchema = z
+  .object({
+    data: z.array(
+      z
+        .object({
+          turnId: z.string().min(1),
+          item: threadItemSchema,
+          startedAtMs: z.number().nullable(),
+          completedAtMs: z.number().nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+export type AppServerItemsReadResponse = z.infer<typeof threadItemsReadResponseSchema>;
+
+export function parseThreadItemsReadResponse(value: unknown) {
+  return threadItemsReadResponseSchema.parse(value);
+}
+
 export const appServerThreadStatusSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("notLoaded") }).strict(),
   z.object({ type: z.literal("idle") }).strict(),

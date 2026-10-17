@@ -1,14 +1,9 @@
-import type {
-  AppServerThread,
-  AppServerTimelinePage,
-  HostRecord,
-  ThreadTimelineItem,
-} from "~~/shared/types";
-import { parseThreadTimelinePage } from "~~/shared/runtime/app-server";
+import type { AppServerThread, HostRecord, ThreadTimelineItem } from "~~/shared/types";
 import {
-  timelinePageItemsForTurn,
-  timelinePagesItemsForTurn,
-} from "~~/shared/thread-history/app-server-timeline";
+  parseThreadTimelinePage,
+  parseThreadItemsReadResponse,
+} from "~~/shared/runtime/app-server";
+import { timelinePageItemsForTurn } from "~~/shared/thread-history/app-server-timeline";
 import { threadSnapshotStore } from "../state/thread-snapshots";
 import { threadTimelinePageStore } from "../state/thread-timeline-pages";
 import type { ControllerRegistry } from "./controller-registry";
@@ -37,32 +32,17 @@ export class ThreadHistoryReader {
     return this.fetchTimelinePage(host, threadId, cursor, limit);
   }
 
-  async readTurnItems(host: HostRecord, threadId: string, turnId: string) {
+  async readItems(host: HostRecord, threadId: string, turnId: string, itemIds: string[]) {
     this.requireSnapshot(host.id, threadId);
-    const pages: AppServerTimelinePage[] = [];
-    const seenCursors = new Set<string>();
-    let cursor: string | null = null;
-    let foundTurnStart = false;
-    do {
-      const page = await this.fetchTimelinePage(host, threadId, cursor);
-      pages.push(page);
-      foundTurnStart = page.data.some(
-        (entry) => entry.type === "turnStarted" && entry.turnId === turnId,
-      );
-      cursor = foundTurnStart ? null : page.nextCursor;
-      if (page.nextCursor !== null) {
-        if (seenCursors.has(page.nextCursor)) {
-          throw new Error("App Server returned a repeated timeline cursor");
-        }
-        seenCursors.add(page.nextCursor);
-      }
-    } while (cursor !== null);
-
-    return {
-      items: timelinePagesItemsForTurn(pages, turnId),
-      complete: foundTurnStart,
-      pages,
-    };
+    const client = await this.registry.getHostClient(host);
+    // Details must come from the requested persisted items, not a walk from the latest timeline
+    // page. Do not populate the history cache or infer missing events from this separate read.
+    return client.request(
+      "thread/items/read",
+      { threadId, turnId, itemIds },
+      120_000,
+      parseThreadItemsReadResponse,
+    );
   }
 
   async recoverLatestTurnTail(

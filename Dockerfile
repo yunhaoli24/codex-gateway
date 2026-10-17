@@ -15,7 +15,6 @@ RUN apt-get update \
 # Keep precompiled browser packages in the dependency layer. Their Office, Markdown, UI, and AI
 # dependency graphs change far less often than the Nuxt app, so normal edits reuse this layer.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
-COPY patches ./patches
 COPY packages ./packages
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --reporter=silent

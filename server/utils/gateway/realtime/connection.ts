@@ -1,9 +1,6 @@
 import type { RealtimeClientMessage } from "~~/shared/types";
 import { parseRealtimeClientMessage } from "~~/shared/runtime/realtime";
-import {
-  isStaleThreadCursorErrorLike,
-  STALE_THREAD_CURSOR_ERROR_CODE,
-} from "~~/shared/gateway-errors";
+import { publicErrorCode, publicErrorMessage } from "../http/errors";
 import { realtimeMessageDispatcher } from "./message-handlers";
 import { RealtimeAuthenticationRequiredError } from "./message-dispatcher";
 import { hostStore } from "../state/hosts";
@@ -56,7 +53,7 @@ export async function handleRealtimePeerMessage(peer: RealtimePeer, rawMessage: 
     }
     sendRealtimePeerMessage(peer, {
       type: "error",
-      message: error instanceof Error ? error.message : "Realtime message failed",
+      message: publicErrorMessage(error),
       requestId: request && "requestId" in request ? request.requestId : undefined,
       request,
       code: realtimeErrorCode(error),
@@ -178,8 +175,5 @@ function realtimeRequestHostName(peer: RealtimePeer, request: RealtimeClientMess
 }
 
 function realtimeErrorCode(error: unknown) {
-  if (isStaleThreadCursorErrorLike(error)) {
-    return STALE_THREAD_CURSOR_ERROR_CODE;
-  }
-  return "realtimeMessageFailed";
+  return publicErrorCode(error) ?? "realtimeMessageFailed";
 }

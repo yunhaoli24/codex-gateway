@@ -3,6 +3,7 @@ import type { ThreadTimelineHistoryState } from "../thread-history/types";
 import type { AgentProviderId } from "../agent/providers";
 import type { AppServerThread } from "../runtime/app-server";
 import type { ReasoningSummary } from "../reasoning-summary";
+import type { UploadedFileRecord } from "./files";
 
 export type { ReasoningSummary } from "../reasoning-summary";
 
@@ -150,12 +151,6 @@ export interface ComposerTurnOptions {
     url?: string;
     detail?: "low" | "high" | "auto" | "original";
   }>;
-  files?: Array<{
-    path: string;
-    name: string;
-    mimeType?: string | null;
-    size: number;
-    isImage: boolean;
-  }>;
+  files?: UploadedFileRecord[];
   references?: FileReference[];
 }

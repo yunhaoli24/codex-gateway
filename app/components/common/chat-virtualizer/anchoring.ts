@@ -16,6 +16,9 @@ export function createChatVirtualizerBehavior(scrollEndThreshold: number): ChatV
   // compensation and row transforms commit in the same frame (#1239). Do not restore the old
   // dynamic anchor, custom size predicate, or manual scrollTop compensation: each overrides the
   // now-correct core transaction and recreates the jump that those releases removed.
+  // 3.19.5+ also distinguishes native iOS momentum from programmatic scrolling (#1318) and fixes
+  // clamped end-scroll read-backs (#1329/#1330). Use those upstream transactions, not our former
+  // pnpm patch or a second gesture/correction state machine in the Vue adapter.
   //
   // This config belongs only to the unbounded outer Agent timeline. Bounded diff and command
   // outputs own separate inner scrollports and must never drive this virtualizer.

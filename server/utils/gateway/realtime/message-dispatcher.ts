@@ -167,6 +167,9 @@ export class RealtimeMessageDispatcher {
       .with({ type: "thread.timeline.load" }, (value) =>
         this.dispatchEntry(peer, value, this.handlers[value.type]),
       )
+      .with({ type: "thread.items.read" }, (value) =>
+        this.dispatchEntry(peer, value, this.handlers[value.type]),
+      )
       .with({ type: "thread.attachments.list" }, (value) =>
         this.dispatchEntry(peer, value, this.handlers[value.type]),
       )

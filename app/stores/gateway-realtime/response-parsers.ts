@@ -157,6 +157,13 @@ export function expectThreadTimelinePage(message: RealtimeResponseMessage) {
   return message;
 }
 
+export function expectThreadItemsResult(message: RealtimeResponseMessage) {
+  if (message.type !== "thread.items.result") {
+    unexpectedResponse("thread.items.result", message.type);
+  }
+  return message;
+}
+
 export function expectThreadAttachmentsPage(message: RealtimeResponseMessage) {
   if (message.type !== "thread.attachments.page") {
     unexpectedResponse("thread.attachments.page", message.type);

@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 
-import type { ComposerTurnOptions } from "~~/shared/types";
+import type { ComposerTurnOptions, UploadedFileRecord } from "~~/shared/types";
+import type { ComposerAttachment } from "./useComposerDraft";
 import type { ComposerFileReference } from "@/stores/gateway/types";
 import { useGatewayBootstrapStore } from "@/stores/gateway-bootstrap";
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
@@ -8,18 +9,9 @@ import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { useGatewayThreadTurnsStore } from "@/stores/gateway-thread-turns";
 import { buildThreadCollaborationMode } from "@/utils/thread-collaboration-mode";
 
-type AttachedFile = {
-  name: string;
-  path: string;
-  mimeType?: string | null;
-  size: number;
-  isImage: boolean;
-  dataUrl?: string;
-};
-
 export function useComposerTurnSubmit(input: {
   turnText: Ref<string>;
-  attachedFiles: Ref<AttachedFile[]>;
+  attachedFiles: Ref<ComposerAttachment[]>;
   fileReferences: Ref<ComposerFileReference[]>;
   clearDraft: () => void;
   selectedTurnOptions: () => ComposerTurnOptions;
@@ -57,7 +49,11 @@ export function useComposerTurnSubmit(input: {
       composer.dismissLatestSelectedPlanPrompt();
     }
     const files = [...input.attachedFiles.value];
-    const remoteFiles = files.filter((file) => !file.isImage);
+    // Composer chips also carry UI-only ids. Send only upload metadata through the validated
+    // transport; the server registers the same record for both a new turn and a steer.
+    const remoteFiles = files
+      .filter((file) => !file.isImage)
+      .map(({ name, path, mimeType, size, isImage }) => ({ name, path, mimeType, size, isImage }));
     const attachedImages = files.filter((file) => file.isImage);
     const references = input.fileReferences.value.map(({ type, path, name }) => ({
       type,
@@ -119,7 +115,7 @@ export function useComposerTurnSubmit(input: {
   };
 }
 
-function messageWithFileReferences(text: string, remoteFiles: AttachedFile[], label: string) {
+function messageWithFileReferences(text: string, remoteFiles: UploadedFileRecord[], label: string) {
   const fileReferences = remoteFiles.map((file) => `- ${file.name}: ${file.path}`);
   return fileReferences.length
     ? `${text}${text ? "\n\n" : ""}${label}\n${fileReferences.join("\n")}`

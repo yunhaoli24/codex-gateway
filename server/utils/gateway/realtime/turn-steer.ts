@@ -19,6 +19,7 @@ export async function steerTurnFromRealtime(message: RealtimeTurnSteerMessage) {
     expectedTurnId: input.expectedTurnId,
     clientUserMessageId: input.clientUserMessageId,
     images: input.images,
+    files: input.files,
     additionalContext: fileReferencesAdditionalContext(references),
   });
 }

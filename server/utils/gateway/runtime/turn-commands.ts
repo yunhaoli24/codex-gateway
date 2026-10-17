@@ -10,6 +10,7 @@ import { recordFromUnknown, stringFromUnknown } from "~~/shared/utils/records";
 import { trimmedOrFallback } from "~~/shared/utils/strings";
 import { parseTurnStartResponse, parseTurnSteerResponse } from "~~/shared/runtime/app-server";
 import { recordAcceptedUserMessage } from "./accepted-user-message";
+import { sendWithUploadedFiles } from "./thread-attachments";
 
 export class ThreadTurnCommandService {
   constructor(
@@ -24,11 +25,13 @@ export class ThreadTurnCommandService {
     );
     return this.registry.withScopedSubscription(host, threadId, async (controller) => {
       const result = await controller.enqueue(() =>
-        controller.client.request(
-          "turn/start",
-          buildTurnStartParams(threadId, clientUserMessageId, input),
-          120_000,
-          parseTurnStartResponse,
+        sendWithUploadedFiles(controller.client, host.id, threadId, input.files, () =>
+          controller.client.request(
+            "turn/start",
+            buildTurnStartParams(threadId, clientUserMessageId, input),
+            120_000,
+            parseTurnStartResponse,
+          ),
         ),
       );
       const turnId = result.turn?.id === undefined ? "" : String(result.turn.id);
@@ -54,17 +57,19 @@ export class ThreadTurnCommandService {
     return this.registry
       .withScopedSubscription(host, threadId, async (controller) => {
         const result = await controller.enqueue(() =>
-          controller.client.request(
-            "turn/steer",
-            {
-              threadId,
-              expectedTurnId: input.expectedTurnId,
-              clientUserMessageId,
-              input: buildUserInput(input),
-              additionalContext: input.additionalContext ?? {},
-            },
-            120_000,
-            parseTurnSteerResponse,
+          sendWithUploadedFiles(controller.client, host.id, threadId, input.files, () =>
+            controller.client.request(
+              "turn/steer",
+              {
+                threadId,
+                expectedTurnId: input.expectedTurnId,
+                clientUserMessageId,
+                input: buildUserInput(input),
+                additionalContext: input.additionalContext ?? {},
+              },
+              120_000,
+              parseTurnSteerResponse,
+            ),
           ),
         );
         recordAcceptedUserMessage({

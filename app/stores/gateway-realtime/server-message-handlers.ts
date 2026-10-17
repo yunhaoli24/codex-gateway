@@ -1,5 +1,6 @@
 import { match, P } from "ts-pattern";
 import type { RealtimeServerMessage } from "~~/shared/types";
+import { gatewayErrorMessage } from "@/utils/gateway-error";
 import { STALE_THREAD_CURSOR_ERROR_CODE } from "~~/shared/gateway-errors";
 import { gatewayDomainEvents } from "@/stores/gateway/domain-events";
 import { realtimeRequestErrorFromServer } from "./request-errors";
@@ -92,6 +93,7 @@ export function createRealtimeServerMessageDispatcher(ctx: RealtimeServerMessage
             "notification.webPush.unsubscribed",
             "thread.started",
             "thread.timeline.page",
+            "thread.items.result",
             "thread.attachments.page",
             "thread.attachment.added",
             "thread.attachment.removed",
@@ -126,7 +128,9 @@ function handleRealtimeError(
   message: RealtimeServerMessageMap["error"],
 ) {
   const requestError = realtimeRequestErrorFromServer(
-    message.message,
+    gatewayErrorMessage(message, message.message, {
+      serverShuttingDown: ctx.t("app.appServerShuttingDown"),
+    }),
     message.request !== null && message.request !== undefined && "requestId" in message.request
       ? message.request
       : undefined,

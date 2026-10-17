@@ -1,16 +1,11 @@
 import WebSocket from "ws";
 import type { HostRecord, RpcEnvelope } from "~~/shared/types";
 import { sshConnections } from "../host-services";
-import {
-  codexRemoteAppServerExistingProxyPayload,
-  codexRemoteAppServerProxyPayload,
-  remoteLoginShellCommand,
-} from "../ssh/remote-command";
+import { codexRemoteAppServerProxyPayload, remoteLoginShellCommand } from "../ssh/remote-command";
 import { createRpcTransportError, type RpcTransportCloseDetail } from "./rpc-errors";
 import { rawWebSocketDataToString } from "../ws/raw-data";
 
 export interface CodexRpcTransportOptions {
-  requireExistingAppServer: boolean;
   onMessage: (message: string) => void;
   onStderr: (text: string) => void;
   onClose: (error: Error, detail: RpcTransportCloseDetail) => void;
@@ -37,11 +32,7 @@ export class CodexRpcTransport {
     this.closed = false;
     const channel = await sshConnections.execChannel(
       this.host,
-      remoteLoginShellCommand(
-        this.options.requireExistingAppServer
-          ? codexRemoteAppServerExistingProxyPayload()
-          : codexRemoteAppServerProxyPayload(),
-      ),
+      remoteLoginShellCommand(codexRemoteAppServerProxyPayload()),
     );
     let closeDetail: RpcTransportCloseDetail = { code: null, signal: null };
     channel.stderr.on("data", (chunk: Buffer) => {

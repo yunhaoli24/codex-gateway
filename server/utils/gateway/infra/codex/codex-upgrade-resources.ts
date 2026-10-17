@@ -10,8 +10,8 @@ import { codexUpgradeError } from "./codex-upgrade-log";
 
 export type CodexArtifactLease = Awaited<ReturnType<CodexArtifactProvider["acquire"]>>;
 
-// One workflow owns these resources across queue attempts. Rebuilding the tarball can change its
-// bytes even at the same version, so a resumed .part must keep the exact original local artifact.
+// One workflow owns the staged archive and artifact lease until daemon preparation finishes.
+// SFTP resume must keep the exact original archive bytes throughout that workflow.
 export class CodexUpgradeResources {
   artifactLease: CodexArtifactLease | null = null;
   private stagePath: string | null = null;

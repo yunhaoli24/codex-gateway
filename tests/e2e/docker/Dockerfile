@@ -16,6 +16,7 @@ RUN mkdir -p /tmp/codex-node \
 FROM debian:bookworm-slim AS current-codex-runtime
 
 ARG CURRENT_CODEX_CLI_VERSION
+ARG PREVIOUS_CODEX_CLI_VERSION=0.162.1
 ARG CODEX_RELEASE_TARGET=x86_64-unknown-linux-musl
 RUN test -n "${CURRENT_CODEX_CLI_VERSION}" \
   && apt-get update \
@@ -30,6 +31,15 @@ RUN test -n "${CURRENT_CODEX_CLI_VERSION}" \
   && printf '%s  %s\n' "$expected" /tmp/codex-package.tar.gz | sha256sum -c - \
   && mkdir -p /opt/codex-standalone \
   && tar -xzf /tmp/codex-package.tar.gz -C /opt/codex-standalone \
+  && rm -f /tmp/codex-package.tar.gz /tmp/codex-package_SHA256SUMS \
+  && curl -fsSL "https://releases.openai.com/codex/releases/${PREVIOUS_CODEX_CLI_VERSION}/${asset}" \
+    -o /tmp/codex-package.tar.gz \
+  && curl -fsSL "https://releases.openai.com/codex/releases/${PREVIOUS_CODEX_CLI_VERSION}/codex-package_SHA256SUMS" \
+    -o /tmp/codex-package_SHA256SUMS \
+  && expected="$(awk -v asset="$asset" '$2 == asset && length($1) == 64 { print tolower($1); found = 1 } END { exit found ? 0 : 1 }' /tmp/codex-package_SHA256SUMS)" \
+  && printf '%s  %s\n' "$expected" /tmp/codex-package.tar.gz | sha256sum -c - \
+  && mkdir -p /opt/codex-previous-daemon \
+  && tar -xzf /tmp/codex-package.tar.gz -C /opt/codex-previous-daemon \
   && rm -f /tmp/codex-package.tar.gz /tmp/codex-package_SHA256SUMS
 
 FROM debian:bookworm-slim AS ssh-base
@@ -70,6 +80,9 @@ ARG E2E_UID=1000
 ARG E2E_GID=1000
 ENV E2E_NODE_DIR=/home/codex/.nvm/versions/node/v22.23.1
 COPY --from=npm-codex-runtime /tmp/codex-node/ ${E2E_NODE_DIR}/
+# Keep the npm CLI fixture, with a separately selected previous official daemon. This catches
+# upgrades which only replace standalone/current and accidentally leave the old daemon selected.
+COPY --from=current-codex-runtime /opt/codex-previous-daemon /opt/codex-previous-daemon
 RUN chown -R ${E2E_UID}:${E2E_GID} /home/codex/.nvm \
   && printf '%s\n' 'export PATH="/home/codex/.nvm/versions/node/v22.23.1/bin:$PATH"' \
     >> /home/codex/.bashrc

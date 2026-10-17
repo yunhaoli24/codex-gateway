@@ -2,6 +2,7 @@ import { expect, test } from "./fixtures/remote-workspace";
 import type { Page } from "@playwright/test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { z } from "zod";
 import { parseCodexVersion } from "../../server/utils/gateway/infra/codex/codex-version";
 import { authenticatedFetch, E2E_PASSWORD, openApp, reloadApp } from "./helpers/app";
 import { hostRecordSchema } from "./helpers/http-schemas";
@@ -46,6 +47,16 @@ test("upgrades SSH runtimes and shows shared-target progress across browser page
   for (const environment of environments) {
     await verifyInitialRuntime(environment);
     if (environment.runtimeFixture === "npm-codex") {
+      // A real previous managed daemon runs independently of the npm CLI. Connecting from the
+      // browser must upgrade that daemon too, not merely report the new standalone CLI version.
+      await execRemoteSsh(
+        environment,
+        `set -eu
+cd "$HOME"
+/opt/codex-previous-daemon/bin/codex app-server daemon start >/dev/null
+/opt/codex-previous-daemon/bin/codex app-server daemon update --from-cli --yes >/dev/null
+`,
+      );
       // A previous interrupted migration can leave `current` as a real directory. This is a
       // legacy upgrade state, not a mocked transport; keep it in the real SSH fixture so the
       // standalone switch is verified against the failure seen in production.
@@ -211,6 +222,9 @@ test -f "$release_dir/codex-package.json" || fail "standalone package manifest i
 test -x "$release_dir/bin/codex" || fail "standalone Codex binary is missing"
 test -x "$release_dir/bin/codex-code-mode-host" || fail "standalone code-mode host is missing"
 test -x "$release_dir/codex-path/rg" || fail "standalone ripgrep is missing"
+daemon_root="$codex_home/packages/app-server-daemon/current"
+test -f "$daemon_root/codex-package.json" || fail "dedicated daemon package is missing"
+"$codex_bin" app-server daemon version
 minimal_path="$HOME/.local/bin:/usr/bin:/bin"
 resolved_minimal="$(PATH="$minimal_path" command -v codex)"
 test "$resolved_minimal" = "$codex_bin" || fail "standalone Codex is not selected without npm or nvm paths"
@@ -222,7 +236,12 @@ fi
 printf 'official standalone layout and staging cleanup verified\\n'
 `,
           );
-          return stdout.trim();
+          const [daemonJson, ...verification] = stdout.trim().split("\n");
+          z.object({
+            appServerVersion: z.literal(remote.supportedCodexVersion!),
+            managedCodexVersion: z.literal(remote.supportedCodexVersion!),
+          }).parse(JSON.parse(daemonJson ?? ""));
+          return verification.join("\n");
         } catch (error) {
           return error instanceof Error ? error.message : String(error);
         }
@@ -261,7 +280,7 @@ rm -f "$daemon_dir"/loaded-threads.json
 mkdir -p "$daemon_dir"
 # This is the same synchronous official daemon lifecycle command used by Gateway. The browser
 # still drives the scenario; the shell only provisions the real remote app-server process.
-${codexBin} app-server daemon bootstrap --remote-control >"$daemon_dir/e2e-app-server.log" 2>&1
+${codexBin} app-server daemon start >"$daemon_dir/e2e-app-server.log" 2>&1
 if [ ! -S "$socket" ]; then
   echo "socket was not created: $socket"
   ps -eo pid=,args= | grep 'codex app-server' || true

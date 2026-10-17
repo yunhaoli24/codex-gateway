@@ -1,5 +1,5 @@
 // This is the single version gate shared by remote install, upgrade and RPC client metadata.
-export const SUPPORTED_CODEX_VERSION = "0.162.1";
+export const SUPPORTED_CODEX_VERSION = "0.163.0";
 
 export interface ParsedCodexVersion {
   raw: string;
