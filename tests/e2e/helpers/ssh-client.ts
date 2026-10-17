@@ -1,4 +1,5 @@
 import { Client } from "ssh2";
+import { shellQuote } from "../../../server/utils/gateway/infra/ssh/shell";
 
 export interface SshTestTarget {
   host: string;
@@ -32,9 +33,12 @@ export async function connectTestSsh(target: SshTestTarget) {
 }
 
 export async function execTestSsh(connection: Client, command: string) {
+  // Fixture setup scripts use POSIX semantics (including splitting PID lists for kill). Execute
+  // them explicitly with sh: a real user's zsh login shell does not enable SH_WORD_SPLIT. The
+  // browser still exercises Gateway's own login-shell wrapper against that user's actual shell.
   const result = await new Promise<{ code: number | null; stdout: string; stderr: string }>(
     (resolve, reject) => {
-      connection.exec(command, (error, channel) => {
+      connection.exec(`exec /bin/sh -c ${shellQuote(command)}`, (error, channel) => {
         if (error) return reject(error);
         let stdout = "";
         let stderr = "";

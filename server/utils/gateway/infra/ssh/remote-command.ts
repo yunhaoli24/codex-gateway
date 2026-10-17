@@ -81,7 +81,12 @@ export function remoteLoginShellCommand(payload: string) {
     'CODEX_REMOTE_PAYLOAD="$1"; export CODEX_REMOTE_PAYLOAD;',
     'case "${SHELL##*/}" in',
     // bash -l -c does not read ~/.bashrc, where nvm is commonly initialized.
-    'bash|zsh) exec "$SHELL" -l -i -c \'exec 1>&4 2>&3; exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' 3>&2 4>&1 >/dev/null 2>/dev/null ;;',
+    // Restore the SSH streams after suppressing startup chatter, then close the saved copies.
+    // zsh otherwise passes FD 3/4 to Codex and its detached daemon/updater children. Those copies
+    // keep the SSH output channels open after the lifecycle CLI exits, causing a false timeout.
+    // Fix inheritance here rather than treating a partial JSON response or CLI exit as success:
+    // exec must still drain both streams and observe the channel's actual close/error normally.
+    'bash|zsh) exec "$SHELL" -l -i -c \'exec 1>&4 2>&3 3>&- 4>&-; exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' 3>&2 4>&1 >/dev/null 2>/dev/null ;;',
     'csh|tcsh) exec "$SHELL" -i -c \'set loginsh=1; if ( -r /etc/csh.login ) source /etc/csh.login; if ( -r ~/.login ) source ~/.login; exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' ;;',
     "nu) exec \"$SHELL\" -l -i -c 'exec /bin/sh -c $env.CODEX_REMOTE_PAYLOAD' ;;",
     '*) exec "$SHELL" -l -c \'exec /bin/sh -c "$CODEX_REMOTE_PAYLOAD"\' ;;',

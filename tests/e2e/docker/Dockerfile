@@ -48,7 +48,7 @@ ARG E2E_UID=1000
 ARG E2E_GID=1000
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssh-server git ca-certificates sudo tmux procps \
+  && apt-get install -y --no-install-recommends openssh-server git ca-certificates sudo tmux procps zsh \
   && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --gid ${E2E_GID} codex \
@@ -82,10 +82,15 @@ ENV E2E_NODE_DIR=/home/codex/.nvm/versions/node/v22.23.1
 COPY --from=npm-codex-runtime /tmp/codex-node/ ${E2E_NODE_DIR}/
 # Keep the npm CLI fixture, with a separately selected previous official daemon. This catches
 # upgrades which only replace standalone/current and accidentally leave the old daemon selected.
+# Use zsh for this dedicated upgrade host: it preserves saved output descriptors unless Gateway
+# explicitly closes them. The general-purpose host keeps its bash terminal/Tmux environment.
 COPY --from=current-codex-runtime /opt/codex-previous-daemon /opt/codex-previous-daemon
 RUN chown -R ${E2E_UID}:${E2E_GID} /home/codex/.nvm \
+  && usermod --shell /bin/zsh codex \
   && printf '%s\n' 'export PATH="/home/codex/.nvm/versions/node/v22.23.1/bin:$PATH"' \
-    >> /home/codex/.bashrc
+    >> /home/codex/.bashrc \
+  && printf '%s\n' 'export PATH="/home/codex/.nvm/versions/node/v22.23.1/bin:$PATH"' \
+    > /home/codex/.zshrc
 
 FROM ssh-base AS mfa-runtime
 ARG E2E_UID=1000

@@ -4,6 +4,7 @@ import type { HostWithSecret } from "../ssh/ssh-types";
 import { codexRemoteDaemonPayload, remoteLoginShellCommand } from "../ssh/remote-command";
 import { firstNonEmptyString } from "~~/shared/utils/strings";
 import { isCodexVersionAtLeast } from "./codex-version";
+import { codexUpgradeLog } from "./codex-upgrade-log";
 
 const versionSchema = z.string().regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
 const startedResponseSchema = z.object({
@@ -58,6 +59,10 @@ export class CodexDaemon {
     // No Gateway PID scans, socket deletion, stop/start pair or SSH disconnect: official lifecycle
     // commands own recovery and must leave the shared, possibly MFA-authenticated SSH intact.
     // The timeout covers the official maximum five-minute shutdown grace plus package preparation.
+    const startedAt = Date.now();
+    // CLI version inspection and daemon readiness are separate steps; name the lifecycle command
+    // so an SSH channel timeout cannot be mistaken for a failed version comparison in Docker logs.
+    codexUpgradeLog("daemon lifecycle command started", host, { command });
     const result = await this.ssh.exec(
       host,
       remoteLoginShellCommand(codexRemoteDaemonPayload(command)),
@@ -68,7 +73,12 @@ export class CodexDaemon {
         firstNonEmptyString([result.stderr, result.stdout]) ?? `Codex daemon ${command} failed`,
       );
     }
-    return JSON.parse(result.stdout);
+    const response: unknown = JSON.parse(result.stdout);
+    codexUpgradeLog("daemon lifecycle command completed", host, {
+      command,
+      durationMs: Date.now() - startedAt,
+    });
+    return response;
   }
 }
 
