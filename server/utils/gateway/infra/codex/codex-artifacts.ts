@@ -1,14 +1,15 @@
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdtemp, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { mkdir, rename, rm, stat } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { CodexRemotePlatform } from "./codex-platform";
 import { z } from "zod";
+import { gatewayDatabasePath } from "../../storage/database";
+import { gatewayLog } from "../../logging";
 
-const ARTIFACT_IDLE_TTL_MS = 30_000;
+const ARTIFACT_IDLE_TTL_MS = 24 * 60 * 60_000;
 const RELEASE_METADATA_TIMEOUT_MS = 30_000;
 const RELEASE_ASSET_TIMEOUT_MS = 10 * 60_000;
 
@@ -72,9 +73,9 @@ export class CodexArtifactProvider {
     entry.cleanupTimer = setTimeout(() => {
       if (entry.users !== 0 || this.shared.get(key) !== entry) return;
       this.shared.delete(key);
-      void entry.promise.then(({ directory }) =>
-        rm(directory, { recursive: true, force: true }).catch(() => undefined),
-      );
+      void entry.promise
+        .then(({ directory }) => rm(directory, { recursive: true, force: true }))
+        .catch(() => undefined);
     }, ARTIFACT_IDLE_TTL_MS);
     entry.cleanupTimer.unref();
   }
@@ -84,12 +85,34 @@ async function prepareBundle(
   version: string,
   platform: CodexRemotePlatform,
 ): Promise<PreparedBundle> {
-  const directory = await mkdtemp(join(tmpdir(), "codex-gateway-artifacts-"));
   const release = await resolveStandaloneRelease(version, platform);
+  // Use the existing data volume so a Gateway restart does not download the same 150 MB again.
+  // The digest is the cache identity; verify disk contents before reusing bytes from a prior
+  // process. Idle leases keep packages for a day, rather than evicting between SSH retries.
+  const directory = join(
+    dirname(gatewayDatabasePath()),
+    "cache",
+    "codex-artifacts",
+    release.sha256,
+  );
+  await mkdir(directory, { recursive: true, mode: 0o700 });
   const archivePath = join(directory, release.assetName);
   try {
-    await downloadVerifiedArchive(release, archivePath);
+    const cachedFile = await stat(archivePath).catch(() => null);
+    const cached =
+      cachedFile !== null && (await hashFile(archivePath, "sha256")) === release.sha256;
+    if (!cached) {
+      // Only publish verified downloads. A killed process may leave .part, but never a cache hit.
+      const partialPath = `${archivePath}.part`;
+      await downloadVerifiedArchive(release, partialPath);
+      await rename(partialPath, archivePath);
+    }
     const file = await stat(archivePath);
+    gatewayLog("info", "gateway-upgrade", cached ? "artifact cache hit" : "artifact downloaded", {
+      targetVersion: version,
+      releaseTarget: platform.releaseTarget,
+      bytes: file.size,
+    });
     return {
       directory,
       artifacts: {

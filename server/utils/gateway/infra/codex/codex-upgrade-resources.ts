@@ -10,8 +10,8 @@ import { codexUpgradeError } from "./codex-upgrade-log";
 
 export type CodexArtifactLease = Awaited<ReturnType<CodexArtifactProvider["acquire"]>>;
 
-// One workflow owns the staged archive and artifact lease until daemon preparation finishes.
-// SFTP resume must keep the exact original archive bytes throughout that workflow.
+// Leases are workflow-local; staged bytes belong to the archive digest, not the attempt. Failed
+// workflows release their local lease but retain the remote partial for the next connection.
 export class CodexUpgradeResources {
   artifactLease: CodexArtifactLease | null = null;
   private stagePath: string | null = null;
@@ -21,17 +21,17 @@ export class CodexUpgradeResources {
     private readonly host: HostWithSecret,
   ) {}
 
-  async stage() {
+  async stage(sha256: string) {
     if (this.stagePath !== null) return this.stagePath;
     const result = await this.ssh.exec(
       this.host,
-      remoteLoginShellCommand(codexRemoteCreateUpgradeStagePayload()),
+      remoteLoginShellCommand(codexRemoteCreateUpgradeStagePayload(sha256)),
       { timeoutMs: 30_000 },
     );
     const path = result.stdout.trim();
     if (
       result.code !== 0 ||
-      !/^\/[A-Za-z0-9_./-]+\/\.cache\/codex-gateway\/upgrades\/upgrade\.[A-Za-z0-9]+$/.test(path)
+      !/^\/[A-Za-z0-9_./-]+\/\.cache\/codex-gateway\/upgrades\/upgrade\.[a-f0-9]{64}$/.test(path)
     ) {
       throw new Error(
         result.stderr || result.stdout || "Failed to create remote upgrade staging directory",
@@ -41,9 +41,9 @@ export class CodexUpgradeResources {
     return path;
   }
 
-  async dispose() {
+  async dispose(completed: boolean) {
     try {
-      if (this.stagePath !== null) {
+      if (completed && this.stagePath !== null) {
         await this.ssh.exec(
           this.host,
           remoteLoginShellCommand(codexRemoteCleanupUpgradeStagePayload(this.stagePath)),

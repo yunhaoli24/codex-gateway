@@ -84,7 +84,7 @@ export class CodexUpgrader {
   ) {
     const attemptStartedAt = Date.now();
     codexUpgradeLog("installation attempt started", host, { targetVersion: version, attempt });
-    const stagePath = await resources.stage();
+    const stagePath = await resources.stage(artifacts.standaloneArchive.sha256);
     try {
       await this.uploadArtifact(
         host,

@@ -46,6 +46,22 @@ test("upgrades SSH runtimes and shows shared-target progress across browser page
 
   for (const environment of environments) {
     await verifyInitialRuntime(environment);
+    if (environment === remote) {
+      // A user reconnecting after a dropped upload must reuse that partial. A hard link outside
+      // staging proves the browser-driven upgrade extended the original file, rather than
+      // abandoning it in a new random directory. The final checksum verifies the resumed bytes.
+      await execRemoteSsh(
+        environment,
+        `set -eu
+archive=/opt/codex-upgrade-package.tar.gz
+digest="$(sha256sum "$archive" | awk '{print $1}')"
+stage="$HOME/.cache/codex-gateway/upgrades/upgrade.$digest"
+mkdir -p "$stage"
+head -c 1048576 "$archive" > "$stage/codex-package-x86_64-unknown-linux-musl.tar.gz.part"
+ln "$stage/codex-package-x86_64-unknown-linux-musl.tar.gz.part" "$HOME/upgrade-resume-proof"
+`,
+      );
+    }
     if (environment.runtimeFixture === "npm-codex") {
       // A real previous managed daemon runs independently of the npm CLI. Connecting from the
       // browser must upgrade that daemon too, not merely report the new standalone CLI version.
@@ -126,6 +142,19 @@ cd "$HOME"
     // final cleanup and verify the official standalone layout instead of coupling this test to
     // sidebar state.
     await verifyOfficialStandaloneLayout(environment);
+    if (environment === remote) {
+      const proof = await execRemoteSsh(
+        environment,
+        `set -eu
+expected="$(sha256sum /opt/codex-upgrade-package.tar.gz | awk '{print $1}')"
+actual="$(sha256sum "$HOME/upgrade-resume-proof" | awk '{print $1}')"
+test "$actual" = "$expected"
+rm "$HOME/upgrade-resume-proof"
+printf 'interrupted upload resumed and verified\\n'
+`,
+      );
+      expect(proof.stdout).toContain("interrupted upload resumed and verified");
+    }
   }
 
   for (const targetPage of [page, otherPage]) {

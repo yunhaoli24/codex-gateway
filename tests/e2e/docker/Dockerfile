@@ -31,7 +31,8 @@ RUN test -n "${CURRENT_CODEX_CLI_VERSION}" \
   && printf '%s  %s\n' "$expected" /tmp/codex-package.tar.gz | sha256sum -c - \
   && mkdir -p /opt/codex-standalone \
   && tar -xzf /tmp/codex-package.tar.gz -C /opt/codex-standalone \
-  && rm -f /tmp/codex-package.tar.gz /tmp/codex-package_SHA256SUMS \
+  && mv /tmp/codex-package.tar.gz /opt/codex-upgrade-package.tar.gz \
+  && rm -f /tmp/codex-package_SHA256SUMS \
   && curl -fsSL "https://releases.openai.com/codex/releases/${PREVIOUS_CODEX_CLI_VERSION}/${asset}" \
     -o /tmp/codex-package.tar.gz \
   && curl -fsSL "https://releases.openai.com/codex/releases/${PREVIOUS_CODEX_CLI_VERSION}/codex-package_SHA256SUMS" \
@@ -68,6 +69,9 @@ EXPOSE 22
 ENTRYPOINT ["/usr/local/bin/codex-e2e-entrypoint"]
 
 FROM ssh-base AS empty-runtime
+# Seed a real interrupted upload in the upgrade test without downloading a second artifact or
+# replacing the SSH/SFTP transport. Only this fixture needs the original verified archive.
+COPY --from=current-codex-runtime /opt/codex-upgrade-package.tar.gz /opt/codex-upgrade-package.tar.gz
 COPY nvidia-smi /usr/local/bin/nvidia-smi
 COPY e2e-gpu-training /usr/local/bin/e2e-gpu-training
 RUN chmod +x /usr/local/bin/nvidia-smi /usr/local/bin/e2e-gpu-training

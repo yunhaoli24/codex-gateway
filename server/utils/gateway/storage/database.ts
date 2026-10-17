@@ -7,7 +7,7 @@ let database: DatabaseSync | null = null;
 let ready = false;
 const readyCallbacks = new Set<() => void>();
 
-function gatewayDatabasePath() {
+export function gatewayDatabasePath() {
   return resolve(trimmedOrFallback(process.env.CODEX_GATEWAY_DB_PATH, "/data/codex-gateway.db"));
 }
 

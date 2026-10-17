@@ -48,7 +48,8 @@ export async function uploadFileResumable(
   const localSize = (await statLocal(localPath)).size;
   const partialPath = `${remotePath}.part`;
 
-  // Queue admission owns retries. A transfer failure must release its upgrade slot immediately.
+  // The caller owns retries and keeps the content-addressed path stable across workflows.
+  // Never unlink the partial on a transport failure: remote stat is the next attempt's offset.
   try {
     await withSftpUploadProgress(
       host,
@@ -59,7 +60,11 @@ export async function uploadFileResumable(
         monitor.phase("stat");
         const completeSize = await remoteFileSize(sftp, remotePath);
         monitor.phase("stat partial");
-        if (completeSize === localSize) return;
+        if (completeSize === localSize) {
+          monitor.track(() => localSize);
+          monitor.phase("already uploaded");
+          return;
+        }
         let offset = (await remoteFileSize(sftp, partialPath)) ?? 0;
         monitor.phase("prepare upload");
         if (offset > localSize) {
@@ -78,6 +83,8 @@ export async function uploadFileResumable(
           // data events only measure buffering and must not reset an upload's idle deadline.
           monitor.track(() => offset + writer.bytesWritten);
           await pipeline(reader, writer, { signal: monitor.signal });
+        } else {
+          monitor.track(() => offset);
         }
         monitor.phase("verify upload");
         const uploadedSize = await remoteFileSize(sftp, partialPath);

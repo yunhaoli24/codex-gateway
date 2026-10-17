@@ -14,15 +14,17 @@ printf '%s %s\n' "$platform" "$arch"
   );
 }
 
-export function codexRemoteCreateUpgradeStagePayload() {
+export function codexRemoteCreateUpgradeStagePayload(sha256: string) {
   return codexRemoteBootstrapPayload(
     `
 set -eu
 stage_root="$HOME/.cache/codex-gateway/upgrades"
-mkdir -p "$stage_root"
-# A slow upload or queued retry may legitimately own a directory older than an hour.
-# The owning Gateway workflow cleans its staging directory when all attempts finish.
-mktemp -d "$stage_root/upgrade.XXXXXX"
+# Content-addressed staging survives a failed workflow and Gateway restarts. The existing
+# physical-target lock serializes aliases; a new archive digest never reuses unrelated bytes.
+stage="$stage_root/upgrade.${sha256}"
+mkdir -p "$stage"
+chmod 0700 "$stage_root" "$stage"
+printf '%s\\n' "$stage"
 `,
     { requireCodex: false },
   );
@@ -104,7 +106,13 @@ verify_sha256() {
   return 1
 }
 
-verify_sha256 "$archive_file" "$expected_archive_sha"
+if ! verify_sha256 "$archive_file" "$expected_archive_sha"; then
+  # Interrupted SFTP writes can leave holes even when stat reports the full size. Discard a
+  # corrupt archive so the next retry can repair it instead of repeatedly skipping the upload.
+  rm -f "$archive_file"
+  echo "Codex archive checksum verification failed; discarded for retry" >&2
+  exit 1
+fi
 mkdir -p "$releases_dir" "$bin_dir"
 rm -rf "$stage_release"
 mkdir -p "$stage_release"

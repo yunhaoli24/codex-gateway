@@ -22,6 +22,7 @@ export class CodexUpgradeWorkflow {
     // remote account. Only the first needs to upload; subsequent aliases reuse the selected daemon.
     return await this.coordinator.run(host, async (attempt) => {
       const resources = this.upgrader.createResources(host);
+      let installationCompleted = false;
       try {
         const installed = await this.versionChecker.readVersionOrRecoverableMissing(host);
         const beforeVersion = installed.version;
@@ -49,6 +50,7 @@ export class CodexUpgradeWorkflow {
           if (!isCodexVersionAtLeast(version, SUPPORTED_CODEX_VERSION)) {
             throw new Error(`Remote Codex upgraded to unsupported version ${version}`);
           }
+          installationCompleted = true;
           hostUpgradeState.update(host, { phase: "restarting" });
         }
 
@@ -79,7 +81,7 @@ export class CodexUpgradeWorkflow {
         hostUpgradeState.finish(host, true);
         throw error;
       } finally {
-        await resources.dispose();
+        await resources.dispose(installationCompleted);
       }
     });
   }

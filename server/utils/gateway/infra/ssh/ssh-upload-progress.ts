@@ -80,7 +80,7 @@ export async function withSftpUploadProgress(
           readBytes = readAcknowledgedBytes;
           bytes = readBytes();
           lastProgressAt = Date.now();
-          gatewayLog("info", "gateway-ssh", "SFTP upload resumed", details());
+          gatewayLog("info", "gateway-ssh", "SFTP upload offset", details());
           onProgress?.(details());
         },
       }),
