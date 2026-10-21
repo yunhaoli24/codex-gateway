@@ -98,8 +98,10 @@ function runningThreadCandidates(hostId: number, options: { staleOnly: boolean; 
     });
 }
 
-function latestActivityAt(hostId: number, threadId: string, snapshotUpdatedAt: string) {
+function latestActivityAt(hostId: number, threadId: string, snapshotUpdatedAt: number) {
   const eventCreatedAt = gatewayEventStore.latest(hostId, threadId)?.createdAt;
-  const parsed = Date.parse(eventCreatedAt ?? snapshotUpdatedAt);
+  // Cache reads renew idle retention, not App Server activity. Opening a browser must not defer
+  // stale-running reconciliation; prefer the event's emitted time, then the last snapshot write.
+  const parsed = eventCreatedAt === undefined ? snapshotUpdatedAt : Date.parse(eventCreatedAt);
   return Number.isFinite(parsed) ? parsed : 0;
 }

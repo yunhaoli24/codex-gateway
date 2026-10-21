@@ -1,6 +1,9 @@
 import type { RealtimeServerMessage } from "~~/shared/types";
 import { runWithGatewayUser } from "../state/memory";
 import type { OwnedSubscription } from "./subscription-map";
+import { gatewayLog } from "../logging";
+
+const MAX_QUEUED_REALTIME_BYTES = 8 * 1024 * 1024;
 
 export interface RealtimePeer {
   send(message: string | Uint8Array): void;
@@ -12,6 +15,7 @@ export interface RealtimePeer {
 
 export interface RealtimePeerState {
   authenticated: boolean;
+  deliveryClosed?: boolean;
   userId: number | null;
   sessionTokenHash: string | null;
   authTimer?: ReturnType<typeof setTimeout>;
@@ -34,6 +38,23 @@ export interface RealtimePeerState {
 const peerStates = new WeakMap<RealtimePeer, RealtimePeerState>();
 
 export function sendRealtimePeerMessage(peer: RealtimePeer, message: RealtimeServerMessage) {
+  const state = stateFor(peer);
+  if (state.deliveryClosed === true) return;
+  const bufferedBytes = peer.bufferedAmount ?? 0;
+  if (bufferedBytes > MAX_QUEUED_REALTIME_BYTES) {
+    // CrossWS/ws already exposes the actual transport queue. Do not accumulate a second JS
+    // queue or stall the shared App Server event loop for a slow/suspended browser. Reconnect
+    // replays the existing event cursor (or activates a snapshot after a gap), never silently
+    // drops individual deltas. This bounds pending delivery, not conversation/history length.
+    state.deliveryClosed = true;
+    gatewayLog("warn", "gateway", "realtime slow consumer disconnected", {
+      userId: state.userId,
+      bufferedBytes,
+      messageType: message.type,
+    });
+    peer.close(1013, "Realtime client is not consuming messages");
+    return;
+  }
   peer.send(JSON.stringify(message));
 }
 

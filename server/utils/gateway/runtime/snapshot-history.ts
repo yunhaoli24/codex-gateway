@@ -21,5 +21,8 @@ export function retainSnapshotHistory(
             turns: history.thread.turns.slice(-SERVER_TURN_CACHE_LIMIT),
           },
         };
-  return projectThreadTimelineHistory(retainThreadHistory(limited) ?? limited, previous);
+  return projectThreadTimelineHistory(
+    retainThreadHistory(limited, undefined, previous) ?? limited,
+    previous,
+  );
 }

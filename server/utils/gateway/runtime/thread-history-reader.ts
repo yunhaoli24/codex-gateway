@@ -4,7 +4,6 @@ import {
   parseThreadItemsReadResponse,
 } from "~~/shared/runtime/app-server";
 import { timelinePageItemsForTurn } from "~~/shared/thread-history/app-server-timeline";
-import { threadSnapshotStore } from "../state/thread-snapshots";
 import { threadTimelinePageStore } from "../state/thread-timeline-pages";
 import type { ControllerRegistry } from "./controller-registry";
 import { DEFAULT_TIMELINE_PAGE_LIMIT } from "./types";
@@ -28,12 +27,12 @@ export class ThreadHistoryReader {
     cursor: string | null,
     limit?: number,
   ) {
-    this.requireSnapshot(host.id, threadId);
+    // Official history is independent of our disposable snapshot. A reader may expand an old
+    // Turn after its idle cache expired; authorization/existence still belong to Host/RPC.
     return this.fetchTimelinePage(host, threadId, cursor, limit);
   }
 
   async readItems(host: HostRecord, threadId: string, turnId: string, itemIds: string[]) {
-    this.requireSnapshot(host.id, threadId);
     const client = await this.registry.getHostClient(host);
     // Details must come from the requested persisted items, not a walk from the latest timeline
     // page. Do not populate the history cache or infer missing events from this separate read.
@@ -50,7 +49,6 @@ export class ThreadHistoryReader {
     threadId: string,
     turnId: string,
   ): Promise<RecoveredTurnTail> {
-    this.requireSnapshot(host.id, threadId);
     const latestPage = await this.fetchTimelinePage(host, threadId, null);
     const tailItems: ThreadTimelineItem[] = timelinePageItemsForTurn(latestPage, turnId);
     const complete = latestPage.data.some(
@@ -82,11 +80,5 @@ export class ThreadHistoryReader {
     );
     threadTimelinePageStore.set(host.id, threadId, cursor, limit, page);
     return page;
-  }
-
-  private requireSnapshot(hostId: number, threadId: string) {
-    const snapshot = threadSnapshotStore.get(hostId, threadId);
-    if (snapshot === null) throw new Error("Thread snapshot is unavailable while paging history");
-    return snapshot;
   }
 }

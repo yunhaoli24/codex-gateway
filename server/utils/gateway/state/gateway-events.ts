@@ -1,19 +1,27 @@
+import { randomUUID } from "node:crypto";
 import type { GatewayEvent } from "~~/shared/types";
 import type { AgentEvent } from "~~/shared/agent/events";
-import { SERVER_THREAD_CACHE_LIMIT } from "~~/shared/config";
+import { SERVER_THREAD_CACHE_IDLE_MS } from "~~/shared/config";
+import { commandOutputWindow } from "~~/shared/thread-history/retention";
 import { currentGatewayMemoryState } from "./memory";
-import { randomUUID } from "node:crypto";
+import { UserThreadCache } from "./user-thread-cache";
+
+const MAX_REPLAY_EVENTS = 500;
+
+interface ThreadReplay {
+  events: GatewayEvent[];
+  prunedThrough: number;
+}
+
+// Every delta used to scan/filter/sort all of a user's events. Appending now touches only this
+// conversation's bounded, already ordered buffer. Idle expiry also releases output payloads and
+// prune markers without retaining a permanent tombstone for every previously visited thread.
+const replay = new UserThreadCache<ThreadReplay>(SERVER_THREAD_CACHE_IDLE_MS);
 
 export const gatewayEventStore = {
   pruneToHosts(hostIds: Set<number>) {
-    currentGatewayMemoryState().events = currentGatewayMemoryState().events.filter((event) =>
-      hostIds.has(event.hostId),
-    );
-    currentGatewayMemoryState().eventPrunedThroughByThread = Object.fromEntries(
-      Object.entries(currentGatewayMemoryState().eventPrunedThroughByThread).filter(([key]) =>
-        hostIds.has(hostIdFromEventKey(key)),
-      ),
-    );
+    // This runs inside the config draft. Disposable replay buffers are cleared only by the
+    // post-commit Host lifecycle, so failed persistence cannot invalidate live runtime state.
     currentGatewayMemoryState().eventEpochByHost = Object.fromEntries(
       Object.entries(currentGatewayMemoryState().eventEpochByHost).filter(([hostId]) =>
         hostIds.has(Number(hostId)),
@@ -22,145 +30,74 @@ export const gatewayEventStore = {
   },
 
   deleteForHost(hostId: number) {
-    currentGatewayMemoryState().events = currentGatewayMemoryState().events.filter(
-      (event) => event.hostId !== hostId,
-    );
-    currentGatewayMemoryState().eventPrunedThroughByThread = Object.fromEntries(
-      Object.entries(currentGatewayMemoryState().eventPrunedThroughByThread).filter(
-        ([key]) => hostIdFromEventKey(key) !== hostId,
-      ),
-    );
+    replay.deleteForHost(hostId);
     this.rotateHostEpoch(hostId);
   },
 
   epoch(hostId: number) {
+    const epochs = currentGatewayMemoryState().eventEpochByHost;
     const key = String(hostId);
-    const existing = currentGatewayMemoryState().eventEpochByHost[key];
-    if (existing !== undefined) return existing;
-    const epoch = randomUUID();
-    currentGatewayMemoryState().eventEpochByHost = {
-      ...currentGatewayMemoryState().eventEpochByHost,
-      [key]: epoch,
-    };
-    return epoch;
+    return (epochs[key] ??= randomUUID());
   },
 
   rotateHostEpoch(hostId: number) {
-    currentGatewayMemoryState().eventEpochByHost = {
-      ...currentGatewayMemoryState().eventEpochByHost,
-      [String(hostId)]: randomUUID(),
-    };
+    currentGatewayMemoryState().eventEpochByHost[String(hostId)] = randomUUID();
   },
 
   add(hostId: number, threadId: string, event: AgentEvent, createdAt: string): GatewayEvent {
+    // Completed commands can carry their entire cumulative stdout again. Bound it before cache
+    // insertion, not only on send, so replay cannot pin the original huge string in memory.
+    const item = event.type === "timeline.item.upsert" ? commandOutputWindow(event.item) : null;
+    const retainedEvent =
+      event.type === "timeline.item.upsert" && item !== null && item !== event.item
+        ? { ...event, item }
+        : event;
     const gatewayEvent: GatewayEvent = {
       id: currentGatewayMemoryState().nextEventId++,
       hostId,
       threadId,
-      event,
+      event: retainedEvent,
       createdAt,
     };
-    currentGatewayMemoryState().events.push(gatewayEvent);
-    this.prune(hostId, threadId, 500);
-    this.pruneThreads(SERVER_THREAD_CACHE_LIMIT);
+    // A recreated buffer must also reject cursors from before its first event. Otherwise the
+    // first new notification after idle expiry would hide the gap left by the expired buffer.
+    const buffer = replay.get(hostId, threadId) ?? {
+      events: [],
+      prunedThrough: gatewayEvent.id - 1,
+    };
+    buffer.events.push(gatewayEvent);
+    const excess = buffer.events.length - MAX_REPLAY_EVENTS;
+    if (excess > 0) {
+      buffer.prunedThrough = buffer.events[excess - 1]?.id ?? buffer.prunedThrough;
+      buffer.events.splice(0, excess);
+    }
+    replay.set(hostId, threadId, buffer);
     return gatewayEvent;
   },
 
   list(hostId: number, threadId: string, afterId = 0, limit = 200): GatewayEvent[] {
-    return currentGatewayMemoryState()
-      .events.filter(
-        (event) => event.hostId === hostId && event.threadId === threadId && event.id > afterId,
-      )
-      .sort((left, right) => left.id - right.id)
-      .slice(0, limit);
+    return (
+      replay
+        .get(hostId, threadId)
+        ?.events.filter((event) => event.id > afterId)
+        .slice(0, limit) ?? []
+    );
   },
 
   latestId(hostId: number, threadId: string): number {
-    return currentGatewayMemoryState().events.reduce((latest, event) => {
-      if (event.hostId !== hostId || event.threadId !== threadId) {
-        return latest;
-      }
-      return Math.max(latest, event.id);
-    }, 0);
+    return this.latest(hostId, threadId)?.id ?? 0;
   },
 
   latest(hostId: number, threadId: string): GatewayEvent | null {
-    return (
-      currentGatewayMemoryState()
-        .events.filter((event) => event.hostId === hostId && event.threadId === threadId)
-        .sort((left, right) => right.id - left.id)[0] ?? null
-    );
+    return replay.get(hostId, threadId)?.events.at(-1) ?? null;
   },
 
   hasReplayGap(hostId: number, threadId: string, afterId: number) {
     if (afterId <= 0) return false;
-    const latestId = this.latestId(hostId, threadId);
-    return (
-      afterId > latestId ||
-      afterId <
-        (currentGatewayMemoryState().eventPrunedThroughByThread[eventKey(hostId, threadId)] ?? 0)
-    );
-  },
-
-  prune(hostId: number, threadId: string, keep: number) {
-    const retained = currentGatewayMemoryState()
-      .events.filter((event) => event.hostId === hostId && event.threadId === threadId)
-      .sort((left, right) => right.id - left.id)
-      .slice(0, keep)
-      .map((event) => event.id);
-    const retainedIds = new Set(retained);
-    recordPrunedEvents(
-      currentGatewayMemoryState().events.filter(
-        (event) =>
-          event.hostId === hostId && event.threadId === threadId && !retainedIds.has(event.id),
-      ),
-    );
-    currentGatewayMemoryState().events = currentGatewayMemoryState().events.filter(
-      (event) =>
-        event.hostId !== hostId || event.threadId !== threadId || retainedIds.has(event.id),
-    );
-  },
-
-  pruneThreads(keep: number) {
-    const latestIds = new Map<string, number>();
-    for (const event of currentGatewayMemoryState().events) {
-      const key = `${event.hostId}:${event.threadId}`;
-      latestIds.set(key, Math.max(latestIds.get(key) ?? 0, event.id));
-    }
-    if (latestIds.size <= keep) {
-      return;
-    }
-    const retainedThreads = new Set(
-      [...latestIds.entries()]
-        .sort((left, right) => right[1] - left[1])
-        .slice(0, keep)
-        .map(([key]) => key),
-    );
-    recordPrunedEvents(
-      currentGatewayMemoryState().events.filter(
-        (event) => !retainedThreads.has(eventKey(event.hostId, event.threadId)),
-      ),
-    );
-    currentGatewayMemoryState().events = currentGatewayMemoryState().events.filter((event) =>
-      retainedThreads.has(eventKey(event.hostId, event.threadId)),
-    );
+    const buffer = replay.get(hostId, threadId);
+    // Expiry is a replay gap, not a successful empty replay. The existing snapshot activation
+    // path restores authoritative Codex data instead of silently skipping expired messages.
+    if (buffer === undefined) return true;
+    return afterId > (buffer.events.at(-1)?.id ?? 0) || afterId < buffer.prunedThrough;
   },
 };
-
-function recordPrunedEvents(events: GatewayEvent[]) {
-  if (events.length === 0) return;
-  const next = { ...currentGatewayMemoryState().eventPrunedThroughByThread };
-  for (const event of events) {
-    const key = eventKey(event.hostId, event.threadId);
-    next[key] = Math.max(next[key] ?? 0, event.id);
-  }
-  currentGatewayMemoryState().eventPrunedThroughByThread = next;
-}
-
-function eventKey(hostId: number, threadId: string) {
-  return `${hostId}:${threadId}`;
-}
-
-function hostIdFromEventKey(key: string) {
-  return Number(key.slice(0, key.indexOf(":")));
-}

@@ -35,10 +35,21 @@ export function commandOutputWindow<T extends ThreadHistoryItem>(item: T, end?: 
 export function retainThreadHistory(
   history: ThreadHistoryState | null,
   expandedTurnId?: string,
+  previous?: ThreadHistoryState,
 ): ThreadHistoryState | null {
   if (history === null) return history;
+  const previousTurns = new Set(previous?.thread.turns);
   let changed = false;
   const turns = history.thread.turns.map((turn, index) => {
+    // Previously retained, unchanged recent Turns already have bounded output. A new token in
+    // one Turn must not rescan all commands in the other warm Turns. Older collapsed Turns still
+    // pass through eviction, including a Turn that just moved beyond the recent-three boundary.
+    if (
+      previousTurns.has(turn) &&
+      (index >= history.thread.turns.length - THREAD_INTERMEDIATE_CACHE_TURNS ||
+        turn.id === expandedTurnId)
+    )
+      return turn;
     let items = turn.items ?? [];
     for (const [itemIndex, item] of items.entries()) {
       const bounded = commandOutputWindow(item);

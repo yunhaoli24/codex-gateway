@@ -6,7 +6,8 @@ import type { GatewayConfig, GatewayNotificationSettings } from "./types";
 export const INITIAL_TIMELINE_PAGE_LIMIT = 20;
 export const TIMELINE_PAGE_LIMIT = 100;
 export const SERVER_TURN_CACHE_LIMIT = 50;
-export const SERVER_THREAD_CACHE_LIMIT = 100;
+// Cache lifetime follows activity, not a fixed number of users or conversations.
+export const SERVER_THREAD_CACHE_IDLE_MS = 10 * 60_000;
 // Match the bounded workspace deck used by mature multi-agent clients: inactive conversations are
 // data caches, not permanent mounted sessions. Ten recent threads keeps route switching fast while
 // preventing many long transcripts from accumulating for the lifetime of a browser tab.

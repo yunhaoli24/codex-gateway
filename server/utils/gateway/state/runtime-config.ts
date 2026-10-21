@@ -7,7 +7,6 @@ import { hostStore } from "./hosts";
 import { projectStore } from "./projects";
 import { subAgentThreadStore } from "./sub-agent-threads";
 import { threadMetadataStore } from "./thread-metadata";
-import { threadSnapshotStore } from "./thread-snapshots";
 
 export const runtimeConfigStore = {
   replace(config: GatewayConfig) {
@@ -15,7 +14,6 @@ export const runtimeConfigStore = {
     const hostIds = hostStore.hostIds();
     projectStore.pruneToHosts(hostIds);
     threadMetadataStore.pruneToHosts(hostIds);
-    threadSnapshotStore.pruneToHosts(hostIds);
     subAgentThreadStore.pruneToHosts(hostIds);
     gatewayEventStore.pruneToHosts(hostIds);
     currentGatewayMemoryState().pinnedThreads = normalizePinnedThreads(

@@ -1,6 +1,5 @@
 import type {
   GatewayConfig,
-  GatewayEvent,
   AppServerThreadStatus,
   HostRecord,
   PinnedThreadRecord,
@@ -9,7 +8,6 @@ import type {
 import { normalizeNotificationSettings } from "~~/shared/config";
 import { trimmedOrNull } from "~~/shared/utils/strings";
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ThreadOpenSnapshot } from "../runtime/types";
 
 // Gateway cursors are process-local but remain numerically monotonic across normal restarts. A
 // browser cursor from an older process is therefore either below every new event (and replays all
@@ -34,13 +32,6 @@ export interface ThreadMetadataRecord {
   updatedAt: number;
 }
 
-export interface ThreadSnapshotRecord {
-  hostId: number;
-  threadId: string;
-  snapshot: ThreadOpenSnapshot;
-  updatedAt: string;
-}
-
 export interface SubAgentThreadRecord {
   hostId: number;
   threadId: string;
@@ -54,10 +45,7 @@ export interface GatewayMemoryState {
   pinnedThreads: PinnedThreadRecord[];
   notifications: GatewayConfig["notifications"];
   threadMetadata: ThreadMetadataRecord[];
-  threadSnapshots: ThreadSnapshotRecord[];
   subAgentThreads: SubAgentThreadRecord[];
-  events: GatewayEvent[];
-  eventPrunedThroughByThread: Record<string, number>;
   eventEpochByHost: Record<string, string>;
   nextEventId: number;
   publishedNotificationKeys: string[];
@@ -73,10 +61,7 @@ function createGatewayMemoryState(): GatewayMemoryState {
     pinnedThreads: [],
     notifications: normalizeNotificationSettings(),
     threadMetadata: [],
-    threadSnapshots: [],
     subAgentThreads: [],
-    events: [],
-    eventPrunedThroughByThread: {},
     eventEpochByHost: {},
     nextEventId: PROCESS_EVENT_ID_BASE,
     publishedNotificationKeys: [],

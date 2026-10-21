@@ -9,8 +9,10 @@ export default defineNitroPlugin((nitroApp) => {
       threshold: 1024,
       serverNoContextTakeover: true,
       clientNoContextTakeover: true,
+      // Let ws negotiate the client's window. Safari can offer permessage-deflate without
+      // client_max_window_bits; requiring a numeric value rejects that valid offer with HTTP 400
+      // before authentication. Bound our outgoing compression without imposing this on clients.
       serverMaxWindowBits: 12,
-      clientMaxWindowBits: 12,
       concurrencyLimit: 2,
       zlibDeflateOptions: { level: 3, memLevel: 4 },
     },

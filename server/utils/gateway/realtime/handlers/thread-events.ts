@@ -8,7 +8,6 @@ import { threadRuntimeEvents } from "../../runtime/thread-runtime-events";
 import { gatewayEventStore } from "../../state/gateway-events";
 import { hostStore } from "../../state/hosts";
 import { bindGatewayUser } from "../../state/memory";
-import { commandOutputWindow } from "~~/shared/thread-history/retention";
 import {
   runPeerScoped,
   sendRealtimePeerMessage,
@@ -214,16 +213,8 @@ function subscribeThreadEvents(
     // provides the same replay/live de-duplication as an ever-growing Set without retaining one
     // allocation for every token emitted during a long-running turn.
     sentThroughId = event.id;
-    // Snapshots and browser caches keep bounded output tails; the replay store can still contain
-    // an original cumulative upsert. Bound those updates before sending
-    // them, including replay after activation: trimming only in Pinia still allocates the full
-    // command string during a mobile JSON.parse. Token deltas and event identities stay unchanged.
-    const payload = event.event;
-    const browserEvent =
-      payload.type === "timeline.item.upsert"
-        ? { ...event, event: { ...payload, item: commandOutputWindow(payload.item) } }
-        : event;
-    sendRealtimePeerMessage(peer, { type: "thread.event", event: browserEvent });
+    // Output windows are bounded once when entering the replay store, shared by every browser.
+    sendRealtimePeerMessage(peer, { type: "thread.event", event });
   };
 
   let replaying = true;

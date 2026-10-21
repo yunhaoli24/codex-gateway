@@ -145,7 +145,7 @@ Cold thread activation uses `thread/resume` for subscription/settings, including
 
 Input to an idle conversation uses `turn/start`; input to a running turn uses `turn/steer`. `turn/interrupt` is the explicit stop action. User messages, including steer input, remain transcript content; intermediate-process folding is a presentation concern. Returning to a page or reconnecting its WebSocket refreshes thread settings changed by another client.
 
-One flat virtual timeline bounds mounted rows. Browser retention separately keeps 10 recent thread caches, releases older completed/collapsed intermediate content beyond the latest three turns, and limits command-output windows to 128 Ki characters. Older content can be fetched again. Server history/event/page caches are bounded, and rendering tasks are cleaned up with their owners. These measures reduce retained memory but are not a fixed byte ceiling for a large active turn. Defaults live in [shared/config.ts](shared/config.ts).
+One flat virtual timeline bounds mounted rows. Browser retention separately keeps 10 recent thread caches, releases older completed/collapsed intermediate content beyond the latest three turns, and limits command-output windows to 128 Ki characters. Older content can be fetched again. Server snapshots and per-thread event replay expire after 10 idle minutes; reads and updates renew their lifetime. Historical pages use a global LRU with expiry, and rendering tasks are cleaned up with their owners. These measures reduce retained memory but are not a fixed byte ceiling for a large active turn. Defaults live in [shared/config.ts](shared/config.ts).
 
 ### Codex installation and lifecycle
 
