@@ -1,7 +1,4 @@
-import { SERVER_TURN_CACHE_LIMIT } from "~~/shared/config";
-import { projectThreadTimelineHistory } from "~~/shared/thread-history/timeline";
 import { normalizeTokenUsage } from "~~/shared/token-usage";
-import type { ThreadHistoryState, ThreadTimelineHistoryState } from "~~/shared/types";
 import {
   appServerThreadStatusFromUnknown,
   threadSettingsFromAppServer,
@@ -11,6 +8,7 @@ import type { AgentEvent } from "~~/shared/agent/events";
 import type { GatewayEvent } from "~~/shared/types";
 import { applyCanonicalEventToHistory } from "~~/shared/thread-history/canonical-events";
 import type { ThreadOpenSnapshot } from "./types";
+import { retainSnapshotHistory } from "./snapshot-history";
 
 export function applyEventToOpenSnapshot(snapshot: ThreadOpenSnapshot | null, event: AgentEvent) {
   if (snapshot === null) {
@@ -27,10 +25,11 @@ export function applyEventToOpenSnapshot(snapshot: ThreadOpenSnapshot | null, ev
   // Snapshot history is the backend's materialized timeline cache. Re-project only after an
   // app-server event changed that data; ordinary thread opens then return this cached value without
   // rescanning every item on either side of the transport.
-  const history = projectThreadTimelineHistory(
-    trimSnapshotHistory(reducedHistory ?? snapshot.history),
-  );
-  let nextSnapshot = withSnapshotHistory(snapshot, history);
+  const history =
+    reducedHistory === null || reducedHistory === snapshot.history
+      ? snapshot.history
+      : retainSnapshotHistory(reducedHistory, snapshot.history);
+  let nextSnapshot = history === snapshot.history ? snapshot : { ...snapshot, history };
   nextSnapshot = applySnapshotReducer(nextSnapshot, event) ?? nextSnapshot;
   return nextSnapshot;
 }
@@ -121,16 +120,6 @@ function applySnapshotReducer(snapshot: ThreadOpenSnapshot, event: AgentEvent) {
   }
 }
 
-function trimSnapshotHistory(history: ThreadHistoryState): ThreadHistoryState {
-  return {
-    ...history,
-    thread: {
-      ...history.thread,
-      turns: history.thread.turns.slice(-SERVER_TURN_CACHE_LIMIT),
-    },
-  };
-}
-
 function updateSnapshotThreadStatus(snapshot: ThreadOpenSnapshot, status: unknown) {
   const value = appServerThreadStatusFromUnknown(status);
   if (value === null) {
@@ -142,16 +131,6 @@ function updateSnapshotThreadStatus(snapshot: ThreadOpenSnapshot, status: unknow
       ...snapshot.thread,
       status: value,
     },
-  };
-}
-
-function withSnapshotHistory(
-  snapshot: ThreadOpenSnapshot,
-  history: ThreadTimelineHistoryState,
-): ThreadOpenSnapshot {
-  return {
-    ...snapshot,
-    history,
   };
 }
 

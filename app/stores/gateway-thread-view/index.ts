@@ -61,6 +61,7 @@ export const useGatewayThreadViewStore = defineStore("gateway-thread-view", () =
         nextHistory,
         expandedTurnId(navigation.selectedHostId, nextHistory.thread.id),
       )!,
+      history.value ?? undefined,
     );
     history.value = projected;
   }
@@ -105,7 +106,7 @@ export const useGatewayThreadViewStore = defineStore("gateway-thread-view", () =
     if (source == null) return;
     const retained = retainThreadHistory(source, expandedTurnId(hostId, threadId));
     if (retained === source) return;
-    const projected = projectThreadTimelineHistory(retained!);
+    const projected = projectThreadTimelineHistory(retained!, source);
     if (view !== undefined) view.history = projected;
     if (selected) history.value = projected;
   }

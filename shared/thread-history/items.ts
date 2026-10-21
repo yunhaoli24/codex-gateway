@@ -26,8 +26,8 @@ export function mergeItemIntoLatestTurn(
     }
     const existingTurnId = turnId(existing.turn);
     if (!itemTurnId || existingTurnId === itemTurnId) {
-      existing.turn.items = existingItems;
-      existing.turn.items[existing.itemIndex] = mergeThreadItem(existingItem, item);
+      existingItems[existing.itemIndex] = mergeThreadItem(existingItem, item);
+      turns[turns.indexOf(existing.turn)] = { ...existing.turn, items: existingItems };
       nextHistory.thread.turns = [...turns];
       return nextHistory;
     }
@@ -43,7 +43,7 @@ export function mergeItemIntoLatestTurn(
     if (existingItems.length === 0 && existingTurnId.startsWith("client-")) {
       turns.splice(sourceIndex, 1);
     } else {
-      existing.turn.items = existingItems;
+      turns[sourceIndex] = { ...existing.turn, items: existingItems };
     }
   }
 
@@ -57,20 +57,22 @@ export function mergeItemIntoLatestTurn(
   }
   if (!Array.isArray(turn.items)) {
     return nextHistory;
-  } else {
-    turn.items = [...turn.items];
   }
+  // Preserve the prior Turn for incremental projection and other cached readers. Item upserts
+  // must replace their owning Turn just like deltas/lifecycle reducers, never mutate it in place.
+  const items = [...turn.items];
+  turn = { ...turn, items };
 
-  const index = turn.items.findIndex((candidate) => sameItem(candidate, item));
+  const index = items.findIndex((candidate) => sameItem(candidate, item));
   if (index >= 0) {
-    const existingItem = turn.items[index];
+    const existingItem = items[index];
     if (existingItem) {
-      turn.items[index] = mergeThreadItem(existingItem, item);
+      items[index] = mergeThreadItem(existingItem, item);
     }
   } else {
     // App Server notification order is the timeline order. Presentation code may hide process
     // items behind the intermediate disclosure, but it must not move transcript items around.
-    turn.items.push(item);
+    items.push(item);
   }
   turns[turnIndex] = turn;
   nextHistory.thread.turns = [...turns];
@@ -122,8 +124,8 @@ export function insertSteerItemIntoActiveTurn(
     if (!existingItem) {
       return nextHistory;
     }
-    existing.turn.items = existingItems;
-    existing.turn.items[existing.itemIndex] = mergeThreadItem(existingItem, item);
+    existingItems[existing.itemIndex] = mergeThreadItem(existingItem, item);
+    turns[turns.indexOf(existing.turn)] = { ...existing.turn, items: existingItems };
     nextHistory.thread.turns = [...turns];
     return nextHistory;
   }

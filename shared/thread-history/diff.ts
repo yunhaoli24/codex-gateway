@@ -14,11 +14,12 @@ export function updateTurnDiff(
     return nextHistory;
   }
   const turns = nextHistory.thread.turns;
-  const turn = turns.find((candidate) => candidate.id === turnId);
-  if (!turn) {
+  const index = turns.findIndex((candidate) => candidate.id === turnId);
+  const turn = turns[index];
+  if (turn === undefined) {
     return nextHistory;
   }
-  turn.diff = params.diff;
+  turns[index] = { ...turn, diff: params.diff };
   nextHistory.thread.turns = [...turns];
   return nextHistory;
 }

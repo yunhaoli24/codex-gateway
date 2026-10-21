@@ -47,11 +47,20 @@ export function asThreadTimelineTurn(turn: ThreadHistoryTurn): ThreadTimelineTur
  */
 export function projectThreadTimelineHistory(
   history: ThreadHistoryState,
+  previous?: ThreadTimelineHistoryState,
 ): ThreadTimelineHistoryState {
+  if (history === previous) return previous;
+  // Reducers replace only changed Turns. Reuse the previous typed rows by identity rather than
+  // filtering all item arrays again for each token; raw App Server pages still use full projection.
+  const previousTurns = new Map<ThreadHistoryTurn, ThreadTimelineTurn>(
+    previous?.thread.turns.map((turn) => [turn, turn]),
+  );
   return {
     thread: {
       id: history.thread.id,
       turns: history.thread.turns.flatMap((turn) => {
+        const projected = previousTurns.get(turn);
+        if (projected !== undefined) return [projected];
         const timelineTurn = asThreadTimelineTurn(turn);
         return timelineTurn === null ? [] : [timelineTurn];
       }),

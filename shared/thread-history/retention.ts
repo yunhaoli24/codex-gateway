@@ -1,12 +1,12 @@
-import { CLIENT_COMMAND_OUTPUT_CHARS, CLIENT_THREAD_INTERMEDIATE_TURNS } from "../config";
+import { COMMAND_OUTPUT_CACHE_CHARS, THREAD_INTERMEDIATE_CACHE_TURNS } from "../config";
 import type { ThreadHistoryItem, ThreadHistoryState, ThreadHistoryTurn } from "./types";
 
 export function commandOutputWindow<T extends ThreadHistoryItem>(item: T, end?: number): T {
   const output = item.aggregatedOutput;
   if (typeof output !== "string") return item;
-  if (output.length <= CLIENT_COMMAND_OUTPUT_CHARS && end === undefined) return item;
+  if (output.length <= COMMAND_OUTPUT_CACHE_CHARS && end === undefined) return item;
   const windowEnd = Math.min(output.length, Math.max(0, end ?? output.length));
-  const start = Math.max(0, windowEnd - CLIENT_COMMAND_OUTPUT_CHARS);
+  const start = Math.max(0, windowEnd - COMMAND_OUTPUT_CACHE_CHARS);
   if (start === 0 && end === undefined) return item;
   return {
     ...item,
@@ -15,22 +15,23 @@ export function commandOutputWindow<T extends ThreadHistoryItem>(item: T, end?: 
     aggregatedOutput: output.slice(start, windowEnd).split("").join(""),
     outputTotalLength:
       end === undefined
-        ? (item.outputTotalLength ?? CLIENT_COMMAND_OUTPUT_CHARS) +
+        ? (item.outputTotalLength ?? COMMAND_OUTPUT_CACHE_CHARS) +
           output.length -
-          CLIENT_COMMAND_OUTPUT_CHARS
+          COMMAND_OUTPUT_CACHE_CHARS
         : output.length,
     outputWindowEnd:
       end === undefined
-        ? (item.outputTotalLength ?? CLIENT_COMMAND_OUTPUT_CHARS) +
+        ? (item.outputTotalLength ?? COMMAND_OUTPUT_CACHE_CHARS) +
           output.length -
-          CLIENT_COMMAND_OUTPUT_CHARS
+          COMMAND_OUTPUT_CACHE_CHARS
         : windowEnd,
   };
 }
 
-/** Old collapsed intermediate work is disposable. Reuse the existing accordion selection: its
- * contents are already outside the flat virtual list, so no visibility observers, byte estimates,
- * or per-item eviction state are needed. User messages and final answers stay in canonical order. */
+/** Old intermediate work is disposable in both the server snapshot and the browser cache. The
+ * browser alone exempts its expanded Turn; either side can reload details through official paging.
+ * User messages and final answers stay in canonical order. Preserve unchanged Turn identities so
+ * streaming updates do not force the server to re-project every historical item. */
 export function retainThreadHistory(
   history: ThreadHistoryState | null,
   expandedTurnId?: string,
@@ -38,14 +39,16 @@ export function retainThreadHistory(
   if (history === null) return history;
   let changed = false;
   const turns = history.thread.turns.map((turn, index) => {
-    const items = (turn.items ?? []).map((item) => {
+    let items = turn.items ?? [];
+    for (const [itemIndex, item] of items.entries()) {
       const bounded = commandOutputWindow(item);
-      if (bounded !== item) changed = true;
-      return bounded;
-    });
-    const next = { ...turn, items };
+      if (bounded === item) continue;
+      if (items === turn.items) items = [...items];
+      items[itemIndex] = bounded;
+    }
+    let next = items === turn.items ? turn : { ...turn, items };
     if (
-      index < history.thread.turns.length - CLIENT_THREAD_INTERMEDIATE_TURNS &&
+      index < history.thread.turns.length - THREAD_INTERMEDIATE_CACHE_TURNS &&
       turn.status !== "inProgress" &&
       turn.id !== expandedTurnId
     ) {
@@ -54,13 +57,16 @@ export function retainThreadHistory(
         (item) => transcript.has(item) || item.pendingApproval != null || item.requestId != null,
       );
       if (retained.length !== items.length || next.diff != null) {
-        next.items = retained;
-        next.diff = undefined;
-        next.itemsView = "summary";
-        next.olderItemsCursor = undefined;
-        changed = true;
+        next = {
+          ...next,
+          items: retained,
+          diff: undefined,
+          itemsView: "summary",
+          olderItemsCursor: undefined,
+        };
       }
     }
+    if (next !== turn) changed = true;
     return next;
   });
   return changed ? { thread: { ...history.thread, turns } } : history;

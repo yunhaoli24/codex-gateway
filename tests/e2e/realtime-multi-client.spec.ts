@@ -525,9 +525,11 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     expect(await activeRealtimeSocketCount(page)).toBe(1);
     expect(await activeRealtimeSocketCount(secondPage)).toBe(1);
 
-    // This existing real conversation now has six user Turns. The oldest collapsed tools should
-    // have left Pinia, not merely the virtual DOM. Reopening fetches the official history again;
+    // This existing real conversation now has six user Turns. Reload through the warm backend
+    // snapshot so this covers server retention as well as Pinia. The oldest collapsed tools should
+    // have left the caches, not merely the virtual DOM. Reopening fetches official history again;
     // closing releases it immediately without losing its user message or final answer.
+    await reloadApp(page);
     const cachedFirstTurnCommandCount = () =>
       page.evaluate(
         (turnId) =>

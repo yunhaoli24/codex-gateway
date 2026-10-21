@@ -214,7 +214,8 @@ function subscribeThreadEvents(
     // provides the same replay/live de-duplication as an ever-growing Set without retaining one
     // allocation for every token emitted during a long-running turn.
     sentThroughId = event.id;
-    // The monitor keeps full authoritative outputs. Bound cumulative item updates before sending
+    // Snapshots and browser caches keep bounded output tails; the replay store can still contain
+    // an original cumulative upsert. Bound those updates before sending
     // them, including replay after activation: trimming only in Pinia still allocates the full
     // command string during a mobile JSON.parse. Token deltas and event identities stay unchanged.
     const payload = event.event;

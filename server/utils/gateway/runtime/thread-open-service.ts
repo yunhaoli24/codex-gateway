@@ -1,7 +1,6 @@
 import type { AppServerThread, HostRecord } from "~~/shared/types";
 import type { AppServerTimelinePage } from "~~/shared/runtime/app-server";
 import { INITIAL_TIMELINE_PAGE_LIMIT } from "~~/shared/config";
-import { projectThreadTimelineHistory } from "~~/shared/thread-history/timeline";
 import {
   runtimeStatusFromSnapshotState,
   runtimeStatusFromThreadState,
@@ -24,6 +23,7 @@ import type { ThreadHistoryReader } from "./thread-history-reader";
 import { installRecoveredTurnTail } from "./thread-tail-recovery";
 import { timelinePageToTurns } from "~~/shared/thread-history/app-server-timeline";
 import { threadActivationHistory } from "../protocol/thread-activation-history";
+import { retainSnapshotHistory } from "./snapshot-history";
 
 export class ThreadOpenService {
   private readonly pendingRefreshes = new Map<
@@ -79,7 +79,7 @@ export class ThreadOpenService {
     const threadId = String(thread.id);
     threadMetadataStore.record(host.id, thread);
     const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 200);
-    const history = projectThreadTimelineHistory({
+    const history = retainSnapshotHistory({
       thread: { id: thread.id, turns: thread.turns },
     });
     const oldestTimelineCursor = null;
@@ -309,7 +309,7 @@ export class ThreadOpenService {
     const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 500);
     const baseSnapshot = {
       thread,
-      history: projectThreadTimelineHistory({
+      history: retainSnapshotHistory({
         thread: { id: thread.id, turns: timelinePageToTurns(timelinePage) },
       }),
       oldestTimelineCursor: timelinePage.nextCursor,

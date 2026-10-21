@@ -35,7 +35,9 @@ export function upsertThreadView(view: ThreadViewState) {
     views.expandedTurnId(view.hostId, view.threadId),
   );
   const retainedView =
-    retainedHistory === view.history ? view : { ...view, ...projectionFields(retainedHistory) };
+    retainedHistory === view.history
+      ? view
+      : { ...view, ...projectionFields(retainedHistory, view.history ?? undefined) };
   // Removing and reinserting the key makes plain object insertion order our LRU order. This keeps
   // the policy colocated with the only cache write boundary instead of maintaining a second list.
   views.threadViews = pruneThreadViews({
@@ -74,7 +76,9 @@ export function patchThreadView(hostId: number, threadId: string, patch: ThreadV
   // History is already projected at the reducer boundary. Route switches restore this same object
   // instead of maintaining a second timeline-turns array that can drift from it.
   const projectedPatch =
-    "history" in patch ? projectionFields(patch.history ?? null) : { history: existing.history };
+    "history" in patch
+      ? projectionFields(patch.history ?? null, existing.history ?? undefined)
+      : { history: existing.history };
   const next = { ...existing, ...patch, ...projectedPatch, hostId, threadId };
   upsertThreadView(next);
   if (navigation.selectedHostId === hostId && navigation.selectedThreadId === threadId) {
@@ -197,10 +201,13 @@ function emptyThreadView(hostId: number, threadId: string): ThreadViewState {
   };
 }
 
-function projectionFields(history: ThreadHistoryState | null): {
+function projectionFields(
+  history: ThreadHistoryState | null,
+  previous?: ThreadTimelineHistoryState,
+): {
   history: ThreadTimelineHistoryState | null;
 } {
   if (history === null) return { history: null };
-  const projected = projectThreadTimelineHistory(history);
+  const projected = projectThreadTimelineHistory(history, previous);
   return { history: projected };
 }

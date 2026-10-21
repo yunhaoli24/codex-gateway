@@ -11,10 +11,10 @@ export const SERVER_THREAD_CACHE_LIMIT = 100;
 // data caches, not permanent mounted sessions. Ten recent threads keeps route switching fast while
 // preventing many long transcripts from accumulating for the lifetime of a browser tab.
 export const CLIENT_THREAD_CACHE_LIMIT = 10;
-// Recent intermediate work remains warm; old collapsed work can always be fetched from Codex.
-// Limit the noisy command string independently: virtualizing its row does not bound Pinia data.
-export const CLIENT_COMMAND_OUTPUT_CHARS = 128 * 1024;
-export const CLIENT_THREAD_INTERMEDIATE_TURNS = 3;
+// Server snapshots and browser caches share one recent-work policy. Old intermediate work can
+// always be fetched from Codex; virtualizing a row alone does not bound either cache's data.
+export const COMMAND_OUTPUT_CACHE_CHARS = 128 * 1024;
+export const THREAD_INTERMEDIATE_CACHE_TURNS = 3;
 export const DEFAULT_BARK_SERVER_URL = "https://api.day.app";
 export const DEFAULT_BARK_GROUP = "Codex Gateway";
 
