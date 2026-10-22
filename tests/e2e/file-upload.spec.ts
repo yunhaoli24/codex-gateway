@@ -32,7 +32,23 @@ test("uploads project files through the picker and folder drop without replacing
     const picker = page.waitForEvent("filechooser");
     await tree.getByRole("button", { name: "上传文件", exact: true }).click();
     await (await picker).setFiles([selected]);
+    const progress = page.getByTestId("workspace-upload-progress");
+    await expect(progress).toBeVisible();
+    await expect(progress.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
     await expect(tree.locator(`[data-file-path="${directory}/picked.txt"]`)).toBeVisible();
+    await expect(progress.getByText("上传完成", { exact: true })).toBeVisible();
+    await expect(progress.getByText("已上传 1/1 个文件", { exact: true })).toBeVisible();
+    // Upload details live in a dismissible overlay, leaving the directory list in place.
+    await expect(tree.getByRole("progressbar")).toHaveCount(0);
+    await progress.getByRole("button", { name: "关闭", exact: true }).click();
+    await expect(progress).not.toBeVisible();
+    await tree.getByRole("button", { name: "上传文件", exact: true }).click();
+    await expect(progress.getByText(selected.name, { exact: true })).toBeVisible();
+    const duplicatePicker = page.waitForEvent("filechooser");
+    await progress.getByRole("button", { name: "选择文件", exact: true }).click();
+    await (await duplicatePicker).setFiles([selected]);
+    await expect(progress.getByText("文件已存在，请使用其他文件名", { exact: true })).toBeVisible();
+    await progress.getByRole("button", { name: "关闭", exact: true }).click();
     expect(
       (await execRemoteSsh(remoteWorkspace.remote, `cat ${shellQuote(`${directory}/picked.txt`)}`))
         .stdout,
@@ -53,6 +69,8 @@ test("uploads project files through the picker and folder drop without replacing
     await folder.dispatchEvent("drop", { dataTransfer: transfer });
     await expect(tree.locator(`[data-file-path="${directory}/dropped.bin"]`)).toBeVisible();
     await expect(tree.locator(`[data-file-path="${directory}/second.txt"]`)).toBeVisible();
+    await expect(progress.getByText("已上传 2/2 个文件", { exact: true })).toBeVisible();
+    await progress.getByRole("button", { name: "关闭", exact: true }).click();
     expect(
       (
         await execRemoteSsh(

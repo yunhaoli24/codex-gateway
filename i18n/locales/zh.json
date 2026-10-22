@@ -98,7 +98,14 @@
     "uploadFiles": "上传文件",
     "uploadFilesTo": "上传文件到 {path}",
     "dropFilesTo": "将文件拖放到 {path}",
-    "uploadingFilesTo": "正在上传到 {path}…",
+    "selectUploadFiles": "选择文件",
+    "fileUploadPhase": {
+      "uploading": "正在上传文件",
+      "saving": "正在保存到远端主机",
+      "complete": "上传完成"
+    },
+    "fileUploadRemotePending": "文件已发送，等待远端保存完成…",
+    "fileUploadCount": "已上传 {count}/{total} 个文件",
     "uploadFilesOnly": "请选择文件，暂不支持上传文件夹",
     "fileUploadSucceeded": "上传成功",
     "remoteFileAlreadyExists": "文件已存在，请使用其他文件名",

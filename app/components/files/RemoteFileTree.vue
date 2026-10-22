@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FolderIcon, Loader2Icon, RefreshCwIcon, UploadIcon } from "@lucide/vue";
+import { FolderIcon, Loader2Icon, RefreshCwIcon } from "@lucide/vue";
 import { useDropZone } from "@vueuse/core";
 import { toast } from "@codex-gateway/ui/sonner";
 import { TreeRoot } from "reka-ui";
@@ -13,6 +13,7 @@ import RemoteFileTreeRow from "./RemoteFileTreeRow.vue";
 import { useRemoteFileTreeActions } from "./useRemoteFileTreeActions";
 import { useRemoteFileTreeReveal } from "./useRemoteFileTreeReveal";
 import { useWorkspaceFileUpload } from "./useWorkspaceFileUpload";
+import WorkspaceFileUpload from "./WorkspaceFileUpload.vue";
 import { parentPath } from "@/stores/file-workspace/paths";
 
 interface FileTreeNode {
@@ -49,7 +50,7 @@ const upload = useWorkspaceFileUpload({
   threadId: () => props.threadId,
   rootPath: () => props.rootPath,
 });
-const { input: uploadInput, uploading, destination, results } = upload;
+const { input: uploadInput, uploading, state: uploadState, progressOpen } = upload;
 const treeElement = useTemplateRef<HTMLElement>("treeElement");
 const dropPath = ref<string | null>(null);
 const uploadPath = computed(() =>
@@ -189,18 +190,13 @@ function fileTreeNode(value: unknown) {
         :aria-label="$t('app.uploadFiles')"
         @change="upload.picked"
       />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="shrink-0"
-        :disabled="uploading || !rootPath"
-        :aria-label="$t('app.uploadFiles')"
-        :title="$t('app.uploadFilesTo', { path: uploadPath })"
-        @click="upload.openPicker(uploadPath)"
-      >
-        <Loader2Icon v-if="uploading" class="size-3.5 animate-spin" />
-        <UploadIcon v-else class="size-3.5" />
-      </Button>
+      <WorkspaceFileUpload
+        v-model:open="progressOpen"
+        :state="uploadState"
+        :uploading="uploading"
+        :path="uploadPath"
+        @select="upload.openPicker(uploadPath)"
+      />
       <Button
         variant="ghost"
         size="icon-sm"
@@ -213,7 +209,7 @@ function fileTreeNode(value: unknown) {
     </div>
 
     <div
-      v-if="rootPath && !uploading"
+      v-if="rootPath && dropPath"
       class="shrink-0 truncate px-3 py-1 text-xs text-ink-muted"
       :class="dropPath ? 'bg-primary/10 text-primary' : ''"
       :title="dropPath ?? uploadPath"
@@ -221,25 +217,6 @@ function fileTreeNode(value: unknown) {
     >
       {{ $t(dropPath ? "app.dropFilesTo" : "app.uploadFilesTo", { path: dropPath ?? uploadPath }) }}
     </div>
-    <div
-      v-if="uploading || results.length"
-      class="max-h-32 shrink-0 overflow-auto border-b border-hairline px-3 py-2 text-xs"
-      role="status"
-      aria-live="polite"
-    >
-      <div v-if="uploading" class="break-all">
-        {{ $t("app.uploadingFilesTo", { path: destination }) }}
-      </div>
-      <div
-        v-for="(result, index) in results"
-        :key="index"
-        class="break-all"
-        :class="result.error ? 'text-destructive' : 'text-ink-muted'"
-      >
-        {{ result.name }}: {{ result.error ?? $t("app.fileUploadSucceeded") }}
-      </div>
-    </div>
-
     <div
       v-if="rootDirectory?.error"
       class="m-3 rounded-lg bg-destructive/10 p-3 text-xs text-destructive"

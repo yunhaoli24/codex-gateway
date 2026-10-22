@@ -98,7 +98,14 @@
     "uploadFiles": "Upload files",
     "uploadFilesTo": "Upload files to {path}",
     "dropFilesTo": "Drop files into {path}",
-    "uploadingFilesTo": "Uploading to {path}…",
+    "selectUploadFiles": "Choose files",
+    "fileUploadPhase": {
+      "uploading": "Uploading files",
+      "saving": "Saving to remote host",
+      "complete": "Upload complete"
+    },
+    "fileUploadRemotePending": "Files sent; waiting for remote storage…",
+    "fileUploadCount": "Uploaded {count}/{total} files",
     "uploadFilesOnly": "Choose files; folder uploads are not supported yet",
     "fileUploadSucceeded": "Uploaded",
     "remoteFileAlreadyExists": "Already exists; choose a different filename",
