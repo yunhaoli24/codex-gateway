@@ -14,7 +14,7 @@ import type {
   ProviderNotification,
 } from "../../provider-adapter";
 import type { HostRecord, RpcEnvelope } from "~~/shared/types";
-import { CodexRpcClient } from "../../../infra/rpc/rpc";
+import { SharedCodexClient } from "../../../infra/rpc/shared-codex-client";
 import { buildCurrentTimeReadResponse, isCurrentTimeReadRequest } from "./codex-server-requests";
 import { mapCodexNotification } from "./codex-event-mapper";
 import { readCodexProjectDefaults } from "./codex-project-defaults";
@@ -22,7 +22,7 @@ import { readCodexProjectDefaults } from "./codex-project-defaults";
 export const codexProviderAdapter: ProviderAdapter = {
   id: "codex",
   createClient(host: HostRecord): AgentRpcClient {
-    return new CodexRpcClient(host);
+    return new SharedCodexClient(host);
   },
   readProjectDefaults: readCodexProjectDefaults,
   handleServerRequest(client: AgentRpcClient, message: RpcEnvelope) {

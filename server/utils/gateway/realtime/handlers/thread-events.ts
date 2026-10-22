@@ -32,6 +32,7 @@ export async function subscribeThread(
   state.threadUnsubscribers.get(key)?.();
 
   const host = requireRecord(hostStore.getWithSecret(hostId), "Host not found");
+  await threadBroker.getHostClient(host);
   const afterId = Number(message.afterId ?? 0);
   subscribeThreadEvents(peer, host, threadId, afterId, message.afterEpoch);
 }
@@ -63,12 +64,14 @@ export async function activateThread(
   // Capture the replay cursor before reading the snapshot. Events emitted while thread/read is in
   // flight are then replayed by subscribeThreadEvents; capturing it afterwards would pair an old
   // snapshot with a newer cursor and permanently skip those events.
-  const lastEventId = gatewayEventStore.latestId(input.hostId, input.threadId);
-  const eventEpoch = gatewayEventStore.epoch(input.hostId);
   const activationLease = threadBroker.retainThreadActivation(host, input.threadId);
   let leaseTransferred = false;
   try {
     const activationController = await activationLease.ready;
+    // Authentication establishes the remote identity. Capture its shared cursor after acquiring
+    // that lease, but before reading history, so another user's in-flight events are replayed.
+    const lastEventId = gatewayEventStore.latestId(input.hostId, input.threadId);
+    const eventEpoch = gatewayEventStore.epoch(input.hostId);
     const result = await threadBroker.openThread(
       host,
       input.threadId,
@@ -209,7 +212,7 @@ function subscribeThreadEvents(
       return;
     }
     if (event.id <= sentThroughId) return;
-    // Gateway event ids are monotonic within a user's in-memory event store. A high-water cursor
+    // Gateway event ids are monotonic across the shared remote event stores. A high-water cursor
     // provides the same replay/live de-duplication as an ever-growing Set without retaining one
     // allocation for every token emitted during a long-running turn.
     sentThroughId = event.id;

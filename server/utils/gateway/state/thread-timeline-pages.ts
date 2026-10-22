@@ -1,6 +1,6 @@
 import { LRUCache } from "lru-cache";
 import type { AppServerTimelinePage } from "~~/shared/runtime/app-server";
-import { currentGatewayUserId } from "./memory";
+import { remoteHosts } from "./remote-hosts";
 
 const MAX_CACHED_PAGES_PER_THREAD = 16;
 
@@ -17,6 +17,13 @@ const pages = new LRUCache<string, AppServerTimelinePage>({
 });
 
 export const threadTimelinePageStore = {
+  deleteForRemote(remoteKey: string) {
+    const prefix = `${remoteKey}:`;
+    for (const key of pages.keys()) {
+      if (key.startsWith(prefix)) pages.delete(key);
+    }
+  },
+
   get(hostId: number, threadId: string, cursor: string | null, limit: number) {
     if (cursor === null) return null;
     // The newest page changes while a Turn runs; only official historical cursors are cacheable.
@@ -32,7 +39,7 @@ export const threadTimelinePageStore = {
   ) {
     if (cursor === null) return;
     pages.set(cacheKey(hostId, threadId, cursor, limit), page);
-    const prefix = `${scopePrefix()}:${hostId}:${threadId}:`;
+    const prefix = `${remoteKey(hostId)}:${threadId}:`;
     let retained = 0;
     // LRU keys iterate from most to least recently used, so no timestamp array or extra index is
     // needed to retain the existing per-conversation bound as well as the global bound.
@@ -40,21 +47,14 @@ export const threadTimelinePageStore = {
       if (key.startsWith(prefix) && ++retained > MAX_CACHED_PAGES_PER_THREAD) pages.delete(key);
     }
   },
-
-  deleteForHost(hostId: number) {
-    const prefix = `${scopePrefix()}:${hostId}:`;
-    for (const key of pages.keys()) {
-      if (key.startsWith(prefix)) pages.delete(key);
-    }
-  },
 };
 
 function cacheKey(hostId: number, threadId: string, cursor: string, limit: number) {
-  return `${scopePrefix()}:${hostId}:${threadId}:${limit}:${cursor}`;
+  return `${remoteKey(hostId)}:${threadId}:${limit}:${cursor}`;
 }
 
-function scopePrefix() {
-  const userId = currentGatewayUserId();
-  if (userId === null) throw new Error("Timeline page cache requires an authenticated user scope");
-  return String(userId);
+function remoteKey(hostId: number) {
+  const key = remoteHosts.key(hostId);
+  if (key === null) throw new Error("Timeline page cache requires an authenticated remote Host");
+  return key;
 }

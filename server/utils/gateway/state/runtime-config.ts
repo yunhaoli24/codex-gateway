@@ -1,6 +1,5 @@
 import type { GatewayConfig } from "~~/shared/types";
 import { normalizeNotificationSettings } from "~~/shared/config";
-import { gatewayEventStore } from "./gateway-events";
 import { currentGatewayMemoryState } from "./memory";
 import { normalizePinnedThreads } from "./memory";
 import { hostStore } from "./hosts";
@@ -15,7 +14,6 @@ export const runtimeConfigStore = {
     projectStore.pruneToHosts(hostIds);
     threadMetadataStore.pruneToHosts(hostIds);
     subAgentThreadStore.pruneToHosts(hostIds);
-    gatewayEventStore.pruneToHosts(hostIds);
     currentGatewayMemoryState().pinnedThreads = normalizePinnedThreads(
       config.pinnedThreads ?? [],
     ).filter((thread) => hostIds.has(thread.hostId));

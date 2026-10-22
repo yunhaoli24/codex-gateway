@@ -11,6 +11,7 @@ import { runtimeStatusFromEvent } from "~~/shared/thread-runtime-status";
 import { idFromUnknown, recordFromUnknown } from "~~/shared/utils/records";
 import { threadRuntimeStatusHub } from "./thread-runtime-status-hub";
 import { runtimeLog } from "./runtime-log";
+import { remoteHosts } from "../state/remote-hosts";
 
 type ThreadEventSubscriber = (event: GatewayEvent) => void;
 export type ThreadGoalResolver = () => Promise<unknown>;
@@ -23,6 +24,18 @@ export interface ThreadRuntimeRecordOptions {
 
 class ThreadRuntimeEventBus {
   private readonly subscribers = new Map<string, Set<ThreadEventSubscriber>>();
+  private readonly recordedDeliveries = new WeakSet<object>();
+  private readonly recordedDiagnostics = new WeakMap<object, Set<string>>();
+
+  recordStderr(hostId: number, threadId: string, text: string, deliveryToken?: object) {
+    if (deliveryToken !== undefined) {
+      const threads = this.recordedDiagnostics.get(deliveryToken) ?? new Set<string>();
+      if (threads.has(threadId)) return;
+      threads.add(threadId);
+      this.recordedDiagnostics.set(deliveryToken, threads);
+    }
+    this.record(hostId, threadId, { type: "gateway.stderr", text });
+  }
 
   /**
    * Map one provider notification through the adapter bound to its Host
@@ -36,6 +49,11 @@ class ThreadRuntimeEventBus {
     provider: ProviderAdapter,
     options: ThreadRuntimeRecordOptions = {},
   ) {
+    if (
+      notification.deliveryToken !== undefined &&
+      this.recordedDeliveries.has(notification.deliveryToken)
+    )
+      return null;
     const mapped = provider.mapNotification(notification);
     if (mapped.kind === "ignored") return null;
     if (mapped.kind === "rejected") {
@@ -48,6 +66,12 @@ class ThreadRuntimeEventBus {
         message: mapped.message,
       });
       return null;
+    }
+    // Shared RPC delivers one envelope to alias-specific controllers for their lease bookkeeping.
+    // Reduce/cache/broadcast it only once. Object identity distinguishes equal consecutive deltas
+    // without inventing a timestamp/text heuristic, and WeakSet retains no historical payloads.
+    if (notification.deliveryToken !== undefined) {
+      this.recordedDeliveries.add(notification.deliveryToken);
     }
     return this.record(hostId, threadId, mapped.event, mapped.emittedAtMs, options);
   }
@@ -65,13 +89,23 @@ class ThreadRuntimeEventBus {
         ? emittedAt.toISOString()
         : new Date().toISOString();
     const gatewayEvent = gatewayEventStore.add(hostId, threadId, event, createdAt);
-    subAgentThreadStore.recordRuntimeEvent(hostId, threadId, event);
     threadSnapshotStore.update(hostId, threadId, (snapshot) =>
       applyEventToOpenSnapshot(snapshot, event),
     );
-    this.publish(gatewayEvent);
-    this.publishRuntimeStatus(gatewayEvent);
-    dispatchThreadRuntimeNotification(gatewayEvent, options);
+    const remoteKey = remoteHosts.key(hostId);
+    if (remoteKey === null) {
+      this.publish(gatewayEvent);
+      return gatewayEvent;
+    }
+    remoteHosts.forEachAlias(remoteKey, (aliasHostId) => {
+      // Only the small transport envelope changes. Every alias uses the same provider payload,
+      // snapshot, replay cursor and history pages; user settings and delivery remain scoped here.
+      const aliasEvent = { ...gatewayEvent, hostId: aliasHostId };
+      subAgentThreadStore.recordRuntimeEvent(aliasHostId, threadId, event);
+      this.publish(aliasEvent);
+      this.publishRuntimeStatus(aliasEvent);
+      dispatchThreadRuntimeNotification(aliasEvent, options);
+    });
     return gatewayEvent;
   }
 

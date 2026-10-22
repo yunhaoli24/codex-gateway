@@ -14,6 +14,8 @@ import type { AgentProviderId } from "~~/shared/agent/providers";
 
 /** A provider notification before translation; opaque to the neutral runtime. */
 export interface ProviderNotification {
+  /** Shared transport envelope identity; never serialized or retained in provider data. */
+  deliveryToken?: object;
   method: string;
   params: unknown;
   /** RPC request id (present for server→client requests). */
@@ -33,7 +35,7 @@ export interface ProviderNotification {
 export interface AgentRpcClient {
   on(event: "notification", handler: (message: RpcEnvelope) => void): () => void;
   on(event: "request", handler: (message: RpcEnvelope) => void): () => void;
-  on(event: "stderr", handler: (text: string) => void): () => void;
+  on(event: "stderr", handler: (text: string, deliveryToken?: object) => void): () => void;
   on(event: "close", handler: (detail: RpcTransportCloseDetail) => void): () => void;
   connect(): Promise<void>;
   request(method: string, params?: unknown, timeoutMs?: number): Promise<unknown>;

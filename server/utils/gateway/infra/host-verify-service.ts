@@ -26,8 +26,10 @@ export class HostVerifyService {
       };
     }
 
-    const { CodexRpcClient } = await import("./rpc/rpc");
-    const client = new CodexRpcClient(host);
+    // Verification is a short-lived lease of the same connection, not a second proxy that
+    // duplicates notifications while the host's normal runtime is already connected.
+    const { SharedCodexClient } = await import("./rpc/shared-codex-client");
+    const client = new SharedCodexClient(host);
     try {
       await client.connect();
       const threads = await client.request(

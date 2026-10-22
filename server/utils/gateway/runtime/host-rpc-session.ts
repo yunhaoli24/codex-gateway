@@ -36,7 +36,9 @@ export class HostRpcSession {
     );
     this.client.on(
       "stderr",
-      bindGatewayUser((text: string) => this.routeStderr(text)),
+      bindGatewayUser((text: string, deliveryToken?: object) =>
+        this.routeStderr(text, deliveryToken),
+      ),
     );
     this.client.on(
       "close",
@@ -128,6 +130,7 @@ export class HostRpcSession {
       threadId,
       {
         method: message.method ?? fallbackMethod,
+        deliveryToken: message,
         params: message.params,
         id: message.id ?? undefined,
         emittedAtMs: "emittedAtMs" in message ? message.emittedAtMs : undefined,
@@ -137,9 +140,9 @@ export class HostRpcSession {
     );
   }
 
-  private routeStderr(text: string) {
+  private routeStderr(text: string, deliveryToken?: object) {
     for (const controller of this.controllersForHost(this.host.id)) {
-      controller.handleStderr(text);
+      controller.handleStderr(text, deliveryToken);
     }
   }
 

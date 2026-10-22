@@ -75,5 +75,5 @@ export interface ThreadControllerLike {
   readonly host: HostRecord;
   readonly threadId: string;
   handleNotification(message: RpcEnvelope): void;
-  handleStderr(text: string): void;
+  handleStderr(text: string, deliveryToken?: object): void;
 }

@@ -1,9 +1,6 @@
 import { browserPreviewManager } from "../browser-preview/browser-preview-manager";
-import { gatewayEventStore } from "../state/gateway-events";
 import { subAgentThreadStore } from "../state/sub-agent-threads";
 import { threadMetadataStore } from "../state/thread-metadata";
-import { threadSnapshotStore } from "../state/thread-snapshots";
-import { threadTimelinePageStore } from "../state/thread-timeline-pages";
 import { terminalManager } from "../terminal/terminal-manager";
 import { tmuxMonitorService } from "../tmux-monitor/monitor-service";
 import type { StoredHostRecord } from "../state/memory";
@@ -50,10 +47,9 @@ function closeEphemeralResources(userId: number, hostId: number) {
 function clearThreadRuntime(userId: number, hostId: number) {
   threadRuntimeStatusHub.deleteHost(userId, hostId);
   threadMetadataStore.deleteForHost(hostId);
-  threadSnapshotStore.deleteForHost(hostId);
-  threadTimelinePageStore.deleteForHost(hostId);
   subAgentThreadStore.deleteForHost(hostId);
-  gatewayEventStore.deleteForHost(hostId);
+  // Remote transcripts/replay/pages have their own idle lifetime. Removing one user's Host
+  // releases only its connection lease; it must not erase the other users' shared conversation.
 }
 
 // Credentials and proxies can rotate without changing the remote tmux server.

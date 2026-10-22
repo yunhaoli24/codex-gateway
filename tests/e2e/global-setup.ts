@@ -21,5 +21,14 @@ export default async function globalSetup() {
       },
     });
   }
+  // A second real account exercises collaboration on one remote Codex instance. It has its own
+  // encrypted configuration and login session, rather than copying the first browser's token.
+  await execFileAsync(
+    "node",
+    ["scripts/create-user.mjs", "e2e-collaborator", "codex-gateway-collaborator-password"],
+    {
+      env: { ...process.env, CODEX_GATEWAY_DB_PATH: dbPath },
+    },
+  );
   await startDockerEnvironment();
 }

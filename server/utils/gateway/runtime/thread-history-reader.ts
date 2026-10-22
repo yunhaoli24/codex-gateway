@@ -69,9 +69,9 @@ export class ThreadHistoryReader {
     cursor: string | null,
     limit = DEFAULT_TIMELINE_PAGE_LIMIT,
   ) {
+    const client = await this.registry.getHostClient(host);
     const cached = threadTimelinePageStore.get(host.id, threadId, cursor, limit);
     if (cached !== null) return cached;
-    const client = await this.registry.getHostClient(host);
     const page = await client.request(
       "thread/timeline/list",
       { threadId, cursor, limit },

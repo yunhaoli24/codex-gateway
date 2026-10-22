@@ -44,6 +44,7 @@ function outputLimitError(maxOutputBytes: number | undefined) {
 
 type SshConnectionPoolEvents = {
   ready: { userId: number; host: HostWithSecret };
+  closed: { connectionKey: string };
 };
 
 export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
@@ -51,6 +52,7 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
   private clientTokens = new Map<string, symbol>();
   private sftpChannels = new SftpChannelPool();
   private hostKeysByUser = new Map<string, Map<number, string>>();
+  private transportLeases = new Map<string, number>();
   private backgroundTasks = new SshBackgroundTaskScheduler();
 
   constructor() {
@@ -98,9 +100,8 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
 
   runBackground<Result>(host: HostWithSecret, task: () => Promise<Result>) {
     const connectionKey = this.connectionKeyFor(host);
-    // The Client pool itself is keyed by the resolved remote identity and credentials. Use that
-    // same key here: two Gateway users with identical credentials share one physical SSH transport,
-    // so their best-effort collectors must share its background bulkhead as well.
+    // Reuse the authenticated transport key so aliases sharing that transport also share its
+    // background bulkhead. RPC fan-out across users does not merge their SSH/MFA authentication.
     return this.backgroundTasks.run(connectionKey, task);
   }
 
@@ -110,6 +111,27 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
     // transport must never be shared across Gateway users. Scoping every transport consistently
     // also keeps the key stable when the first challenge changes a host's runtime MFA state.
     return `${key}:gateway-user:${currentGatewayUserId() ?? "anonymous"}`;
+  }
+
+  connectionTokenFor(host: HostWithSecret) {
+    return this.clientTokens.get(this.connectionKeyFor(host));
+  }
+
+  /** Shared RPC may outlive the Host alias that authenticated its underlying SSH transport.
+   * Hold that transport until the last RPC consumer leaves; forced transport repair still closes
+   * it normally. Capture the key now because releasing can run in a different user's scope. */
+  retainTransport(host: HostWithSecret) {
+    const key = this.connectionKeyFor(host);
+    this.transportLeases.set(key, (this.transportLeases.get(key) ?? 0) + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const remaining = (this.transportLeases.get(key) ?? 1) - 1;
+      if (remaining > 0) this.transportLeases.set(key, remaining);
+      else this.transportLeases.delete(key);
+      if (!this.isReferenced(key)) this.disconnectKey(key);
+    };
   }
 
   async exec(
@@ -389,6 +411,7 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
     const client = this.clients.get(key);
     this.clients.delete(key);
     this.clientTokens.delete(key);
+    if (client !== undefined) this.emit("closed", { connectionKey: key });
     void client?.then((connection) => connection.end()).catch(() => {});
   }
 
@@ -407,6 +430,7 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
   }
 
   private isReferenced(key: string) {
+    if (this.transportLeases.has(key)) return true;
     for (const hostKeys of this.hostKeysByUser.values()) {
       for (const referencedKey of hostKeys.values()) {
         if (referencedKey === key) {
@@ -548,5 +572,6 @@ export class SshConnectionPool extends EventEmitter<SshConnectionPoolEvents> {
     this.clientTokens.delete(key);
     this.clients.delete(key);
     this.sftpChannels.close(key);
+    this.emit("closed", { connectionKey: key });
   }
 }

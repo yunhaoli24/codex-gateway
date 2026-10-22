@@ -1,14 +1,10 @@
 import type { ThreadOpenSnapshot } from "../runtime/types";
 import { SERVER_THREAD_CACHE_IDLE_MS } from "~~/shared/config";
-import { UserThreadCache } from "./user-thread-cache";
+import { RemoteThreadCache } from "./remote-thread-cache";
 
-const snapshots = new UserThreadCache<ThreadOpenSnapshot>(SERVER_THREAD_CACHE_IDLE_MS);
+const snapshots = new RemoteThreadCache<ThreadOpenSnapshot>(SERVER_THREAD_CACHE_IDLE_MS);
 
 export const threadSnapshotStore = {
-  deleteForHost(hostId: number) {
-    snapshots.deleteForHost(hostId);
-  },
-
   get(hostId: number, threadId: string): ThreadOpenSnapshot | null {
     return snapshots.get(hostId, threadId) ?? null;
   },
@@ -24,6 +20,10 @@ export const threadSnapshotStore = {
 
   set(hostId: number, threadId: string, snapshot: ThreadOpenSnapshot) {
     snapshots.set(hostId, threadId, snapshot);
+  },
+
+  deleteForRemote(remoteKey: string) {
+    snapshots.deleteForRemote(remoteKey);
   },
 
   update(

@@ -9,12 +9,6 @@ import { normalizeNotificationSettings } from "~~/shared/config";
 import { trimmedOrNull } from "~~/shared/utils/strings";
 import { AsyncLocalStorage } from "node:async_hooks";
 
-// Gateway cursors are process-local but remain numerically monotonic across normal restarts. A
-// browser cursor from an older process is therefore either below every new event (and replays all
-// of them) or above an empty store (and triggers an explicit gap), never in the middle of a reused
-// 1..N range. Multiplying milliseconds leaves room for sustained event bursts within this process.
-const PROCESS_EVENT_ID_BASE = Date.now() * 1_000;
-
 export type StoredHostRecord = HostRecord;
 
 export interface ThreadMetadataRecord {
@@ -46,8 +40,6 @@ export interface GatewayMemoryState {
   notifications: GatewayConfig["notifications"];
   threadMetadata: ThreadMetadataRecord[];
   subAgentThreads: SubAgentThreadRecord[];
-  eventEpochByHost: Record<string, string>;
-  nextEventId: number;
   publishedNotificationKeys: string[];
   deliveredNotificationKeys: string[];
   pendingNotificationKeys: string[];
@@ -62,8 +54,6 @@ function createGatewayMemoryState(): GatewayMemoryState {
     notifications: normalizeNotificationSettings(),
     threadMetadata: [],
     subAgentThreads: [],
-    eventEpochByHost: {},
-    nextEventId: PROCESS_EVENT_ID_BASE,
     publishedNotificationKeys: [],
     deliveredNotificationKeys: [],
     pendingNotificationKeys: [],
