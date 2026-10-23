@@ -10,20 +10,26 @@ import {
 import { shouldNotifyMainThread } from "./thread-notification-scope";
 import type { ServerNotification } from "~~/shared/types";
 import type { ThreadGoalResolver, ThreadMetadataResolver } from "../runtime/thread-runtime-events";
-import { recordFromUnknown } from "~~/shared/utils/records";
 import { gatewayLog } from "../logging";
 import { pendingServerRequests } from "../runtime/pending-server-requests";
+import { turnNotificationOwnership } from "./turn-notification-ownership";
 
 export function dispatchThreadRuntimeNotification(
   event: GatewayEvent,
   options: { resolveGoal?: ThreadGoalResolver; resolveThread?: ThreadMetadataResolver } = {},
 ) {
   match(event.event.type)
+    .with("turn.started", () => {
+      turnNotificationOwnership.started(event, options.resolveGoal);
+    })
     .with("timeline.item.upsert", () => {
       void dispatchAsyncUserQuestion(event, options.resolveThread);
     })
     .with("thread.goal.updated", () => {
       void dispatchGoalUpdated(event, options.resolveThread);
+    })
+    .with("thread.goal.cleared", () => {
+      turnNotificationOwnership.cleared(event);
     })
     .with("turn.completed", () => {
       void dispatchTurnCompleted(event, options.resolveGoal, options.resolveThread);
@@ -64,10 +70,16 @@ async function dispatchGoalUpdated(
   event: GatewayEvent,
   resolveThread: ThreadMetadataResolver | undefined,
 ) {
-  if (!(await shouldNotifyMainThread(event, resolveThread))) {
+  const eligible = turnNotificationOwnership.goalUpdated(event);
+  const notification = threadGoalCompletedNotification(event);
+  if (
+    notification === null ||
+    !(await eligible) ||
+    !(await shouldNotifyMainThread(event, resolveThread))
+  ) {
     return;
   }
-  dispatchIfPresent(threadGoalCompletedNotification(event));
+  dispatchIfPresent(notification);
 }
 
 async function dispatchTurnCompleted(
@@ -75,25 +87,15 @@ async function dispatchTurnCompleted(
   resolveGoal: ThreadGoalResolver | undefined,
   resolveThread: ThreadMetadataResolver | undefined,
 ) {
+  // Take ownership synchronously, before metadata IO or a subsequent Turn can replace it.
+  const goalOwned = turnNotificationOwnership.completed(event, resolveGoal);
   if (!(await shouldNotifyMainThread(event, resolveThread))) {
     return;
   }
-  if (resolveGoal !== undefined && (await threadHasGoal(resolveGoal))) {
+  if (await goalOwned) {
     return;
   }
   dispatchIfPresent(threadTurnCompletedNotification(event));
-}
-
-async function threadHasGoal(resolveGoal: ThreadGoalResolver) {
-  try {
-    const goal = recordFromUnknown(await resolveGoal())?.goal;
-    return goal !== null && goal !== undefined;
-  } catch (error) {
-    gatewayLog("error", "gateway", "failed to inspect thread goal before notification", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return true;
-  }
 }
 
 function dispatchIfPresent(notification: ServerNotification | null) {

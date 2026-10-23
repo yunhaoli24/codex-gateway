@@ -65,6 +65,21 @@ test("Bark sends ordinary turn notifications and only notifies when an app-serve
   expect(requests[1]?.body).toContain("推进");
   expect(requests[1]?.body).toContain("tokens");
   await expect(page.locator("[data-sonner-toast]").filter({ hasText: "目标已结束" })).toBeVisible();
+
+  // A user continues the same conversation normally after completing its Goal. The persisted
+  // completed Goal must not silence that next Turn's ordinary notification.
+  // Completing a Goal does not interrupt its in-flight Turn; wait for that work to finish so
+  // this sends a new ordinary Turn rather than steering the Goal's final Turn.
+  await expect(page.getByTestId("send-turn-button")).not.toHaveAttribute("aria-label", "停止生成", {
+    timeout: AGENT_OUTPUT_TIMEOUT_MS,
+  });
+  await sendTextTurn(page, `E2E 目标完成后的普通通知 ${Date.now()}`);
+  await expect
+    .poll(async () => (await bark.readRequests()).length, {
+      timeout: AGENT_OUTPUT_TIMEOUT_MS,
+    })
+    .toBe(3);
+  expect((await bark.readRequests())[2]?.title).toContain("回合已结束");
 });
 
 test("Bark keeps monitoring an active main turn after the last browser closes", async ({

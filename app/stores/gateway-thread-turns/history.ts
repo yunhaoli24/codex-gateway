@@ -19,14 +19,14 @@ import {
 import { pinnedKey } from "@/stores/gateway/thread-utils/identity";
 
 export function insertOptimisticSteerMessage(
+  hostId: number,
   threadId: string,
   turnId: string,
   clientUserMessageId: string,
   content: unknown[],
 ) {
-  const views = useGatewayThreadViewStore();
-  setSelectedThreadHistory(
-    insertSteerItemIntoActiveTurn(views.history, views.currentThread, threadId, turnId, {
+  updateThreadHistory(hostId, threadId, (history, currentThread) =>
+    insertSteerItemIntoActiveTurn(history, currentThread, threadId, turnId, {
       type: "userMessage",
       id: clientUserMessageId,
       clientId: clientUserMessageId,
@@ -34,53 +34,65 @@ export function insertOptimisticSteerMessage(
       content,
     }),
   );
-  cacheSelectedThreadView();
 }
 
 export function insertOptimisticNewTurnMessage(
+  hostId: number,
   threadId: string,
   clientUserMessageId: string,
   content: unknown[],
 ) {
-  const views = useGatewayThreadViewStore();
-  setSelectedThreadHistory(
-    mergeItemIntoLatestTurn(views.history, views.currentThread, threadId, {
+  updateThreadHistory(hostId, threadId, (history, currentThread) =>
+    mergeItemIntoLatestTurn(history, currentThread, threadId, {
       type: "userMessage",
       id: clientUserMessageId,
       clientId: clientUserMessageId,
       content,
     }),
   );
-  cacheSelectedThreadView();
 }
 
 export function acceptStartedTurn(
+  hostId: number,
   threadId: string,
   turn: ThreadHistoryTurn,
   clientUserMessageId: string,
   content: unknown[],
 ) {
-  const views = useGatewayThreadViewStore();
-  let history = mergeThreadTurns(views.history, views.currentThread, threadId, [turn], "append");
-  // turn/start returns the authoritative Turn before item/started is guaranteed to arrive. Move
-  // the optimistic message into that Turn in the same store publication; publishing the appended
-  // official Turn first leaves one Vue render where both it and the client-* Turn are visible.
-  history = mergeItemIntoLatestTurn(history, views.currentThread, threadId, {
-    type: "userMessage",
-    id: clientUserMessageId,
-    clientId: clientUserMessageId,
-    turnId: turn.id,
-    content,
+  updateThreadHistory(hostId, threadId, (previous, currentThread) => {
+    let history = mergeThreadTurns(previous, currentThread, threadId, [turn], "append");
+    // turn/start returns the authoritative Turn before item/started is guaranteed to arrive. Move
+    // the optimistic message into that Turn in the same store publication; publishing the appended
+    // official Turn first leaves one Vue render where both it and the client-* Turn are visible.
+    history = mergeItemIntoLatestTurn(history, currentThread, threadId, {
+      type: "userMessage",
+      id: clientUserMessageId,
+      clientId: clientUserMessageId,
+      turnId: turn.id,
+      content,
+    });
+    return history;
   });
-  setSelectedThreadHistory(history);
-  cacheSelectedThreadView();
 }
 
 export function upsertHistoryItem(hostId: number, threadId: string, item: ThreadHistoryItem) {
+  updateThreadHistory(hostId, threadId, (history, currentThread) =>
+    mergeItemIntoLatestTurn(history, currentThread, threadId, item),
+  );
+}
+
+// Async send replies and realtime items have the same owner: the originating conversation,
+// never whichever route happens to be selected when a network request completes.
+function updateThreadHistory(
+  hostId: number,
+  threadId: string,
+  update: (
+    history: ThreadHistoryState | null,
+    currentThread: ThreadHistorySeed | null,
+  ) => ThreadHistoryState,
+) {
   const navigation = useGatewayNavigationStore();
   const views = useGatewayThreadViewStore();
-  const update = (history: ThreadHistoryState | null, currentThread: ThreadHistorySeed | null) =>
-    mergeItemIntoLatestTurn(history, currentThread, threadId, item);
   if (navigation.selectedHostId === hostId && navigation.selectedThreadId === threadId) {
     setSelectedThreadHistory(update(views.history, views.currentThread));
     cacheSelectedThreadView();

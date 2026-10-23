@@ -8,6 +8,9 @@ import type {
 import type { SshConnectionPool } from "../infra/ssh/ssh-connection";
 import { HostMetricsCollector } from "./collector";
 import { HostMetricsEventBus, type HostMetricsListener } from "./events";
+import { hostRuntimeFingerprint } from "../runtime/host-runtime-fingerprint";
+import { hostStore } from "../state/hosts";
+import { runWithGatewayUser } from "../state/memory";
 
 const MAX_SAMPLES = 300;
 
@@ -26,20 +29,18 @@ export class HostMetricsManager {
 
   constructor(private readonly ssh: SshConnectionPool) {
     ssh.on("ready", ({ userId, host }) => {
-      if (this.events.hasSubscribers(userId, host.id)) this.ensureCollector(userId, host);
+      // Sampling belongs to the connected Host lifecycle, not the visible panel. Closing a
+      // panel or hiding a browser only stops delivery; the next subscriber needs the samples
+      // collected in between. The collector reuses SSH without initiating reconnects/MFA and
+      // retains only MAX_SAMPLES, so this is bounded live history rather than an archive.
+      this.ensureCollector(userId, host);
     });
   }
 
   subscribe(userId: number, host: HostRecord, listener: HostMetricsListener) {
     const unsubscribe = this.events.subscribe(userId, host.id, listener);
     this.ensureCollector(userId, host);
-    return () => {
-      unsubscribe();
-      if (!this.events.hasSubscribers(userId, host.id)) {
-        // Pause polling but retain the bounded history for the next visible panel.
-        this.runtimes.get(runtimeKey(userId, host.id))?.collector.stop();
-      }
-    };
+    return unsubscribe;
   }
 
   snapshot(userId: number, hostId: number): HostMetricsSnapshot {
@@ -60,10 +61,16 @@ export class HostMetricsManager {
   }
 
   private ensureCollector(userId: number, host: HostRecord) {
+    const configured = runWithGatewayUser(userId, () => hostStore.getWithSecret(host.id));
+    // Queued SSH work may finish after an edit/delete. Its ready notification is evidence about
+    // that old transport only; it must not recreate a retired collector or replace the current one.
+    if (configured === null || hostRuntimeFingerprint(configured) !== hostRuntimeFingerprint(host))
+      return;
     const key = runtimeKey(userId, host.id);
     const existing = this.runtimes.get(key);
     if (existing !== undefined) {
-      if (sameRemoteIdentity(existing.host, host)) existing.collector.start();
+      if (hostRuntimeFingerprint(existing.host) === hostRuntimeFingerprint(host))
+        existing.collector.start();
       else {
         this.removeHost(userId, host.id);
         this.ensureCollector(userId, host);
@@ -130,10 +137,4 @@ export class HostMetricsManager {
 
 function runtimeKey(userId: number, hostId: number) {
   return `${userId}:${hostId}`;
-}
-
-function sameRemoteIdentity(left: HostRecord, right: HostRecord) {
-  return (
-    left.sshHost === right.sshHost && left.username === right.username && left.port === right.port
-  );
 }

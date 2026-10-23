@@ -1,4 +1,3 @@
-import type { ClientChannel } from "ssh2";
 import type { HostGpuProcessSnapshot, HostRecord, HostMetricsSample } from "~~/shared/types";
 import type { SshConnectionPool } from "../infra/ssh/ssh-connection";
 import { AdaptivePollSchedule } from "../infra/background/adaptive-poll-schedule";
@@ -27,7 +26,7 @@ type CollectionResult =
   | { kind: "error"; message: string };
 
 export class HostMetricsCollector {
-  private channel: ClientChannel | null = null;
+  private operation: AbortController | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
   private previous: RawHostMetricsSample | null = null;
@@ -54,12 +53,11 @@ export class HostMetricsCollector {
     this.running = false;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
-    this.channel?.close();
-    this.channel = null;
+    this.operation?.abort();
   }
 
   private async collect() {
-    if (!this.running || this.channel !== null) return;
+    if (!this.running || this.operation !== null) return;
     const result = await this.collectOnce().catch((error: unknown): CollectionResult => ({
       kind: "error",
       message: error instanceof Error ? error.message : "Host metrics channel failed",
@@ -94,75 +92,33 @@ export class HostMetricsCollector {
 
   private async collectOnce(): Promise<CollectionResult> {
     const startedAt = Date.now();
-    return await this.ssh.runBackground(this.host, async () => {
-      if (!this.running) return { kind: "disconnected", message: null };
-      return await this.collectChannelOnce(startedAt);
-    });
-  }
-
-  private async collectChannelOnce(startedAt: number): Promise<CollectionResult> {
-    const channel = await this.ssh.execChannelIfConnected(
-      this.host,
-      hostMetricsRemoteCommand(Date.now() >= this.nextGpuProcessSampleAt),
-    );
-    if (channel === null) return { kind: "disconnected", message: null };
-    if (!this.running) {
-      channel.close();
-      return { kind: "disconnected", message: null };
+    const operation = new AbortController();
+    this.operation = operation;
+    // One native cancellation signal bounds queue wait, channel admission and collection. Stop
+    // also aborts that same operation, so a dead SSH channel cannot monopolize the tmux bulkhead.
+    const signal = AbortSignal.any([operation.signal, AbortSignal.timeout(SAMPLE_TIMEOUT_MS)]);
+    try {
+      return await this.ssh.runBackground(
+        this.host,
+        async (): Promise<CollectionResult> => {
+          const result = await this.ssh.execIfConnected(
+            this.host,
+            hostMetricsRemoteCommand(Date.now() >= this.nextGpuProcessSampleAt),
+            { signal, maxOutputBytes: 2 * 1024 * 1024 },
+          );
+          if (result === null) return { kind: "disconnected", message: null };
+          if (result.stdout.includes("@@UNSUPPORTED")) return { kind: "unsupported" };
+          const raw = new HostMetricsRemoteParser().push(result.stdout).at(-1);
+          if (result.code !== 0 || raw === undefined) {
+            return { kind: "error", message: result.stderr.trim() || "Invalid host metrics data" };
+          }
+          return { kind: "sample", raw, elapsedMs: Date.now() - startedAt };
+        },
+        { signal },
+      );
+    } finally {
+      if (this.operation === operation) this.operation = null;
     }
-    this.channel = channel;
-    return await new Promise<CollectionResult>((resolve) => {
-      const parser = new HostMetricsRemoteParser();
-      let raw: RawHostMetricsSample | null = null;
-      let stderr = "";
-      let unsupported = false;
-      let errorMessage: string | null = null;
-      let settled = false;
-      const timeout = setTimeout(() => {
-        errorMessage = `Host metrics sample timed out after ${SAMPLE_TIMEOUT_MS / 1_000}s`;
-        channel.close();
-      }, SAMPLE_TIMEOUT_MS);
-      const finish = (result: CollectionResult) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        if (this.channel === channel) this.channel = null;
-        resolve(result);
-      };
-
-      channel.on("data", (chunk: Buffer) => {
-        const text = chunk.toString("utf8");
-        if (text.includes("@@UNSUPPORTED")) {
-          unsupported = true;
-          return;
-        }
-        try {
-          for (const parsed of parser.push(text)) raw = parsed;
-        } catch (error: unknown) {
-          errorMessage = error instanceof Error ? error.message : "Invalid host metrics data";
-          channel.close();
-        }
-      });
-      channel.stderr.on("data", (chunk: Buffer) => {
-        stderr = `${stderr}${chunk.toString("utf8")}`.slice(-4_096);
-      });
-      channel.on("error", (error: Error) => {
-        errorMessage = error.message;
-      });
-      channel.on("close", () => {
-        if (!this.running) {
-          finish({ kind: "disconnected", message: null });
-        } else if (unsupported) {
-          finish({ kind: "unsupported" });
-        } else if (errorMessage !== null) {
-          finish({ kind: "error", message: errorMessage });
-        } else if (raw !== null) {
-          finish({ kind: "sample", raw, elapsedMs: Date.now() - startedAt });
-        } else {
-          finish({ kind: "disconnected", message: stderr.trim() || null });
-        }
-      });
-    });
   }
 
   private schedule(delayMs: number) {

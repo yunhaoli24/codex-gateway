@@ -9,6 +9,8 @@ import type { GatewayEvent } from "~~/shared/types";
 import { applyCanonicalEventToHistory } from "~~/shared/thread-history/canonical-events";
 import type { ThreadOpenSnapshot } from "./types";
 import { retainSnapshotHistory } from "./snapshot-history";
+import { SERVER_TURN_CACHE_LIMIT } from "~~/shared/config";
+import { mergeTurnItems } from "~~/shared/thread-history/item-merge";
 
 export function applyEventToOpenSnapshot(snapshot: ThreadOpenSnapshot | null, event: AgentEvent) {
   if (snapshot === null) {
@@ -29,25 +31,20 @@ export function applyEventToOpenSnapshot(snapshot: ThreadOpenSnapshot | null, ev
     reducedHistory === null || reducedHistory === snapshot.history
       ? snapshot.history
       : retainSnapshotHistory(reducedHistory, snapshot.history);
-  let nextSnapshot = history === snapshot.history ? snapshot : { ...snapshot, history };
+  let nextSnapshot =
+    history === snapshot.history
+      ? snapshot
+      : {
+          ...snapshot,
+          history,
+          // Codex cursors are opaque. Once eviction changes the opening boundary we cannot derive
+          // a replacement cursor locally; refresh one official page on the next activation instead.
+          historyTrimmed:
+            snapshot.historyTrimmed === true ||
+            (reducedHistory?.thread.turns.length ?? 0) > SERVER_TURN_CACHE_LIMIT,
+        };
   nextSnapshot = applySnapshotReducer(nextSnapshot, event) ?? nextSnapshot;
   return nextSnapshot;
-}
-
-/**
- * Replays only idempotent materialized events after the official timeline page. Delta events are
- * deliberately excluded because applying a delta twice would duplicate streamed text. The
- * timeline page remains the source of truth for item contents; this reducer only fills the small
- * realtime gap that the page summary cannot contain yet, such as a newly accepted steer.
- */
-export function applyMaterializedEventsToOpenSnapshot(
-  snapshot: ThreadOpenSnapshot,
-  events: readonly GatewayEvent[],
-) {
-  return events.reduce((current, gatewayEvent) => {
-    if (!isMaterializedEvent(gatewayEvent.event)) return current;
-    return applyEventToOpenSnapshot(current, gatewayEvent.event) ?? current;
-  }, snapshot);
 }
 
 export function preserveCanonicalUserMessagesInOpenSnapshot(
@@ -55,6 +52,42 @@ export function preserveCanonicalUserMessagesInOpenSnapshot(
   previousSnapshot: ThreadOpenSnapshot | null,
   events: readonly GatewayEvent[],
 ) {
+  if (previousSnapshot !== null) {
+    // Persisted timeline pages do not contain unfinished tool/reasoning items. Retain the live
+    // working set for the active Turn, while the page wins for every overlapping persisted item.
+    // This is a snapshot merge, not replay of stale item/start events over cumulative output.
+    const activeTurns = previousSnapshot.history.thread.turns.filter(
+      (turn) => turn.status === "inProgress",
+    );
+    const pageTurns = snapshot.history.thread.turns;
+    snapshot = {
+      ...snapshot,
+      history: retainSnapshotHistory(
+        {
+          thread: {
+            ...snapshot.history.thread,
+            turns: [
+              ...pageTurns.map((turn) => {
+                const active = activeTurns.find((prior) => prior.id === turn.id);
+                return active === undefined ||
+                  (turn.status !== undefined && turn.status !== "inProgress")
+                  ? turn
+                  : {
+                      ...turn,
+                      status: turn.status ?? active.status,
+                      items: mergeTurnItems(active.items, turn.items),
+                    };
+              }),
+              ...activeTurns.filter(
+                (turn) => !pageTurns.some((candidate) => candidate.id === turn.id),
+              ),
+            ],
+          },
+        },
+        snapshot.history,
+      ),
+    };
+  }
   // App Server's bounded timeline page can omit an earlier user row in a long Turn. Preserve the
   // row already accepted into Gateway's canonical snapshot before replacing that page; doing this
   // once at the snapshot boundary avoids another App Server read and keeps every browser aligned.
@@ -72,16 +105,20 @@ export function preserveCanonicalUserMessagesInOpenSnapshot(
     const item = recordFromUnknown(gatewayEvent.event.item);
     return item?.type === "userMessage" && retainedTurnIds.has(String(item.turnId)) ? [item] : [];
   });
-  const withPreviousMessages = [...previousMessages, ...retainedMessages].reduce(
-    (current, item) =>
-      applyEventToOpenSnapshot(current, { type: "timeline.item.upsert", item }) ?? current,
-    snapshot,
+  const knownUserIds = new Set(
+    snapshot.history.thread.turns.flatMap((turn) =>
+      turn.items.filter((item) => item.type === "userMessage").map((item) => item.id),
+    ),
   );
-  return applyMaterializedEventsToOpenSnapshot(withPreviousMessages, events);
-}
-
-function isMaterializedEvent(event: AgentEvent) {
-  return event.type !== "timeline.item.delta";
+  // The page is authoritative, including text updated by deltas. Replaying an earlier item/start
+  // without its deltas regresses that text. Only fill absent user rows omitted by summary pages;
+  // ordinary live notifications continue through the controller after this synchronous commit.
+  return [...previousMessages, ...retainedMessages].reduce((current, item) => {
+    const id = idFromUnknown(item.id);
+    if (knownUserIds.has(id)) return current;
+    knownUserIds.add(id);
+    return applyEventToOpenSnapshot(current, { type: "timeline.item.upsert", item }) ?? current;
+  }, snapshot);
 }
 
 function applySnapshotReducer(snapshot: ThreadOpenSnapshot, event: AgentEvent) {

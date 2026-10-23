@@ -44,6 +44,9 @@ export class ThreadOpenService {
   ) {
     const cachedSnapshot = threadSnapshotStore.get(host.id, threadId);
     if (cachedSnapshot) {
+      if (cachedSnapshot.historyTrimmed === true) {
+        return this.refreshThreadState(host, threadId, limit, activationController);
+      }
       if (
         activationController !== undefined &&
         !activationController.isSubscribed() &&
@@ -303,9 +306,8 @@ export class ThreadOpenService {
     projectStore.ensureForPath(host.id, thread.cwd);
     threadMetadataStore.record(host.id, thread);
     const previousSnapshot = threadSnapshotStore.get(host.id, threadId);
-    // The per-thread store retains at most 500 events. Reapply the complete retained window so a
-    // summary refresh cannot erase an accepted steer merely because it is older than the first
-    // 200 high-frequency output deltas.
+    // Preserve missing summary user rows only. Replaying older materialized events over this
+    // authoritative page would regress item text and append Turns outside the page boundary.
     const recentEvents = gatewayEventStore.list(host.id, threadId, 0, 500);
     const baseSnapshot = {
       thread,

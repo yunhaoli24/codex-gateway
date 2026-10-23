@@ -30,11 +30,17 @@ export async function subscribeThread(
   const state = stateFor(peer);
   const key = threadTopicKey(hostId, threadId);
   state.threadUnsubscribers.get(key)?.();
-
-  const host = requireRecord(hostStore.getWithSecret(hostId), "Host not found");
-  await threadBroker.getHostClient(host);
-  const afterId = Number(message.afterId ?? 0);
-  subscribeThreadEvents(peer, host, threadId, afterId, message.afterEpoch);
+  const activation = beginThreadActivation(peer, key);
+  try {
+    if (activation.signal.aborted) return;
+    const host = requireRecord(hostStore.getWithSecret(hostId), "Host not found");
+    await threadBroker.getHostClient(host);
+    if (activation.signal.aborted) return;
+    const afterId = Number(message.afterId ?? 0);
+    subscribeThreadEvents(peer, host, threadId, afterId, message.afterEpoch);
+  } finally {
+    finishThreadActivation(peer, key, activation);
+  }
 }
 
 export async function readThreadSettings(
@@ -61,13 +67,19 @@ export async function activateThread(
   const input = threadOpenSchema.parse(message);
 
   const host = requireRecord(hostStore.getWithSecret(input.hostId), "Host not found");
+  const key = threadTopicKey(input.hostId, input.threadId);
+  const pending = beginThreadActivation(peer, key);
+  if (pending.signal.aborted) return;
   // Capture the replay cursor before reading the snapshot. Events emitted while thread/read is in
   // flight are then replayed by subscribeThreadEvents; capturing it afterwards would pair an old
   // snapshot with a newer cursor and permanently skip those events.
   const activationLease = threadBroker.retainThreadActivation(host, input.threadId);
+  // Codex RPC reads are not cancellable. Keep their lease until finally, then dispose; cancelling
+  // the browser owner prevents late attachment without closing a controller during thread/resume.
   let leaseTransferred = false;
   try {
     const activationController = await activationLease.ready;
+    if (pending.signal.aborted) return;
     // Authentication establishes the remote identity. Capture its shared cursor after acquiring
     // that lease, but before reading history, so another user's in-flight events are replayed.
     const lastEventId = gatewayEventStore.latestId(input.hostId, input.threadId);
@@ -78,6 +90,7 @@ export async function activateThread(
       input.limit,
       activationController,
     );
+    if (pending.signal.aborted) return;
     sendRealtimePeerMessage(peer, {
       type: "thread.snapshot",
       requestId: message.requestId,
@@ -107,6 +120,7 @@ export async function activateThread(
       );
     }
   } finally {
+    finishThreadActivation(peer, key, pending);
     if (!leaseTransferred) activationLease.release();
   }
 }
@@ -150,8 +164,24 @@ export function unsubscribeThread(
   }
   const state = stateFor(peer);
   const key = threadTopicKey(hostId, threadId);
+  state.threadActivations.get(key)?.abort();
+  state.threadActivations.delete(key);
   state.threadUnsubscribers.get(key)?.();
   state.threadUnsubscribers.delete(key);
+}
+
+function beginThreadActivation(peer: RealtimePeer, key: string) {
+  const state = stateFor(peer);
+  state.threadActivations.get(key)?.abort();
+  const activation = new AbortController();
+  if (state.deliveryClosed === true) activation.abort();
+  else state.threadActivations.set(key, activation);
+  return activation;
+}
+
+function finishThreadActivation(peer: RealtimePeer, key: string, activation: AbortController) {
+  const pending = stateFor(peer).threadActivations;
+  if (pending.get(key) === activation) pending.delete(key);
 }
 
 function subscribeThreadEvents(

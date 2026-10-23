@@ -99,6 +99,9 @@ export async function handleRealtimePeerBinaryMessage(peer: RealtimePeer, data: 
 
 export function cleanupRealtimePeer(peer: RealtimePeer) {
   const state = stateFor(peer);
+  state.deliveryClosed = true;
+  for (const activation of state.threadActivations.values()) activation.abort();
+  state.threadActivations.clear();
   if (state.authTimer !== undefined) {
     clearTimeout(state.authTimer);
     state.authTimer = undefined;

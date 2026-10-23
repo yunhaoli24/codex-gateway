@@ -11,7 +11,11 @@ import { KeyedTaskLimiter } from "../concurrency/keyed-task-limiter";
 export class SshBackgroundTaskScheduler {
   private readonly limiter = new KeyedTaskLimiter(1);
 
-  async run<Result>(connectionKey: string, task: () => Promise<Result>) {
-    return await this.limiter.run(connectionKey, task);
+  async run<Result>(
+    connectionKey: string,
+    task: () => Promise<Result>,
+    options: { signal?: AbortSignal } = {},
+  ) {
+    return await this.limiter.run(connectionKey, task, options);
   }
 }

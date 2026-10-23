@@ -3,7 +3,7 @@ import { openApp } from "./helpers/app";
 import { installRealtimeThreadSnapshotMock, seedGatewayThread } from "./helpers/gateway-store";
 import { defaultGatewayHost, defaultGatewayProject } from "./fixtures/thread-history";
 
-test("collapses the desktop sidebar and restores the saved layout", async ({ page }) => {
+test("restores the collapsed desktop sidebar and toggles its project tree", async ({ page }) => {
   await openApp(page);
 
   const sidebarGap = page.locator('[data-slot="sidebar-gap"]');
@@ -19,10 +19,7 @@ test("collapses the desktop sidebar and restores the saved layout", async ({ pag
   await page.getByTestId("desktop-sidebar-expand").click();
   await expect.poll(() => sidebarGap.evaluate((element) => element.clientWidth)).toBeGreaterThan(0);
   await expect(page.getByTestId("desktop-sidebar-collapse")).toBeVisible();
-});
-
-test("toggles an expanded project closed from the desktop sidebar", async ({ page }) => {
-  await openApp(page);
+  // Continue in the restored sidebar: tree expansion does not need another login/setup cycle.
   await seedGatewayThread(page, {
     hostId: 101,
     cwd: null,

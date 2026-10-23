@@ -126,12 +126,22 @@ export class ControllerRegistry {
         // abandoned controllers alive indefinitely. The microtask no longer inherits a request or
         // WebSocket callback reliably, so restore the lease owner's user scope explicitly before
         // transferring an active subscription to the background monitor.
-        queueMicrotask(() => {
-          runWithGatewayUser(userId, () => {
-            if (!this.hasLeases(key)) {
-              this.releaseUnleasedController(userId, key);
-            }
+        const dispose = async (controller: ThreadController) => {
+          await controller.whenIdle();
+          queueMicrotask(() => {
+            runWithGatewayUser(userId, () => {
+              if (this.controllers.get(key) === controller && !this.hasLeases(key))
+                this.releaseUnleasedController(userId, key);
+            });
           });
+        };
+        // A pending resume can still create an upstream subscription. Let its ready operation
+        // settle before the zero-owner cleanup, so cancellation cannot leave a late orphan.
+        void ready.then(dispose, () => {
+          // Readiness can reject after a controller was installed (for example resume timeout).
+          // That controller still needs the same zero-owner cleanup as a successful activation.
+          const controller = this.controllers.get(key);
+          if (controller !== undefined) return dispose(controller);
         });
       },
     };

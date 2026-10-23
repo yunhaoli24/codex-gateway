@@ -104,6 +104,12 @@ function migrate(db: DatabaseSync) {
       PRIMARY KEY (user_id, host_id)
     );
 
+    CREATE TABLE IF NOT EXISTS ssh_host_keys (
+      endpoint TEXT PRIMARY KEY,
+      fingerprint TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS web_push_keys (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       encrypted_keys TEXT NOT NULL

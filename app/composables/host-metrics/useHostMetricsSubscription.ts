@@ -20,7 +20,7 @@ export function useHostMetricsSubscription(root: Ref<HTMLElement | null>, hostId
         }))
         .catch(() => {
           // The shared realtime error pipeline owns user-visible transport errors. A reconnect
-          // changes `connected` and retries this subscription with a fresh ten-minute snapshot.
+          // changes `connected` and retries this subscription with the latest bounded history.
         });
       onCleanup(() => {
         if (!active) return;

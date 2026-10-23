@@ -176,9 +176,21 @@ export class ThreadController {
   }
 
   enqueue<T>(operation: () => Promise<T>) {
-    const run = this.operationQueue.then(operation, operation);
+    const execute = () => {
+      if (this.closed) throw new Error("Thread controller is closed");
+      return operation();
+    };
+    const run = this.operationQueue.then(execute, execute);
     this.operationQueue = run.catch(() => {});
     return run;
+  }
+
+  async whenIdle() {
+    let pending: Promise<unknown>;
+    do {
+      pending = this.operationQueue;
+      await pending;
+    } while (pending !== this.operationQueue);
   }
 
   close() {

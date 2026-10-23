@@ -19,6 +19,8 @@ export interface ThreadOpenSnapshot {
   /** Materialized once at the app-server/event boundary; cache hits return this object directly. */
   history: ThreadTimelineHistoryState;
   oldestTimelineCursor: string | null;
+  /** Retention changed the page boundary; obtain a new official cursor before serving a cache hit. */
+  historyTrimmed?: boolean;
   /** Null when a metadata-only thread/read cannot expose persisted model settings. */
   threadSettings: ThreadSettingsState | null;
   tokenUsage: ThreadTokenUsageState | null;

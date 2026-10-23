@@ -53,9 +53,15 @@ export async function sendTurn(
   requestScrollToLatest();
   const optimisticContent = optimisticUserContent(text, options);
   if (steerTurnId !== null) {
-    insertOptimisticSteerMessage(threadId, steerTurnId, clientUserMessageId, optimisticContent);
+    insertOptimisticSteerMessage(
+      hostId,
+      threadId,
+      steerTurnId,
+      clientUserMessageId,
+      optimisticContent,
+    );
   } else {
-    insertOptimisticNewTurnMessage(threadId, clientUserMessageId, optimisticContent);
+    insertOptimisticNewTurnMessage(hostId, threadId, clientUserMessageId, optimisticContent);
   }
 
   const cwd = views.currentThread?.cwd ?? navigation.selectedCwd;
@@ -92,7 +98,7 @@ export async function sendTurn(
     if (!sessionIsCurrent()) return false;
     applyAcceptedTurnResult(hostId, threadId, result, clientUserMessageId, optimisticContent);
     if (!shouldSteerActiveTurn) {
-      composer.updateSelectedThreadSettings({
+      composer.setThreadSettings(hostId, threadId, {
         ...(options.model !== undefined ? { model: options.model } : {}),
         ...(options.effort !== undefined ? { effort: options.effort } : {}),
         ...(options.summary !== undefined ? { summary: options.summary } : {}),
@@ -113,7 +119,12 @@ export async function sendTurn(
     }
     return false;
   } finally {
-    if (sessionIsCurrent()) views.loading = false;
+    if (
+      sessionIsCurrent() &&
+      navigation.selectedHostId === hostId &&
+      navigation.selectedThreadId === threadId
+    )
+      views.loading = false;
   }
 }
 
@@ -131,13 +142,19 @@ function applyAcceptedTurnResult(
     if (startedTurnId !== "" && !startedTurnId.startsWith("client-")) {
       runtime.setThreadStatus(hostId, threadId, "running", { turnId: startedTurnId });
     }
-    acceptStartedTurn(threadId, result.turn, clientUserMessageId, optimisticContent);
+    acceptStartedTurn(hostId, threadId, result.turn, clientUserMessageId, optimisticContent);
   }
   if (
     result?.type === "turn.steer.accepted" &&
     result.turnId !== undefined &&
     result.turnId !== ""
   ) {
-    insertOptimisticSteerMessage(threadId, result.turnId, clientUserMessageId, optimisticContent);
+    insertOptimisticSteerMessage(
+      hostId,
+      threadId,
+      result.turnId,
+      clientUserMessageId,
+      optimisticContent,
+    );
   }
 }

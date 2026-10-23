@@ -16,11 +16,13 @@ export const hostResourceLifecycle = {
   changed(userId: number, previous: StoredHostRecord, next: StoredHostRecord) {
     if (hostRuntimeFingerprint(previous) === hostRuntimeFingerprint(next)) return;
     closeEphemeralResources(userId, previous.id);
+    // A collector owns its transport configuration, including proxy/authentication. A credential
+    // edit must retire it even when the machine/account identity remains unchanged.
+    hostMetricsManager.removeHost(userId, previous.id);
     if (remoteIdentityFingerprint(previous) !== remoteIdentityFingerprint(next)) {
       threadProjectDiscovery.invalidateHost(userId, previous.id);
       clearThreadRuntime(userId, previous.id);
       tmuxMonitorService.removeHost(userId, previous.id);
-      hostMetricsManager.removeHost(userId, previous.id);
     }
   },
 

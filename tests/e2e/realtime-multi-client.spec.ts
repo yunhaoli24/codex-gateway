@@ -435,20 +435,30 @@ test("fans out a real remote app-server thread to multiple browser clients acros
     const nextTurnPrompt = `请只回复：${nextTurnMarker}`;
     await secondPage.getByPlaceholder("输入后续修改要求").fill(nextTurnPrompt);
     await secondPage.getByTestId("send-turn-button").click();
+    // Send in A and immediately read B, as users do while the remote reply is pending. This
+    // exercises ownership of real async send results without delaying or fabricating responses.
+    await openThreadFromProjectOrRestoredState(
+      secondPage,
+      host.id,
+      project.remotePath,
+      backgroundThreadId,
+    );
     await expect(
       page.getByTestId("chat-scroll-area").getByText(nextTurnPrompt, { exact: true }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(
-      secondPage.getByTestId("chat-scroll-area").getByText(nextTurnMarker, { exact: true }),
+      page.getByTestId("chat-scroll-area").getByText(nextTurnMarker, { exact: true }),
     ).toBeVisible({ timeout: AGENT_OUTPUT_TIMEOUT_MS });
-    await expect(secondPage.getByTestId("send-turn-button")).toHaveAttribute(
-      "aria-label",
-      "已完成",
-      { timeout: AGENT_OUTPUT_TIMEOUT_MS },
-    );
     await expect
       .poll(async () => activeRemoteTurnId(page), { timeout: AGENT_OUTPUT_TIMEOUT_MS })
       .toBe("");
+    await expect(
+      secondPage.getByTestId("chat-scroll-area").getByText(nextTurnPrompt, { exact: true }),
+    ).toHaveCount(0);
+    await openThreadFromProjectOrRestoredState(secondPage, host.id, project.remotePath, threadId);
+    await expect(
+      secondPage.getByTestId("chat-scroll-area").getByText(nextTurnMarker, { exact: true }),
+    ).toBeVisible();
 
     await page.getByTestId(`thread-button-${threadId}`).click({ button: "right" });
     await page.getByRole("menuitem", { name: /置顶会话|Pin thread/ }).click();

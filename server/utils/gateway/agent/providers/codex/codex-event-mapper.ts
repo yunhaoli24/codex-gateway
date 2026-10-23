@@ -332,7 +332,10 @@ export function mapCodexNotification(notification: CodexNotification): MapperRes
 
   // ── Goals ─────────────────────────────────────────────────────
   if (method === "thread/goal/updated") {
-    return { event: { type: "thread.goal.updated", goal: p.goal }, emittedAt: emittedAtMs };
+    return {
+      event: { type: "thread.goal.updated", goal: p.goal, turnId: stringFromUnknown(p.turnId) },
+      emittedAt: emittedAtMs,
+    };
   }
 
   if (method === "thread/goal/cleared") {

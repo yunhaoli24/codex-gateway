@@ -9,7 +9,7 @@ import { threadSnapshotStore } from "../../state/thread-snapshots";
 import { gatewayEventStore } from "../../state/gateway-events";
 import { threadTimelinePageStore } from "../../state/thread-timeline-pages";
 import { sshConnections } from "../host-services";
-import { resolveSshConfig } from "../ssh/ssh-config";
+import { sshEndpointIdentity } from "../ssh/ssh-identity";
 import { remoteLoginShellCommand } from "../ssh/remote-command";
 import { hostLifecycleBus } from "../../state/host-events";
 import { CodexRpcClient, type CodexRpcClientEvents, type RpcResponseParser } from "./rpc";
@@ -95,14 +95,10 @@ export class SharedCodexClient extends EventEmitter<SharedClientEvents> {
       sshConnections.connectionTokenFor(this.host) !== authenticatedSshToken
     )
       throw new Error("Codex SSH authentication was superseded");
-    const resolved = resolveSshConfig(this.host);
     const key = remoteHosts.identityKey([
       "codex",
-      resolved.hostName,
-      resolved.port,
-      // Private endpoint addresses can mean different machines through different SSH proxies.
-      resolved.proxy?.host ?? null,
-      resolved.proxy?.port ?? null,
+      sshEndpointIdentity(this.host),
+      sshConnections.serverFingerprintFor(this.host),
       username,
       codexHome,
     ]);

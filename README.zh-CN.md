@@ -119,7 +119,7 @@ flowchart LR
     G --> N[Web Push 优先，Bark 后备]
 ```
 
-项目使用 Nuxt 4.6、Vue 3 和 TypeScript，浏览器状态由 Pinia 管理，工作区使用 Dockview，对话使用 TanStack Virtual，shadcn-vue / AI Elements 通过预编译工作区包复用。目前已实现的 provider 只有 Codex，协议映射集中在服务端 provider adapter。当前协议基准为 **Codex 0.163.0**，由 [codex-version.ts](server/utils/gateway/infra/codex/codex-version.ts) 定义，源码子模块对齐对应发布版本。
+项目使用 Nuxt 4.6、Vue 3 和 TypeScript，浏览器状态由 Pinia 管理，工作区使用 Dockview，对话使用 TanStack Virtual，shadcn-vue / AI Elements 通过预编译工作区包复用。目前已实现的 provider 只有 Codex，协议映射集中在服务端 provider adapter。当前协议基准为 **Codex 0.164.0**，由 [codex-version.ts](server/utils/gateway/infra/codex/codex-version.ts) 定义，源码子模块对齐对应发布版本。
 
 ### 连接与账号边界
 

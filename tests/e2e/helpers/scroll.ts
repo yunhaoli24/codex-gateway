@@ -85,23 +85,6 @@ export async function captureVisibleTextAnchor(page: Page, prefix: string) {
   }, prefix);
 }
 
-export async function captureTextAnchor(page: Page, text: string) {
-  return await page.getByTestId(chatScrollAreaTestId).evaluate((root: HTMLElement, text) => {
-    const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]');
-    if (!viewport) throw new Error("Missing chat viewport");
-    const element = Array.from(viewport.querySelectorAll("p")).find(
-      (candidate) => candidate.textContent?.trim() === text,
-    );
-    if (!element) {
-      throw new Error(`Missing text anchor ${text}`);
-    }
-    return {
-      text,
-      top: element.getBoundingClientRect().top,
-    };
-  }, text);
-}
-
 export async function visibleAgentLineTop(page: Page, text: string) {
   return await visibleTextTop(page, text);
 }

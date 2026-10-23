@@ -200,7 +200,11 @@ export function createThreadOpenActions() {
       await coordinateThreadSnapshot({
         input: { hostId, threadId },
         setLoading:
-          options.showLoading === true ? (loading) => (views.loading = loading) : undefined,
+          options.showLoading === true
+            ? (loading) => {
+                if (isCurrentViewTransition(viewEpoch)) views.loading = loading;
+              }
+            : undefined,
         accept: (result) =>
           views.viewEpoch !== viewEpoch ||
           navigation.selectedHostId !== hostId ||
@@ -382,7 +386,21 @@ async function syncOpenThreadFromServer(input: {
   gateway.clearError();
   await coordinateThreadSnapshot({
     input,
-    setLoading: input.showLoading ? (loading) => (views.loading = loading) : undefined,
+    setLoading: input.showLoading
+      ? (loading) => {
+          if (isCurrentViewTransition(input.viewEpoch)) views.loading = loading;
+        }
+      : undefined,
+    discard: () => {
+      const navigation = useGatewayNavigationStore();
+      const selected =
+        navigation.selectedHostId === input.hostId &&
+        navigation.selectedThreadId === input.threadId;
+      const retainedHistory = views.threadViews[pinnedKey(input.hostId, input.threadId)]?.history;
+      if (!selected && retainedHistory == null) {
+        useGatewayRealtimeStore().cancelThreadEvents(input.hostId, input.threadId);
+      }
+    },
     accept: (result) =>
       !isCurrentViewTransition(input.viewEpoch) ||
       (result.eventEpoch === views.eventEpoch && result.lastEventId < views.lastEventId)

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import type { ThreadGoalStatus } from "../../shared/types";
 import { openApp } from "./helpers/app";
 import { gatewayEventFromNotification } from "./helpers/canonical-event";
 import {
@@ -10,18 +11,19 @@ import {
   setThreadCollaborationMode,
 } from "./helpers/gateway-store";
 
-test("goal slash input derives the goal tag and requires an objective before submitting", async ({
+test("validates, creates, edits, pauses, resumes and clears a Goal through its controls", async ({
   page,
 }) => {
   await openApp(page);
+  const threadId = "e2e-goal-controls-thread";
   await seedGatewayThread(page, {
-    threadId: "e2e-goal-slash-thread",
-    currentThread: { id: "e2e-goal-slash-thread", name: "Goal Slash" },
-    history: { thread: { id: "e2e-goal-slash-thread", turns: [] } },
+    threadId,
+    currentThread: { id: threadId, name: "Goal Controls" },
+    history: { thread: { id: threadId, turns: [] } },
   });
   await installSelectedThreadGoalSubmitMock(page, {
     hostId: 1,
-    threadId: "e2e-goal-slash-thread",
+    threadId,
   });
 
   const composer = page.getByPlaceholder("输入后续修改要求");
@@ -43,44 +45,24 @@ test("goal slash input derives the goal tag and requires an objective before sub
     .poll(() => page.evaluate(() => window.__codexGatewayE2e?.captures.goalObjective ?? null))
     .toBeNull();
 
-  await composer.fill("/goal 完成当前重构");
-  await page.keyboard.press("Enter");
-  await expect
-    .poll(() => page.evaluate(() => window.__codexGatewayE2e?.captures.goalObjective))
-    .toBe("完成当前重构");
-  await expect(composer).toHaveAttribute("data-value", "");
-  await expect(
-    page.getByTestId("composer-mode-strip").getByText("完成当前重构").first(),
-  ).toBeVisible();
-  await expect(page.getByTestId("thread-goal-item").getByText("完成当前重构")).toBeVisible();
-  await expect(page.locator(".thread-user-message", { hasText: "/goal 完成当前重构" })).toHaveCount(
-    0,
-  );
-});
-
-test("goal controls are shared by the slash menu and details dialog", async ({ page }) => {
-  await openApp(page);
-  const threadId = "e2e-goal-controls-thread";
-  await seedGatewayThread(page, {
-    threadId,
-    currentThread: { id: threadId, name: "Goal Controls" },
-    history: { thread: { id: threadId, turns: [] } },
-  });
-  await installSelectedThreadGoalSubmitMock(page, {
-    hostId: 1,
-    threadId,
-  });
-  await installSelectedThreadGoalControlMock(page, {
-    hostId: 1,
-    threadId,
-  });
-
-  const composer = page.getByPlaceholder("输入后续修改要求");
   await composer.fill("/goal 保持目标控制清晰");
   await page.keyboard.press("Enter");
   await expect
     .poll(() => page.evaluate(() => window.__codexGatewayE2e?.captures.goalObjective))
     .toBe("保持目标控制清晰");
+  await expect(composer).toHaveAttribute("data-value", "");
+  await expect(
+    page.getByTestId("composer-mode-strip").getByText("保持目标控制清晰").first(),
+  ).toBeVisible();
+  await expect(page.getByTestId("thread-goal-item").getByText("保持目标控制清晰")).toBeVisible();
+  await expect(
+    page.locator(".thread-user-message", { hasText: "/goal 保持目标控制清晰" }),
+  ).toHaveCount(0);
+  // Continue controlling the Goal just created above rather than creating it a second time.
+  await installSelectedThreadGoalControlMock(page, {
+    hostId: 1,
+    threadId,
+  });
 
   await composer.fill("/goal");
   await expect(page.getByTestId("slash-command-goal-edit")).toBeVisible();
@@ -146,7 +128,7 @@ test("goal controls are shared by the slash menu and details dialog", async ({ p
   await expect(page.getByTestId("composer-mode-strip")).toHaveCount(0);
 });
 
-test("goal progress updates the composer status strip without flooding the agent loop", async ({
+test("restores a Goal snapshot and applies progress without flooding the agent loop", async ({
   page,
 }) => {
   await openApp(page);
@@ -177,7 +159,7 @@ test("goal progress updates the composer status strip without flooding the agent
   const threadId = "e2e-goal-progress-thread";
   const goalCreatedAt = Date.now() - 4000;
   const goalObjective = "持续 **重构** 输入框状态\n\n- 保持滚动稳定";
-  const goalPayload = (status: string, tokensUsed: number, timeUsedSeconds: number) => ({
+  const goalPayload = (status: ThreadGoalStatus, tokensUsed: number, timeUsedSeconds: number) => ({
     threadId,
     objective: goalObjective,
     status,
@@ -194,6 +176,20 @@ test("goal progress updates the composer status strip without flooding the agent
       method: "thread/goal/updated",
       params: { threadId, turnId: "turn-goal-progress", goal },
     });
+  // Restoring initial state and receiving later progress belong to the same user journey.
+  await page.evaluate(
+    (goal) => {
+      const composer = window.__codexGatewayE2e?.composer;
+      if (!composer) throw new Error("Gateway E2E driver is unavailable");
+      composer.upsertThreadGoal(1, goal.threadId, goal);
+    },
+    { ...goalPayload("active", 42, 5), tokenBudget: 1000 },
+  );
+  await expect(page.getByTestId("composer-goal-summary")).toContainText(
+    goalObjective.split("\n")[0]!,
+  );
+  await expect(page.getByTestId("thread-goal-item")).toHaveCount(0);
+
   await applyGatewayLiveEvent(page, goalUpdatedEvent(301, goalPayload("active", 128, 3)));
   await applyGatewayLiveEvent(page, goalUpdatedEvent(302, goalPayload("active", 256, 4)));
 
@@ -228,41 +224,6 @@ test("goal progress updates the composer status strip without flooding the agent
   await composer.fill("/goal");
   await expect(page.getByTestId("slash-command-goal-objective")).toBeVisible();
   await expect(page.getByTestId("slash-command-goal-edit")).toHaveCount(0);
-});
-
-test("goal snapshot updates only the composer status strip without fabricating history", async ({
-  page,
-}) => {
-  await openApp(page);
-  const threadId = "e2e-goal-snapshot-thread";
-  await seedGatewayThread(page, {
-    threadId,
-    currentThread: { id: threadId, name: "Goal Snapshot" },
-    history: { thread: { id: threadId, turns: [] } },
-  });
-
-  await page.evaluate(
-    (input) => {
-      const composer = window.__codexGatewayE2e?.composer;
-      if (!composer) throw new Error("Gateway E2E driver is unavailable");
-      composer.upsertThreadGoal(input.hostId, input.threadId, {
-        threadId: input.threadId,
-        objective: "从 app-server 快照恢复当前目标",
-        status: "active",
-        tokenBudget: 1000,
-        tokensUsed: 42,
-        timeUsedSeconds: 5,
-        createdAt: Date.now() - 5000,
-        updatedAt: Date.now(),
-      });
-    },
-    { hostId: 1, threadId },
-  );
-
-  await expect(
-    page.getByTestId("composer-mode-strip").getByText("从 app-server 快照恢复当前目标").first(),
-  ).toBeVisible();
-  await expect(page.getByTestId("thread-goal-item")).toHaveCount(0);
 });
 
 test("plan mode shows implementation actions for a second completed turn plan", async ({

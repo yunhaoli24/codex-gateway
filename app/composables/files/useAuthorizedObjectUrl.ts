@@ -8,7 +8,6 @@ export function useAuthorizedObjectUrl(source: Ref<string> | ComputedRef<string>
   const loading = ref(false);
   const error = ref<Error | null>(null);
   let activeUrl = "";
-  let requestId = 0;
 
   function revokeActiveUrl() {
     if (activeUrl) {
@@ -19,11 +18,18 @@ export function useAuthorizedObjectUrl(source: Ref<string> | ComputedRef<string>
 
   watch(
     [source, () => auth.sessionEpoch] as const,
-    async ([nextSource, sessionEpoch]) => {
-      const currentRequest = ++requestId;
+    async ([nextSource, sessionEpoch], _previous, onCleanup) => {
+      let active = true;
+      // Vue also runs watch cleanup on scope disposal. Invalidate before creating a URL,
+      // while leaving the shared Blob cache/download available to other mounted images.
+      onCleanup(() => {
+        active = false;
+        revokeActiveUrl();
+      });
       revokeActiveUrl();
       objectUrl.value = "";
       error.value = null;
+      loading.value = false;
 
       if (!nextSource) {
         return;
@@ -40,27 +46,22 @@ export function useAuthorizedObjectUrl(source: Ref<string> | ComputedRef<string>
           token: auth.token,
           sessionEpoch,
         });
+        if (!active || !auth.isCurrentSession(sessionEpoch)) return;
         const url = URL.createObjectURL(blob);
-        if (currentRequest !== requestId || !auth.isCurrentSession(sessionEpoch)) {
-          URL.revokeObjectURL(url);
-          return;
-        }
         activeUrl = url;
         objectUrl.value = url;
       } catch (caught) {
-        if (currentRequest === requestId) {
+        if (active) {
           error.value = caught instanceof Error ? caught : new Error(String(caught));
         }
       } finally {
-        if (currentRequest === requestId) {
+        if (active) {
           loading.value = false;
         }
       }
     },
     { immediate: true },
   );
-
-  onBeforeUnmount(revokeActiveUrl);
 
   return {
     objectUrl,

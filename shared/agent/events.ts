@@ -62,7 +62,7 @@ export type AgentEvent =
   | { type: "thread.started"; thread: Record<string, unknown> }
 
   // ── Goals ───────────────────────────────────────────────────────
-  | { type: "thread.goal.updated"; goal: unknown }
+  | { type: "thread.goal.updated"; goal: unknown; turnId?: string | null }
   | { type: "thread.goal.cleared" }
   | {
       type: "thread.attachment.updated";
@@ -197,6 +197,7 @@ const threadStartedSchema = z.object({
 const threadGoalUpdatedSchema = z.object({
   type: z.literal("thread.goal.updated"),
   goal: z.unknown(),
+  turnId: z.string().nullable().optional(),
 });
 
 const threadGoalClearedSchema = z.object({

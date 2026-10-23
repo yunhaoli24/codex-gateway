@@ -119,7 +119,7 @@ flowchart LR
     G --> N[Web Push, then Bark fallback]
 ```
 
-The stack is Nuxt 4.6 / Vue 3 / TypeScript, with Pinia for browser state, Dockview for workspace layout, TanStack Virtual for the transcript, and precompiled shadcn-vue / AI Elements workspace packages. Codex is the only implemented provider; protocol mapping lives behind the server's provider adapter. The current protocol baseline is **Codex 0.163.0**, defined in [codex-version.ts](server/utils/gateway/infra/codex/codex-version.ts) and mirrored by the source submodule.
+The stack is Nuxt 4.6 / Vue 3 / TypeScript, with Pinia for browser state, Dockview for workspace layout, TanStack Virtual for the transcript, and precompiled shadcn-vue / AI Elements workspace packages. Codex is the only implemented provider; protocol mapping lives behind the server's provider adapter. The current protocol baseline is **Codex 0.164.0**, defined in [codex-version.ts](server/utils/gateway/infra/codex/codex-version.ts) and mirrored by the source submodule.
 
 ### Connections and account boundaries
 

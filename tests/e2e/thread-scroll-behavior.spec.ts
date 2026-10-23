@@ -16,7 +16,6 @@ import {
   threadActivateRequests,
 } from "./helpers/gateway-store";
 import {
-  captureTextAnchor,
   captureVisibleAgentLineAnchor,
   captureVisibleTextAnchor,
   chatViewportBottomDistance,
@@ -135,6 +134,8 @@ test("same-page thread switches retain the loaded history depth", async ({ page 
     },
   });
 
+  // This user-driven switch also owns cached-content visibility; a separate seed-and-render
+  // smoke test would repeat this assertion without exercising an actual thread switch.
   await page.getByTestId(`thread-button-${secondThreadId}`).click();
   await expect(page.getByText("cached second turn 005")).toBeVisible();
   expect(await selectedTimelineUsesCachedReference(page, secondThreadId)).toBe(true);
@@ -226,64 +227,6 @@ test("streaming output stays pinned when the user is already at the latest conte
     ).toBeVisible();
     await expect.poll(() => chatViewportBottomDistance(page)).toBeLessThanOrEqual(2);
   }
-});
-
-test("streaming Agent output keeps a manually detached reader in place", async ({ page }) => {
-  await openApp(page);
-  const threadId = "e2e-manual-detach-stream-thread";
-  const agentLines = Array.from(
-    { length: 160 },
-    (_, index) => `manual detach line ${String(index + 1).padStart(3, "0")}`,
-  );
-  await seedGatewayThread(page, {
-    cwd: "/tmp/e2e",
-    threadId,
-    currentThread: { id: threadId, name: "Manual Detach Stream" },
-    status: "running",
-    history: {
-      thread: {
-        id: threadId,
-        turns: [
-          {
-            id: "turn-manual-detach-1",
-            status: "running",
-            items: [
-              {
-                id: "user-manual-detach-1",
-                type: "userMessage",
-                content: [{ type: "text", text: "read earlier output" }],
-              },
-              {
-                id: "agent-manual-detach-1",
-                type: "agentMessage",
-                status: "inProgress",
-                text: agentLines.join("\n\n"),
-              },
-            ],
-          },
-        ],
-      },
-    },
-  });
-
-  await expect(page.getByText("manual detach line 160")).toBeVisible();
-  await parkChatViewportInMiddle(page);
-  await expect(page.getByTestId("chat-scroll-area")).toHaveAttribute("data-follow-latest", "false");
-  const anchor = await captureVisibleTextAnchor(page, "manual detach line ");
-  const scrollTop = await chatViewportScrollTop(page);
-
-  await appendAgentStreamLines(page, {
-    itemId: "agent-manual-detach-1",
-    prefix: "detached incoming line",
-    count: 40,
-  });
-
-  await page.waitForTimeout(300);
-  await expect.poll(() => chatViewportScrollTop(page)).toBeGreaterThanOrEqual(scrollTop - 2);
-  await expect.poll(() => chatViewportScrollTop(page)).toBeLessThanOrEqual(scrollTop + 2);
-  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeGreaterThanOrEqual(anchor.top - 2);
-  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeLessThanOrEqual(anchor.top + 2);
-  await expect(page.getByTestId("chat-scroll-area")).toHaveAttribute("data-follow-latest", "false");
 });
 
 test("dragging the native scrollbar away from latest disables bottom following", async ({
@@ -714,7 +657,7 @@ async function growMeasuredRowAboveViewport(page: Page) {
   });
 }
 
-test("streaming output does not force scroll when the user is reading earlier content", async ({
+test("detached reading stays anchored through Agent, Diff and command output streaming", async ({
   page,
 }) => {
   await openApp(page);
@@ -815,6 +758,7 @@ test("streaming output does not force scroll when the user is reading earlier co
   await expect
     .poll(() => visibleAgentLineTop(page, visibleAnchor.text))
     .toBeLessThanOrEqual(visibleAnchor.top + 2);
+  await expect(page.getByTestId("chat-scroll-area")).toHaveAttribute("data-follow-latest", "false");
 
   const beforeDiffGrowthScrollTop = await chatViewportScrollTop(page);
   await appendFileDiffLines(page, {
@@ -1039,41 +983,6 @@ test("manually expanded completed intermediate steps stay open after returning t
 
   await expect(toggle).toHaveAttribute("data-state", "open");
   await expect(page.getByTestId("intermediate-steps")).toBeVisible();
-});
-
-test("loading older turns prepends history without moving the current viewport anchor", async ({
-  page,
-}) => {
-  await openApp(page);
-  const threadId = "e2e-load-older-anchor-thread";
-  await installDeferredThreadTimelineLoadStub(page, {
-    history: { thread: { id: threadId, turns: buildTextTurns(1, 5, "anchored turn") } },
-    nextCursor: null,
-  });
-  await seedGatewayThread(page, {
-    cwd: "/tmp/e2e",
-    threadId,
-    currentThread: { id: threadId, name: "Load Older Anchor" },
-    oldestTimelineCursor: "cursor-before-oldest",
-    history: {
-      thread: {
-        id: threadId,
-        turns: buildTextTurns(6, 10, "anchored turn"),
-      },
-    },
-  });
-
-  await scrollChatViewportToTop(page);
-  await expect
-    .poll(() => threadTimelineLoadRequests(page).then((requests) => requests.length))
-    .toBe(1);
-  const anchor = await captureTextAnchor(page, "anchored turn 006");
-  await releaseDeferredThreadTimelineLoad(page);
-
-  await expect.poll(() => threadTurnCount(page)).toBe(10);
-  await page.waitForTimeout(300);
-  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeGreaterThanOrEqual(anchor.top - 2);
-  await expect.poll(() => visibleTextTop(page, anchor.text)).toBeLessThanOrEqual(anchor.top + 2);
 });
 
 test("history prepend and current Agent streaming preserve the same detached anchor", async ({
