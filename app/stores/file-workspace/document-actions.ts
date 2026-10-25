@@ -1,11 +1,7 @@
 import { ref, shallowRef, type Ref } from "vue";
 import type { FilePreviewDocument } from "~~/shared/types";
-import {
-  createFileDocument,
-  disposeFileDocument,
-  loadFileDocument,
-  saveFileDocument,
-} from "./document-runtime";
+import { createFileDocument, disposeFileDocument, saveFileDocument } from "./document-runtime";
+import { FileDocumentLoader } from "./document-loader";
 import { fileDocumentKey, fileWorkspaceScopeKey, parentPath } from "./paths";
 import type { FileWorkspaceScope, OpenWorkspaceFileInput } from "./types";
 import { useFileGitComparisonStore } from "./git";
@@ -26,7 +22,11 @@ export function createFileDocumentActions(options: FileDocumentActionsOptions) {
   const documents = shallowRef<Record<string, FilePreviewDocument>>({});
   const filesByKey = shallowRef<Record<string, File | null>>({});
   const viewPositions = ref<Record<string, { left: number; top: number }>>({});
-  const loadControllers = new Map<string, AbortController>();
+  const loader = new FileDocumentLoader((document, file) => {
+    if (documents.value[document.key] === document) {
+      filesByKey.value = { ...filesByKey.value, [document.key]: file };
+    }
+  });
   const gitComparisons = useFileGitComparisonStore();
 
   async function openFile(input: OpenWorkspaceFileInput) {
@@ -69,8 +69,8 @@ export function createFileDocumentActions(options: FileDocumentActionsOptions) {
     const key = fileDocumentKey(hostId, threadId, path);
     // Git comparisons are path-scoped and may still be rendered by the Changes review panel.
     // Closing one editor owns only its document; page-level resetRuntime clears shared baselines.
-    loadControllers.get(key)?.abort();
-    loadControllers.delete(key);
+    const document = documents.value[key];
+    if (document !== undefined) loader.cancel(document);
     disposeFileDocument(documents.value[key]);
     const nextDocuments = { ...documents.value };
     const nextFiles = { ...filesByKey.value };
@@ -136,33 +136,17 @@ export function createFileDocumentActions(options: FileDocumentActionsOptions) {
   }
 
   async function reloadDocument(document: FilePreviewDocument) {
-    document.stale = true;
+    loader.invalidate(document);
     await loadDocument(document);
   }
 
   async function revalidateActiveFile(hostId: number, threadId: string) {
     const document = activeDocumentFor(hostId, threadId);
-    if (document !== null && !document.loading) await loadDocument(document);
+    if (document !== null) await loadDocument(document);
   }
 
-  async function loadDocument(document: FilePreviewDocument) {
-    loadControllers.get(document.key)?.abort();
-    const controller = new AbortController();
-    loadControllers.set(document.key, controller);
-    try {
-      const file = await loadFileDocument(document, controller.signal);
-      // A closed document is no longer the owner of this result even if a transport ignored the
-      // abort. Identity checking keeps stale requests from recreating filesByKey entries.
-      if (
-        !controller.signal.aborted &&
-        documents.value[document.key] === document &&
-        file !== undefined
-      ) {
-        filesByKey.value = { ...filesByKey.value, [document.key]: file };
-      }
-    } finally {
-      if (loadControllers.get(document.key) === controller) loadControllers.delete(document.key);
-    }
+  function loadDocument(document: FilePreviewDocument) {
+    return loader.load(document);
   }
 
   function ensureScope(input: OpenWorkspaceFileInput) {
@@ -187,8 +171,7 @@ export function createFileDocumentActions(options: FileDocumentActionsOptions) {
   }
 
   function resetRuntime() {
-    for (const controller of loadControllers.values()) controller.abort();
-    loadControllers.clear();
+    loader.reset();
     for (const document of Object.values(documents.value)) disposeFileDocument(document);
     documents.value = {};
     filesByKey.value = {};
@@ -209,6 +192,7 @@ export function createFileDocumentActions(options: FileDocumentActionsOptions) {
     consumeDocumentViewRequest,
     restoreScopeDocuments,
     reloadDocument,
+    invalidateDocument: (document: FilePreviewDocument) => loader.invalidate(document),
     revalidateActiveFile,
     ensureDocument,
     resetRuntime,

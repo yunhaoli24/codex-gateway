@@ -491,6 +491,22 @@ done
   // user-flow test to a particular diff chunk boundary.
   await expect(nestedDiffEditor.locator(".cm-deletedText")).not.toBeEmpty();
   await expect(nestedDiffEditor.locator(".cm-changedText")).not.toBeEmpty();
+  // A new commit changes the immutable comparison key. A normal Git refresh must pick up that
+  // baseline rather than retaining the cached version from before the user's commit.
+  await execRemoteSsh(
+    remote,
+    `git -C ${shellQuote(nestedRepositoryPath)} add -- nested-change.ts && git -C ${shellQuote(nestedRepositoryPath)} commit -qm 'test: commit reviewed changes'`,
+  );
+  await panel.getByRole("button", { name: "刷新 Git 变更" }).click();
+  await expect(panel.getByText("未修改", { exact: true })).toBeVisible();
+  await execRemoteSsh(
+    remote,
+    `printf '%s\\n' 'export const nestedValue = "updated-again";' > ${shellQuote(nestedRepositoryFilePath)}`,
+  );
+  await expect(panel.getByTestId("remote-file-editor")).toContainText("updated-again");
+  await panel.getByRole("button", { name: "变更", exact: true }).click();
+  await expect(nestedDiffEditor).toContainText("worktree");
+  await expect(nestedDiffEditor).toContainText("updated-again");
   await fileTab(page, nestedRepositoryFilePath).getByLabel("关闭标签页").click();
 
   await agentWorkspaceTab(page).click();
@@ -528,6 +544,46 @@ done
   await expect
     .poll(() => nestedSourceScroller.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(250);
+
+  // Read the file halfway down while it is updated externally, as an Agent or another editor
+  // would do. Observe actual DOM and SSH writes without fabricating watcher messages or delays.
+  const readingPosition = await nestedSourceScroller.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const visibleLines = [...element.querySelectorAll(".cm-line")].filter((line) => {
+      const rect = line.getBoundingClientRect();
+      return rect.top > bounds.top + 20 && rect.bottom < bounds.bottom - 20;
+    });
+    const edited = visibleLines[0];
+    const anchor = visibleLines[Math.floor(visibleLines.length / 2)];
+    if (!edited || !anchor || edited === anchor) throw new Error("Missing visible source lines");
+    return {
+      edited: edited.textContent ?? "",
+      anchor: anchor.textContent ?? "",
+      anchorTop: anchor.getBoundingClientRect().top - bounds.top,
+    };
+  });
+  const refreshedLine = "# externally refreshed source line";
+  await execRemoteSsh(
+    remote,
+    `sed -i ${shellQuote(`s/^${readingPosition.edited}$/${refreshedLine}/`)} ${shellQuote(nestedPythonPath)}`,
+  );
+  await expect(panel.getByTestId("remote-file-editor")).toContainText(refreshedLine);
+  await expect
+    .poll(() =>
+      nestedSourceScroller.evaluate((element, position) => {
+        const anchor = [...element.querySelectorAll(".cm-line")].find(
+          (line) => line.textContent === position.anchor,
+        );
+        return anchor
+          ? Math.abs(
+              anchor.getBoundingClientRect().top -
+                element.getBoundingClientRect().top -
+                position.anchorTop,
+            )
+          : Number.POSITIVE_INFINITY;
+      }, readingPosition),
+    )
+    .toBeLessThan(2);
 
   await agentWorkspaceTab(page).click();
   await page.getByRole("link", { name: "outside workspace" }).click();
