@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import { LRUCache } from "lru-cache";
 import type {
   RemoteGitFileBaseline,
   RemoteGitFileComparison,
@@ -35,6 +36,17 @@ export class RemoteGitFileService {
   private readonly pending = new Map<string, Promise<RemoteGitFileComparison>>();
   private readonly pendingWorkspace = new Map<string, Promise<RemoteGitWorkspaceSnapshot>>();
   private readonly transportLimiter = new KeyedTaskLimiter(2);
+  // HEAD blobs are immutable at this key. Worktree notifications still re-read status, but must
+  // not repeatedly transfer the same committed file over a slow SSH route. Scope by transport
+  // and repository as well as revision/path; unrelated Hosts must never share private contents.
+  private readonly baselines = new LRUCache<string, RemoteGitFileBaseline>({
+    max: 256,
+    maxSize: 16 * 1024 * 1024,
+    sizeCalculation: (baseline) =>
+      baseline.kind === "head" ? Math.max(1, Buffer.byteLength(baseline.text)) : 64,
+    ttl: 10 * 60_000,
+    ttlAutopurge: true,
+  });
 
   constructor(private readonly ssh: SshConnectionPool) {}
 
@@ -180,18 +192,35 @@ export class RemoteGitFileService {
     }
     const objectPath = metadata.originalPath ?? metadata.relativePath;
     const object = `${metadata.headOid}:${objectPath}`;
+    const cacheKey = JSON.stringify([
+      this.ssh.connectionKeyFor(host),
+      metadata.repositoryRoot,
+      object,
+    ]);
+    const cached = this.baselines.get(cacheKey);
+    if (cached !== undefined) return cached;
     const result = await this.ssh.exec(host, baselineCommand(metadata.repositoryRoot, object), {
       timeoutMs: remainingTimeout(deadline),
       signal,
       maxOutputBytes: MAX_GIT_DIFF_BYTES,
     });
-    if (result.code === 45) return { kind: "empty", revision: metadata.headOid };
-    if (result.code === 46) return { kind: "unavailable", reason: "tooLarge" };
+    if (result.code === 45) {
+      const baseline = { kind: "empty", revision: metadata.headOid } as const;
+      this.baselines.set(cacheKey, baseline);
+      return baseline;
+    }
+    if (result.code === 46) {
+      const baseline = { kind: "unavailable", reason: "tooLarge" } as const;
+      this.baselines.set(cacheKey, baseline);
+      return baseline;
+    }
     if (result.code !== 0) {
       reportGitCommandFailure(host, "baseline read", result.code, result.stderr);
       throw new Error("Failed to read remote Git baseline");
     }
-    return { kind: "head", revision: metadata.headOid, text: result.stdout };
+    const baseline = { kind: "head", revision: metadata.headOid, text: result.stdout } as const;
+    this.baselines.set(cacheKey, baseline);
+    return baseline;
   }
 }
 

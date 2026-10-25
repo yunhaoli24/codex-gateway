@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { basicSetup } from "codemirror";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
-import { Compartment, EditorState } from "@codemirror/state";
+import { Compartment, EditorState, Transaction } from "@codemirror/state";
 import type { Extension, StateCommand } from "@codemirror/state";
 import { EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
 import { useEventListener } from "@vueuse/core";
 import { cn } from "@codex-gateway/ui/utils";
+import { synchronizeEditorDocument } from "@/utils/editor/synchronize-document";
 import {
   gatewayCodeEditorTheme,
   languageExtension,
@@ -48,7 +49,6 @@ const languageCompartment = new Compartment();
 const editableCompartment = new Compartment();
 const placeholderCompartment = new Compartment();
 const customExtensionsCompartment = new Compartment();
-const syncingFromEditor = ref(false);
 const editorClass = computed(() =>
   cn("min-h-0 flex-1 overflow-hidden rounded-md border border-input bg-surface", props.class),
 );
@@ -90,12 +90,7 @@ onBeforeUnmount(() => {
 
 watch(model, (value) => {
   const view = editorView.value;
-  if (!view || syncingFromEditor.value || value === view.state.doc.toString()) {
-    return;
-  }
-  view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: value },
-  });
+  if (view) synchronizeEditorDocument(view, value);
 });
 
 watch(
@@ -177,14 +172,15 @@ function editorExtensions(): Extension[] {
     ]),
     EditorView.domEventHandlers({ blur: () => emit("blur") }),
     EditorView.updateListener.of((update) => {
-      if (!update.docChanged) {
+      if (
+        !update.docChanged ||
+        update.transactions.every(
+          (transaction) => transaction.annotation(Transaction.remote) === true,
+        )
+      ) {
         return;
       }
-      syncingFromEditor.value = true;
       model.value = update.state.doc.toString();
-      queueMicrotask(() => {
-        syncingFromEditor.value = false;
-      });
     }),
   ];
 }

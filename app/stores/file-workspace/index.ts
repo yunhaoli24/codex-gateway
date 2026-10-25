@@ -144,10 +144,10 @@ export const useGatewayFileWorkspaceStore = defineStore("gateway-file-workspace"
   }
 
   async function discardDocumentDraft(document: Parameters<typeof discardFileDocumentDraft>[0]) {
-    const result = await discardFileDocumentDraft(document);
+    discardFileDocumentDraft(document);
+    await documentActions.reloadDocument(document);
     void gitComparisons.load(document, true);
     invalidateGitWorkspace(document.hostId, document.threadId);
-    return result;
   }
 
   function markRemoteFilesChanged(hostId: number, threadId: string, paths: string[]) {
@@ -167,7 +167,7 @@ export const useGatewayFileWorkspaceStore = defineStore("gateway-file-workspace"
       const path = absolutePath(scope.rootPath, sourcePath);
       const document = documentActions.documentFor(hostId, threadId, path);
       if (document) {
-        document.stale = true;
+        documentActions.invalidateDocument(document);
         gitComparisons.invalidate(document);
       }
       for (const parent of parentPaths(path)) {

@@ -46,15 +46,23 @@ export async function loadFileDocument(document: FilePreviewDocument, signal?: A
   const hasContent = Boolean(document.objectUrl);
   const auth = useAuthStore();
   const sessionEpoch = auth.sessionEpoch;
+  const requestedEtag = document.etag;
   document.loading = !hasContent;
   document.error = null;
   try {
-    const response = await fetchRemoteFile(document.hostId, document.path, document.etag, signal);
+    const response = await fetchRemoteFile(document.hostId, document.path, requestedEtag, signal);
     if (!auth.isCurrentSession(sessionEpoch) || isAborted(signal)) return undefined;
+    // A save can finish while SFTP is reading. Its newer ETag owns the document; never apply the
+    // older response over a successfully saved draft.
+    if (document.etag !== requestedEtag) return undefined;
     if (!response.changed) {
       document.stale = false;
       return undefined;
     }
+    const savedText = response.previewKind === "text" ? await response.blob.text() : "";
+    if (!auth.isCurrentSession(sessionEpoch) || isAborted(signal)) return undefined;
+    if (document.etag !== requestedEtag) return undefined;
+    // Check after decoding as well as downloading: the user may have started typing meanwhile.
     if (document.dirty) {
       document.conflict = {
         remoteEtag: response.etag ?? "",
@@ -63,8 +71,6 @@ export async function loadFileDocument(document: FilePreviewDocument, signal?: A
       document.stale = false;
       return undefined;
     }
-    const savedText = response.previewKind === "text" ? await response.blob.text() : "";
-    if (!auth.isCurrentSession(sessionEpoch) || isAborted(signal)) return undefined;
     const file = markRaw(new File([response.blob], document.title, { type: response.contentType }));
     // Create the URL only after asynchronous text decoding and the cancellation check. Creating
     // it earlier lets a close/reload during blob.text() orphan a URL that no document can revoke.
@@ -148,13 +154,14 @@ export async function saveFileDocument(document: FilePreviewDocument, force = fa
   });
 }
 
-export async function discardFileDocumentDraft(document: FilePreviewDocument) {
+export function discardFileDocumentDraft(document: FilePreviewDocument) {
   document.dirty = false;
   document.conflict = null;
   document.saveError = null;
   document.etag = null;
   document.stale = true;
-  return loadFileDocument(document);
+  // The workspace loader owns every document read, including discarding a conflicted draft.
+  // Starting a second independent read here would race automatic refresh and bypass its queue.
 }
 
 export function disposeFileDocument(document: FilePreviewDocument | undefined) {
