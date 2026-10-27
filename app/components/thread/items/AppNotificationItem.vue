@@ -53,7 +53,7 @@ const isModerationMetadata = computed(() => props.item.method === "turn/moderati
         </CollapsibleTrigger>
         <DeferredCollapsibleContent :open="detailsOpen">
           <pre
-            class="mt-2 max-h-40 overflow-auto rounded-md bg-canvas-soft p-2 text-xs leading-5 text-ink-secondary"
+            class="mt-2 max-h-40 overflow-auto rounded-md bg-canvas-soft p-2 text-xs whitespace-pre-wrap wrap-anywhere leading-5 text-ink-secondary"
             >{{ details }}</pre>
         </DeferredCollapsibleContent>
       </Collapsible>

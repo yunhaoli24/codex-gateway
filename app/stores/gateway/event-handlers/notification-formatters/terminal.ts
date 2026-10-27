@@ -7,6 +7,7 @@ import {
   simpleNotification,
   text,
   truncate,
+  withDetails,
   type FormattedNotification,
   type NotificationFormatContext,
   type TranslationFunction,
@@ -21,16 +22,18 @@ export function terminalInteractionNotification(
 ): FormattedNotification {
   const stdin = text(params.stdin);
   const command = commandForTerminalInteraction(t, params, context);
-  return stdin
-    ? simpleNotification(t, "terminalInteraction", "info", {
-        command,
-        processId: text(params.processId),
-        stdin: truncate(stdin, 120),
-      })
-    : simpleNotification(t, "terminalWait", "info", {
-        command,
-        processId: text(params.processId),
-      });
+  const key = stdin !== "" ? "terminalInteraction" : "terminalWait";
+  const values = { command, processId: text(params.processId), stdin };
+  // Truncation belongs only to the card summary. Retain the full display command and stdin in
+  // the existing lazy disclosure so a long command never becomes impossible to inspect.
+  return withDetails(
+    simpleNotification(t, key, "info", {
+      ...values,
+      command: truncate(command, 140),
+      stdin: truncate(stdin, 120),
+    }),
+    t(`app.notifications.${key}.message`, values),
+  );
 }
 
 function commandForTerminalInteraction(
@@ -56,12 +59,9 @@ function commandForTerminalInteraction(
     command = text(findCommandItemInHistory(history, text(params.itemId), processId)?.command);
     if (command !== "") break;
   }
-  return truncate(
-    command === ""
-      ? t("app.notifications.terminalProcessFallback", { processId })
-      : commandDisplayLabel(command),
-    140,
-  );
+  return command === ""
+    ? t("app.notifications.terminalProcessFallback", { processId })
+    : commandDisplayLabel(command);
 }
 
 function findCommandItemInHistory(
