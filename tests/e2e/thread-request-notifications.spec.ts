@@ -149,7 +149,7 @@ test("app-server error notifications use Sonner without entering the timeline", 
   await expect(chatScrollArea.getByText("retry recovered")).toBeVisible();
 });
 
-test("app-server moderation notifications render a readable summary before raw details", async ({
+test("app-server moderation notifications reveal their summary and details on demand", async ({
   page,
 }) => {
   await openApp(page);
@@ -179,45 +179,58 @@ test("app-server moderation notifications render a readable summary before raw d
   );
 
   const chatScrollArea = page.getByTestId("chat-scroll-area");
-  await expect(chatScrollArea.getByText("安全审查元数据")).toBeVisible();
+  const moderationToggle = chatScrollArea.getByRole("button", { name: /安全审查元数据/ });
+  await expect(moderationToggle).toBeVisible();
+  await expect(chatScrollArea.getByText(/flagged=true/)).toBeHidden();
+  await moderationToggle.click();
   await expect(chatScrollArea.getByText(/flagged=true/)).toBeVisible();
   await expect(chatScrollArea.getByText(/categories=self_harm/)).toBeVisible();
   await expect(chatScrollArea.getByText("only visible after expanding details")).toBeHidden();
   await chatScrollArea.getByRole("button", { name: "查看详情" }).click();
   await expect(chatScrollArea.getByText("only visible after expanding details")).toBeVisible();
+  await moderationToggle.click();
+  await expect(chatScrollArea.getByText(/flagged=true/)).toBeHidden();
 });
 
-test("terminal wait notifications mention the command being watched", async ({ page }) => {
+test("terminal wait notifications keep compact spacing and reveal the complete command", async ({
+  page,
+}) => {
   await openApp(page);
+  const command =
+    "git status --short; bash -n deploy/tests/cloudawn-gateway-smoke.sh; SUB2API_TEST_CASES=compact SUB2API_TEST_IMAGE=sub2api:0.2.18-cloudawn-native ./deploy/tests/cloudawn-gateway-smoke.sh";
   await seedGatewayThread(page, {
     threadId: "e2e-terminal-wait-thread",
     currentThread: { id: "e2e-terminal-wait-thread", name: "Terminal Wait" },
-    history: { thread: { id: "e2e-terminal-wait-thread", turns: [] } },
-  });
-  await applyGatewayLiveEvent(
-    page,
-    gatewayEventFromNotification({
-      id: 301,
-      threadId: "e2e-terminal-wait-thread",
-      method: "item/started",
-      params: {
-        threadId: "e2e-terminal-wait-thread",
-        turnId: "turn-terminal",
-        startedAtMs: Date.now(),
-        item: {
-          id: "cmd-watch",
-          type: "commandExecution",
-          command: "/bin/bash -lc 'pnpm dev'",
-          cwd: "/workspace/codex-gateway",
-          processId: "proc-123",
-          status: "inProgress",
-          aggregatedOutput: "",
-          exitCode: null,
-          durationMs: null,
-        },
+    status: "running",
+    history: {
+      thread: {
+        id: "e2e-terminal-wait-thread",
+        turns: [
+          {
+            id: "turn-terminal",
+            status: "inProgress",
+            items: [
+              {
+                id: "cmd-watch",
+                type: "commandExecution",
+                command: `/bin/bash -lc '${command}'`,
+                cwd: "/workspace/codex-gateway",
+                processId: "proc-123",
+                status: "inProgress",
+                aggregatedOutput: "",
+                exitCode: null,
+                durationMs: null,
+              },
+              // The reported real transcript completes both empty and whitespace-only assistant
+              // items between tool calls. Reading it must not leave padded, invisible rows.
+              { id: "empty-agent", type: "agentMessage", text: "" },
+              { id: "whitespace-agent", type: "agentMessage", text: " " },
+            ],
+          },
+        ],
       },
-    }),
-  );
+    },
+  });
   await applyGatewayLiveEvent(
     page,
     gatewayEventFromNotification({
@@ -235,9 +248,22 @@ test("terminal wait notifications mention the command being watched", async ({ p
   );
 
   const chatScrollArea = page.getByTestId("chat-scroll-area");
-  await expect(
-    chatScrollArea.getByText("agent 正在等待命令：pnpm dev", { exact: true }),
-  ).toBeVisible();
+  const notification = chatScrollArea.locator('[data-row-key$="notification-302"]');
+  const commandToggle = chatScrollArea.getByRole("button", { name: /^git status --short/ });
+  await expect(notification.getByText("查看后台命令输出", { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => {
+      const commandBounds = await commandToggle.boundingBox();
+      const notificationBounds = await notification.boundingBox();
+      return commandBounds && notificationBounds
+        ? notificationBounds.y - commandBounds.y - commandBounds.height
+        : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThan(48);
+  await notification.getByRole("button", { name: "查看详情" }).click();
+  await expect(notification.locator("pre")).toHaveText(`agent 正在等待命令：${command}`);
+  await notification.getByRole("button", { name: "收起详情" }).click();
+  await expect(notification.locator("pre")).toBeHidden();
 
   await installRealtimeInterruptMock(page);
 
