@@ -17,6 +17,7 @@ export const threadOpenSchema = z.object({
   hostId: z.coerce.number().int().positive(),
   threadId: z.string().trim().min(1),
   limit: z.coerce.number().int().min(1).max(100).default(INITIAL_TIMELINE_PAGE_LIMIT),
+  retryWriter: z.boolean().optional(),
 });
 
 export const threadMetadataListSchema = z.object({

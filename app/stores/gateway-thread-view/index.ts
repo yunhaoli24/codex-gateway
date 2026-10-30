@@ -27,6 +27,7 @@ export const useGatewayThreadViewStore = defineStore("gateway-thread-view", () =
   const lastEventId = ref(0);
   const appliedEventId = ref(0);
   const eventEpoch = ref("");
+  const readOnly = ref(false);
   const scrollToLatestToken = ref(0);
   const expandedTurnsByThread = new Map<string, string>();
   const liveEventActions = createThreadLiveEventActions();
@@ -76,6 +77,7 @@ export const useGatewayThreadViewStore = defineStore("gateway-thread-view", () =
     lastEventId.value = 0;
     appliedEventId.value = 0;
     eventEpoch.value = "";
+    readOnly.value = false;
   }
 
   function resetState() {
@@ -124,6 +126,7 @@ export const useGatewayThreadViewStore = defineStore("gateway-thread-view", () =
     lastEventId,
     appliedEventId,
     eventEpoch,
+    readOnly,
     scrollToLatestToken,
     visibleSubAgentPanels,
     expandedTurnId,

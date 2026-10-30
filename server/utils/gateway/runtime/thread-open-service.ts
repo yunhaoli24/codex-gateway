@@ -24,11 +24,17 @@ import { installRecoveredTurnTail } from "./thread-tail-recovery";
 import { timelinePageToTurns } from "~~/shared/thread-history/app-server-timeline";
 import { threadActivationHistory } from "../protocol/thread-activation-history";
 import { retainSnapshotHistory } from "./snapshot-history";
+import { isActiveWriterConflict } from "./active-writer-conflict";
 
 export class ThreadOpenService {
   private readonly pendingRefreshes = new Map<
     string,
-    { limit: number; recoverLatestTail: boolean; promise: Promise<ReturnTypeResult> }
+    {
+      limit: number;
+      recoverLatestTail: boolean;
+      retryWriter: boolean;
+      promise: Promise<ReturnTypeResult>;
+    }
   >();
 
   constructor(
@@ -41,9 +47,13 @@ export class ThreadOpenService {
     threadId: string,
     limit = INITIAL_TIMELINE_PAGE_LIMIT,
     activationController?: ThreadController,
+    retryWriter = false,
   ) {
     const cachedSnapshot = threadSnapshotStore.get(host.id, threadId);
-    if (cachedSnapshot) {
+    if (cachedSnapshot && !retryWriter) {
+      if (cachedSnapshot.readOnly === true) {
+        return this.snapshotResult(host, threadId, cachedSnapshot, limit);
+      }
       if (cachedSnapshot.historyTrimmed === true) {
         return this.refreshThreadState(host, threadId, limit, activationController);
       }
@@ -72,8 +82,9 @@ export class ThreadOpenService {
       hostId: host.id,
       threadId,
       limit,
+      retryWriter,
     });
-    return this.refreshThreadState(host, threadId, limit, activationController);
+    return this.refreshThreadState(host, threadId, limit, activationController, false, retryWriter);
   }
 
   startedThreadResult(host: HostRecord, rawResult: unknown) {
@@ -108,6 +119,7 @@ export class ThreadOpenService {
         project: projectStore.ensureForPath(host.id, thread.cwd),
         oldestTimelineCursor: null,
         recentEvents: snapshotRecentEvents(host.id, threadId),
+        readOnly: false,
       },
     };
   }
@@ -127,6 +139,7 @@ export class ThreadOpenService {
     limit = INITIAL_TIMELINE_PAGE_LIMIT,
     activationController?: ThreadController,
     recoverLatestTail = false,
+    retryWriter = false,
   ): Promise<ReturnTypeResult> {
     const key = refreshKey(host.id, threadId);
     const pending = this.pendingRefreshes.get(key);
@@ -135,7 +148,11 @@ export class ThreadOpenService {
       // narrower one. Wait for the narrow refresh to settle, then retry so the server cache
       // monotonically expands to the requested page depth instead of racing two snapshots into the
       // same store entry.
-      if (pending.limit >= limit && (!recoverLatestTail || pending.recoverLatestTail)) {
+      if (
+        pending.limit >= limit &&
+        (!recoverLatestTail || pending.recoverLatestTail) &&
+        (!retryWriter || pending.retryWriter)
+      ) {
         return pending.promise;
       }
       await pending.promise;
@@ -145,6 +162,7 @@ export class ThreadOpenService {
         limit,
         activationController,
         recoverLatestTail,
+        retryWriter,
       );
     }
 
@@ -154,8 +172,9 @@ export class ThreadOpenService {
       limit,
       activationController,
       recoverLatestTail,
+      retryWriter,
     );
-    this.pendingRefreshes.set(key, { limit, recoverLatestTail, promise });
+    this.pendingRefreshes.set(key, { limit, recoverLatestTail, retryWriter, promise });
     try {
       return await promise;
     } finally {
@@ -194,8 +213,15 @@ export class ThreadOpenService {
     limit: number,
     activationController?: ThreadController,
     recoverLatestTail = false,
+    retryWriter = false,
   ) {
-    const loaded = await this.loadRemoteOpenSnapshot(host, threadId, activationController, limit);
+    const loaded = await this.loadRemoteOpenSnapshot(
+      host,
+      threadId,
+      activationController,
+      limit,
+      retryWriter,
+    );
     let { snapshot } = loaded;
     if (recoverLatestTail) {
       const latestTurn = snapshot.history.thread.turns.at(-1);
@@ -226,6 +252,7 @@ export class ThreadOpenService {
       threadSettings: snapshot.threadSettings,
       tokenUsage: latestTokenUsageFromEvents(recentEvents) ?? snapshot.tokenUsage,
       recentEvents: snapshotRecentEvents(host.id, threadId),
+      readOnly: snapshot.readOnly === true,
     };
   }
 
@@ -251,6 +278,7 @@ export class ThreadOpenService {
       threadSettings: snapshot.threadSettings,
       tokenUsage: latestTokenUsageFromEvents(recentEvents) ?? snapshot.tokenUsage,
       recentEvents: snapshotRecentEvents(host.id, threadId),
+      readOnly: snapshot.readOnly === true,
     };
   }
 
@@ -259,9 +287,22 @@ export class ThreadOpenService {
     threadId: string,
     activationController?: ThreadController,
     limit = INITIAL_TIMELINE_PAGE_LIMIT,
+    retryWriter = false,
   ) {
     if (activationController !== undefined) {
-      const resumed = await activationController.resumeForHistory();
+      let resumed;
+      try {
+        resumed = await activationController.resumeForHistory();
+      } catch (error: unknown) {
+        if (!isActiveWriterConflict(error)) throw error;
+        runtimeLog("thread opened read-only because another app-server owns its writer", {
+          hostId: host.id,
+          hostName: host.name,
+          threadId,
+          retryWriter,
+        });
+        return this.readStoredOpenSnapshot(host, threadId, limit, true);
+      }
       const timelinePage = await this.historyReader.loadInitialTimelinePage(
         host,
         resumed.thread,
@@ -273,12 +314,22 @@ export class ThreadOpenService {
         timelinePage,
         extractThreadSettings(resumed),
         activationController,
+        false,
       );
     }
 
     // Non-browser refreshes, such as reconciliation after a failed turn command, already run under
     // a controller operation and must not acquire another subscription lease. They retain the
     // metadata + page pair; normal browser cold opens use the combined resume path above.
+    return this.readStoredOpenSnapshot(host, threadId, limit);
+  }
+
+  private async readStoredOpenSnapshot(
+    host: HostRecord,
+    threadId: string,
+    limit: number,
+    readOnly = false,
+  ) {
     const client = await this.registry.getHostClient(host);
     const read = await client.request(
       "thread/read",
@@ -292,6 +343,8 @@ export class ThreadOpenService {
       read.thread,
       timelinePage,
       extractThreadSettings(read.thread),
+      undefined,
+      readOnly,
     );
   }
 
@@ -301,6 +354,7 @@ export class ThreadOpenService {
     timelinePage: AppServerTimelinePage,
     threadSettings: ReturnType<typeof extractThreadSettings> | null,
     activationController?: ThreadController,
+    readOnly = false,
   ) {
     const threadId = thread.id;
     projectStore.ensureForPath(host.id, thread.cwd);
@@ -320,6 +374,7 @@ export class ThreadOpenService {
       // response is the protocol's persisted thread configuration.
       threadSettings,
       tokenUsage: latestTokenUsageFromEvents(recentEvents),
+      readOnly,
     };
     const snapshot = preserveCanonicalUserMessagesInOpenSnapshot(
       baseSnapshot,

@@ -85,6 +85,7 @@ export type RealtimeClientMessage =
       hostId: number;
       threadId: string;
       limit?: number;
+      retryWriter?: boolean;
     }
   | {
       type: "thread.subscribe";

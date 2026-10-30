@@ -89,6 +89,7 @@ export async function activateThread(
       input.threadId,
       input.limit,
       activationController,
+      input.retryWriter,
     );
     if (pending.signal.aborted) return;
     sendRealtimePeerMessage(peer, {
@@ -100,12 +101,17 @@ export async function activateThread(
       eventEpoch,
       ...result,
     });
-    subscribeThreadEvents(peer, host, input.threadId, lastEventId, eventEpoch, {
-      lease: activationLease,
-      controller: activationController,
-    });
-    leaseTransferred = true;
-    if (result.threadSettings === null || result.threadSettings === undefined) {
+    if (result.readOnly !== true) {
+      subscribeThreadEvents(peer, host, input.threadId, lastEventId, eventEpoch, {
+        lease: activationLease,
+        controller: activationController,
+      });
+      leaseTransferred = true;
+    }
+    if (
+      result.readOnly !== true &&
+      (result.threadSettings === null || result.threadSettings === undefined)
+    ) {
       // A cache hit can predate settings hydration. Resolve only that metadata after the snapshot;
       // cold opens already obtain it from the combined thread/resume response above.
       void runPeerScoped(peer, () =>

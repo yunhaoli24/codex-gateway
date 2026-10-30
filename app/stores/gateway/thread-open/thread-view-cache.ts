@@ -108,6 +108,7 @@ export function activateThreadViewFromCache(hostId: number, threadId: string) {
   views.lastEventId = view.lastEventId;
   views.appliedEventId = view.appliedEventId ?? view.lastEventId;
   views.eventEpoch = view.eventEpoch;
+  views.readOnly = view.readOnly === true;
   return true;
 }
 
@@ -135,6 +136,7 @@ export function saveSelectedThreadView() {
     eventEpoch: views.eventEpoch,
     loading: false,
     error: null,
+    readOnly: views.readOnly,
   });
 }
 
@@ -198,6 +200,7 @@ function emptyThreadView(hostId: number, threadId: string): ThreadViewState {
     eventEpoch: "",
     loading: false,
     error: null,
+    readOnly: false,
   };
 }
 

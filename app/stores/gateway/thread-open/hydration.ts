@@ -3,7 +3,6 @@ import { normalizeTokenUsage } from "~~/shared/token-usage";
 import { useGatewayCatalogStore } from "@/stores/gateway-catalog";
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
-import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { useGatewayThreadActivityStore } from "@/stores/gateway-thread-activity";
 import { useGatewayThreadRuntimeStore } from "@/stores/gateway-thread-runtime";
 import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
@@ -11,34 +10,6 @@ import { runtimeStatusFromThreadState } from "../thread-utils/status";
 import type { ThreadSnapshotMessage } from "./transport";
 import { retainThreadEvents } from "@/stores/gateway-thread-view/memory/events";
 import { mergeThreadTurns } from "~~/shared/thread-history/turns";
-
-export function applyOpenedThreadResult(threadId: string, result: ThreadOpenResult) {
-  const gateway = useGatewayCatalogStore();
-  const navigation = useGatewayNavigationStore();
-  const views = useGatewayThreadViewStore();
-  const previousAppliedEventId = views.appliedEventId;
-  const hadExistingHistory = views.history !== null;
-  views.currentThread = result.thread;
-  views.setHistory(result.history);
-  navigation.selectedCwd = result.thread.cwd;
-  navigation.selectedThreadId = threadId;
-  useGatewayRealtimeStore().rememberThreadSubscription(
-    result.hostId,
-    threadId,
-    result.lastEventId,
-    result.eventEpoch,
-  );
-  if (result.project !== null && result.project !== undefined)
-    gateway.mergeProjects([result.project]);
-  applyCommonThreadResult(threadId, result, result.lastEventId);
-  views.appliedEventId = hadExistingHistory ? (previousAppliedEventId ?? 0) : result.lastEventId;
-  views.applyLiveEvents(result.recentEvents);
-  syncRuntimeStatusFromResult(threadId, result, {
-    thread: views.currentThread,
-    history: views.history,
-  });
-  navigation.upsertPinnedMetadataFromThread(result.thread);
-}
 
 export function applyThreadSnapshotResult(
   threadId: string,
@@ -123,6 +94,7 @@ function applyCommonThreadResult(
   views.oldestTimelineCursor = result.oldestTimelineCursor;
   views.lastEventId = explicitLastEventId ?? result.recentEvents.at(-1)?.id ?? 0;
   views.eventEpoch = result.eventEpoch;
+  views.readOnly = result.readOnly === true;
   // A metadata-only thread/read does not expose persisted model/effort. Null means unknown, not
   // "reset to model defaults", so a same-page thread switch must retain the last authoritative
   // thread/settings/updated projection already held by Pinia.

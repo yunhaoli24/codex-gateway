@@ -19,10 +19,10 @@ test("closes the protocol stream instead of ignoring a malformed server frame", 
   const closeCallCount = (await realtimeSocketCloseCalls(page)).length;
   await dispatchRealtimeServerFrame(page, "{not-json");
 
-  // Strict parsing deliberately closes the compromised protocol stream. Assert the protocol close
-  // directly instead of coupling parser coverage to the remote peer's close-handshake timing.
+  // Browser callers must use an application close code (3000..4999); 1002 is reserved for the
+  // protocol stack and throws from WebSocket.close(), leaving the broken stream alive.
   await expect
     .poll(async () => (await realtimeSocketCloseCalls(page)).slice(closeCallCount))
-    .toContainEqual({ code: 1002, reason: "Invalid realtime server frame" });
+    .toContainEqual({ code: 4002, reason: "Invalid realtime server frame" });
   await expect(page.getByTestId("app-ready")).toBeAttached();
 });
