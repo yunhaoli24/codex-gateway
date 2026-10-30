@@ -33,6 +33,7 @@ export function useChatWorkspaceState() {
     ...bootstrapRefs,
     ...navigationRefs,
     ...viewRefs,
+    selectedThreadReadOnly: computed(() => viewRefs.readOnly.value),
     historyTurns,
     threadItems: computed(() => historyTurns.value.flatMap((turn) => turn.items)),
     openingThread: computed(

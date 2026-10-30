@@ -43,6 +43,7 @@ export interface ThreadViewState {
   eventEpoch: string;
   loading: boolean;
   error: string | null;
+  readOnly?: boolean;
 }
 
 export interface SubAgentPanelState {

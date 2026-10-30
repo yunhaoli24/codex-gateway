@@ -171,6 +171,7 @@ const threadOpenResultFields = {
   project: projectSchema.nullable().optional(),
   oldestTimelineCursor: z.string().nullable(),
   recentEvents: z.array(gatewayEventSchema),
+  readOnly: z.boolean().optional(),
 };
 const terminalSessionSchema = z
   .object({

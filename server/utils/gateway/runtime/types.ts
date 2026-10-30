@@ -24,6 +24,7 @@ export interface ThreadOpenSnapshot {
   /** Null when a metadata-only thread/read cannot expose persisted model settings. */
   threadSettings: ThreadSettingsState | null;
   tokenUsage: ThreadTokenUsageState | null;
+  readOnly?: boolean;
 }
 
 export interface TurnStartInput {

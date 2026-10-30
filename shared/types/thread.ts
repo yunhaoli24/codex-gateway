@@ -74,6 +74,8 @@ export interface ThreadOpenResult {
   /** Cursor for the oldest currently cached timeline page; null means no older page exists. */
   oldestTimelineCursor: string | null;
   recentEvents: GatewayEvent[];
+  /** The thread is owned by another app-server process and was opened without a writer lease. */
+  readOnly?: boolean;
 }
 
 /** Persisted by the official app-server thread attachment store. */

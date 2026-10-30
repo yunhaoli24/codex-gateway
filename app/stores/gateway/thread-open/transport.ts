@@ -21,6 +21,7 @@ export interface ThreadSnapshotActivationInput {
   hostId: number;
   threadId: string;
   limit?: number;
+  retryWriter?: boolean;
 }
 
 export function requestActivateThreadSnapshot(input: ThreadSnapshotActivationInput) {
@@ -31,6 +32,7 @@ export function requestActivateThreadSnapshot(input: ThreadSnapshotActivationInp
       hostId: input.hostId,
       threadId: input.threadId,
       limit: input.limit ?? INITIAL_TIMELINE_PAGE_LIMIT,
+      retryWriter: input.retryWriter,
     }),
     expectThreadSnapshot,
     // History activation can replay a large official timeline page over SSH. The realtime store

@@ -35,8 +35,9 @@ class ThreadBroker {
     threadId: string,
     limit = INITIAL_TIMELINE_PAGE_LIMIT,
     controller?: Awaited<ThreadSubscriptionLease["ready"]>,
+    retryWriter = false,
   ) {
-    return this.openService.openThread(host, threadId, limit, controller);
+    return this.openService.openThread(host, threadId, limit, controller, retryWriter);
   }
 
   async startThread(

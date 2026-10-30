@@ -1,6 +1,7 @@
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
+import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { expectThreadSettingsSnapshot } from "@/stores/gateway-realtime/response-parsers";
 import { pinnedKey, selectedThreadScope } from "@/stores/gateway/thread-utils/identity";
 import { captureSessionEpoch } from "@/utils/session-epoch";
@@ -8,6 +9,7 @@ import { captureSessionEpoch } from "@/utils/session-epoch";
 const pendingRecoveries = new Map<string, Promise<void>>();
 
 export function recoverSelectedThreadSettings() {
+  if (useGatewayThreadViewStore().readOnly) return Promise.resolve();
   const navigation = useGatewayNavigationStore();
   const scope = selectedThreadScope(navigation.selectedHostId, navigation.selectedThreadId);
   if (scope === null) return Promise.resolve();

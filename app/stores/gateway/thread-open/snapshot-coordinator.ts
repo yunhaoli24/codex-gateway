@@ -1,4 +1,5 @@
 import { captureSessionEpoch } from "@/utils/session-epoch";
+import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import {
   requestActivateThreadSnapshot,
   type ThreadSnapshotActivationInput,
@@ -30,6 +31,19 @@ export async function coordinateThreadSnapshot<Result>(
     if (!sessionIsCurrent() || !strategy.accept(snapshot)) {
       if (sessionIsCurrent()) strategy.discard?.(snapshot);
       return undefined;
+    }
+    // External writers cannot publish through our app-server connection. Keep read-only views
+    // out of reconnect subscriptions; otherwise reconnect would resume them and hit the same lock.
+    const realtime = useGatewayRealtimeStore();
+    if (snapshot.readOnly === true) {
+      realtime.cancelThreadEvents(snapshot.hostId, snapshot.threadId);
+    } else {
+      realtime.rememberThreadSubscription(
+        snapshot.hostId,
+        snapshot.threadId,
+        snapshot.lastEventId,
+        snapshot.eventEpoch,
+      );
     }
     return await strategy.commit(snapshot);
   } catch (error: unknown) {

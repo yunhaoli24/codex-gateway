@@ -93,6 +93,7 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
         ...requestIdField,
         ...threadScopeFields,
         limit: positiveId.optional(),
+        retryWriter: z.boolean().optional(),
       })
       .strict(),
     z

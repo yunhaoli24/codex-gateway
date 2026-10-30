@@ -88,7 +88,9 @@ export function createRealtimeConnection(options: RealtimeConnectionOptions) {
         // A malformed or protocol-incompatible frame cannot be ignored while the socket remains
         // healthy: the request broker would wait until its deadline for a response already lost.
         console.error("[gateway] invalid realtime server frame", error);
-        socket.close(1002, "Invalid realtime server frame");
+        // Browser WebSocket.close only accepts 1000 or an application code in 3000..4999.
+        // Using the protocol code 1002 throws, leaving the invalid connection and requests alive.
+        socket.close(4002, "Invalid realtime server frame");
       }
     });
 
