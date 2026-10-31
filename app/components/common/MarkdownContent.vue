@@ -48,9 +48,9 @@ async function renderMarkdownEnhanced(content: string, diffLanguage: string, sig
     async (fence) => {
       const normalizedLanguage = normalizeLanguage(fence.language);
       if (normalizedLanguage === "diff") {
-        return `<pre class="syntax-highlight language-diff"><code>${await renderDiff(fence.content, diffLanguage, signal)}</code></pre>`;
+        return `<pre class="syntax-highlight language-diff"><code class="language-diff">${await renderDiff(fence.content, diffLanguage, signal)}</code></pre>`;
       }
-      return `<pre class="shiki-block syntax-highlight language-${normalizeLanguage(normalizedLanguage || "text")}"><code>${await highlightCode(fence.content, normalizedLanguage)}</code></pre>`;
+      return `<pre class="shiki-block syntax-highlight language-${normalizeLanguage(normalizedLanguage || "text")}"><code class="language-${normalizeLanguage(normalizedLanguage || "text")}">${await highlightCode(fence.content, normalizedLanguage)}</code></pre>`;
     },
     signal,
   );

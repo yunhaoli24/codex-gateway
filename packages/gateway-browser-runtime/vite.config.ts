@@ -5,6 +5,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
+        "markdown-editor": resolve(import.meta.dirname, "src/markdown-editor/index.ts"),
         markdown: resolve(import.meta.dirname, "src/markdown/index.ts"),
         "open-file-viewer": resolve(import.meta.dirname, "src/open-file-viewer/index.ts"),
       },

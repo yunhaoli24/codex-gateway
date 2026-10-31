@@ -1,31 +1,9 @@
 <script setup lang="ts">
-import { basicSetup } from "codemirror";
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
-import {
-  EditorState,
-  Prec,
-  StateEffect,
-  type Extension,
-  type Range,
-  type Text,
-} from "@codemirror/state";
-import {
-  Decoration,
-  EditorView,
-  ViewPlugin,
-  WidgetType,
-  placeholder as placeholderExtension,
-  type DecorationSet,
-  type ViewUpdate,
-} from "@codemirror/view";
-import type { FileReference } from "~~/shared/types";
+import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import type { ComposerFileReference } from "@/stores/gateway/types";
-import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
-import { expectProjectFileSearchResults } from "@/stores/gateway-realtime/response-parsers";
-import { createUuid } from "@/lib/uuid";
+import type { MarkdownComposer } from "./editor/create-markdown-composer";
+import { useFileMentions } from "./editor/useFileMentions";
 import ComposerFileMentionMenu from "./ComposerFileMentionMenu.vue";
-
-const MAX_REFERENCES = 10;
 
 const props = defineProps<{
   modelValue: string;
@@ -37,7 +15,6 @@ const props = defineProps<{
   placeholder: string;
   limitMessage: string;
 }>();
-
 const emit = defineEmits<{
   "update:modelValue": [value: string, scopeKey: string];
   "update:references": [value: ComposerFileReference[], scopeKey: string];
@@ -45,331 +22,146 @@ const emit = defineEmits<{
   paste: [event: ClipboardEvent];
   limit: [message: string];
 }>();
-
 const container = ref<HTMLElement | null>(null);
-const view = shallowRef<EditorView | null>(null);
-const menuOpen = ref(false);
-const query = ref("");
-const queryFrom = ref(0);
-const files = ref<FileReference[]>([]);
-const selectedIndex = ref(0);
-const loading = ref(false);
-const searchError = ref<string | null>(null);
-const realtime = useGatewayRealtimeStore();
-const cancellationToken = `composer-files-${createUuid()}`;
-let searchTimer: ReturnType<typeof setTimeout> | null = null;
-let searchGeneration = 0;
-let syncing = false;
-
-class FileReferenceWidget extends WidgetType {
-  constructor(private readonly reference: ComposerFileReference) {
-    super();
-  }
-
-  override eq(other: FileReferenceWidget) {
-    return other.reference.id === this.reference.id && other.reference.name === this.reference.name;
-  }
-
-  override toDOM() {
-    const reference = document.createElement("span");
-    reference.className = "cm-file-reference";
-    reference.dataset.fileReference = this.reference.path;
-    reference.textContent = `@${this.reference.name}`;
-    return reference;
-  }
-}
-
-onMounted(() => {
-  if (!container.value) return;
-  view.value = new EditorView({
-    parent: container.value,
-    state: EditorState.create({ doc: props.modelValue, extensions: extensions() }),
-  });
-});
-
-onBeforeUnmount(() => {
-  if (searchTimer) clearTimeout(searchTimer);
-  searchGeneration += 1;
-  view.value?.destroy();
-  view.value = null;
-});
-
-watch(
-  () => props.modelValue,
-  (value) => {
-    const editor = view.value;
-    if (!editor || editor.state.doc.toString() === value) return;
-    syncing = true;
-    try {
-      editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: value } });
-    } finally {
-      syncing = false;
-    }
-  },
+const editor = shallowRef<MarkdownComposer | null>(null);
+const mentions = useFileMentions(
+  props,
+  editor,
+  (value) => emit("update:references", value, props.scopeKey),
+  () => emit("limit", props.limitMessage),
 );
+const { open, files, query, selectedIndex, loading, error } = mentions;
+let disposed = false;
 
-watch(
-  () => props.references,
-  () => reconfigure(),
-  { deep: true },
-);
-watch(() => props.disabled, reconfigure);
-watch(() => props.placeholder, reconfigure);
-
-function reconfigure() {
-  const editor = view.value;
-  if (!editor) return;
-  editor.dispatch({ effects: StateEffect.reconfigure.of(extensions()) });
-}
-
-function extensions(): Extension[] {
-  const mentionPlugin = ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
-      constructor(editor: EditorView) {
-        this.decorations = mentionDecorations(editor.state.doc);
-      }
-      update(update: ViewUpdate) {
-        if (update.docChanged) this.decorations = mentionDecorations(update.state.doc);
-      }
-    },
-    { decorations: (plugin) => plugin.decorations },
-  );
-  return [
-    basicSetup,
-    EditorView.lineWrapping,
-    EditorView.editable.of(!props.disabled),
-    placeholderExtension(props.placeholder),
-    mentionPlugin,
-    EditorView.atomicRanges.of(
-      (editor) => editor.plugin(mentionPlugin)?.decorations ?? Decoration.none,
-    ),
-    Prec.high(
-      EditorView.domEventHandlers({
-        keydown: (event) => {
-          if (handleMentionKeydown(event)) return true;
-          emit("keydown", event);
-          return event.defaultPrevented;
-        },
-        paste: (event) => {
-          emit("paste", event);
-          return event.defaultPrevented;
-        },
-      }),
-    ),
-    EditorView.contentAttributes.of({
-      "aria-label": props.placeholder,
-      placeholder: props.placeholder,
-      "data-testid": "composer-input",
-      "data-value": props.modelValue,
-    }),
-    EditorView.updateListener.of(handleUpdate),
-  ];
-}
-
-function mentionDecorations(doc: Text) {
-  const ranges: Array<Range<Decoration>> = [];
-  for (const reference of props.references) {
-    const literal = `@${reference.path}`;
-    let offset = 0;
-    while (offset < doc.length) {
-      const found = doc.sliceString(offset).indexOf(literal);
-      if (found < 0) break;
-      const from = offset + found;
-      const to = from + literal.length;
-      ranges.push(
-        Decoration.replace({
-          widget: new FileReferenceWidget(reference),
-        }).range(from, to),
-      );
-      offset = to;
-    }
-  }
-  return Decoration.set(ranges.sort((left, right) => left.from - right.from));
-}
-
-function handleUpdate(update: ViewUpdate) {
-  if (update.docChanged) {
-    const text = update.state.doc.toString();
-    update.view.contentDOM.dataset.value = text;
-    if (!syncing) {
+onMounted(async () => {
+  // The active composer owns the editable document. Timeline and file previews keep using
+  // MarkdownContent, so neither virtual rows nor file tabs create a rich-text editor.
+  const { createMarkdownComposer } = await import("./editor/create-markdown-composer");
+  if (disposed || !container.value) return;
+  const instance = await createMarkdownComposer({
+    root: container.value,
+    value: () => props.modelValue,
+    disabled: () => props.disabled,
+    placeholder: () => props.placeholder,
+    references: () => props.references,
+    onUpdate: (text, view) => {
       emit("update:modelValue", text, props.scopeKey);
       const retained = props.references.filter((reference) => text.includes(`@${reference.path}`));
       if (retained.length !== props.references.length)
         emit("update:references", retained, props.scopeKey);
-    }
-  }
-  if (update.docChanged || update.selectionSet) updateMentionQuery(update.view);
-}
-
-function updateMentionQuery(editor: EditorView) {
-  if (props.disabled || props.cwd === null || editor.state.selection.ranges.length !== 1) {
-    dismissMenu();
-    return;
-  }
-  const cursor = editor.state.selection.main.head;
-  const line = editor.state.doc.lineAt(cursor);
-  const before = editor.state.doc.sliceString(line.from, cursor);
-  const match = /(?:^|\s)@([^\s@]*)$/u.exec(before);
-  if (!match) {
-    dismissMenu();
-    return;
-  }
-  query.value = match[1] ?? "";
-  queryFrom.value = cursor - query.value.length - 1;
-  menuOpen.value = true;
-  selectedIndex.value = 0;
-  scheduleSearch();
-}
-
-function scheduleSearch() {
-  if (searchTimer) clearTimeout(searchTimer);
-  searchGeneration += 1;
-  searchTimer = setTimeout(() => void search(), 100);
-}
-
-async function search() {
-  if (!menuOpen.value || props.hostId === null || props.cwd === null) return;
-  const hostId = props.hostId;
-  const cwd = props.cwd;
-  const generation = searchGeneration;
-  loading.value = true;
-  searchError.value = null;
-  try {
-    const response = await realtime.request(
-      (requestId) => ({
-        type: "file.search",
-        requestId,
-        hostId,
-        cwd,
-        query: query.value,
-        cancellationToken,
-      }),
-      expectProjectFileSearchResults,
-    );
-    if (generation !== searchGeneration || !menuOpen.value) return;
-    files.value = response.result.files;
-    selectedIndex.value = 0;
-  } catch (error) {
-    if (generation !== searchGeneration) return;
-    files.value = [];
-    searchError.value = error instanceof Error ? error.message : String(error);
-  } finally {
-    if (generation === searchGeneration) {
-      loading.value = false;
-    }
-  }
-}
-
-function moveSelection(delta: number) {
-  if (!menuOpen.value) return false;
-  if (files.value.length === 0) return true;
-  selectedIndex.value = (selectedIndex.value + delta + files.value.length) % files.value.length;
-  return true;
-}
-
-function selectCurrent() {
-  if (!menuOpen.value) return false;
-  if (files.value.length === 0) return true;
-  selectFile(files.value[selectedIndex.value]!);
-  return true;
-}
-
-function handleMentionKeydown(event: KeyboardEvent) {
-  if (!menuOpen.value || event.isComposing) return false;
-  const handlers: Partial<Record<string, () => boolean>> = {
-    ArrowDown: () => moveSelection(1),
-    ArrowUp: () => moveSelection(-1),
-    Enter: selectCurrent,
-    Escape: dismissMenu,
-  };
-  return handlers[event.key]?.() ?? false;
-}
-
-function selectFile(file: FileReference) {
-  const editor = view.value;
-  if (!editor) return;
-  const existing = props.references.find((reference) => reference.path === file.path);
-  if (!existing && props.references.length >= MAX_REFERENCES) {
-    emit("limit", props.limitMessage);
-    return;
-  }
-  const cursor = editor.state.selection.main.head;
-  editor.dispatch({
-    changes: { from: queryFrom.value, to: cursor, insert: `@${file.path} ` },
-    selection: { anchor: queryFrom.value + file.path.length + 2 },
+      mentions.update(view);
+    },
+    onSelection: mentions.update,
+    onKeydown: (event, view) => {
+      if (mentions.keydown(event)) return true;
+      // Enter must retain normal list/code/quote editing. A plain paragraph keeps
+      // Gateway's Enter-to-send and Shift+Enter-to-wrap behavior, including IME handling.
+      const { $from } = view.state.selection;
+      if (event.key === "Enter") {
+        for (let depth = $from.depth; depth > 0; depth -= 1) {
+          if (
+            ["heading", "code_block", "list_item", "blockquote", "math_block"].includes(
+              $from.node(depth).type.name,
+            )
+          )
+            return false;
+        }
+      }
+      emit("keydown", event);
+      return event.defaultPrevented;
+    },
+    onPaste: (event) => {
+      emit("paste", event);
+      return event.defaultPrevented;
+    },
   });
-  if (!existing) {
-    emit(
-      "update:references",
-      [
-        ...props.references,
-        { ...file, id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${file.path}` },
-      ],
-      props.scopeKey,
-    );
+  if (disposed) {
+    await instance.destroy();
+    return;
   }
-  dismissMenu();
-  editor.focus();
-}
-
-function dismissMenu() {
-  if (!menuOpen.value) return false;
-  menuOpen.value = false;
-  files.value = [];
-  searchError.value = null;
-  searchGeneration += 1;
-  loading.value = false;
-  return true;
-}
+  editor.value = instance;
+  instance.setMarkdown(props.modelValue);
+  instance.refresh();
+});
+onBeforeUnmount(() => {
+  disposed = true;
+  void editor.value?.destroy();
+  editor.value = null;
+});
+watch(
+  () => props.modelValue,
+  (value) => editor.value?.setMarkdown(value),
+);
+watch(
+  () => [props.disabled, props.placeholder, props.references],
+  () => editor.value?.refresh(),
+  { deep: true },
+);
 </script>
 
 <template>
   <ComposerFileMentionMenu
-    :open="menuOpen"
+    :open="open"
     :files="files"
     :selected-index="selectedIndex"
     :loading="loading"
     :query="query"
-    :error="searchError"
+    :error="error"
     @hover="selectedIndex = $event"
-    @select="selectFile"
+    @select="mentions.select"
   />
-  <div ref="container" data-testid="composer-editor" class="composer-editor" />
+  <div ref="container" data-testid="composer-editor" class="composer-editor markdown-content" />
 </template>
 
 <style>
-.composer-editor .cm-editor {
+.composer-editor {
+  /* Reserve the same geometry before the lazy editor mounts. Otherwise its first paint shrinks
+     the timeline after TanStack has already positioned the latest message at the bottom. */
+  --composer-editor-min-height: 3.25rem;
+  min-height: var(--composer-editor-min-height);
+}
+.composer-editor .ProseMirror {
+  position: relative;
   max-height: min(28dvh, 10rem);
-  min-height: 3.25rem;
-  background: transparent;
-}
-.composer-editor .cm-scroller {
-  overflow: auto;
-  font-family: inherit;
-}
-.composer-editor .cm-content {
-  min-height: 3.25rem;
+  min-height: var(--composer-editor-min-height);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
   padding: 0.5rem 0.25rem;
+  outline: none;
   font-size: 1rem;
   line-height: 1.5rem;
   caret-color: var(--ink);
 }
-.composer-editor .cm-focused {
-  outline: none;
+.composer-editor .ProseMirror[data-empty="true"]::before {
+  position: absolute;
+  color: var(--muted-foreground);
+  content: attr(placeholder);
+  pointer-events: none;
 }
-.composer-editor .cm-gutters {
-  display: none;
+.composer-editor .ProseMirror > :first-child {
+  margin-top: 0;
 }
-.composer-editor .cm-activeLine,
-.composer-editor .cm-activeLineGutter {
-  background: transparent;
+.composer-editor .ProseMirror > :last-child {
+  margin-bottom: 0;
 }
-.composer-editor .cm-file-reference {
+.composer-editor [data-math] {
+  font-family: ui-monospace, monospace;
+}
+.composer-editor [data-math="inline"]::before,
+.composer-editor [data-math="inline"]::after {
+  content: "$";
+  color: var(--muted-foreground);
+}
+.composer-editor [data-math="block"]::before,
+.composer-editor [data-math="block"]::after {
+  content: "$$";
+  display: block;
+  color: var(--muted-foreground);
+}
+.composer-editor .composer-file-reference {
   display: inline-flex;
   max-width: min(100%, 28rem);
   align-items: center;
-  gap: 0.25rem;
   overflow: hidden;
   border-radius: 0.5rem;
   background: color-mix(in srgb, var(--primary) 13%, transparent);
@@ -381,12 +173,11 @@ function dismissMenu() {
   white-space: nowrap;
 }
 @media (min-width: 48rem) {
-  .composer-editor .cm-editor {
-    max-height: min(24vh, 12rem);
-    min-height: clamp(3.75rem, 10vh, 6rem);
+  .composer-editor {
+    --composer-editor-min-height: clamp(3.75rem, 10vh, 6rem);
   }
-  .composer-editor .cm-content {
-    min-height: clamp(3.75rem, 10vh, 6rem);
+  .composer-editor .ProseMirror {
+    max-height: min(24vh, 12rem);
     line-height: 1.75rem;
   }
 }

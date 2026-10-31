@@ -5,10 +5,12 @@ import type { FilePreviewDocument } from "~~/shared/types";
 import MarkdownContent from "@/components/common/MarkdownContent.vue";
 import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
 import { nextAnimationFrame } from "@/utils/browser-scheduling";
+import { useMarkdownSelectionCopy } from "@/composables/useMarkdownSelectionCopy";
 
 const props = defineProps<{ document: FilePreviewDocument }>();
 const fileWorkspace = useGatewayFileWorkspaceStore();
 const viewport = useTemplateRef<HTMLElement>("viewport");
+useMarkdownSelectionCopy(viewport);
 const { x, y } = useScroll(viewport);
 let restoring = true;
 

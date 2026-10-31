@@ -145,7 +145,7 @@ test("references real project files as structured turn context", async ({
   await expect(label).toHaveCSS("white-space", "nowrap");
   expect(await label.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
   await nestedOption.click();
-  const chip = page.locator(".cm-file-reference", { hasText: `@${fileName}` });
+  const chip = page.locator(".composer-file-reference", { hasText: `@${fileName}` });
   await expect(chip).toBeVisible();
   await expect(chip).toHaveText(`@${fileName}`);
   await expect(chip).not.toContainText(directory);

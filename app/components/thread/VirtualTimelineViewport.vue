@@ -3,6 +3,7 @@ import type { VirtualItem } from "@tanstack/virtual-core";
 import { useDocumentVisibility, useElementVisibility, useEventListener } from "@vueuse/core";
 import type { ComponentPublicInstance } from "vue";
 import { computed, inject, ref, watch } from "vue";
+import { useMarkdownSelectionCopy } from "@/composables/useMarkdownSelectionCopy";
 import {
   CHAT_VIEWPORT_LAYOUT_REVISION,
   ChatVirtualScrollFrame,
@@ -65,6 +66,7 @@ const chatVirtualizer = useChatVirtualizer({
 
 const virtualRows = chatVirtualizer.virtualItems;
 const viewportElement = computed(() => scrollViewport());
+useMarkdownSelectionCopy(viewportElement);
 const viewportVisible = useElementVisibility(viewportElement);
 const documentVisibility = useDocumentVisibility();
 const workspaceLayoutRevision = inject(CHAT_VIEWPORT_LAYOUT_REVISION, null);

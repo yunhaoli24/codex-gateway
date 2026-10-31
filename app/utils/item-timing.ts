@@ -3,11 +3,11 @@ export function itemTimestampMs(value: unknown) {
 }
 
 export function itemStartedAtMs(item: ThreadHistoryItem) {
-  return itemTimestampMs(item.startedAt);
+  return itemTimestampMs(item.startedAtMs);
 }
 
 export function itemCompletedAtMs(item: ThreadHistoryItem) {
-  return itemTimestampMs(item.completedAt);
+  return itemTimestampMs(item.completedAtMs);
 }
 
 export function formatDurationMs(value: number) {

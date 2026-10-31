@@ -60,6 +60,9 @@ export interface ThreadPendingApproval extends Record<string, unknown> {
 }
 
 export interface ThreadHistoryItem extends Record<string, unknown> {
+  /** Official item lifecycle times, shared by live notifications and paginated history. */
+  startedAtMs?: number | null;
+  completedAtMs?: number | null;
   /** Client cache metadata only; never sent back as an App Server item. */
   outputTotalLength?: number;
   outputWindowEnd?: number;
@@ -101,6 +104,8 @@ export interface ThreadHistoryItem extends Record<string, unknown> {
   name?: string | null;
   contentItems?: unknown[];
   revisedPrompt?: string | null;
+  /** Backend image identifier supplied by Codex when available. */
+  generationId?: string | null;
   /** Image generation background mode from Codex 0.147. */
   transparentBackground?: boolean | null;
   savedPath?: string | null;
