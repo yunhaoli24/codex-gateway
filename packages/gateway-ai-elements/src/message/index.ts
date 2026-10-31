@@ -9,5 +9,4 @@ export { default as MessageBranchPage } from "./MessageBranchPage.vue";
 export { default as MessageBranchPrevious } from "./MessageBranchPrevious.vue";
 export { default as MessageBranchSelector } from "./MessageBranchSelector.vue";
 export { default as MessageContent } from "./MessageContent.vue";
-export { default as MessageResponse } from "./MessageResponse.vue";
 export { default as MessageToolbar } from "./MessageToolbar.vue";

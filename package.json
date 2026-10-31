@@ -102,7 +102,6 @@
     "vue-input-otp": "^0.4.0",
     "vue-router": "^5.4.0",
     "vue-stick-to-bottom": "^1.0.1",
-    "vue-stream-markdown": "^2.1.0",
     "web-push": "^3.6.7",
     "ws": "^8.22.0",
     "zod": "^4.6.7"

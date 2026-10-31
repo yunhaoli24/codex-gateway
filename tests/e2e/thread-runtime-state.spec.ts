@@ -362,7 +362,7 @@ test("turn completed keeps thread running while context compaction is active", a
         id: "context-compaction-active",
         type: "contextCompaction",
         status: "inProgress",
-        startedAt: Date.parse("2026-07-02T10:00:00.000Z"),
+        startedAtMs: Date.parse("2026-07-02T10:00:00.000Z"),
       },
     ],
   });
@@ -409,7 +409,7 @@ test("restoring a cached thread uses app-server snapshot state for active contex
               id: "context-compaction-running",
               type: "contextCompaction",
               status: "inProgress",
-              startedAt: Date.parse("2026-07-02T10:00:00.000Z"),
+              startedAtMs: Date.parse("2026-07-02T10:00:00.000Z"),
             },
           ],
         },

@@ -113,6 +113,8 @@ const threadItemSchema = z
   .object({
     id: z.string().min(1),
     type: z.string().min(1),
+    startedAtMs: z.number().nullable().optional(),
+    completedAtMs: z.number().nullable().optional(),
   })
   .loose();
 
@@ -126,6 +128,8 @@ const codexErrorInfoSchema = z.union([
     "rateLimitExceeded",
     "flexUnavailable",
     "serverOverloaded",
+    "modelNotFound",
+    "policyCapacityUnavailable",
     "cyberPolicy",
     "misalignmentPolicyViolation",
     "tooManyDenials",
