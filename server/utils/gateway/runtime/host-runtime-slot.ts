@@ -8,6 +8,7 @@ export interface HostRuntimeSlot {
   fingerprint: string;
   generation: number;
   retryCount: number;
+  automaticRetryBlocked: boolean;
   timer: ReturnType<typeof setTimeout> | null;
   connecting: boolean;
   connected: boolean;
@@ -22,6 +23,7 @@ export function createHostRuntimeSlot(userId: number, host: HostRecord): HostRun
     fingerprint: hostRuntimeFingerprint(host),
     generation: 0,
     retryCount: 0,
+    automaticRetryBlocked: false,
     timer: null,
     connecting: false,
     connected: false,

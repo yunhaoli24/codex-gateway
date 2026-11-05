@@ -30,8 +30,8 @@ function codexPathBootstrap(options: { requireCodex: boolean }) {
 }
 
 export function codexRemoteAppServerProxyPayload() {
-  // Version preparation already ensures the official daemon is ready. The transport must only
-  // attach; starting or repairing here creates a second lifecycle competing with upgrades.
+  // Version preparation ensures a supported server is ready, including an existing external
+  // server. Only attach here; starting/repairing would compete with the lifecycle version gate.
   return codexRemotePayload('exec "$CODEX_BIN" app-server proxy');
 }
 

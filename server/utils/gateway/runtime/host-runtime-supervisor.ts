@@ -25,8 +25,9 @@ import { threadBroker } from "./broker";
 import { hostMfaManager } from "../host-mfa/host-mfa-instance";
 import { hostStore } from "../state/hosts";
 import { hostLifecycleBus } from "../state/host-events";
-import { sshConnections } from "../infra/host-services";
+import { codexRuntime, sshConnections } from "../infra/host-services";
 import { restartCodexDaemon } from "../infra/codex/codex-daemon";
+import { CodexDaemonOwnershipError } from "../infra/codex/codex-daemon-errors";
 import { runtimeLog } from "./runtime-log";
 
 class HostRuntimeSupervisor {
@@ -168,6 +169,7 @@ class HostRuntimeSupervisor {
 
   private removeSlot(key: string, slot: HostRuntimeSlot) {
     this.clearTimer(slot);
+    runWithGatewayUser(slot.userId, () => codexRuntime.clearVersionCheck(slot.hostId));
     slot.generation += 1;
     this.slots.delete(key);
     hostMfaManager.removeHost(slot.userId, slot.hostId);
@@ -210,6 +212,8 @@ class HostRuntimeSupervisor {
     // that this is an MFA host yet. This explicit retry covers both cases; requestMfa() publishes
     // the prompt if the remote server asks for MFA during this attempt.
     slot.retryCount = 0;
+    slot.automaticRetryBlocked = false;
+    runWithGatewayUser(userId, () => codexRuntime.clearVersionCheck(hostId));
     hostMfaManager.permitConnection(userId, hostId);
     this.scheduleConnect(slot, 0);
   }
@@ -254,6 +258,9 @@ class HostRuntimeSupervisor {
 
   private scheduleConnect(slot: HostRuntimeSlot, delayMs: number) {
     this.clearTimer(slot);
+    // Deterministic ownership conflicts cannot heal through repeated daemon updates. All
+    // automatic scheduling paths share this gate; the existing sidebar retry is the opt-in.
+    if (slot.automaticRetryBlocked) return;
     const generation = slot.generation;
     slot.timer = setTimeout(() => {
       slot.timer = null;
@@ -281,12 +288,14 @@ class HostRuntimeSupervisor {
       await connection;
       if (!this.isCurrent(slot, generation)) return;
       slot.retryCount = 0;
+      slot.automaticRetryBlocked = false;
       slot.connected = true;
     } catch (error) {
       if (!this.isCurrent(slot, generation)) {
         return;
       }
       slot.retryCount += 1;
+      slot.automaticRetryBlocked = error instanceof CodexDaemonOwnershipError;
       slot.connected = false;
       // Release the failed attempt before publishing the actionable state. The lifecycle event is
       // delivered synchronously to the browser; if the user clicks MFA immediately, the next
