@@ -3,12 +3,15 @@ import type { SshConnectionPool } from "../ssh/ssh-connection";
 import type { HostWithSecret } from "../ssh/ssh-types";
 import { codexRemoteDaemonPayload, remoteLoginShellCommand } from "../ssh/remote-command";
 import { firstNonEmptyString } from "~~/shared/utils/strings";
-import { isCodexVersionAtLeast } from "./codex-version";
+import { isCodexVersionAtLeast, SUPPORTED_CODEX_VERSION } from "./codex-version";
 import { codexUpgradeLog } from "./codex-upgrade-log";
+import { CodexDaemonOwnershipError } from "./codex-daemon-errors";
 
 const versionSchema = z.string().regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
 const startedResponseSchema = z.object({
   status: z.enum(["started", "alreadyRunning"]),
+  // Official lifecycle JSON omits backend when the responding socket has no managed owner.
+  backend: z.literal("pid").optional(),
   managedCodexVersion: versionSchema.nullable(),
   appServerVersion: versionSchema,
 });
@@ -27,6 +30,27 @@ export class CodexDaemon {
     // socket ownership, prepare an initial package and preserve saved launch settings here.
     // A local proxy does not require enabling Codex's separate cloud remote-control service.
     const started = startedResponseSchema.parse(await this.command(host, "start"));
+    codexUpgradeLog("daemon runtime inspected", host, {
+      status: started.status,
+      backend: started.backend ?? "external",
+      cliVersion,
+      managedCodexVersion: started.managedCodexVersion,
+      appServerVersion: started.appServerVersion,
+    });
+    // `alreadyRunning` proves socket readiness, not daemon ownership. External clients may use
+    // a different package selection; only their live protocol version matters to Gateway. Never
+    // force daemon update/restart on them: Codex deliberately refuses that takeover.
+    if (started.backend === undefined) {
+      if (!isCodexVersionAtLeast(started.appServerVersion, SUPPORTED_CODEX_VERSION)) {
+        throw new CodexDaemonOwnershipError(
+          `${host.name} 的 App Server ${started.appServerVersion} 不由 Codex daemon 管理，需要 ${SUPPORTED_CODEX_VERSION} 或更高版本。请关闭原客户端或由其管理员停止旧 App Server，然后点击主机重连。`,
+        );
+      }
+      codexUpgradeLog("external app server reused", host, {
+        appServerVersion: started.appServerVersion,
+      });
+      return { version: started.appServerVersion, updated: false };
+    }
     if (
       started.managedCodexVersion !== null &&
       isCodexVersionAtLeast(started.managedCodexVersion, cliVersion) &&
@@ -69,9 +93,16 @@ export class CodexDaemon {
       { timeoutMs: 7 * 60_000, maxOutputBytes: 64 * 1024 },
     );
     if (result.code !== 0) {
-      throw new Error(
-        firstNonEmptyString([result.stderr, result.stdout]) ?? `Codex daemon ${command} failed`,
-      );
+      const message =
+        firstNonEmptyString([result.stderr, result.stdout]) ?? `Codex daemon ${command} failed`;
+      // Ownership can change after `start`, or a user can request a restart of an external
+      // process. Preserve the same actionable/non-retryable result for the official refusal.
+      if (message.includes("app server is running but is not managed by codex app-server daemon")) {
+        throw new CodexDaemonOwnershipError(
+          `${host.name} 的 App Server 不由 Codex daemon 管理。请关闭原客户端或由其管理员停止该 App Server，然后点击主机重连。`,
+        );
+      }
+      throw new Error(message);
     }
     const response: unknown = JSON.parse(result.stdout);
     codexUpgradeLog("daemon lifecycle command completed", host, {

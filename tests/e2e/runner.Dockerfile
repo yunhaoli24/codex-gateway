@@ -7,7 +7,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ git openssh-client ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-RUN corepack enable
+# Playwright's Node 26 no longer bundles Corepack. Replace its global Yarn as documented by
+# Corepack to avoid binary conflicts; package.json still selects the repository's pnpm version.
+RUN npm uninstall --global yarn --silent \
+  && npm install --global corepack@0.36.0 --silent \
+  && corepack enable
 
 WORKDIR /workspace/codex-gateway
 

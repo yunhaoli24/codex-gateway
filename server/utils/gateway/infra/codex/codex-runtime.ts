@@ -9,6 +9,7 @@ import { CodexUpgrader } from "./codex-upgrader";
 import { CodexUpgradeWorkflow } from "./codex-upgrade-workflow";
 import { CodexVersionChecker } from "./codex-version-checker";
 import { HostVerifyService } from "../host-verify-service";
+import { CodexDaemonOwnershipError } from "./codex-daemon-errors";
 
 export class CodexRuntimeService {
   private readonly versionChecks = new Map<string, Promise<RemoteCodexVersionState>>();
@@ -49,17 +50,28 @@ export class CodexRuntimeService {
 
     const check = this.checkAndUpgradeCodex(host)
       .then((result) => {
-        this.failedVersionChecks.delete(key);
+        if (this.versionChecks.get(key) === check) this.failedVersionChecks.delete(key);
         return result;
       })
       .catch((error: unknown) => {
-        this.failedVersionChecks.set(key, {
-          error,
-          retryAt: Date.now() + VERSION_CHECK_FAILURE_COOLDOWN_MS,
-        });
+        // A config change or explicit reconnect can invalidate an in-flight check. Its late
+        // failure must not restore a permanent ownership error for the replacement connection.
+        if (this.versionChecks.get(key) === check) {
+          this.failedVersionChecks.set(key, {
+            error,
+            // Browser queries also pass through this gate. A permanent ownership conflict must
+            // wait for explicit host reconnect/config change, not restart upgrades every 30s.
+            retryAt:
+              error instanceof CodexDaemonOwnershipError
+                ? Number.POSITIVE_INFINITY
+                : Date.now() + VERSION_CHECK_FAILURE_COOLDOWN_MS,
+          });
+        }
         throw error;
       })
-      .finally(() => this.versionChecks.delete(key));
+      .finally(() => {
+        if (this.versionChecks.get(key) === check) this.versionChecks.delete(key);
+      });
     this.versionChecks.set(key, check);
     return check;
   }

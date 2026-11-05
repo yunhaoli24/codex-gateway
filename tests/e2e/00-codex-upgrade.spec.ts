@@ -280,7 +280,7 @@ printf 'official standalone layout and staging cleanup verified\\n'
     .toContain("official standalone layout and staging cleanup verified");
 }
 
-test("starts the official managed daemon for an existing socket app-server", async ({
+test("reuses a supported external socket app-server without taking it over", async ({
   page,
   remoteWorkspace,
 }) => {
@@ -292,8 +292,8 @@ test("starts the official managed daemon for an existing socket app-server", asy
     projectName: `managed-daemon-project-${Date.now()}`,
   });
 
-  // Establish a managed installation first. This test can run independently instead of relying
-  // on the upgrade matrix test to install Codex into the shared remote fixture.
+  // Provision a real externally launched server, as when another SSH client owns the socket.
+  // Keep this in the existing browser connection test rather than mocking lifecycle JSON.
   const codexBin = remoteCodexCommand(remote);
   await resetRemoteAppServer(remote);
   await execRemoteSsh(
@@ -307,29 +307,41 @@ rm -f "$daemon_dir"/daemon.pid "$daemon_dir"/daemon.pid.lock "$daemon_dir"/daemo
 rm -f "$daemon_dir"/daemon-updater.pid "$daemon_dir"/daemon-updater.pid.lock "$daemon_dir"/daemon-updater.stderr.log
 rm -f "$daemon_dir"/loaded-threads.json
 mkdir -p "$daemon_dir"
-# This is the same synchronous official daemon lifecycle command used by Gateway. The browser
-# still drives the scenario; the shell only provisions the real remote app-server process.
-${codexBin} app-server daemon start >"$daemon_dir/e2e-app-server.log" 2>&1
+nohup ${codexBin} app-server --listen unix:// >"$daemon_dir/e2e-app-server.log" 2>&1 </dev/null &
+external_pid=$!
+for i in $(seq 1 100); do
+  [ ! -S "$socket" ] || break
+  kill -0 "$external_pid"
+  sleep 0.1
+done
 if [ ! -S "$socket" ]; then
   echo "socket was not created: $socket"
   ps -eo pid=,args= | grep 'codex app-server' || true
   cat "$daemon_dir/e2e-app-server.log" || true
   exit 1
 fi
-rm -f "$daemon_dir"/app-server.pid "$daemon_dir"/app-server.pid.lock "$daemon_dir"/app-server.stderr.log "$daemon_dir"/loaded-threads.json
 `,
   );
 
-  const threadId = await remoteWorkspace.startThread(project.remotePath);
-  const marker = `E2E socket app-server 重启 ${Date.now()}`;
-  await sendTextTurn(page, marker, { hostId: host.id, threadId, cwd: remote.projectPath });
-  await expect(page.getByTestId("chat-scroll-area").getByText(marker)).toBeVisible({
-    timeout: 120_000,
-  });
-  // The response marker proves the browser reached the daemon-backed app-server. The composer
-  // is the user-facing completion state for the selected turn; the sidebar row can lag while
-  // its activity projection catches up and is not part of this daemon transport assertion.
-  await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
-    timeout: 120_000,
-  });
+  try {
+    const threadId = await remoteWorkspace.startThread(project.remotePath);
+    const marker = `E2E external socket app-server ${Date.now()}`;
+    await sendTextTurn(page, marker, { hostId: host.id, threadId, cwd: remote.projectPath });
+    await expect(page.getByTestId("chat-scroll-area").getByText(marker)).toBeVisible({
+      timeout: 180_000,
+    });
+    await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
+      timeout: 180_000,
+    });
+    const { stdout } = await execRemoteSsh(remote, `${codexBin} app-server daemon version`);
+    const runtime = z
+      .object({ status: z.literal("running"), backend: z.literal("pid").optional() })
+      .parse(JSON.parse(stdout));
+    expect(runtime.backend).toBeUndefined();
+  } finally {
+    // Later maintenance tests exercise a managed daemon. Restore that real fixture after this
+    // scenario, without teaching product code how to kill/take over an external process.
+    await resetRemoteAppServer(remote);
+    await execRemoteSsh(remote, `${codexBin} app-server daemon start`);
+  }
 });
