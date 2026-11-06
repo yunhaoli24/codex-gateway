@@ -8,6 +8,7 @@ import {
   type ReasoningEffort,
 } from "~~/shared/types";
 import { firstNonEmptyString, trimmedOrFallback, trimmedOrNull } from "~~/shared/utils/strings";
+import { permissionPresetFromSettings, permissionPresetSettings } from "~~/shared/permissions";
 import { useGatewayCatalogStore } from "@/stores/gateway-catalog";
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
@@ -87,15 +88,17 @@ export function useThreadSettingsControls() {
     get: () =>
       selectedThreadId.value === null
         ? newThreadApprovalMode.value
-        : (selectedThreadSettings.value.approvalPolicy ?? "custom"),
+        : permissionPresetFromSettings(selectedThreadSettings.value),
     set: (approvalPolicy) => {
       if (selectedThreadId.value === null) {
         newThreadApprovalMode.value = approvalPolicy;
         return;
       }
-      void composer.saveSelectedThreadSettings({
-        approvalPolicy: approvalPolicy === "custom" ? null : approvalPolicy,
-      });
+      // Custom preserves the current thread policy; Codex has no reset-to-config operation.
+      // Explicit presets update approval and sandbox together, including when leaving full access.
+      if (approvalPolicy === "custom") return;
+      const { sandboxPolicy } = permissionPresetSettings(approvalPolicy);
+      void composer.saveSelectedThreadSettings({ approvalPolicy, sandboxPolicy });
     },
   });
 
@@ -229,6 +232,13 @@ export function useThreadSettingsControls() {
     selectedModel,
     selectedEffort,
     selectedApprovalMode,
+    // Existing threads persist permission changes through settings/update. Do not re-send
+    // hydrated approval-only values with every turn, especially `never` from another client.
+    newThreadPermissions: computed(() => {
+      if (selectedThreadId.value !== null || newThreadApprovalMode.value === "custom") return {};
+      const { approvalPolicy, sandbox } = permissionPresetSettings(newThreadApprovalMode.value);
+      return { approvalPolicy, sandbox };
+    }),
     activeModel,
     collaborationModel,
     activeModelLabel,

@@ -4,6 +4,7 @@ import type { AgentProviderId } from "../agent/providers";
 import type { AppServerThread } from "../runtime/app-server";
 import type { ReasoningSummary } from "../reasoning-summary";
 import type { UploadedFileRecord } from "./files";
+import type { SandboxMode, SandboxPolicy } from "../permissions";
 
 export type { ReasoningSummary } from "../reasoning-summary";
 
@@ -109,6 +110,7 @@ export interface ThreadSettingsState {
   effort?: ReasoningEffort | null;
   summary?: ReasoningSummary | null;
   approvalPolicy?: ApprovalPolicy | null;
+  sandboxPolicy?: SandboxPolicy | null;
   collaborationMode?: ThreadCollaborationMode | null;
 }
 
@@ -147,6 +149,7 @@ export interface ComposerTurnOptions {
   effort?: ReasoningEffort | null;
   summary?: ReasoningSummary | null;
   approvalPolicy?: ApprovalPolicy | null;
+  sandbox?: SandboxMode;
   collaborationMode?: ThreadCollaborationMode | null;
   images?: Array<{
     path?: string;

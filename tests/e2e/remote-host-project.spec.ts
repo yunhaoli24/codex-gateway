@@ -77,6 +77,70 @@ test("new threads display and inherit the remote Codex defaults", async ({
   expect(threadStart.effort).toBeUndefined();
 });
 
+test("permission presets persist approval and sandbox together across reloads", async ({
+  page,
+  remoteWorkspace,
+}) => {
+  await openApp(page, { interceptRealtime: false });
+  const { project } = await remoteWorkspace.provision();
+  await page.getByTestId(`project-button-${project.remotePath}`).click();
+  const picker = page.getByTestId("approval-policy-trigger");
+  const menu = page.locator('[data-slot="popover-content"]');
+
+  await picker.click();
+  await menu.getByRole("button", { name: /^完全访问/ }).click();
+  await page.keyboard.press("Escape");
+  await page.getByPlaceholder("输入后续修改要求").fill("/");
+  await page.getByTestId("slash-command-new").click();
+  await waitForSelectedThreadId(page);
+  await reloadApp(page);
+  await expect(picker).toHaveAttribute("title", "完全访问");
+  await expect
+    .poll(() => page.evaluate(() => window.__codexGatewayE2e?.composer.selectedThreadSettings))
+    .toMatchObject({ approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } });
+
+  for (const preset of [
+    { label: "请求审批", policy: "untrusted" },
+    { label: "帮我审批", policy: "on-request" },
+    { label: "完全访问", policy: "never" },
+  ]) {
+    await picker.click();
+    const saved = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/threads/settings") && response.request().method() === "POST",
+    );
+    await menu.getByRole("button", { name: new RegExp(`^${preset.label}`) }).click();
+    expect((await saved).ok()).toBe(true);
+    await page.keyboard.press("Escape");
+    await reloadApp(page);
+    await expect(picker).toHaveAttribute("title", preset.label);
+    await expect
+      .poll(() => page.evaluate(() => window.__codexGatewayE2e?.composer.selectedThreadSettings))
+      .toMatchObject({
+        approvalPolicy: preset.policy,
+        sandboxPolicy:
+          preset.policy === "never"
+            ? { type: "dangerFullAccess" }
+            : {
+                type: "workspaceWrite",
+                writableRoots: [],
+                networkAccess: false,
+                excludeTmpdirEnvVar: false,
+                excludeSlashTmp: false,
+              },
+      });
+  }
+
+  await picker.click();
+  await menu.getByRole("button", { name: /^自定义/ }).click();
+  await page.keyboard.press("Escape");
+  await reloadApp(page);
+  await expect(picker).toHaveAttribute("title", "完全访问");
+  await expect
+    .poll(() => page.evaluate(() => window.__codexGatewayE2e?.composer.selectedThreadSettings))
+    .toMatchObject({ approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } });
+});
+
 test("references real project files as structured turn context", async ({
   page,
   remoteWorkspace,

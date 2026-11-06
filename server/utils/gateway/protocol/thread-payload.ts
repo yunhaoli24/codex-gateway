@@ -10,6 +10,7 @@ import {
 } from "~~/shared/runtime/app-server";
 import { normalizeTokenUsage } from "~~/shared/token-usage";
 import { DEFAULT_REASONING_SUMMARY } from "~~/shared/reasoning-summary";
+import { sandboxPolicySchema, type SandboxMode } from "~~/shared/permissions";
 import { recordFromUnknown } from "~~/shared/utils/records";
 import type { TurnStartInput } from "../runtime/types";
 
@@ -62,12 +63,15 @@ export function buildTurnStartParams(
 }
 
 export function buildThreadStartParams(
-  input: Pick<TurnStartInput, "cwd" | "model" | "effort" | "summary" | "approvalPolicy">,
+  input: Pick<TurnStartInput, "cwd" | "model" | "effort" | "summary" | "approvalPolicy"> & {
+    sandbox?: SandboxMode;
+  },
 ) {
   return {
     cwd: input.cwd === "" ? undefined : input.cwd,
     model: input.model === "" ? undefined : input.model,
     approvalPolicy: input.approvalPolicy ?? undefined,
+    sandbox: input.sandbox,
     // thread/start has no top-level effort/summary fields. Its official per-thread config overlay
     // also covers Goal-only sessions before the first explicit turn/start; it never writes TOML.
     config: {
@@ -111,12 +115,14 @@ export function extractThreadSettings(source: unknown): ThreadSettingsState {
   }
   const model = threadSettings?.model ?? sourceRecord?.model;
   const effort = threadSettings?.effort ?? sourceRecord?.reasoningEffort;
+  const sandbox = sandboxPolicySchema.safeParse(sourceRecord?.sandbox);
   return {
     model: typeof model === "string" ? model : null,
     effort: typeof effort === "string" ? effort : null,
     approvalPolicy: normalizeApprovalPolicy(
       threadSettings?.approvalPolicy ?? sourceRecord?.approvalPolicy,
     ),
+    sandboxPolicy: sandbox.success ? sandbox.data : null,
     collaborationMode: resumedCollaborationMode,
   };
 }
