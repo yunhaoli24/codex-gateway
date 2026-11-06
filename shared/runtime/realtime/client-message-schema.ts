@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { RealtimeClientMessage } from "../../types";
 import { agentProviderIdSchema } from "../../agent/providers";
 import { reasoningSummarySchema } from "../../reasoning-summary";
+import { sandboxModeSchema } from "../../permissions";
 import { uploadedFileSchema } from "../uploaded-file";
 import { webPushEndpointSchema, webPushSubscriptionSchema } from "../../notifications/web-push";
 import {
@@ -170,6 +171,7 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
         effort: nullableString,
         summary: reasoningSummarySchema.nullable().optional(),
         approvalPolicy,
+        sandbox: sandboxModeSchema.optional(),
       })
       .strict(),
     z

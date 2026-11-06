@@ -56,6 +56,7 @@ export function requestStartThread(options: ComposerTurnOptions) {
       effort: options.effort === "" ? undefined : options.effort,
       summary: options.summary,
       approvalPolicy: options.approvalPolicy ?? undefined,
+      sandbox: options.sandbox,
     }),
     expectThreadStarted,
     { timeoutMs: 30_000 },

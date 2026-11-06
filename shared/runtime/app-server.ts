@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { reasoningSummarySchema } from "../reasoning-summary";
+import { sandboxPolicySchema } from "../permissions";
 import type {
   ApprovalPolicy,
   ThreadCollaborationMode,
@@ -74,6 +75,7 @@ const appServerThreadSettingsSchema = z
     effort: z.string().nullable().optional(),
     summary: reasoningSummarySchema.nullable(),
     approvalPolicy: z.unknown(),
+    sandboxPolicy: sandboxPolicySchema,
     collaborationMode: appServerCollaborationModeSchema,
   })
   .loose();
@@ -101,6 +103,7 @@ export function threadSettingsFromAppServer(value: unknown): ThreadSettingsState
     effort: parsed.data.effort ?? null,
     summary: parsed.data.summary,
     approvalPolicy: approvalPolicyFromAppServer(parsed.data.approvalPolicy),
+    sandboxPolicy: parsed.data.sandboxPolicy,
     collaborationMode: threadCollaborationModeFromAppServer(parsed.data.collaborationMode),
   };
 }

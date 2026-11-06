@@ -2,6 +2,7 @@ import { z } from "zod";
 import { hostUpgradeProgressSchema } from "../../host-upgrade";
 import type { RealtimeServerMessage } from "../../types";
 import { reasoningSummarySchema } from "../../reasoning-summary";
+import { sandboxPolicySchema } from "../../permissions";
 import { threadTimelineItemTypes } from "../../thread-history/types";
 import {
   gatewayThreadSchema,
@@ -106,6 +107,7 @@ const threadSettingsSchema = z
     effort: nullableString,
     summary: reasoningSummarySchema.nullable().optional(),
     approvalPolicy: z.enum(["untrusted", "on-request", "never"]).nullable().optional(),
+    sandboxPolicy: sandboxPolicySchema.nullable().optional(),
     collaborationMode: z
       .object({
         mode: z.enum(["default", "plan"]),
