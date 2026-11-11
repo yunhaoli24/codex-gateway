@@ -49,6 +49,7 @@ test("new threads display and inherit the remote Codex defaults", async ({
 
   await expect(page.getByTestId("project-thread-list")).toBeVisible();
   await expect(page.getByPlaceholder("输入后续修改要求")).toBeHidden();
+  const offset = await realtimeClientMessageCount(page);
   await page
     .getByTestId("project-thread-list")
     .getByRole("button", { name: "新建", exact: true })
@@ -68,9 +69,6 @@ test("new threads display and inherit the remote Codex defaults", async ({
   );
   await page.getByTestId("model-selector-close").click();
 
-  const offset = await realtimeClientMessageCount(page);
-  await page.getByPlaceholder("输入后续修改要求").fill("/");
-  await page.getByTestId("slash-command-new").click();
   const threadStart = z
     .object({
       hostId: z.number(),
