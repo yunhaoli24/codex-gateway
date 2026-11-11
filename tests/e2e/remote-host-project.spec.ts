@@ -47,6 +47,14 @@ test("new threads display and inherit the remote Codex defaults", async ({
   });
   await page.getByTestId(`project-button-${project.remotePath}`).click();
 
+  await expect(page.getByTestId("project-thread-list")).toBeVisible();
+  await expect(page.getByPlaceholder("输入后续修改要求")).toBeHidden();
+  await page
+    .getByTestId("project-thread-list")
+    .getByRole("button", { name: "新建", exact: true })
+    .click();
+  await expect(page.getByPlaceholder("输入后续修改要求")).toBeVisible();
+
   const picker = page.getByTestId("model-select");
   await expect(picker).not.toContainText(/主机默认|Codex 默认/);
   await expect(picker).toContainText(effortDisplayLabel(configured.effort));
@@ -84,6 +92,10 @@ test("permission presets persist approval and sandbox together across reloads", 
   await openApp(page, { interceptRealtime: false });
   const { project } = await remoteWorkspace.provision();
   await page.getByTestId(`project-button-${project.remotePath}`).click();
+  await page
+    .getByTestId("project-thread-list")
+    .getByRole("button", { name: "新建", exact: true })
+    .click();
   const picker = page.getByTestId("approval-policy-trigger");
   const menu = page.locator('[data-slot="popover-content"]');
 
@@ -371,10 +383,15 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
     .click();
   await expect(page.getByRole("tab", { name: project.name })).toBeHidden();
 
+  await expect(page.getByPlaceholder("输入后续修改要求")).toBeHidden();
+  await page
+    .getByTestId("project-thread-list")
+    .getByRole("button", { name: "新建", exact: true })
+    .click();
   await page.getByPlaceholder("输入后续修改要求").fill("/");
   await expect(page.getByTestId("slash-command-menu")).toBeVisible();
   await expect(page.getByTestId("slash-command-new")).toBeVisible();
-  await expect(page.getByTestId("slash-command-plan")).toBeHidden();
+  await expect(page.getByTestId("slash-command-plan")).toBeVisible();
   await page.getByTestId("slash-command-new").click();
   const slashNewThreadId = await waitForSelectedThreadId(page);
   await expect(page.getByTestId(`thread-button-${slashNewThreadId}`)).toBeVisible({
