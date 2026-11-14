@@ -386,12 +386,13 @@ test("connects to a real SSH Codex host and lists a project thread created by ap
     .getByTestId("project-thread-list")
     .getByRole("button", { name: "新建", exact: true })
     .click();
+  const initialThreadId = await waitForSelectedThreadId(page);
   await page.getByPlaceholder("输入后续修改要求").fill("/");
   await expect(page.getByTestId("slash-command-menu")).toBeVisible();
   await expect(page.getByTestId("slash-command-new")).toBeVisible();
   await expect(page.getByTestId("slash-command-plan")).toBeVisible();
   await page.getByTestId("slash-command-new").click();
-  const slashNewThreadId = await waitForSelectedThreadId(page);
+  const slashNewThreadId = await waitForSelectedThreadId(page, initialThreadId);
   await expect(page.getByTestId(`thread-button-${slashNewThreadId}`)).toBeVisible({
     timeout: 30_000,
   });
