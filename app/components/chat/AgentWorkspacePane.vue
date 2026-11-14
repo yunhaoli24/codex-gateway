@@ -130,7 +130,7 @@ async function retryWriter() {
       </ChatPanelScrollArea>
 
       <MisalignmentRecoveryCard v-if="selectedThreadId && !selectedThreadReadOnly" />
-      <ChatComposer v-if="!selectedThreadReadOnly && (selectedThreadId || selectedCwd)" />
+      <ChatComposer v-if="selectedThreadId && !selectedThreadReadOnly" />
     </div>
   </div>
 </template>
