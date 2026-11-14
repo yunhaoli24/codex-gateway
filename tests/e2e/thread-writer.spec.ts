@@ -1,8 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures/remote-workspace";
 import { openApp, reloadApp } from "./helpers/app";
 import { startExternalCodexTurn } from "./helpers/external-codex";
 import { AGENT_OUTPUT_TIMEOUT_MS } from "./helpers/timeouts";
 import { sendTextTurn } from "./helpers/remote-codex";
+import { sendRealtimeRawRequest } from "./helpers/realtime";
 
 test("views a thread owned by another client and retries after that client closes", async ({
   page,
@@ -18,6 +20,25 @@ test("views a thread owned by another client and retries after that client close
     // once the other real client is executing its command, as in the user handoff being tested.
     await expect.poll(external.commandStarted, { timeout: AGENT_OUTPUT_TIMEOUT_MS }).toBe(true);
     const threadId = external.threadId()!;
+    // The CLI announces its thread before the prompt is persisted. Open the saved-history view
+    // only once there is real history to display; this does not acquire the external writer.
+    await expect
+      .poll(
+        async () => {
+          const history = await sendRealtimeRawRequest(page, {
+            type: "thread.timeline.load",
+            requestId: randomUUID(),
+            hostId: host.id,
+            threadId,
+          });
+          return (
+            history.type === "thread.timeline.page" &&
+            history.data.some((entry) => entry.type === "item" && entry.item.type === "userMessage")
+          );
+        },
+        { timeout: AGENT_OUTPUT_TIMEOUT_MS },
+      )
+      .toBe(true);
     await page.goto(`/?hostId=${host.id}&threadId=${threadId}`);
     const notice = page.getByTestId("thread-read-only-notice");
     await expect(notice).toBeVisible();
