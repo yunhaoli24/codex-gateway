@@ -5,7 +5,7 @@ import type { useComposerGoalControls } from "./useComposerGoalControls";
 import { useGatewayBootstrapStore } from "@/stores/gateway-bootstrap";
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
 
-type ComposerSlashCommand = Extract<SlashMenuItem["id"], "new" | "plan" | "goal">;
+type ComposerSlashCommand = Extract<SlashMenuItem["id"], "new" | "plan" | "goal" | "provider">;
 type GoalMenuCommand = Extract<
   SlashMenuItem["id"],
   "goal-objective" | "goal-edit" | "goal-pause" | "goal-resume" | "goal-clear"
@@ -19,6 +19,7 @@ export function useComposerSlashActions(input: {
   selectedThreadId: Ref<string | null>;
   startNewThread: () => Promise<void>;
   activatePlanMode: () => Promise<void>;
+  openModelProviders: () => void;
   missingGoalObjectiveMessage: Ref<string>;
   goalControls: ComposerGoalControls;
 }) {
@@ -31,6 +32,10 @@ export function useComposerSlashActions(input: {
       await input.startNewThread();
     },
     plan: input.activatePlanMode,
+    provider: () => {
+      input.text.value = "";
+      input.openModelProviders();
+    },
     goal: runGoalCommand,
   };
 
@@ -46,6 +51,7 @@ export function useComposerSlashActions(input: {
   > = {
     new: () => runCommand("new", ""),
     plan: () => runCommand("plan", ""),
+    provider: () => runCommand("provider", ""),
     goal: (command) => {
       input.text.value = `${command.command} `;
     },
@@ -127,12 +133,12 @@ function isGoalMenuCommand(id: SlashMenuItem["id"]): id is GoalMenuCommand {
 }
 
 function parseSlashCommand(text: string): { id: ComposerSlashCommand; args: string } | null {
-  const match = text.trim().match(/^\/(new|plan|goal)(?:\s+([\s\S]*))?$/i);
+  const match = text.trim().match(/^\/(new|plan|goal|provider)(?:\s+([\s\S]*))?$/i);
   if (match === null || match[1] === undefined) {
     return null;
   }
   return {
-    id: z.enum(["new", "plan", "goal"]).parse(match[1].toLowerCase()),
+    id: z.enum(["new", "plan", "goal", "provider"]).parse(match[1].toLowerCase()),
     args: match[2] ?? "",
   };
 }

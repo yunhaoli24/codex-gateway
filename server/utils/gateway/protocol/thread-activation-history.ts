@@ -36,7 +36,7 @@ export function threadActivationHistory(
           .map((item) => commandOutputWindow(item));
         if (items.length === turn.items.length) return { ...turn, items };
         // Reuse the existing disclosure pagination contract. A missing cursor means "read the
-        // official latest page on the first click", never fabricate a cursor from an item id or
+        // official first item page on the first click", never fabricate a cursor from an item id or
         // rollout position. Thread-level paging keeps its original official cursor unchanged.
         return {
           ...turn,
@@ -44,6 +44,7 @@ export function threadActivationHistory(
           diff: undefined,
           itemsView: "summary" as const,
           olderItemsCursor: undefined,
+          itemsPageEndId: undefined,
         };
       }),
     },

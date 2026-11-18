@@ -30,6 +30,29 @@ import type { WebPushSubscription } from "../notifications/web-push";
 import type { HostUpgradeProgress } from "../host-upgrade";
 
 export type RealtimeClientMessage =
+  | {
+      type: "modelProvider.request";
+      requestId: string;
+      hostId: number;
+      operation: import("../model-providers/protocol").ModelProviderOperation;
+    }
+  | {
+      type: "thread.fork";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      boundary: "before" | "after";
+      turnId: string;
+    }
+  | {
+      type: "thread.items.list";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      turnId: string;
+      cursor?: string | null;
+      limit?: number;
+    }
   | { type: "notification.webPush.configure"; requestId: string }
   | { type: "notification.webPush.subscribe"; requestId: string; subscription: WebPushSubscription }
   | { type: "notification.webPush.unsubscribe"; requestId: string; endpoint: string }
@@ -204,6 +227,7 @@ export type RealtimeClientMessage =
       model?: string | null;
       effort?: ReasoningEffort | null;
       summary?: ReasoningSummary | null;
+      environments?: import("../environments").TurnEnvironmentParams[] | null;
     }
   | {
       type: "mcp.status.list";
@@ -351,6 +375,28 @@ export type RealtimeClientMessage =
     };
 
 export type RealtimeServerMessage =
+  | { type: "thread.section.changed"; hostId: number; threadId: string; sectionId: string | null }
+  | {
+      type: "modelProvider.result";
+      requestId: string;
+      hostId: number;
+      result: import("../model-providers/protocol").ModelProviderResult;
+    }
+  | {
+      type: "thread.forked";
+      requestId: string;
+      hostId: number;
+      thread: import("../runtime/app-server").AppServerThread;
+    }
+  | {
+      type: "thread.items.page";
+      requestId: string;
+      hostId: number;
+      threadId: string;
+      data: import("../runtime/app-server").AppServerItemsReadResponse["data"];
+      nextCursor: string | null;
+      backwardsCursor: string | null;
+    }
   | { type: "notification.webPush.configured"; requestId: string; publicKey: string }
   | { type: "notification.webPush.subscribed"; requestId: string }
   | { type: "notification.webPush.unsubscribed"; requestId: string }

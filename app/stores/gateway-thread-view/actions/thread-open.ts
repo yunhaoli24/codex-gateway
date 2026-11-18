@@ -84,7 +84,6 @@ export function createThreadOpenActions() {
         gateway.modelsHostId = null;
       }
       activatePendingThreadView(targetHostId, targetCwd, threadId);
-      void gateway.ensureSelectedHostModels();
       if (restoreThreadView(targetHostId, threadId)) {
         finishThreadSelection(threadId, context?.replaceRoute);
         void refreshGoalAfterOpen(targetHostId, threadId);
@@ -445,6 +444,7 @@ async function syncOpenThreadFromServer(input: {
 }
 
 function finishThreadSelection(threadId: string, replaceRoute?: boolean) {
+  void useGatewayCatalogStore().ensureSelectedHostModels();
   const navigation = useGatewayNavigationStore();
   const views = useGatewayThreadViewStore();
   rememberOpenThread(threadId);

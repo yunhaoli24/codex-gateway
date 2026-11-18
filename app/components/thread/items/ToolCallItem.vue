@@ -11,11 +11,16 @@ import MarkdownContent from "@/components/common/MarkdownContent.vue";
 import StaticJsonCodeBlock from "@/components/common/StaticJsonCodeBlock.vue";
 import { isItemInProgress } from "@/utils/thread-items";
 import { presentToolCall } from "./tool-call-presenters";
+import { useDeferredItemOutput } from "@/composables/thread/useDeferredItemOutput";
+import { Loader } from "@codex-gateway/ai-elements/loader";
 
 const props = defineProps<{
   item: ThreadHistoryItem;
+  hostId?: number | null;
+  threadId?: string | null;
 }>();
 const { t } = useI18n();
+const { loadingDeferredOutput, onOutputOpen } = useDeferredItemOutput(props);
 const presentation = computed(() => presentToolCall(props.item, t));
 const title = computed(() => presentation.value.title);
 const iconType = computed(() => presentation.value.icon);
@@ -35,9 +40,10 @@ const detailSections = computed(() => presentation.value.details);
       <Badge v-else-if="item.success === false" variant="destructive">{{ t("app.failed") }}</Badge>
     </div>
     <Collapsible
-      v-if="detailSections.length"
+      v-if="detailSections.length || item.outputDeferred === true"
       v-slot="{ open }"
       class="mt-2 rounded-lg border border-hairline bg-surface"
+      @update:open="onOutputOpen"
     >
       <CollapsibleTrigger
         class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-canvas-soft"
@@ -47,6 +53,7 @@ const detailSections = computed(() => presentation.value.details);
         <span class="min-w-0 flex-1 truncate text-ink-secondary">{{ t("app.toolDetails") }}</span>
       </CollapsibleTrigger>
       <DeferredCollapsibleContent :open="open">
+        <Loader v-if="loadingDeferredOutput" class="m-3 size-4 text-primary" />
         <div class="space-y-3 border-t border-hairline px-3 py-3">
           <div v-for="section in detailSections" :key="section.label" class="space-y-1">
             <div class="text-xs font-medium uppercase text-ink-faint">{{ section.label }}</div>

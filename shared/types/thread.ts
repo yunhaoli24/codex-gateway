@@ -112,7 +112,16 @@ export interface ThreadSettingsState {
   approvalPolicy?: ApprovalPolicy | null;
   sandboxPolicy?: SandboxPolicy | null;
   collaborationMode?: ThreadCollaborationMode | null;
+  environments?: import("../environments").ThreadEnvironment[] | null;
 }
+
+export type TurnSettingsUpdateInput = Pick<ThreadSettingsState, "model" | "effort" | "summary"> & {
+  environments?: import("../environments").TurnEnvironmentParams[] | null;
+};
+
+/** Write parameters allow Codex to derive workspace roots; read DTOs always contain them. */
+export type ThreadSettingsUpdateInput = Omit<ThreadSettingsState, "environments"> &
+  Pick<TurnSettingsUpdateInput, "environments">;
 
 export interface TokenUsageBreakdown {
   totalTokens: number;

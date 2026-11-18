@@ -1,10 +1,11 @@
 export type CodexApprovalActionLabel =
   | "app.approveForTurn"
   | "app.approveForSession"
+  | "app.cancel"
   | "app.decline";
 
 export interface CodexApprovalAction {
-  id: "approve-turn" | "approve-session" | "decline";
+  id: "approve-turn" | "approve-session" | "decline" | "cancel";
   label: CodexApprovalActionLabel;
   result: unknown;
   testId: string;
@@ -29,7 +30,7 @@ interface CodexApprovalSourceBase {
 
 type CodexApprovalSource =
   | (CodexApprovalSourceBase & {
-      kind: "command" | "fileChange";
+      kind: "command" | "humanCommand" | "fileChange";
     })
   | (CodexApprovalSourceBase & {
       kind: "permissions";
@@ -65,6 +66,21 @@ export function projectCodexApproval(source: CodexApprovalSource): CodexApproval
 
 function approvalActions(source: CodexApprovalSource): CodexApprovalAction[] {
   const prefix = source.kind === "fileChange" ? "file" : source.kind;
+  // Managed human checkpoints explicitly prohibit session grants and saved rule amendments.
+  // Keep this mapping here, shared by every approval view, rather than filtering buttons in CSS.
+  if (source.kind === "humanCommand") {
+    return [
+      action(
+        "approve-turn",
+        "app.approveForTurn",
+        { decision: "accept" },
+        `${prefix}-accept`,
+        "default",
+      ),
+      action("decline", "app.decline", { decision: "decline" }, `${prefix}-decline`, "outline"),
+      action("cancel", "app.cancel", { decision: "cancel" }, `${prefix}-cancel`, "outline"),
+    ];
+  }
   if (source.kind === "permissions") {
     return [
       action(

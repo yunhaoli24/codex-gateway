@@ -22,6 +22,7 @@ import { useServerRequestResponder } from "@/composables/thread/useServerRequest
 import { commandDisplayLabel } from "@/utils/thread-item-display";
 import { threadItemResultText } from "@/utils/thread-items";
 import { projectCodexApproval } from "./approval/presentation";
+import { useDeferredItemOutput } from "@/composables/thread/useDeferredItemOutput";
 
 const props = defineProps<{
   item: ThreadHistoryItem;
@@ -29,6 +30,7 @@ const props = defineProps<{
   threadId: string | null;
 }>();
 const { t } = useI18n();
+const { loadingDeferredOutput, onOutputOpen } = useDeferredItemOutput(props);
 const title = computed(() => commandDisplayLabel(props.item.command));
 const rawOutput = computed(() => props.item.aggregatedOutput || threadItemResultText(props.item));
 const output = computed(() => rawOutput.value);
@@ -46,7 +48,7 @@ async function loadOutputWindow(end?: number) {
     return;
   loadingOutput.value = true;
   try {
-    await turns.loadCommandOutputWindow({
+    await turns.loadItemOutput({
       hostId: props.hostId,
       threadId: props.threadId,
       turnId: props.item.turnId,
@@ -89,7 +91,7 @@ const visualStatus = computed<"running" | "completed" | "failed" | null>(() => {
 });
 const approvalPresentation = computed(() =>
   projectCodexApproval({
-    kind: "command",
+    kind: pendingApproval.value?.params?.kind === "humanCommand" ? "humanCommand" : "command",
     requestId: requestId.value,
     pending: pendingApproval.value !== null,
     canRespond: canRespond.value,
@@ -103,8 +105,9 @@ async function respond(result: unknown) {
 </script>
 
 <template>
-  <Collapsible v-slot="{ open }" class="max-w-4xl text-ink-muted">
+  <Collapsible v-slot="{ open }" class="max-w-4xl text-ink-muted" @update:open="onOutputOpen">
     <CollapsibleTrigger
+      data-testid="command-execution-trigger"
       class="flex w-full items-center gap-2 rounded-md py-1 text-left text-[0.9375rem] hover:bg-canvas-soft"
     >
       <TerminalIcon class="size-4 shrink-0" />
@@ -143,6 +146,11 @@ async function respond(result: unknown) {
       </span>
     </CollapsibleTrigger>
     <DeferredCollapsibleContent :open="open">
+      <Loader
+        v-if="loadingDeferredOutput"
+        data-testid="deferred-output-loading"
+        class="m-3 size-4 text-primary"
+      />
       <!-- Height bounding and virtualization do not release the command string in Pinia. Browse
            old output in bounded windows of the authoritative item instead of restoring it all. -->
       <div
@@ -210,7 +218,9 @@ async function respond(result: unknown) {
         v-else
         class="mt-2 rounded-lg border border-hairline bg-canvas-soft px-3 py-2 text-sm text-ink-faint"
       >
-        {{ t("app.waitingCommandOutput") }}
+        {{
+          t(commandStatus === "resolved" ? "app.serverRequestResolved" : "app.waitingCommandOutput")
+        }}
       </div>
     </DeferredCollapsibleContent>
   </Collapsible>

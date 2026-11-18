@@ -12,6 +12,7 @@ export const useGatewayCatalogStore = defineStore("gateway-catalog", () => {
   const projects = ref<ProjectRecord[]>([]);
   const models = ref<ModelRecord[]>([]);
   const modelsHostId = ref<number | null>(null);
+  const modelsProvider = ref<string | null>(null);
   const loadingModels = ref(false);
   const hostConnectionStatuses = ref<
     Record<
@@ -45,6 +46,7 @@ export const useGatewayCatalogStore = defineStore("gateway-catalog", () => {
     projects.value = [];
     models.value = [];
     modelsHostId.value = null;
+    modelsProvider.value = null;
     loadingModels.value = false;
     hostConnectionStatuses.value = {};
   }
@@ -54,6 +56,7 @@ export const useGatewayCatalogStore = defineStore("gateway-catalog", () => {
     projects,
     models,
     modelsHostId,
+    modelsProvider,
     loadingModels,
     hostConnectionStatuses,
     defaultModel,

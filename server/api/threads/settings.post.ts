@@ -15,5 +15,6 @@ export default defineGatewayEventHandler(async (event) => {
     approvalPolicy: input.approvalPolicy,
     sandboxPolicy: input.sandboxPolicy,
     collaborationMode: input.collaborationMode,
+    ...(input.environments !== undefined ? { environments: input.environments } : {}),
   });
 });

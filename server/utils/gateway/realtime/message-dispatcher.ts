@@ -40,6 +40,15 @@ export class RealtimeMessageDispatcher {
 
   dispatch(peer: RealtimePeer, request: RealtimeClientMessage) {
     return match(request)
+      .with({ type: "modelProvider.request" }, (value) =>
+        this.dispatchEntry(peer, value, this.handlers[value.type]),
+      )
+      .with({ type: "thread.fork" }, (value) =>
+        this.dispatchEntry(peer, value, this.handlers[value.type]),
+      )
+      .with({ type: "thread.items.list" }, (value) =>
+        this.dispatchEntry(peer, value, this.handlers[value.type]),
+      )
       .with({ type: "auth.authenticate" }, (value) =>
         this.dispatchEntry(peer, value, this.handlers[value.type]),
       )

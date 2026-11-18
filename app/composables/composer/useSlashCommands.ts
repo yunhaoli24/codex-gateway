@@ -2,7 +2,7 @@ import type { ComputedRef, Ref } from "vue";
 
 import { computed, ref, watch } from "vue";
 
-export type SlashCommandId = "new" | "plan" | "goal";
+export type SlashCommandId = "new" | "plan" | "goal" | "provider";
 export type SlashMenuItemId =
   | SlashCommandId
   | "goal-objective"

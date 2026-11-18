@@ -1,5 +1,6 @@
 import type {
   ModelListResult,
+  ModelRecord,
   ProjectCreateInput,
   ProjectRecord,
   RemoteDirectoryEntry,
@@ -15,8 +16,10 @@ import { messageFromError } from "../thread-utils/identity";
 import { captureSessionEpoch } from "@/utils/session-epoch";
 
 export function createProjectActions() {
+  let modelRequestRevision = 0;
   let pendingModelRequest: {
     hostId: number;
+    modelProvider: string | null;
     promise: Promise<void>;
     sessionIsCurrent: () => boolean;
   } | null = null;
@@ -30,29 +33,64 @@ export function createProjectActions() {
     useGatewayBootstrapStore().clearError();
   }
 
-  async function loadModels(hostId: number) {
+  function selectedModelProvider() {
+    const navigation = useGatewayNavigationStore();
+    const thread = useGatewayThreadViewStore().currentThread;
+    return thread?.hostId === navigation.selectedHostId &&
+      thread?.id === navigation.selectedThreadId
+      ? (thread?.modelProvider ?? null)
+      : null;
+  }
+
+  async function loadModels(hostId: number, modelProvider: string | null) {
+    const revision = ++modelRequestRevision;
     const sessionIsCurrent = captureSessionEpoch();
     const catalog = useGatewayCatalogStore();
     const bootstrap = useGatewayBootstrapStore();
     const navigation = useGatewayNavigationStore();
     catalog.loadingModels = true;
+    // A cleared catalog is not a cache hit for its previous provider. Invalidate its identity
+    // together with its data so A -> B -> A navigation starts the required A request.
+    catalog.models = [];
+    catalog.modelsHostId = null;
+    catalog.modelsProvider = null;
     const cwd = navigation.selectedCwd;
     const threadId = navigation.selectedThreadId;
+    const isCurrentRequest = () =>
+      sessionIsCurrent() &&
+      revision === modelRequestRevision &&
+      navigation.selectedHostId === hostId &&
+      selectedModelProvider() === modelProvider;
     try {
-      const response = await gatewayApi<ModelListResult>("/api/models", {
-        query: { hostId, includeHidden: false, limit: 50 },
-      });
-      if (!sessionIsCurrent() || navigation.selectedHostId !== hostId) return;
-      catalog.models = response.data ?? [];
+      const models: ModelRecord[] = [];
+      let cursor: string | null = null;
+      // Custom providers can expose more than one catalog page. Follow only official cursors,
+      // sequentially, and stop as soon as navigation supersedes this provider's request.
+      do {
+        const response: ModelListResult = await gatewayApi<ModelListResult>("/api/models", {
+          query: {
+            hostId,
+            modelProvider: modelProvider ?? undefined,
+            includeHidden: false,
+            limit: 50,
+            cursor: cursor ?? undefined,
+          },
+        });
+        if (!isCurrentRequest()) return;
+        models.push(...response.data);
+        cursor = response.nextCursor ?? null;
+      } while (cursor !== null);
+      catalog.models = models;
       catalog.modelsHostId = hostId;
+      catalog.modelsProvider = modelProvider;
     } catch (error: unknown) {
-      if (!sessionIsCurrent()) return;
+      if (!isCurrentRequest()) return;
       bootstrap.setError(
         messageFromError(error, bootstrap.t("app.listModelsFailed"), bootstrap.errorLabels),
         { hostId, cwd, threadId },
       );
     } finally {
-      if (sessionIsCurrent() && navigation.selectedHostId === hostId) catalog.loadingModels = false;
+      if (sessionIsCurrent() && revision === modelRequestRevision) catalog.loadingModels = false;
     }
   }
 
@@ -62,7 +100,10 @@ export function createProjectActions() {
       clearThreadSelection();
       navigation.selectedCwd = cwd;
       writeGatewayRouteSelection({ hostId: navigation.selectedHostId, cwd, threadId: null });
-      await navigation.listThreads();
+      await Promise.all([
+        navigation.listThreads(),
+        useGatewayCatalogStore().ensureSelectedHostModels(),
+      ]);
     },
 
     async listRemoteDirectories(path = "~", hostId = useGatewayNavigationStore().selectedHostId) {
@@ -73,28 +114,44 @@ export function createProjectActions() {
       );
     },
 
-    async listModels() {
+    async listModels(options: { force?: boolean } = {}) {
       const catalog = useGatewayCatalogStore();
       const hostId = useGatewayNavigationStore().selectedHostId;
+      const modelProvider = selectedModelProvider();
       if (hostId === null) {
+        modelRequestRevision += 1;
         catalog.models = [];
         catalog.modelsHostId = null;
+        catalog.modelsProvider = null;
+        catalog.loadingModels = false;
         return;
       }
-      if (pendingModelRequest?.hostId === hostId && pendingModelRequest.sessionIsCurrent())
+      if (
+        options.force !== true &&
+        pendingModelRequest?.hostId === hostId &&
+        pendingModelRequest.modelProvider === modelProvider &&
+        pendingModelRequest.sessionIsCurrent()
+      )
         return pendingModelRequest.promise;
       const sessionIsCurrent = captureSessionEpoch();
-      const promise = loadModels(hostId).finally(() => {
+      const promise = loadModels(hostId, modelProvider).finally(() => {
         if (pendingModelRequest?.promise === promise) pendingModelRequest = null;
       });
-      pendingModelRequest = { hostId, promise, sessionIsCurrent };
+      pendingModelRequest = { hostId, modelProvider, promise, sessionIsCurrent };
       return promise;
     },
 
     async ensureSelectedHostModels() {
       const catalog = useGatewayCatalogStore();
       const hostId = useGatewayNavigationStore().selectedHostId;
-      if (hostId === null || catalog.modelsHostId === hostId) return;
+      if (
+        hostId === null ||
+        (catalog.modelsHostId === hostId && catalog.modelsProvider === selectedModelProvider())
+      )
+        return;
+      // A resumed thread is bound to its saved provider; a changed host default must not leak
+      // another provider's catalog into its picker. Keep one active catalog, not an unbounded cache.
+      catalog.models = [];
       await catalog.listModels();
     },
 

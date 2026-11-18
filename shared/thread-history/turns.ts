@@ -1,4 +1,5 @@
 import { mergeTurnItems } from "./item-merge";
+import { mergeEarlierTimelineItems } from "./item-page";
 import { ensureHistoryThread } from "./shape";
 import { terminalTurnStatus } from "../thread-runtime-status";
 import type { ThreadHistorySeed, ThreadHistoryState, ThreadHistoryTurn } from "./types";
@@ -33,9 +34,13 @@ export function mergeThreadTurns(
         incomingTurn.olderItemsCursor === undefined
           ? existing.olderItemsCursor
           : incomingTurn.olderItemsCursor,
+      itemsPageEndId:
+        incomingTurn.olderItemsCursor === undefined
+          ? existing.itemsPageEndId
+          : incomingTurn.itemsPageEndId,
       items:
         direction === "prepend"
-          ? mergeTurnItems(incomingItems, existingItems)
+          ? mergeEarlierTimelineItems(existingItems, incomingItems, existing.itemsPageEndId)
           : mergeTurnItems(existingItems, incomingItems),
     };
   });

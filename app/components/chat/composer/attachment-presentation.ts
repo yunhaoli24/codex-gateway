@@ -8,6 +8,7 @@ export interface ComposerAttachmentPresentation {
 
 export function presentComposerAttachment(
   attachment: ComposerAttachment,
+  previewUrl = attachment.dataUrl ?? attachment.path,
 ): ComposerAttachmentPresentation {
   return {
     id: attachment.id,
@@ -15,8 +16,9 @@ export function presentComposerAttachment(
       id: attachment.id,
       type: "file",
       filename: attachment.name,
-      mediaType: attachment.mimeType ?? (attachment.isImage ? "image" : "application/octet-stream"),
-      url: attachment.dataUrl ?? attachment.path,
+      mediaType:
+        attachment.mimeType ?? (attachment.isImage ? "image/*" : "application/octet-stream"),
+      url: previewUrl,
     },
   };
 }

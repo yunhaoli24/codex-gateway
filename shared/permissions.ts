@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ApprovalPolicy } from "./types/thread";
 
-// These are the official 0.166.0 SandboxPolicy DTO variants. Keep the full policy when
+// These are the official 0.170.0 SandboxPolicy DTO variants. Keep the full policy when
 // hydrating settings: its network and writable-root restrictions matter to the picker label.
 export const sandboxPolicySchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("dangerFullAccess") }),

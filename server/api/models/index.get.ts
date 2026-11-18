@@ -20,6 +20,7 @@ export default defineGatewayEventHandler(async (event) => {
   });
 
   return threadBroker.listModels(host, {
+    modelProvider: query.modelProvider,
     includeHidden: query.includeHidden ?? false,
     limit: query.limit,
     cursor: query.cursor ?? null,

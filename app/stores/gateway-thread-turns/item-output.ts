@@ -12,7 +12,7 @@ import { captureSessionEpoch } from "@/utils/session-epoch";
 import { requestThreadItems } from "./transport";
 import type { Translate } from "./types";
 
-export interface CommandOutputWindowRequest {
+export interface ItemOutputRequest {
   hostId: number;
   threadId: string;
   turnId: string;
@@ -20,7 +20,7 @@ export interface CommandOutputWindowRequest {
   outputEnd?: number;
 }
 
-export async function loadCommandOutputWindow(t: Translate, input: CommandOutputWindowRequest) {
+export async function loadItemOutput(t: Translate, input: ItemOutputRequest) {
   const { hostId, threadId, turnId, item, outputEnd } = input;
   const sessionIsCurrent = captureSessionEpoch();
   try {
@@ -40,9 +40,10 @@ export async function loadCommandOutputWindow(t: Translate, input: CommandOutput
     // including its window metadata, rather than carrying offsets from a different output string.
     const restored = {
       ...entry.item,
+      outputDeferred: false,
       turnId: entry.turnId,
-      startedAtMs: entry.startedAtMs,
-      completedAtMs: entry.completedAtMs,
+      startedAtMs: entry.item.startedAtMs ?? entry.startedAtMs,
+      completedAtMs: entry.item.completedAtMs ?? entry.completedAtMs,
     };
     patchThreadView(hostId, threadId, {
       history: {
@@ -54,7 +55,9 @@ export async function loadCommandOutputWindow(t: Translate, input: CommandOutput
               : {
                   ...turn,
                   items: turn.items.map((candidate) =>
-                    itemId(candidate) === itemId(item) ? restored : candidate,
+                    itemId(candidate) === itemId(item)
+                      ? { ...restored, timelinePosition: candidate.timelinePosition }
+                      : candidate,
                   ),
                 },
           ),

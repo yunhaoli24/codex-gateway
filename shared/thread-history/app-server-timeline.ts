@@ -24,22 +24,13 @@ export function timelinePageToTurns(page: AppServerTimelinePage): ThreadHistoryT
 export function timelinePageItemsForTurn(page: AppServerTimelinePage, turnId: string) {
   return page.data.flatMap((entry) => {
     if (entry.type !== "item" || entry.turnId !== turnId) return [];
-    const item = asThreadTimelineItem({ ...entry.item, turnId });
+    const item = asThreadTimelineItem({
+      ...entry.item,
+      turnId,
+      timelinePosition: entry.position,
+    });
     return item === null ? [] : [item];
   });
-}
-
-export function timelinePagesItemsForTurn(pages: AppServerTimelinePage[], turnId: string) {
-  return pages
-    .flatMap((page) =>
-      page.data.flatMap((entry) => {
-        if (entry.type !== "item" || entry.turnId !== turnId) return [];
-        const item = asThreadTimelineItem({ ...entry.item, turnId });
-        return item === null ? [] : [{ position: entry.position, item }];
-      }),
-    )
-    .sort((left, right) => left.position - right.position)
-    .map(({ item }) => item);
 }
 
 function timelineEntryTurn(
@@ -50,7 +41,11 @@ function timelineEntryTurn(
   const existing = turns.get(entry.turnId);
   const turn = existing ?? { id: entry.turnId, items: [], itemsView: "summary" as const };
   if (entry.type === "item") {
-    const item = asThreadTimelineItem({ ...entry.item, turnId: entry.turnId });
+    const item = asThreadTimelineItem({
+      ...entry.item,
+      turnId: entry.turnId,
+      timelinePosition: entry.position,
+    });
     if (item !== null) turn.items = [...(turn.items ?? []), item];
     return turn;
   }

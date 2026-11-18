@@ -10,6 +10,7 @@ import { subscribeBrowserPreviewEvents } from "./browser-preview";
 import { sendRealtimePeerMessage, stateFor, type RealtimePeer } from "../peer-state";
 import { threadRuntimeStatusHub } from "../../runtime/thread-runtime-status-hub";
 import { subscribeHostMfa } from "./host-mfa";
+import { threadSectionEvents } from "../../runtime/thread-section-events";
 
 export function authenticatePeer(
   peer: RealtimePeer,
@@ -50,6 +51,17 @@ export function authenticatePeer(
     pinnedThreadsUnsubscribe: pinnedThreadEvents.subscribe(user.id, () => {
       sendRealtimePeerMessage(peer, { type: "config.pinnedThreads.changed" });
     }),
+    threadSectionsUnsubscribe: threadSectionEvents.subscribe(
+      user.id,
+      ({ hostId, threadId, sectionId }) => {
+        sendRealtimePeerMessage(peer, {
+          type: "thread.section.changed",
+          hostId,
+          threadId,
+          sectionId,
+        });
+      },
+    ),
     threadRuntimeStatusUnsubscribe: threadRuntimeStatusHub.subscribe(user.id, (update) => {
       sendRealtimePeerMessage(peer, { type: "thread.runtime.updated", update });
     }),

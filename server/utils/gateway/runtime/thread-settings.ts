@@ -1,4 +1,4 @@
-import type { HostRecord, ThreadSettingsState } from "~~/shared/types";
+import type { HostRecord, ThreadSettingsState, ThreadSettingsUpdateInput } from "~~/shared/types";
 import type { ControllerRegistry } from "./controller-registry";
 import { buildAppServerCollaborationMode } from "../protocol/thread-payload";
 import { parseTurnSettingsUpdateResponse } from "~~/shared/runtime/app-server";
@@ -31,11 +31,12 @@ export class ThreadSettingsService {
     await this.registry.withScopedSubscription(host, threadId, async () => undefined);
   }
 
-  async updateThreadSettings(host: HostRecord, threadId: string, input: ThreadSettingsState) {
+  async updateThreadSettings(host: HostRecord, threadId: string, input: ThreadSettingsUpdateInput) {
     const params: Record<string, unknown> = { threadId };
     if ("model" in input) params.model = input.model;
     if ("effort" in input) params.effort = input.effort;
     if ("summary" in input) params.summary = input.summary;
+    if ("environments" in input) params.environments = input.environments;
     if ("approvalPolicy" in input) params.approvalPolicy = input.approvalPolicy;
     if ("sandboxPolicy" in input) params.sandboxPolicy = input.sandboxPolicy;
     if (input.collaborationMode !== null && input.collaborationMode !== undefined) {
@@ -50,9 +51,11 @@ export class ThreadSettingsService {
     host: HostRecord,
     threadId: string,
     turnId: string,
-    input: Pick<ThreadSettingsState, "model" | "effort" | "summary">,
+    input: import("~~/shared/types/thread").TurnSettingsUpdateInput,
   ) {
     const params: Record<string, unknown> = { threadId, turnId };
+    // Omission preserves environments; [] explicitly clears them. Let App Server own defaults.
+    if ("environments" in input) params.environments = input.environments;
     if ("model" in input) params.model = input.model;
     if ("effort" in input) params.effort = input.effort;
     if ("summary" in input) params.summary = input.summary;

@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { modelProviderResultSchema } from "../../model-providers/protocol";
+import { threadEnvironmentSchema } from "../../environments";
+import { appServerThreadSchema, threadItemsListResponseSchema } from "../app-server";
 import { hostUpgradeProgressSchema } from "../../host-upgrade";
 import type { RealtimeServerMessage } from "../../types";
 import { reasoningSummarySchema } from "../../reasoning-summary";
@@ -106,6 +109,7 @@ const threadSettingsSchema = z
     model: nullableString,
     effort: nullableString,
     summary: reasoningSummarySchema.nullable().optional(),
+    environments: z.array(threadEnvironmentSchema).nullable().optional(),
     approvalPolicy: z.enum(["untrusted", "on-request", "never"]).nullable().optional(),
     sandboxPolicy: sandboxPolicySchema.nullable().optional(),
     collaborationMode: z
@@ -408,6 +412,37 @@ const agentProjectDefaultsSchema = z
 export const realtimeServerMessageSchema: z.ZodType<RealtimeServerMessage> = z.discriminatedUnion(
   "type",
   [
+    z
+      .object({
+        type: z.literal("modelProvider.result"),
+        ...requestIdField,
+        hostId: positiveId,
+        result: modelProviderResultSchema,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("thread.section.changed"),
+        ...threadScopeFields,
+        sectionId: z.string().nullable(),
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("thread.forked"),
+        ...requestIdField,
+        hostId: positiveId,
+        thread: appServerThreadSchema,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("thread.items.page"),
+        ...requestIdField,
+        ...threadScopeFields,
+        ...threadItemsListResponseSchema.shape,
+      })
+      .strict(),
     z
       .object({
         type: z.literal("notification.webPush.configured"),

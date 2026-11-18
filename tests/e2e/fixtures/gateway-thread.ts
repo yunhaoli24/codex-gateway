@@ -13,6 +13,7 @@ export function gatewayThreadFixture(
     extra: null,
     sessionId: fixture.id,
     forkedFromId: null,
+    attachedToThreadId: null,
     parentThreadId: null,
     preview: name ?? "",
     ephemeral: false,

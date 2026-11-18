@@ -1,5 +1,43 @@
 {
   "app": {
+    "forkMessage": "分叉对话",
+    "forkFailed": "分叉对话失败",
+    "forkUnsupportedInput": "此消息包含当前输入框无法还原的内容，暂不支持从此消息分叉",
+    "forkBeforeTurn": "从本回合之前分叉并编辑这条消息",
+    "forkAfterTurn": "保留到本次已结束回合并分叉",
+    "modelProviders": {
+      "requestFailed": "模型供应商操作失败",
+      "title": "模型供应商",
+      "description": "管理当前 SSH 主机上的 Codex 模型供应商。已有对话保持原供应商。",
+      "commandDescription": "查看和配置远端模型供应商",
+      "add": "添加网关",
+      "refresh": "刷新",
+      "save": "保存配置",
+      "edit": "编辑",
+      "select": "用于新对话",
+      "default": "默认",
+      "authorize": "检查授权 / 登录",
+      "cancelLogin": "取消此主机正在进行的网关登录",
+      "externalAuth": "认证由外部配置管理，保存时会保留。",
+      "restartHint": "新增供应商定义可能需要在主机设置中重启 Codex daemon。保存配置不会自动授权或切换默认供应商。不支持设备授权的 OAuth 请在远端主机上的客户端完成登录。",
+      "fields": {
+        "name": "名称",
+        "baseUrl": "API 地址",
+        "envKey": "API Key 环境变量名称",
+        "profile": "AWS 配置档案",
+        "region": "AWS 区域",
+        "projectId": "GCP 项目 ID",
+        "location": "GCP 位置",
+        "credentialFile": "远端凭据文件路径"
+      },
+      "auth": {
+        "notReady": "需要授权",
+        "started": "等待授权",
+        "succeeded": "凭据在本机已就绪",
+        "failed": "授权失败",
+        "external": "此供应商使用外部凭据，无需网关 OAuth 登录。"
+      }
+    },
     "newChat": "新聊天",
     "loginTitle": "登录 Codex Gateway",
     "loginDescription": "输入管理员创建的账号密码，连接配置会加密保存在服务器端。",
@@ -247,7 +285,7 @@
     "chooseProject": "选择一个项目查看会话",
     "loadingGateway": "正在加载远端会话",
     "loadOlder": "加载更早消息",
-    "loadOlderItems": "加载更早的中间过程",
+    "loadOlderItems": "加载更多中间过程",
     "commandOutputWindow": "仅缓存部分命令输出",
     "loadEarlierOutput": "查看更早输出",
     "backToLatest": "返回最新输出",

@@ -6,6 +6,7 @@ import ThreadImageAttachment from "@/components/thread/attachments/ThreadImageAt
 import { threadItemText } from "@/utils/thread-items";
 import type { ThreadHistoryItem } from "~~/shared/types";
 import { recordFromUnknown } from "~~/shared/utils/records";
+import { remoteImageSource } from "@/utils/remote-image-source";
 
 const props = defineProps<{
   item: ThreadHistoryItem;
@@ -40,11 +41,7 @@ function imageSource(image: { type: string; url: string; path: string }) {
     return image.url;
   }
   if (image.type === "localImage" && props.hostId && image.path) {
-    const query = new URLSearchParams({
-      hostId: String(props.hostId),
-      path: image.path,
-    });
-    return `/api/remote/images?${query.toString()}`;
+    return remoteImageSource(props.hostId, image.path);
   }
   return "";
 }

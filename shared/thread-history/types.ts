@@ -60,6 +60,10 @@ export interface ThreadPendingApproval extends Record<string, unknown> {
 }
 
 export interface ThreadHistoryItem extends Record<string, unknown> {
+  /** Official timeline/list entry position, preserved across disclosure/detail reads. */
+  timelinePosition?: number;
+  /** Official items/list marker: content is fetched via items/read on disclosure. */
+  outputDeferred?: boolean;
   /** Official item lifecycle times, shared by live notifications and paginated history. */
   startedAtMs?: number | null;
   completedAtMs?: number | null;
@@ -175,6 +179,8 @@ export interface ThreadHistoryTurn {
   itemsView?: "notLoaded" | "summary" | "full";
   /** Opaque App Server continuation for a partially loaded client disclosure. */
   olderItemsCursor?: string | null;
+  /** Last official item in the ascending disclosure prefix; invalidated with its cursor. */
+  itemsPageEndId?: string;
   error?: {
     message?: string | null;
     codexErrorInfo?: unknown;
