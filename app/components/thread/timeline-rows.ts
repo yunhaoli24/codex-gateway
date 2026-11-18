@@ -76,8 +76,12 @@ export function buildThreadTimelineRows(input: {
       agentActionsAvailable: input.agentActionsAvailable,
     });
     if (intermediateOpen && typeof turn.olderItemsCursor === "string") {
-      const header = rows.findIndex((row) => row.type === "intermediateHeader");
-      rows.splice(header + 1, 0, {
+      // items/list advances from the start of this Turn. Keep the continuation at the end of
+      // that loaded prefix, rather than suggesting that it prepends an earlier history page.
+      const boundary = rows.findIndex(
+        (row) => row.type === "item" && String(row.item.id) === turn.itemsPageEndId,
+      );
+      rows.splice(boundary + 1, 0, {
         key: `${input.threadId}:turn-${turn.id}:load-more`,
         type: "loadMore",
         turnId: turn.id,

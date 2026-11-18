@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import ComposerShell from "@/components/chat/composer/ComposerShell.vue";
+import ModelProviderDialog from "@/components/settings/model-providers/ModelProviderDialog.vue";
 import { useComposerController } from "@/composables/composer/useComposerController";
 
 const {
+  modelProvidersOpen,
   activeEffortCompactLabel,
   activeEffortValue,
   activeModel,
@@ -63,6 +65,12 @@ const {
 </script>
 
 <template>
+  <ModelProviderDialog
+    v-if="modelProvidersOpen && selectedHostId !== null"
+    :key="selectedHostId"
+    v-model:open="modelProvidersOpen"
+    :host-id="selectedHostId"
+  />
   <ComposerShell
     v-model="turnText"
     v-model:file-references="fileReferences"

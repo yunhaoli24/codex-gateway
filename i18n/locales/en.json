@@ -1,5 +1,43 @@
 {
   "app": {
+    "forkMessage": "Fork conversation",
+    "forkFailed": "Unable to fork conversation",
+    "forkUnsupportedInput": "This message contains input the composer cannot restore; forking before it is unavailable",
+    "forkBeforeTurn": "Fork before this turn and edit the message",
+    "forkAfterTurn": "Fork through this completed turn",
+    "modelProviders": {
+      "requestFailed": "Unable to manage model providers",
+      "title": "Model providers",
+      "description": "Manage the selected SSH host's Codex model providers. Existing conversations keep their provider.",
+      "commandDescription": "View and configure remote model providers",
+      "add": "Add gateway",
+      "refresh": "Refresh",
+      "save": "Save configuration",
+      "edit": "Edit",
+      "select": "Use for new conversations",
+      "default": "Default",
+      "authorize": "Check authorization / sign in",
+      "cancelLogin": "Cancel this host's active gateway sign-in",
+      "externalAuth": "Authentication is managed externally and is preserved when saving.",
+      "restartHint": "New provider definitions may require restarting Codex daemon from host settings. Saving configuration does not sign in or select a default. For OAuth without device sign-in, authorize from a client on the remote host.",
+      "fields": {
+        "name": "Name",
+        "baseUrl": "API base URL",
+        "envKey": "API key environment variable name",
+        "profile": "AWS profile",
+        "region": "AWS region",
+        "projectId": "GCP project ID",
+        "location": "GCP location",
+        "credentialFile": "Remote credential file path"
+      },
+      "auth": {
+        "notReady": "Authorization required",
+        "started": "Waiting for authorization",
+        "succeeded": "Credentials are locally ready",
+        "failed": "Authorization failed",
+        "external": "This provider uses external credentials rather than gateway OAuth."
+      }
+    },
     "newChat": "New chat",
     "loginTitle": "Sign in to Codex Gateway",
     "loginDescription": "Use the account created by the administrator. Connection config is encrypted on the server.",
@@ -247,7 +285,7 @@
     "chooseProject": "Choose a project to view threads",
     "loadingGateway": "Loading remote threads",
     "loadOlder": "Load earlier messages",
-    "loadOlderItems": "Load earlier intermediate steps",
+    "loadOlderItems": "Load more intermediate steps",
     "commandOutputWindow": "Only part of the command output is cached",
     "loadEarlierOutput": "View earlier output",
     "backToLatest": "Return to latest output",

@@ -58,6 +58,7 @@ export async function updateTurnSettings(
     model: request.model,
     effort: request.effort,
     summary: request.summary,
+    ...(request.environments !== undefined ? { environments: request.environments } : {}),
   });
   sendRealtimePeerMessage(peer, {
     type: "turn.settings.updated",

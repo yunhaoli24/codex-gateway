@@ -157,9 +157,9 @@ export function useThreadSettingsControls() {
   );
   const hostDefaultEffortLabel = computed(() =>
     compactEffortLabel(
-      newThreadProjectDefaults.value?.effort ??
-        activeModelRecord.value?.defaultReasoningEffort ??
-        "",
+      // The "host default" option describes config/read even after a thread was created. The
+      // selected thread's effort is separate; model/list's recommendation is not the host config.
+      projectDefaults.value?.effort ?? activeModelRecord.value?.defaultReasoningEffort ?? "",
     ),
   );
   const activeEffortCompactLabel = computed(() => {

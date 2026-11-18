@@ -67,9 +67,11 @@ export function useComposerTurnSubmit(input: {
       {
         ...input.selectedTurnOptions(),
         collaborationMode,
-        images: attachedImages
-          .map((file) => ({ url: file.dataUrl, detail: "auto" as const }))
-          .filter((image): image is { url: string; detail: "auto" } => Boolean(image.url)),
+        images: attachedImages.map((file) =>
+          file.dataUrl !== undefined && file.dataUrl !== ""
+            ? { url: file.dataUrl, detail: "auto" as const }
+            : { path: file.path, detail: "auto" as const },
+        ),
         files: remoteFiles,
         references,
       },

@@ -1,4 +1,4 @@
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useAttachmentUpload } from "./useAttachmentUpload";
 import { useComposerDraft } from "./useComposerDraft";
@@ -17,6 +17,7 @@ import { isThreadGoalOngoing } from "@/utils/thread-goal-display";
 import { useComposerSlashMenu } from "./useComposerSlashMenu";
 
 export function useComposerController() {
+  const modelProvidersOpen = ref(false);
   const gateway = useGatewayCatalogStore();
   const bootstrap = useGatewayBootstrapStore();
   const composer = useGatewayComposerStore();
@@ -113,6 +114,9 @@ export function useComposerController() {
     return t("app.send");
   });
   const slashActions = useComposerSlashActions({
+    openModelProviders: () => {
+      modelProvidersOpen.value = true;
+    },
     text: turnText,
     selectedThreadId,
     startNewThread: submit.startNewThread,
@@ -170,6 +174,7 @@ export function useComposerController() {
   }
 
   return {
+    modelProvidersOpen,
     activePlanSummary,
     attachedFiles,
     fileReferences,

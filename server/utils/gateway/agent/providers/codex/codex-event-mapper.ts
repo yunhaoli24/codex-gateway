@@ -118,6 +118,7 @@ export function mapCodexNotification(notification: CodexNotification): MapperRes
           id: idParam(p.itemId),
           turnId: idParam(p.turnId),
           status: "waitingForApproval",
+          startedAtMs: numericParam(p.startedAtMs),
           command: stringFromUnknown(p.command),
           cwd: stringFromUnknown(p.cwd),
           pendingApproval: { requestId, method, params: p },

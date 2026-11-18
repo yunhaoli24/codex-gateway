@@ -74,6 +74,7 @@ export function retainThreadHistory(
           diff: undefined,
           itemsView: "summary",
           olderItemsCursor: undefined,
+          itemsPageEndId: undefined,
         };
       }
     }

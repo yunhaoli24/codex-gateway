@@ -30,6 +30,7 @@ export type {
   ThreadRuntimeStatusUpdate,
   ThreadCollaborationMode,
   ThreadSettingsState,
+  ThreadSettingsUpdateInput,
   ThreadTokenUsageState,
   MisalignmentErrorDetails,
   TokenUsageBreakdown,

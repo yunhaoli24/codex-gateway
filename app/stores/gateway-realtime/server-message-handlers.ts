@@ -1,4 +1,5 @@
 import { match, P } from "ts-pattern";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import type { RealtimeServerMessage } from "~~/shared/types";
 import { gatewayErrorMessage } from "@/utils/gateway-error";
 import { STALE_THREAD_CURSOR_ERROR_CODE } from "~~/shared/gateway-errors";
@@ -34,6 +35,10 @@ export function createRealtimeServerMessageDispatcher(ctx: RealtimeServerMessage
 
   return (message: RealtimeServerMessage) =>
     match(message)
+      .with({ type: "thread.section.changed" }, ({ hostId }) => {
+        const navigation = useGatewayNavigationStore();
+        if (navigation.selectedHostId === hostId) void navigation.listThreads();
+      })
       .with({ type: "thread.event" }, thread["thread.event"])
       .with({ type: "thread.runtime.snapshot" }, thread["thread.runtime.snapshot"])
       .with({ type: "thread.runtime.updated" }, thread["thread.runtime.updated"])
@@ -86,6 +91,9 @@ export function createRealtimeServerMessageDispatcher(ctx: RealtimeServerMessage
         {
           type: P.union(
             "thread.snapshot",
+            "modelProvider.result",
+            "thread.forked",
+            "thread.items.page",
             "host.daemon.restarted",
             "host.upgrades.snapshot",
             "notification.webPush.configured",

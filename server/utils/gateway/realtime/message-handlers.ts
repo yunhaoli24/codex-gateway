@@ -15,7 +15,9 @@ import {
 } from "./handlers/thread-events";
 import { clearThreadGoal, getThreadGoal, setThreadGoal } from "./handlers/thread-goals";
 import { loadThreadTimelinePage } from "./handlers/thread-timeline";
-import { readThreadItems } from "./handlers/thread-items";
+import { readThreadItems, listThreadItems } from "./handlers/thread-items";
+import { forkThread } from "./handlers/thread-fork";
+import { manageModelProvider } from "./handlers/model-providers";
 import {
   closeTerminal,
   listTerminals,
@@ -63,6 +65,9 @@ import {
 } from "./handlers/thread-attachments";
 
 export const realtimeMessageDispatcher = new RealtimeMessageDispatcher({
+  "modelProvider.request": manageModelProvider,
+  "thread.fork": forkThread,
+  "thread.items.list": listThreadItems,
   "auth.authenticate": { auth: "public", handler: authenticatePeer },
   "host.lifecycle.subscribe": subscribeHostLifecycle,
   "host.lifecycle.unsubscribe": unsubscribeHostLifecycle,

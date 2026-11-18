@@ -5,7 +5,7 @@ import { useGatewayTranslator } from "@/composables/i18n/useGatewayTranslator";
 import { interruptActiveTurn, interruptThreadTurn } from "./interrupt";
 import { loadOlderTurns } from "./older-turns";
 import { loadTurnItems } from "./turn-items";
-import { loadCommandOutputWindow, type CommandOutputWindowRequest } from "./command-output-window";
+import { loadItemOutput, type ItemOutputRequest } from "./item-output";
 import { maybeQueueServerOverloadedRetry, maybeRetryAfterTurnFailure } from "./retry";
 import { sendTurn } from "./submission";
 import { respondToServerRequest } from "./transport";
@@ -16,8 +16,7 @@ export function createGatewayThreadTurnActions() {
     sendTurn: (text: string, options?: ComposerTurnOptions) => sendTurn(t, text, options),
     loadOlderTurns: (options?: { limit?: number }) => loadOlderTurns(t, options),
     loadTurnItems: (turnId: string) => loadTurnItems(t, turnId),
-    loadCommandOutputWindow: (input: CommandOutputWindowRequest) =>
-      loadCommandOutputWindow(t, input),
+    loadItemOutput: (input: ItemOutputRequest) => loadItemOutput(t, input),
     interruptActiveTurn: () => interruptActiveTurn(t),
     interruptThreadTurn: (input: { hostId: number; threadId: string }) =>
       interruptThreadTurn(t, input),

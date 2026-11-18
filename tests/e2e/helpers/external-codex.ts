@@ -7,6 +7,10 @@ import { remoteCodexCommand, type RemoteCodexEnv } from "./remote-codex";
 import { connectTestSsh } from "./ssh-client";
 
 const threadStarted = z.object({ type: z.literal("thread.started"), thread_id: z.string() });
+const commandStarted = z.object({
+  type: z.literal("item.started"),
+  item: z.object({ type: z.literal("command_execution") }),
+});
 
 /** A real CLI owns its own runtime, just like an independently opened Desktop/VS Code client. */
 export async function startExternalCodexTurn(remote: RemoteCodexEnv, prompt: string) {
@@ -21,6 +25,7 @@ export async function startExternalCodexTurn(remote: RemoteCodexEnv, prompt: str
       });
     });
     let threadId: string | null = null;
+    let commandRunning = false;
     let closed = false;
     channel.once("close", () => {
       closed = true;
@@ -29,11 +34,14 @@ export async function startExternalCodexTurn(remote: RemoteCodexEnv, prompt: str
     lines.on("line", (line) => {
       // The CLI emits real JSONL events; other terminal diagnostics aren't protocol events.
       if (!line.startsWith("{")) return;
-      const parsed = threadStarted.safeParse(JSON.parse(line));
+      const event: unknown = JSON.parse(line);
+      const parsed = threadStarted.safeParse(event);
       if (parsed.success) threadId = parsed.data.thread_id;
+      if (commandStarted.safeParse(event).success) commandRunning = true;
     });
     return {
       threadId: () => threadId,
+      commandStarted: () => commandRunning,
       async stop() {
         try {
           if (!closed) {

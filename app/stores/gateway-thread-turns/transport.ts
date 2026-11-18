@@ -3,6 +3,7 @@ import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import {
   expectThreadTimelinePage,
   expectThreadItemsResult,
+  expectThreadItemsPage,
   expectTurnInterruptAccepted,
   expectTurnStartAccepted,
   expectTurnSteerAccepted,
@@ -67,6 +68,19 @@ export function requestThreadItems(input: {
   return useGatewayRealtimeStore().request(
     (requestId) => ({ type: "thread.items.read", requestId, ...input }),
     expectThreadItemsResult,
+  );
+}
+
+export function requestTurnItemsPage(input: {
+  hostId: number;
+  threadId: string;
+  turnId: string;
+  cursor?: string | null;
+  limit?: number;
+}) {
+  return useGatewayRealtimeStore().request(
+    (requestId) => ({ type: "thread.items.list", requestId, ...input }),
+    expectThreadItemsPage,
   );
 }
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { turnEnvironmentParamsSchema } from "~~/shared/environments";
 import { INITIAL_TIMELINE_PAGE_LIMIT } from "~~/shared/config";
 import { agentProviderIdSchema } from "~~/shared/agent/providers";
 import { reasoningSummarySchema } from "~~/shared/reasoning-summary";
@@ -86,6 +87,7 @@ export const threadSettingsUpdateSchema = z.object({
   ...threadSettingFields,
   sandboxPolicy: sandboxPolicySchema.nullable().optional(),
   collaborationMode: collaborationModeSchema,
+  environments: z.array(turnEnvironmentParamsSchema).nullable().optional(),
 });
 
 export const turnStartSchema = z.object({

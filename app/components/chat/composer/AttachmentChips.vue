@@ -1,14 +1,8 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import {
-  Attachment,
-  AttachmentInfo,
-  AttachmentPreview,
-  AttachmentRemove,
-  Attachments,
-} from "@codex-gateway/ai-elements/attachments";
+import { Attachments } from "@codex-gateway/ai-elements/attachments";
 import type { ComposerAttachment } from "@/composables/composer/useComposerDraft";
-import { presentComposerAttachment } from "./attachment-presentation";
+import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
+import AttachmentChip from "./AttachmentChip.vue";
 
 const props = defineProps<{
   files: ComposerAttachment[];
@@ -18,23 +12,17 @@ const emit = defineEmits<{
   remove: [id: string];
 }>();
 
-const { t } = useI18n();
-const presentations = computed(() => props.files.map(presentComposerAttachment));
+const navigation = useGatewayNavigationStore();
 </script>
 
 <template>
-  <Attachments v-if="presentations.length" variant="inline" class="mb-2 max-w-full">
-    <Attachment
-      v-for="attachment in presentations"
-      :key="attachment.id"
-      :data="attachment.data"
-      class="max-w-full"
-      @remove="emit('remove', attachment.id)"
-    >
-      <AttachmentPreview />
-      <AttachmentInfo class="max-w-48" />
-      <!-- AI Elements hides inline removal until hover; touch users need a persistent target. -->
-      <AttachmentRemove :label="t('app.removeAttachment')" class="opacity-100" />
-    </Attachment>
+  <Attachments v-if="props.files.length" variant="inline" class="mb-2 max-w-full">
+    <AttachmentChip
+      v-for="file in props.files"
+      :key="file.id"
+      :file="file"
+      :host-id="navigation.selectedHostId"
+      @remove="emit('remove', $event)"
+    />
   </Attachments>
 </template>

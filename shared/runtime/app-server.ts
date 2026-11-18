@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { reasoningSummarySchema } from "../reasoning-summary";
 import { sandboxPolicySchema } from "../permissions";
+import { threadEnvironmentSchema } from "../environments";
 import type {
   ApprovalPolicy,
   ThreadCollaborationMode,
@@ -77,6 +78,7 @@ const appServerThreadSettingsSchema = z
     approvalPolicy: z.unknown(),
     sandboxPolicy: sandboxPolicySchema,
     collaborationMode: appServerCollaborationModeSchema,
+    environments: z.array(threadEnvironmentSchema).nullable(),
   })
   .loose();
 
@@ -105,6 +107,7 @@ export function threadSettingsFromAppServer(value: unknown): ThreadSettingsState
     approvalPolicy: approvalPolicyFromAppServer(parsed.data.approvalPolicy),
     sandboxPolicy: parsed.data.sandboxPolicy,
     collaborationMode: threadCollaborationModeFromAppServer(parsed.data.collaborationMode),
+    environments: parsed.data.environments,
   };
 }
 
@@ -254,6 +257,7 @@ export const threadItemsReadResponseSchema = z
           item: threadItemSchema,
           startedAtMs: z.number().nullable(),
           completedAtMs: z.number().nullable(),
+          outputDeferred: z.boolean().optional(),
         })
         .strict(),
     ),
@@ -261,6 +265,11 @@ export const threadItemsReadResponseSchema = z
   .strict();
 
 export type AppServerItemsReadResponse = z.infer<typeof threadItemsReadResponseSchema>;
+
+export const threadItemsListResponseSchema = threadItemsReadResponseSchema.extend({
+  nextCursor: z.string().nullable(),
+  backwardsCursor: z.string().nullable(),
+});
 
 export function parseThreadItemsReadResponse(value: unknown) {
   return threadItemsReadResponseSchema.parse(value);
@@ -288,20 +297,13 @@ export function appServerThreadStatusFromUnknown(value: unknown) {
 export const appServerThreadSchema = z
   .object({
     id: z.string().min(1),
-    environments: z
-      .array(
-        z
-          .object({
-            environmentId: z.string().min(1),
-            cwd: z.string().min(1),
-            runtimeWorkspaceRoots: z.array(z.string().min(1)),
-          })
-          .strict(),
-      )
-      .nullable(),
+    environments: z.array(threadEnvironmentSchema).nullable(),
     extra: z.object({}).strict().nullable(),
     sessionId: z.string().min(1),
     forkedFromId: z.string().nullable(),
+    // Attached forks remain distinct from subagents (parentThreadId). Do not classify them
+    // as subagents or silently strip this official field at the strict DTO boundary.
+    attachedToThreadId: z.string().nullable(),
     parentThreadId: z.string().nullable(),
     preview: z.string(),
     ephemeral: z.boolean(),

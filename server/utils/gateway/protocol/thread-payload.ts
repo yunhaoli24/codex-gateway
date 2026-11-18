@@ -4,6 +4,8 @@ import type {
   ThreadSettingsState,
   ThreadTokenUsageState,
 } from "~~/shared/types";
+import { z } from "zod";
+import { threadEnvironmentSchema } from "~~/shared/environments";
 import {
   threadCollaborationModeFromAppServer,
   threadSettingsFromAppServer,
@@ -124,6 +126,11 @@ export function extractThreadSettings(source: unknown): ThreadSettingsState {
     ),
     sandboxPolicy: sandbox.success ? sandbox.data : null,
     collaborationMode: resumedCollaborationMode,
+    environments: (() => {
+      const thread = recordFromUnknown(sourceRecord?.thread) ?? sourceRecord;
+      const result = z.array(threadEnvironmentSchema).nullable().safeParse(thread?.environments);
+      return result.success ? result.data : null;
+    })(),
   };
 }
 

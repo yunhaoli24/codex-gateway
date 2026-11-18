@@ -14,6 +14,9 @@ test("views a thread owned by another client and retries after that client close
   const external = await startExternalCodexTurn(remoteWorkspace.remote, prompt);
   try {
     await expect.poll(external.threadId, { timeout: AGENT_OUTPUT_TIMEOUT_MS }).not.toBeNull();
+    // thread.started precedes the initial prompt's persisted items. Open the read-only view only
+    // once the other real client is executing its command, as in the user handoff being tested.
+    await expect.poll(external.commandStarted, { timeout: AGENT_OUTPUT_TIMEOUT_MS }).toBe(true);
     const threadId = external.threadId()!;
     await page.goto(`/?hostId=${host.id}&threadId=${threadId}`);
     const notice = page.getByTestId("thread-read-only-notice");

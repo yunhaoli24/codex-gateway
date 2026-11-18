@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { modelProviderOperationSchema } from "../../model-providers/protocol";
+import { turnEnvironmentParamsSchema } from "../../environments";
 import type { RealtimeClientMessage } from "../../types";
 import { agentProviderIdSchema } from "../../agent/providers";
 import { reasoningSummarySchema } from "../../reasoning-summary";
@@ -43,6 +45,33 @@ const collaborationMode = z
 export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.discriminatedUnion(
   "type",
   [
+    z
+      .object({
+        type: z.literal("modelProvider.request"),
+        ...requestIdField,
+        hostId: positiveId,
+        operation: modelProviderOperationSchema,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("thread.fork"),
+        ...requestIdField,
+        ...threadScopeFields,
+        boundary: z.enum(["before", "after"]),
+        turnId: nonEmptyString,
+      })
+      .strict(),
+    z
+      .object({
+        type: z.literal("thread.items.list"),
+        ...requestIdField,
+        ...threadScopeFields,
+        turnId: nonEmptyString,
+        cursor: nullableString,
+        limit: z.number().int().min(1).max(100).optional(),
+      })
+      .strict(),
     z.object({ type: z.literal("notification.webPush.configure"), ...requestIdField }).strict(),
     z
       .object({
@@ -244,6 +273,7 @@ export const realtimeClientMessageSchema: z.ZodType<RealtimeClientMessage> = z.d
         model: nullableString,
         effort: nullableString,
         summary: reasoningSummarySchema.nullable().optional(),
+        environments: z.array(turnEnvironmentParamsSchema).nullable().optional(),
       })
       .strict(),
     z

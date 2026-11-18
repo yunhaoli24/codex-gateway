@@ -3,6 +3,20 @@ import { threadHistoryTurnFromUnknown } from "~~/shared/runtime/app-server";
 
 type RealtimeResponseMessage = Extract<RealtimeServerMessage, { requestId: string }>;
 
+export function expectModelProviderResult(message: RealtimeResponseMessage) {
+  if (message.type !== "modelProvider.result")
+    unexpectedResponse("modelProvider.result", message.type);
+  return message;
+}
+export function expectThreadForked(message: RealtimeResponseMessage) {
+  if (message.type !== "thread.forked") unexpectedResponse("thread.forked", message.type);
+  return message;
+}
+export function expectThreadItemsPage(message: RealtimeResponseMessage) {
+  if (message.type !== "thread.items.page") unexpectedResponse("thread.items.page", message.type);
+  return message;
+}
+
 export function expectHostUpgradesSnapshot(message: RealtimeResponseMessage) {
   if (message.type !== "host.upgrades.snapshot")
     unexpectedResponse("host.upgrades.snapshot", message.type);

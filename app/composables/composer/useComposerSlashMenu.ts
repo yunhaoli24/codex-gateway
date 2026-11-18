@@ -14,6 +14,12 @@ export function useComposerSlashMenu(input: {
   const { t } = useI18n();
   const rootCommands = computed<SlashMenuItem[]>(() => [
     {
+      id: "provider",
+      command: "/provider",
+      title: t("app.modelProviders.title"),
+      description: t("app.modelProviders.commandDescription"),
+    },
+    {
       id: "new",
       command: t("app.slashCommandNew"),
       title: t("app.slashCommandNewTitle"),
