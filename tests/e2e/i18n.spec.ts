@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { z } from "zod";
-import { authenticatedFetch, openApp } from "./helpers/app";
+import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
 
 test("requires bearer auth for protected HTTP APIs", async ({ page }) => {
   await openApp(page);
@@ -21,7 +21,9 @@ test("requires bearer auth for protected HTTP APIs", async ({ page }) => {
   expect(config.version).toBe(2);
 });
 
-test("defaults to Chinese and can switch to English", async ({ page }) => {
+test("defaults to Chinese and remembers language changes across reloads and tabs", async ({
+  page,
+}) => {
   await openApp(page);
   await expect(page.getByText("设置")).toBeVisible();
   await page.getByTestId("settings-toggle").click();
@@ -30,6 +32,31 @@ test("defaults to Chinese and can switch to English", async ({ page }) => {
   await page.getByRole("option", { name: "English" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Appearance" })).toBeVisible();
+
+  await reloadApp(page);
+  await expect(page.getByTestId("settings-toggle")).toHaveText("Settings");
+
+  const secondPage = await page.context().newPage();
+  await openApp(secondPage, { resetConfig: false });
+  await expect(secondPage.getByTestId("settings-toggle")).toHaveText("Settings");
+  await secondPage.close();
+
+  await page.getByTestId("settings-toggle").click();
+  await page.getByRole("tab", { name: "Appearance" }).click();
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "中文" }).click();
+  await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
+
+  await reloadApp(page);
+  await expect(page.getByTestId("settings-toggle")).toHaveText("设置");
+});
+
+test("ignores an unsupported saved interface language", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("codex-gateway-locale", "unsupported");
+  });
+  await openApp(page);
+  await expect(page.getByTestId("settings-toggle")).toHaveText("设置");
 });
 
 test("returns to login when the current session is revoked", async ({ page }) => {
