@@ -58,5 +58,7 @@ test("discovers MFA through SSH and reconnects only after sidebar action", async
   // Restart only the daemon over the authenticated Gateway SSH session. Asking for another
   // verification code here would indicate that restart accidentally tore down that shared session.
   expect(challenges.get(host.id) ?? 0).toBe(previousChallengeCount);
-  await expect(hostRow.getByLabel(/app-server RPC OK/)).toBeVisible();
+  await expect(
+    hostRow.getByLabel(/已连接.*Codex app-server|Connected to Codex app-server/),
+  ).toBeVisible();
 });
