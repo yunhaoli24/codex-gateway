@@ -3,6 +3,28 @@ import { configureBarkNotifications, useBarkReceiver } from "./helpers/bark";
 import { openApp, reloadApp } from "./helpers/app";
 import { execRemoteSsh, type RemoteCodexEnv } from "./helpers/remote-codex";
 
+test("shows no sessions when the remote tmux socket does not exist", async ({
+  page,
+  remoteWorkspace,
+}) => {
+  const { remote } = remoteWorkspace;
+  await execRemoteSsh(
+    remote,
+    'tmux kill-server >/dev/null 2>&1 || true\ntest ! -e "/tmp/tmux-$(id -u)/default"',
+  );
+
+  await openApp(page);
+  const { host, project } = await remoteWorkspace.provision({
+    hostName: `tmux-empty-host-${Date.now()}`,
+  });
+  await remoteWorkspace.startThread(project.remotePath);
+  await page.getByTestId("open-tmux-button").click();
+  const hostNode = page.getByTestId(`tmux-host-node-${host.id}`);
+  await expect(hostNode).toBeVisible();
+  await expect(hostNode.getByText("远端没有可用的 tmux session")).toBeVisible();
+  await expect(hostNode).not.toContainText("error connecting");
+});
+
 test("monitors a real tmux pane, persists it, and notifies once when it returns to shell", async ({
   page,
   remoteWorkspace,
