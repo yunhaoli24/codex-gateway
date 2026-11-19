@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useUiMessages } from "@codex-gateway/ui/i18n";
+
+const messages = useUiMessages();
+
 interface Props {
   size?: number;
 }
@@ -16,7 +20,7 @@ withDefaults(defineProps<Props>(), {
     viewBox="0 0 16 16"
     :width="size"
   >
-    <title>Loader</title>
+    <title>{{ messages.loading }}</title>
     <g clip-path="url(#clip0_2393_1490)">
       <path d="M8 0V4" stroke="currentColor" stroke-width="1.5" />
       <path d="M8 16V12" opacity="0.5" stroke="currentColor" stroke-width="1.5" />

@@ -13,6 +13,7 @@ import { isItemInProgress } from "@/utils/thread-items";
 import { presentToolCall } from "./tool-call-presenters";
 import { useDeferredItemOutput } from "@/composables/thread/useDeferredItemOutput";
 import { Loader } from "@codex-gateway/ai-elements/loader";
+import { threadItemStatusLabel } from "@/utils/thread-item-status";
 
 const props = defineProps<{
   item: ThreadHistoryItem;
@@ -34,7 +35,9 @@ const detailSections = computed(() => presentation.value.details);
       <ImageIcon v-else-if="iconType === 'image'" class="size-4" />
       <WrenchIcon v-else class="size-4" />
       <span class="truncate">{{ title }}</span>
-      <Badge v-if="item.status" variant="secondary">{{ item.status }}</Badge>
+      <Badge v-if="item.status" variant="secondary">{{
+        threadItemStatusLabel(item.status, t)
+      }}</Badge>
       <Badge v-if="isItemInProgress(item)" variant="outline">{{ t("app.running") }}</Badge>
       <Badge v-if="item.success === true" variant="outline">{{ t("app.completed") }}</Badge>
       <Badge v-else-if="item.success === false" variant="destructive">{{ t("app.failed") }}</Badge>

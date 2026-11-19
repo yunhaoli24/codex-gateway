@@ -57,7 +57,7 @@ const toolCallPresenters: Record<string, ToolCallPresenter> = {
   mcpToolCall: (item, t) => {
     const errorMessage = trimmedOrNull(item.error?.message);
     return {
-      title: `${trimmedOrFallback(item.server, "MCP")} · ${trimmedOrFallback(item.tool, "tool")}`,
+      title: `${trimmedOrFallback(item.server, "MCP")} · ${trimmedOrFallback(item.tool, t("app.toolCall"))}`,
       icon: "tool",
       details: compactDetails([
         { label: t("app.arguments"), kind: "json", value: item.arguments },
@@ -72,7 +72,7 @@ const toolCallPresenters: Record<string, ToolCallPresenter> = {
   },
 
   dynamicToolCall: (item, t) => ({
-    title: trimmedOrFallback(item.name, trimmedOrFallback(item.tool, "Tool call")),
+    title: trimmedOrFallback(item.name, trimmedOrFallback(item.tool, t("app.toolCall"))),
     icon: "tool",
     details: compactDetails([
       { label: t("app.arguments"), kind: "json", value: item.arguments },
@@ -110,9 +110,9 @@ export function presentToolCall(item: ToolCallItem, t: Translate): ToolCallPrese
   return presenter(item, t);
 }
 
-function defaultToolCallPresenter(item: ToolCallItem): ToolCallPresentation {
+function defaultToolCallPresenter(item: ToolCallItem, t: Translate): ToolCallPresentation {
   return {
-    title: trimmedOrFallback(item.type, "Tool call"),
+    title: trimmedOrFallback(item.type, t("app.toolCall")),
     icon: "tool",
     details: emptyDetails,
   };
@@ -132,7 +132,7 @@ function reviewModePresentation(item: ToolCallItem, t: Translate, title: string)
 function webSearchPresentation(item: ToolCallItem, t: Translate): ToolCallPresentation {
   const links = webSearchResultLinks(item.results);
   return {
-    title: trimmedOrFallback(item.query, "Web search"),
+    title: trimmedOrFallback(item.query, t("app.webSearch")),
     icon: "search",
     details: compactDetails([
       item.action !== null && item.action !== undefined

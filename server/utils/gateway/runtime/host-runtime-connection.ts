@@ -14,6 +14,10 @@ export async function connectHostRuntime(slot: HostRuntimeSlot, isCurrent: () =>
       hostId: slot.hostId,
       status: "connecting",
       message: `${slot.host.name || slot.host.sshHost} 正在建立后台连接`,
+      messageTranslation: {
+        key: "connecting",
+        values: { host: slot.host.name || slot.host.sshHost },
+      },
     });
     runtimeLog("host background connect", {
       userId: slot.userId,
@@ -60,6 +64,9 @@ export function publishHostRuntimeFailure(slot: HostRuntimeSlot, error: unknown)
       message: hostMfaManager.isMfaHost(slot.userId, slot.hostId)
         ? "需要手动输入 MFA 验证码后重新连接"
         : messageFromError(error),
+      messageTranslation: hostMfaManager.isMfaHost(slot.userId, slot.hostId)
+        ? { key: "mfaRequired" }
+        : undefined,
     });
   });
 }

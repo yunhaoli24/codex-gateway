@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { threadItemStatusLabel } from "@/utils/thread-item-status";
 import type { ThreadHistoryItem } from "~~/shared/types";
 import { WrenchIcon } from "@lucide/vue";
 import { computed, ref } from "vue";
@@ -43,7 +44,7 @@ async function submit() {
       <span class="min-w-0 flex-1 truncate font-medium"
         >{{ t("app.dynamicToolRequest") }} · {{ title }}</span
       >
-      <Badge variant="outline">{{ item.status }}</Badge>
+      <Badge variant="outline">{{ threadItemStatusLabel(item.status, t) }}</Badge>
     </div>
     <div class="mt-3">
       <div class="mb-1 text-xs font-medium uppercase text-primary">{{ t("app.arguments") }}</div>

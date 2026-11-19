@@ -12,10 +12,13 @@ import { useGatewayProjectDefaultsStore } from "@/stores/gateway-project-default
 import { recoverSelectedThreadSettings } from "@/stores/gateway-composer/thread-settings-recovery";
 import { useEventListener } from "@vueuse/core";
 import { gatewayDomainEvents } from "../domain-events";
+import { hostLifecycleMessage } from "@/utils/host-lifecycle-message";
+import { useGatewayTranslator } from "@/composables/i18n/useGatewayTranslator";
 
 const lifecycleNotificationKeys = new Set<string>();
 
 export function registerGatewayLifecycleSubscribers() {
+  const t = useGatewayTranslator();
   // A tab can be suspended without losing its WebSocket. Visibility recovery therefore belongs to
   // this one-time client lifecycle, not to either layout: switching device layouts would otherwise
   // register duplicate listeners. A reconnect still follows the explicit realtime-reconnected path.
@@ -105,6 +108,7 @@ export function registerGatewayLifecycleSubscribers() {
       [event.hostId]: {
         status,
         message: event.message,
+        messageTranslation: event.messageTranslation,
         updatedAt: Number.isFinite(eventTime) ? eventTime : Date.now(),
         // Normal SSH lifecycle events do not own upload counters. Only an upgrade update (including
         // its explicit null at completion/failure) may replace the shared progress snapshot.
@@ -118,7 +122,7 @@ export function registerGatewayLifecycleSubscribers() {
       !lifecycleNotificationKeys.has(key)
     ) {
       lifecycleNotificationKeys.add(key);
-      toast.info(event.message);
+      toast.info(hostLifecycleMessage(event, t));
     }
   });
 }

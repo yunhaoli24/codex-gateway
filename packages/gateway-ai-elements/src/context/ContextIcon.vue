@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useContextValue } from "./context";
+import { useUiMessages } from "@codex-gateway/ui/i18n";
+
+const messages = useUiMessages();
 
 const ICON_RADIUS = 10;
 const ICON_VIEWBOX = 24;
@@ -28,7 +31,7 @@ const svgStyle = {
 
 <template>
   <svg
-    aria-label="Model context usage"
+    :aria-label="messages.modelContextUsage"
     height="20"
     role="img"
     style="color: currentcolor"

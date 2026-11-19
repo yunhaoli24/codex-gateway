@@ -238,6 +238,7 @@ class HostRuntimeSupervisor {
           hostId,
           status: "restarting",
           message: `正在重启 ${host.name} 的 Codex daemon`,
+          messageTranslation: { key: "restartingDaemon", values: { host: host.name } },
         });
         try {
           await restartCodexDaemon(sshConnections, host);
@@ -356,6 +357,7 @@ class HostRuntimeSupervisor {
         hostId: slot.hostId,
         status: "mfaRequired",
         message: "SSH 连接已断开，请手动输入 MFA 验证码后重新连接",
+        messageTranslation: { key: "mfaDisconnected" },
       });
     });
   }

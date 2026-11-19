@@ -8,8 +8,11 @@ import { useGatewayTmuxStore } from "@/stores/gateway-tmux";
 import { useGatewayHostMfaStore } from "@/stores/gateway-host-mfa";
 import { gatewayDomainEvents } from "../domain-events";
 import { notificationAction, projectPublishedNotification } from "../notifications/actions";
+import { notificationMessage } from "@/utils/notification-message";
+import { useGatewayTranslator } from "@/composables/i18n/useGatewayTranslator";
 
 export function registerRealtimeResourceSubscribers() {
+  const t = useGatewayTranslator();
   gatewayDomainEvents.on("realtime-tmux-sessions", (snapshot) => {
     useGatewayTmuxStore().applySessionsSnapshot(snapshot);
   });
@@ -72,9 +75,10 @@ export function registerRealtimeResourceSubscribers() {
   gatewayDomainEvents.on("realtime-notification-published", ({ notification, actionLabel }) => {
     projectPublishedNotification(notification);
     const action = notificationAction(notification);
-    toast.info(notification.title, {
+    const localized = notificationMessage(notification, t);
+    toast.info(localized.title, {
       id: notification.key,
-      description: notification.body,
+      description: localized.body,
       duration: 10_000,
       action: { label: actionLabel, onClick: action.run },
     });

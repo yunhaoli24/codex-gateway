@@ -82,6 +82,7 @@ export class CodexRuntimeService {
         hostId: host.id,
         status: "checkingVersion",
         message: `正在检查 ${hostDisplayName(host)} 的远端 Codex 版本`,
+        messageTranslation: { key: "checkingVersion", values: { host: hostDisplayName(host) } },
       });
       return await this.upgradeWorkflow.ensure(host);
     } catch (error) {
@@ -112,6 +113,14 @@ export class CodexRuntimeService {
       hostId: host.id,
       status: "upgrading",
       message: `${hostDisplayName(host)} 的远端 Codex app-server 启动失败，正在重新安装 ${SUPPORTED_CODEX_VERSION}：${messageFromError(error)}`,
+      messageTranslation: {
+        key: "repairingStartup",
+        values: {
+          host: hostDisplayName(host),
+          version: SUPPORTED_CODEX_VERSION,
+          error: messageFromError(error),
+        },
+      },
     });
 
     return await this.upgradeWorkflow.ensure(host, true);

@@ -130,6 +130,7 @@ export class SharedCodexClient extends EventEmitter<SharedClientEvents> {
       hostId: this.host.id,
       status: "connected",
       message: "app-server RPC OK",
+      messageTranslation: { key: "connected", values: { host: this.host.name } },
     });
   }
 

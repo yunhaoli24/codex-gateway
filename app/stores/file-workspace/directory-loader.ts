@@ -3,6 +3,7 @@ import { reactive } from "vue";
 import { listRemoteDirectory } from "@/utils/remote-file-transport";
 import { gatewayErrorMessage, gatewayErrorPayload } from "@/utils/gateway-error";
 import type { RemoteDirectoryState } from "./types";
+import type { GatewayTranslate } from "@/composables/i18n/useGatewayTranslator";
 
 const DIRECTORY_LOAD_CONCURRENCY = 3;
 const DIRECTORY_STALE_AFTER_MS = 30_000;
@@ -12,6 +13,8 @@ const DIRECTORY_STALE_AFTER_MS = 30_000;
  * a restored tree from sending a burst of concurrent SFTP requests that can starve that channel.
  */
 export class RemoteDirectoryLoader {
+  constructor(private readonly t: GatewayTranslate) {}
+
   private readonly limits = new Map<number, ReturnType<typeof pLimit>>();
   private readonly pending = new Map<string, Promise<RemoteDirectoryState>>();
   private generation = 0;
@@ -53,7 +56,7 @@ export class RemoteDirectoryLoader {
         state.stale = false;
       } catch (error) {
         const payload = gatewayErrorPayload(error);
-        state.error = gatewayErrorMessage(error, "Failed to read remote directory");
+        state.error = gatewayErrorMessage(error, this.t("app.readRemoteDirectoryFailed"));
         state.errorCode = payload.code ?? null;
         if (isPermanentDirectoryError(payload.statusCode, payload.code)) {
           // A deleted or inaccessible path does not become healthy with time. Mark it loaded so

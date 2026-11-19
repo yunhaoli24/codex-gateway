@@ -34,6 +34,10 @@ export class CodexVersionChecker {
         hostId: host.id,
         status: "upgrading",
         message: `${hostDisplayName(host)} 的远端 Codex 安装缺失或损坏，正在重新安装 ${SUPPORTED_CODEX_VERSION}`,
+        messageTranslation: {
+          key: "repairingInstallation",
+          values: { host: hostDisplayName(host), version: SUPPORTED_CODEX_VERSION },
+        },
       });
       return { version: "0.0.0", installationLayout: "npm-or-external" } as const;
     }

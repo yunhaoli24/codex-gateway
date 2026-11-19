@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { Toaster } from "@codex-gateway/ui/sonner";
+import { provideUiMessages } from "@codex-gateway/ui/i18n";
 import LoginScreen from "@/components/auth/LoginScreen.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useGatewayBootstrapStore } from "@/stores/gateway-bootstrap";
@@ -11,6 +12,20 @@ import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayThreadViewStore } from "@/stores/gateway-thread-view";
 import { useGatewayRealtimeStore } from "@/stores/gateway-realtime";
 import { titleForThread } from "@/stores/gateway/thread-utils/identity";
+
+const { t } = useI18n();
+provideUiMessages(
+  computed(() => ({
+    close: t("app.close"),
+    loading: t("app.loading"),
+    sidebar: t("app.sidebar"),
+    sidebarDescription: t("app.sidebarDescription"),
+    toggleSidebar: t("app.toggleSidebar"),
+    togglePlan: t("app.togglePlan"),
+    preview: t("app.preview"),
+    modelContextUsage: t("app.modelContextUsage"),
+  })),
+);
 
 const bootstrap = useGatewayBootstrapStore();
 const navigation = useGatewayNavigationStore();

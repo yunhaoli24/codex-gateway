@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { threadItemStatusLabel } from "@/utils/thread-item-status";
 import type { ThreadHistoryItem } from "~~/shared/types";
 import { KeyRoundIcon } from "@lucide/vue";
 import { computed, ref } from "vue";
@@ -44,7 +45,7 @@ async function submit() {
     <div class="flex items-center gap-2">
       <KeyRoundIcon class="size-4 shrink-0" />
       <span class="font-medium">{{ t("app.chatgptAuthRefreshRequest") }}</span>
-      <Badge variant="outline">{{ item.status }}</Badge>
+      <Badge variant="outline">{{ threadItemStatusLabel(item.status, t) }}</Badge>
     </div>
     <div class="mt-2 text-accent-orange-deep">
       {{ t("app.chatgptAuthRefreshDescription") }}

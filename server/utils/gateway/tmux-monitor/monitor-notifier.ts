@@ -25,6 +25,15 @@ export class TmuxMonitorNotifier {
           `Tmux：${monitor.sessionName}`,
           `状态：${reasonLabel(monitor)}`,
         ].join("\n"),
+        translation: {
+          kind: "tmuxCompleted",
+          values: {
+            host: firstNonEmptyString([host.name, host.sshHost]) ?? String(host.id),
+            thread: monitor.threadId === null ? "" : threadLabel(monitor),
+            session: monitor.sessionName,
+            reason: monitor.completionReason ?? "completed",
+          },
+        },
         group: "tmux-monitor",
         target: {
           kind: "tmuxMonitor",

@@ -1,4 +1,5 @@
 import { defineStore, skipHydrate } from "pinia";
+import { useGatewayTranslator } from "@/composables/i18n/useGatewayTranslator";
 import { shallowRef } from "vue";
 import { useAccountLocalStorage } from "@/composables/storage/useAccountLocalStorage";
 import { deleteRemoteFile } from "@/utils/remote-file-transport";
@@ -27,7 +28,7 @@ export { fileWorkspaceScopeKey } from "./paths";
 
 export const useGatewayFileWorkspaceStore = defineStore("gateway-file-workspace", () => {
   const directories = shallowRef<Record<string, RemoteDirectoryState>>({});
-  const directoryLoader = new RemoteDirectoryLoader();
+  const directoryLoader = new RemoteDirectoryLoader(useGatewayTranslator());
   const gitComparisons = useFileGitComparisonStore();
   const gitWorkspaces = useFileGitWorkspaceStore();
   const scopes = useAccountLocalStorage<Record<string, FileWorkspaceScope>>(

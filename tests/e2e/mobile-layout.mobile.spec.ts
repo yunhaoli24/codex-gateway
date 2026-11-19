@@ -134,7 +134,7 @@ test("shows model, effort and context with an expandable mobile approval menu", 
   });
 
   await expect(page.getByTestId("model-select")).toContainText("GPT-5.6 Luna");
-  await expect(page.getByTestId("model-select")).toContainText("Medium");
+  await expect(page.getByTestId("model-select")).toContainText("中");
   await expect(page.getByText("完全访问", { exact: true })).toBeHidden();
   const contextMeter = page.getByTestId("context-usage-meter");
   await expect(contextMeter).toBeVisible();

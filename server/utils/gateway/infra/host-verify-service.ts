@@ -50,6 +50,14 @@ export class HostVerifyService {
         hostId: host.id,
         status: "connected",
         message: stdout,
+        messageTranslation: {
+          key: versionState.upgraded ? "connectedUpgraded" : "connectedVersion",
+          values: {
+            host: host.name,
+            version: versionState.version,
+            beforeVersion: versionState.beforeVersion,
+          },
+        },
       });
       return {
         ok: true,
