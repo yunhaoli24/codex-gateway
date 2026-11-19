@@ -5,7 +5,6 @@ import TurnDurationLabel from "@/components/thread/TurnDurationLabel.vue";
 import TurnUsageAmountLabel from "@/components/thread/TurnUsageAmountLabel.vue";
 import type { ThreadTimelineRow } from "@/components/thread/timeline-rows";
 import { Button } from "@codex-gateway/ui/button";
-import MessageForkAction from "./items/actions/MessageForkAction.vue";
 const { t } = useI18n();
 
 const props = defineProps<{
@@ -50,27 +49,8 @@ const emit = defineEmits<{
       :turn-timing="props.row.turnTiming"
       :response-usage="props.row.responseUsage"
       :agent-actions-available="props.row.agentActionsAvailable"
+      :turn-id="props.row.turnId"
     />
-    <div
-      v-if="
-        hostId !== null &&
-        threadId !== null &&
-        (props.row.item.type === 'userMessage' ||
-          (props.row.item.type === 'agentMessage' && props.row.agentActionsAvailable))
-      "
-      :class="[
-        'flex opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100',
-        props.row.item.type === 'userMessage' ? 'justify-end' : 'justify-start',
-      ]"
-    >
-      <MessageForkAction
-        :host-id="hostId"
-        :thread-id="threadId"
-        :turn-id="props.row.turnId"
-        :boundary="props.row.item.type === 'userMessage' ? 'before' : 'after'"
-        :item="props.row.item"
-      />
-    </div>
   </div>
   <div v-else class="flex items-center gap-3">
     <TurnDurationLabel :timing="props.row" />

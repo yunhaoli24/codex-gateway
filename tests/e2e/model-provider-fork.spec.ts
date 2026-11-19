@@ -36,26 +36,20 @@ test("configures a remote model provider and forks a conversation from message a
   await expect(dialog.getByText(`${providerName} updated`, { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  // Provider configuration does not switch the existing thread. It still performs a real turn
-  // with its saved provider, then forks at the two boundaries supported by App Server.
+  // Provider configuration does not switch the existing thread. Perform a real turn, then fork
+  // from the Agent footer action, the supported user-facing fork entry point.
   const text = `请只回复：fork-ready-${Date.now()}`;
   await composer.fill(text);
   await page.getByTestId("send-turn-button").click();
   await expect(page.getByTestId("send-turn-button")).toHaveAttribute("aria-label", "已完成", {
     timeout: AGENT_OUTPUT_TIMEOUT_MS,
   });
-  await page.getByTestId("message-fork").last().click();
+  await page.getByTestId("agent-message-actions").getByTestId("message-fork").click();
   await expect
     .poll(() => new URL(page.url()).searchParams.get("threadId"))
     .not.toBe(originalThread);
   await expect(page.locator(".thread-user-message", { hasText: text })).toBeVisible();
 
-  await selectSidebarThread(page, originalThread);
-  await page.getByTestId("message-fork").first().click();
-  await expect
-    .poll(() => new URL(page.url()).searchParams.get("threadId"))
-    .not.toBe(originalThread);
-  await expect(composer).toHaveAttribute("data-value", text);
   await selectSidebarThread(page, originalThread);
   await expect(page.locator(".thread-user-message", { hasText: text })).toBeVisible();
   await expect(composer).toHaveAttribute("data-value", "");
