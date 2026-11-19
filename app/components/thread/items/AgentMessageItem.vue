@@ -12,6 +12,7 @@ const props = defineProps<{
   item: ThreadHistoryItem;
   hostId: number | null;
   threadId: string | null;
+  turnId?: string | null;
   turnTiming?: DisplayedTurnTiming | null;
   responseUsage?: ThreadResponseUsage[];
   agentActionsAvailable?: boolean;
@@ -22,12 +23,7 @@ const inProgress = computed(() => isItemInProgress(props.item));
 const hasAsyncQuestions = computed(
   () => props.item.delivery === "async" && (props.item.questions?.length ?? 0) > 0,
 );
-const hasFooter = computed(
-  () =>
-    Boolean(text.value) &&
-    props.agentActionsAvailable === true &&
-    (props.turnTiming != null || (props.responseUsage?.length ?? 0) > 0),
-);
+const hasFooter = computed(() => Boolean(text.value) && props.agentActionsAvailable === true);
 </script>
 
 <template>
@@ -47,6 +43,10 @@ const hasFooter = computed(
         :text="text"
         :turn-timing="turnTiming"
         :response-usage="responseUsage"
+        :host-id="hostId"
+        :thread-id="threadId"
+        :turn-id="turnId"
+        :item="item"
       />
     </MessageContent>
   </Message>

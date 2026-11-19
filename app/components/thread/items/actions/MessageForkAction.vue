@@ -72,7 +72,7 @@ async function fork() {
     <Button
       variant="ghost"
       size="icon"
-      class="size-7 shrink-0 text-ink-muted"
+      class="size-8 shrink-0 text-ink-muted"
       :disabled="pending || !supported"
       :aria-label="t(supported ? 'app.forkMessage' : 'app.forkUnsupportedInput')"
       :title="
