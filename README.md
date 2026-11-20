@@ -318,6 +318,8 @@ E2E tests do not mock Codex app-server:
 
 - Docker builds the production Nuxt app and runs the app and browsers in separate containers.
 - SSH fixtures cover fresh standalone installation, migration from npm, daemon upgrades and real keyboard-interactive MFA.
+- Each SSH fixture copies the read-only checkout into its own writable project directory, owned by the fixture user. Uncommitted source changes are included; dependencies, runtime output and local environment files are excluded. Container restarts preserve that copy, while a new suite starts fresh. Host checkout ownership is never changed.
+- Only the disposable SSH fixtures disable Docker's seccomp and AppArmor profiles so the real Codex Linux sandbox can create user/mount namespaces. They check workspace writes and user namespaces before starting SSH. Application and browser containers retain their default profiles; no host security settings are changed.
 - Gateway connects to the target over SSH and starts or resumes a real Codex app-server.
 - Playwright verifies login, config, thread restore, realtime sync, mobile layout, diff rendering, dynamic requests, notifications, sub-agent UI, remote files, browser preview, and real tmux monitoring.
 
