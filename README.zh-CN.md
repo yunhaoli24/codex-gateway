@@ -255,6 +255,7 @@ pnpm test:e2e
 | `CODEX_GATEWAY_DB_PATH` | 否 | SQLite 路径，默认 `/data/codex-gateway.db`；本地开发需指定可写路径。 |
 | `HOST` | 否 | Nuxt 监听地址。Docker 使用 `0.0.0.0`。 |
 | `PORT` | 否 | Nuxt 监听端口。Docker 使用 `3000`。 |
+| `CODEX_GATEWAY_EXTERNAL_CODEX_HOSTS` | 否 | 逗号分隔的 SSH 主机名或 IP 地址，与 Gateway 中的主机配置一致。这些主机的 Codex CLI 由外部工具（例如 npm）安装和更新。Gateway 要求 CLI 版本受支持，并继续管理 App Server 的生命周期。 |
 | `BROWSER_PREVIEW_DOMAIN` | 使用浏览器预览时 | 生成 `p-<hmac>.example.com` 等隔离 origin 的父域名；为 `*.example.com` 配置泛域名 DNS 和 TLS。 |
 | `BROWSER_PREVIEW_SECRET` | 否 | 为 user/Host/target 生成稳定预览 origin 的 HMAC secret。默认复用 `CODEX_GATEWAY_CONFIG_SECRET`。 |
 | `BROWSER_PREVIEW_SCHEME` | 否 | 公开预览协议，默认 `https`。仅本地 E2E/开发使用 `http`。 |
