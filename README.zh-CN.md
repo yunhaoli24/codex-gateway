@@ -318,6 +318,8 @@ docker compose logs --since 10m --tail 100 codex-gateway
 
 - Docker 构建 production Nuxt 应用，应用和浏览器分别在独立容器中运行。
 - SSH 测试环境覆盖全新 standalone 安装、从 npm 迁移、daemon 升级和真实 keyboard-interactive MFA。
+- 每个 SSH fixture 将只读挂载的源码复制到独立、可写且归测试用户所有的项目目录。复制包含未提交的源码变更，排除依赖、运行产物和本地环境配置文件；容器重启保留项目副本，新一轮测试重新创建。不会修改宿主机源码目录的所有权。
+- 仅临时 SSH fixture 关闭 Docker 的 seccomp 和 AppArmor profile，使真实 Codex Linux sandbox 能创建 user/mount namespace。启动 SSH 前检查项目可写性和 user namespace；应用与浏览器容器保留默认 profile，不修改宿主机安全设置。
 - Gateway 通过 SSH 连接 target，并启动或恢复真实 Codex app-server。
 - Playwright 以浏览器行为验证登录、配置、thread 恢复、实时同步、移动端布局、diff 渲染、动态请求、通知、子代理 UI、远程文件、浏览器预览和真实 tmux 监控。
 

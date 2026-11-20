@@ -1,8 +1,13 @@
 x-ssh-target: &ssh-target
+  # Codex's Linux sandbox creates user/mount namespaces inside these disposable SSH hosts.
+  # Keep the application and browser containers under Docker's default security profiles.
+  security_opt:
+    - seccomp=unconfined
+    - apparmor=unconfined
   environment:
     CODEX_HOME: /home/codex/.codex
   volumes:
-    - ../..:/workspace/codex-gateway
+    - ../..:/workspace/source:ro
 
 services:
   bark-target:
