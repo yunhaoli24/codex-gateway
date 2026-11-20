@@ -6,11 +6,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@codex-gateway/ui/select";
+import { gatewayLocales, isGatewayLocale } from "~~/shared/locales";
 
 const { locale, setLocale } = useI18n();
 
 async function switchLanguage(value: unknown) {
-  if (value === "zh" || value === "en") {
+  if (isGatewayLocale(value)) {
     await setLocale(value);
   }
 }
@@ -22,8 +23,9 @@ async function switchLanguage(value: unknown) {
       <SelectValue />
     </SelectTrigger>
     <SelectContent>
-      <SelectItem value="zh">中文</SelectItem>
-      <SelectItem value="en">English</SelectItem>
+      <SelectItem v-for="language in gatewayLocales" :key="language.code" :value="language.code">
+        {{ language.name }}
+      </SelectItem>
     </SelectContent>
   </Select>
 </template>

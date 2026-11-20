@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
+import { gatewayLocales } from "./shared/locales";
 
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
@@ -78,9 +79,6 @@ export default defineNuxtConfig({
     defaultLocale: "zh",
     strategy: "no_prefix",
     detectBrowserLanguage: false,
-    locales: [
-      { code: "zh", name: "中文", file: "zh.json" },
-      { code: "en", name: "English", file: "en.json" },
-    ],
+    locales: gatewayLocales.map((locale) => ({ ...locale })),
   },
 });
