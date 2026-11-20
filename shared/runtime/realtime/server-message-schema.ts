@@ -3,6 +3,8 @@ import { modelProviderResultSchema } from "../../model-providers/protocol";
 import { threadEnvironmentSchema } from "../../environments";
 import { appServerThreadSchema, threadItemsListResponseSchema } from "../app-server";
 import { hostUpgradeProgressSchema } from "../../host-upgrade";
+import { hostLifecycleMessageSchema } from "../../host-lifecycle-message";
+import { notificationTranslationSchema } from "../../notifications/messages";
 import type { RealtimeServerMessage } from "../../types";
 import { reasoningSummarySchema } from "../../reasoning-summary";
 import { sandboxPolicySchema } from "../../permissions";
@@ -231,6 +233,7 @@ const notificationSchema = z
     key: nonEmptyString,
     title: z.string(),
     body: z.string(),
+    translation: notificationTranslationSchema.optional(),
     group: z.string().nullable().optional(),
     target: notificationTargetSchema,
   })
@@ -487,6 +490,7 @@ export const realtimeServerMessageSchema: z.ZodType<RealtimeServerMessage> = z.d
             message: z.string(),
             createdAt: z.string().optional(),
             upgradeProgress: hostUpgradeProgressSchema.nullable().optional(),
+            messageTranslation: hostLifecycleMessageSchema.optional(),
           })
           .strict(),
       })

@@ -5,6 +5,9 @@ import type { HTMLAttributes } from "vue";
 import { cn } from "../utils";
 import { Button } from "../button";
 import { useSidebar } from "./utils";
+import { useUiMessages } from "../i18n";
+
+const messages = useUiMessages();
 
 const props = defineProps<{
   class?: HTMLAttributes["class"];
@@ -23,6 +26,6 @@ const { toggleSidebar } = useSidebar();
     @click="toggleSidebar"
   >
     <PanelLeftIcon class="cn-rtl-flip" />
-    <span class="sr-only">Toggle Sidebar</span>
+    <span class="sr-only">{{ messages.toggleSidebar }}</span>
   </Button>
 </template>

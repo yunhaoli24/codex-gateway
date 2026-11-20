@@ -8,6 +8,9 @@ import { DialogClose, DialogContent, DialogPortal, useForwardPropsEmits } from "
 import { cn } from "../utils";
 import { Button } from "../button";
 import DialogOverlay from "./DialogOverlay.vue";
+import { useUiMessages } from "../i18n";
+
+const messages = useUiMessages();
 
 defineOptions({
   inheritAttrs: false,
@@ -55,7 +58,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
           :data-testid="closeButtonTestId"
         >
           <XIcon />
-          <span class="sr-only">Close</span>
+          <span class="sr-only">{{ messages.close }}</span>
         </Button>
       </DialogClose>
     </DialogContent>

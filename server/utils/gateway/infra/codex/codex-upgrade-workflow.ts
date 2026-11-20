@@ -42,6 +42,10 @@ export class CodexUpgradeWorkflow {
             hostId: host.id,
             status: "upgrading",
             message: `正在离线安装 ${host.name} 的 Codex ${SUPPORTED_CODEX_VERSION}`,
+            messageTranslation: {
+              key: "installing",
+              values: { host: host.name, version: SUPPORTED_CODEX_VERSION },
+            },
           });
           // Keep the old daemon running during download/SFTP/extraction. Gateway supplies an
           // offline CLI package because remote hosts may have no Internet; only the official
@@ -61,6 +65,7 @@ export class CodexUpgradeWorkflow {
             hostId: host.id,
             status: "restarting",
             message: `正在通过官方升级流程更新 ${host.name} 的 Codex daemon 至 ${version}`,
+            messageTranslation: { key: "updatingDaemon", values: { host: host.name, version } },
           });
           codexUpgradeLog("official daemon update started", host, { targetVersion: version });
         });

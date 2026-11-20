@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { threadItemStatusLabel } from "@/utils/thread-item-status";
 import { BotIcon } from "@lucide/vue";
 import { computed } from "vue";
 import { Badge } from "@codex-gateway/ui/badge";
@@ -84,7 +85,7 @@ function agentName(threadId: string) {
     <div class="flex items-center gap-2 text-[0.9375rem]">
       <BotIcon class="size-4 text-ink-muted" />
       <span class="min-w-0 truncate">{{ title }}</span>
-      <Badge variant="secondary">{{ item.status }}</Badge>
+      <Badge variant="secondary">{{ threadItemStatusLabel(item.status, t) }}</Badge>
       <Badge v-if="isItemInProgress(item)" variant="outline">{{ t("app.running") }}</Badge>
     </div>
     <div
@@ -109,7 +110,9 @@ function agentName(threadId: string) {
             <span class="min-w-0 flex-1 truncate text-sm text-ink-secondary">
               {{ agentName(agent.threadId) }}
             </span>
-            <Badge v-if="agent.status" variant="outline">{{ agent.status }}</Badge>
+            <Badge v-if="agent.status" variant="outline">{{
+              threadItemStatusLabel(agent.status, t)
+            }}</Badge>
             <Badge v-else-if="agent.receiver" variant="secondary">
               {{ t("app.receiverThreads") }}
             </Badge>

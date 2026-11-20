@@ -10,7 +10,7 @@ import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 
 const catalog = useGatewayCatalogStore();
 const navigation = useGatewayNavigationStore();
-const { hosts, hostConnectionStatuses } = storeToRefs(catalog);
+const { hosts, localizedHostConnectionStatuses: hostConnectionStatuses } = storeToRefs(catalog);
 const { selectedHostId } = storeToRefs(navigation);
 const { t } = useI18n();
 

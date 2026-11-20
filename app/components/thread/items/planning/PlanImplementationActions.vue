@@ -24,6 +24,7 @@ const composer = useGatewayComposerStore();
 const navigation = useGatewayNavigationStore();
 const threadTurns = useGatewayThreadTurnsStore();
 const applying = ref(false);
+const { t } = useI18n();
 
 const planItemId = computed(() => (props.item.id ? String(props.item.id) : null));
 const threadMode = computed(() => {
@@ -69,7 +70,7 @@ async function implementPlan() {
       { collaborationMode },
     );
     if (!updated) return;
-    await threadTurns.sendTurn("Implement the plan.", {
+    await threadTurns.sendTurn(t("app.implementPlanMessage"), {
       collaborationMode,
     });
   } finally {

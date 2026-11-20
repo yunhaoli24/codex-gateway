@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/remote-workspace";
 import { z } from "zod";
 import { authenticatedFetch, openApp, reloadApp } from "./helpers/app";
 
@@ -27,11 +27,13 @@ test("defaults to Chinese and remembers language changes across reloads and tabs
   await openApp(page);
   await expect(page.getByText("设置")).toBeVisible();
   await page.getByTestId("settings-toggle").click();
+  await expect(page.getByTestId("settings-close-button")).toHaveAccessibleName("关闭");
   await page.getByRole("tab", { name: "外观" }).click();
   await page.getByRole("combobox").first().click();
   await page.getByRole("option", { name: "English" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Appearance" })).toBeVisible();
+  await expect(page.getByTestId("settings-close-button")).toHaveAccessibleName("Close");
 
   await reloadApp(page);
   await expect(page.getByTestId("settings-toggle")).toHaveText("Settings");
@@ -57,6 +59,58 @@ test("ignores an unsupported saved interface language", async ({ page }) => {
   });
   await openApp(page);
   await expect(page.getByTestId("settings-toggle")).toHaveText("设置");
+});
+
+test("updates existing host connection details when the interface language changes", async ({
+  page,
+  remoteWorkspace,
+}) => {
+  await openApp(page, { interceptRealtime: false });
+  const host = await remoteWorkspace.addHost(`translation-host-${Date.now()}`);
+  await page.getByTestId("settings-toggle").click();
+  await page.getByRole("tab", { name: "主机", exact: true }).click();
+  const status = page.getByTestId(`host-management-status-${host.id}`);
+  await expect(status).toHaveAttribute("data-status", "connected");
+  await expect(status).toContainText("已连接");
+  await expect(status).toContainText(host.name);
+
+  await page.getByRole("tab", { name: "外观", exact: true }).click();
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "English" }).click();
+  await page.getByRole("tab", { name: "Hosts", exact: true }).click();
+  await expect(status).toContainText(/Connected to (?:Codex|app-server)/);
+  await expect(status).toContainText(host.name);
+  await expect(status).not.toContainText("已连接");
+
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "中文", exact: true }).click();
+  await page.getByRole("tab", { name: "主机", exact: true }).click();
+  await expect(status).toContainText("已连接");
+  await expect(status).not.toContainText("Connected to Codex");
+});
+
+test("translates a real turn completion notification into the selected interface language", async ({
+  page,
+  remoteWorkspace,
+}) => {
+  await openApp(page, { interceptRealtime: false });
+  const { host, project } = await remoteWorkspace.provision({
+    hostName: `notification-translation-${Date.now()}`,
+  });
+  await remoteWorkspace.startThread(project.remotePath);
+  await page.getByTestId("settings-toggle").click();
+  await page.getByRole("tab", { name: "外观", exact: true }).click();
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "English" }).click();
+  await page.getByTestId("settings-close-button").click();
+  await page.getByPlaceholder("Ask for follow-up changes").fill("Reply with: translation-ready");
+  await page.getByTestId("send-turn-button").click();
+  const notification = page.locator("[data-sonner-toast]").filter({ hasText: "Turn ended" });
+  await expect(notification).toBeVisible({ timeout: 180_000 });
+  await expect(notification).toContainText(host.name);
+  await expect(notification).toContainText("The conversation on");
+  await expect(notification).not.toContainText("会话状态");
 });
 
 test("returns to login when the current session is revoked", async ({ page }) => {

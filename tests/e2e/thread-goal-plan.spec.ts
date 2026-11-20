@@ -75,7 +75,7 @@ test("validates, creates, edits, pauses, resumes and clears a Goal through its c
     .poll(() => page.evaluate(() => window.__codexGatewayE2e?.captures.goalControls))
     .toEqual([{ type: "status", status: "paused" }]);
   await expect(page.getByTestId("composer-goal-summary")).toBeVisible();
-  await expect(page.getByTestId("composer-goal-summary").getByText("Paused")).toBeVisible();
+  await expect(page.getByTestId("composer-goal-summary").getByText("已暂停")).toBeVisible();
 
   await composer.fill("/goal");
   await expect(page.getByTestId("slash-command-goal-resume")).toBeVisible();

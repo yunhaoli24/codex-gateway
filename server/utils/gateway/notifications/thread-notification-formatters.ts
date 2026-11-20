@@ -17,6 +17,14 @@ export function threadTurnCompletedNotification(event: GatewayEvent): ServerNoti
     key: `thread-terminal:${event.hostId}:${event.threadId}:turn:${turnId}:${status}`,
     title: `${threadTitle(event.hostId, event.threadId)} · 回合已结束`,
     body: `${hostTitle(event.hostId)} 上的会话状态：${turnStatusLabel(status)}。可以继续输入下一步。`,
+    translation: {
+      kind: "turnCompleted",
+      values: {
+        thread: threadTitle(event.hostId, event.threadId),
+        host: hostTitle(event.hostId),
+        status,
+      },
+    },
     group: "Codex Gateway",
     target: notificationTarget(event),
   };
@@ -36,6 +44,16 @@ export function threadGoalCompletedNotification(event: GatewayEvent): ServerNoti
       `${hostTitle(event.hostId)} 上的目标状态：${goalStatusLabel(goal.status)}。`,
       `推进 ${formatDuration(goal.timeUsedSeconds)}，使用 ${goal.tokensUsed.toLocaleString()} tokens。`,
     ].join(""),
+    translation: {
+      kind: "goalCompleted",
+      values: {
+        thread: threadTitle(event.hostId, event.threadId),
+        host: hostTitle(event.hostId),
+        status: goal.status,
+        duration: formatDuration(goal.timeUsedSeconds),
+        tokens: goal.tokensUsed,
+      },
+    },
     group: "Codex Gateway",
     target: notificationTarget(event),
   };
@@ -49,6 +67,15 @@ export function threadUserInputRequestedNotification(event: GatewayEvent): Serve
       key: `thread-user-input:${event.hostId}:${event.threadId}:${event.id}`,
       title: `${threadTitle(event.hostId, event.threadId)} · 等待回答`,
       body: `${hostTitle(event.hostId)} 上的 Agent 正在等待你的回答。请打开会话查看问题。`,
+      translation: {
+        kind: "inputRequested",
+        values: {
+          thread: threadTitle(event.hostId, event.threadId),
+          host: hostTitle(event.hostId),
+          question: "",
+          count: 0,
+        },
+      },
       group: "Codex Gateway",
       target: notificationTarget(event),
     };
@@ -67,6 +94,15 @@ export function threadUserInputRequestedNotification(event: GatewayEvent): Serve
     key: `thread-user-input:${event.hostId}:${event.threadId}:${requestId}`,
     title: `${threadTitle(event.hostId, event.threadId)} · 等待回答`,
     body: `${hostTitle(event.hostId)} 上的 Agent 正在等待你的回答${questionCount}：${question ?? "请打开会话查看问题。"}`,
+    translation: {
+      kind: "inputRequested",
+      values: {
+        thread: threadTitle(event.hostId, event.threadId),
+        host: hostTitle(event.hostId),
+        question: question ?? "",
+        count: questions.length,
+      },
+    },
     group: "Codex Gateway",
     target: notificationTarget(event),
   };
@@ -90,6 +126,15 @@ export function threadAsyncUserQuestionNotification(
     key: `thread-async-user-question:${event.hostId}:${event.threadId}:${itemId}`,
     title: `${threadTitle(event.hostId, event.threadId)} · 等待回答`,
     body: `${hostTitle(event.hostId)} 上的 Agent 正在等待你的回答${questionCount}：${question}`,
+    translation: {
+      kind: "inputRequested",
+      values: {
+        thread: threadTitle(event.hostId, event.threadId),
+        host: hostTitle(event.hostId),
+        question,
+        count: questions.length,
+      },
+    },
     group: "Codex Gateway",
     target: notificationTarget(event),
   };

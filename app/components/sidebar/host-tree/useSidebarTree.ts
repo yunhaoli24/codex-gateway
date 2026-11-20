@@ -19,7 +19,11 @@ export function useSidebarTree(longPressTriggered: Ref<boolean>) {
   const navigation = useGatewayNavigationStore();
   const runtime = useGatewayThreadRuntimeStore();
   const threadView = useGatewayThreadViewStore();
-  const { hosts, projects, hostConnectionStatuses } = storeToRefs(store);
+  const {
+    hosts,
+    projects,
+    localizedHostConnectionStatuses: hostConnectionStatuses,
+  } = storeToRefs(store);
   const storedPinnedThreads = useGatewayPinnedThreads();
   const { threads, openingPinnedThreadKey, selectedHostId, selectedCwd, selectedThreadId } =
     storeToRefs(navigation);

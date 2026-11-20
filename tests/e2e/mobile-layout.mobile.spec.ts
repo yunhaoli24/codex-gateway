@@ -134,7 +134,7 @@ test("shows model, effort and context with an expandable mobile approval menu", 
   });
 
   await expect(page.getByTestId("model-select")).toContainText("GPT-5.6 Luna");
-  await expect(page.getByTestId("model-select")).toContainText("Medium");
+  await expect(page.getByTestId("model-select")).toContainText("中");
   await expect(page.getByText("完全访问", { exact: true })).toBeHidden();
   const contextMeter = page.getByTestId("context-usage-meter");
   await expect(contextMeter).toBeVisible();
@@ -159,9 +159,9 @@ test("shows model, effort and context with an expandable mobile approval menu", 
   await expect(page.getByTestId("model-option-gpt-5.6-sol")).toBeHidden();
   await modelSearch.fill("");
 
-  await page.getByText("High", { exact: true }).click();
+  await page.getByText("高", { exact: true }).click();
   await expect(modelSearch).toBeVisible();
-  await expect(page.getByTestId("model-select")).toContainText("High");
+  await expect(page.getByTestId("model-select")).toContainText("高");
   await page.getByTestId("model-option-gpt-5.6-sol").click();
   await expect(modelSearch).toBeVisible();
   await expect(page.getByTestId("model-select")).toContainText("GPT-5.6 Sol");

@@ -695,11 +695,13 @@ function shellQuote(value: string) {
 
 function effortDisplayLabel(value: string) {
   const labels: Record<string, string> = {
-    low: "Light",
-    light: "Light",
-    medium: "Medium",
-    high: "High",
-    xhigh: "Extra High",
+    none: "无",
+    minimal: "最低",
+    low: "低",
+    light: "低",
+    medium: "中",
+    high: "高",
+    xhigh: "极高",
   };
   return labels[value] ?? value;
 }

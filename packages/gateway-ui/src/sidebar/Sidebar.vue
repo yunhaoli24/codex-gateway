@@ -6,6 +6,9 @@ import SheetDescription from "../sheet/SheetDescription.vue";
 import SheetHeader from "../sheet/SheetHeader.vue";
 import SheetTitle from "../sheet/SheetTitle.vue";
 import { SIDEBAR_WIDTH_MOBILE, useSidebar } from "./utils";
+import { useUiMessages } from "../i18n";
+
+const messages = useUiMessages();
 
 defineOptions({
   inheritAttrs: false,
@@ -44,8 +47,8 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
       }"
     >
       <SheetHeader class="sr-only">
-        <SheetTitle>Sidebar</SheetTitle>
-        <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+        <SheetTitle>{{ messages.sidebar }}</SheetTitle>
+        <SheetDescription>{{ messages.sidebarDescription }}</SheetDescription>
       </SheetHeader>
       <div class="flex h-full w-full flex-col">
         <slot />

@@ -8,6 +8,9 @@ import { DialogClose, DialogContent, DialogPortal, useForwardPropsEmits } from "
 import { cn } from "../utils";
 import { Button } from "../button";
 import SheetOverlay from "./SheetOverlay.vue";
+import { useUiMessages } from "../i18n";
+
+const messages = useUiMessages();
 
 interface SheetContentProps extends DialogContentProps {
   class?: HTMLAttributes["class"];
@@ -49,7 +52,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
       <DialogClose v-if="showCloseButton" data-slot="sheet-close" as-child>
         <Button variant="ghost" class="absolute top-4 right-4" size="icon-sm">
           <XIcon />
-          <span class="sr-only">Close</span>
+          <span class="sr-only">{{ messages.close }}</span>
         </Button>
       </DialogClose>
     </DialogContent>

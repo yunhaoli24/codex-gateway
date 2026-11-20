@@ -93,6 +93,10 @@ class HostUpgradeState {
         : progress === null
           ? `${host.name} 的 Codex 升级完成，正在重新连接`
           : `${host.name} 正在升级 Codex ${progress.targetVersion}`,
+      messageTranslation: {
+        key: failed ? "upgradeFailed" : progress === null ? "upgradeComplete" : "upgrading",
+        values: { host: host.name, version: progress?.targetVersion ?? "" },
+      },
       // A new subscriber receives the current phase now, even if its last byte sample is old.
       // Using the sample time here would let newer SSH events discard this active upgrade replay.
       createdAt: new Date().toISOString(),

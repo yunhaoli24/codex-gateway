@@ -3,6 +3,9 @@ import type { IframeHTMLAttributes, VNodeChild } from "vue";
 import { cn } from "@codex-gateway/ui/utils";
 import { computed } from "vue";
 import { useWebPreviewContext } from "./context";
+import { useUiMessages } from "@codex-gateway/ui/i18n";
+
+const messages = useUiMessages();
 
 interface Props extends /* @vue-ignore */ IframeHTMLAttributes {
   class?: IframeHTMLAttributes["class"];
@@ -26,7 +29,7 @@ const frameSrc = computed(() => (props.src ?? url.value) || undefined);
       :class="cn('block size-full border-0', props.class)"
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
       :src="frameSrc"
-      title="Preview"
+      :title="messages.preview"
       v-bind="$attrs"
     />
     <slot name="loading" />

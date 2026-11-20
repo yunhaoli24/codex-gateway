@@ -133,6 +133,19 @@ export class CodexRpcClient extends EventEmitter<CodexRpcClientEvents> {
       ]
         .filter((value): value is string => value !== null)
         .join("\n"),
+      messageTranslation: {
+        key:
+          versionState?.upgraded === true
+            ? "connectedUpgraded"
+            : versionState === null
+              ? "connected"
+              : "connectedVersion",
+        values: {
+          host: this.host.name,
+          version: versionState?.version ?? "",
+          beforeVersion: versionState?.beforeVersion ?? "",
+        },
+      },
     });
   }
 

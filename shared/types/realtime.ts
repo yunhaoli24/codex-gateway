@@ -1,4 +1,5 @@
 import type { GatewayEvent } from "./records";
+import type { HostLifecycleMessage } from "../host-lifecycle-message";
 import type {
   ComposerTurnOptions,
   ThreadGoal,
@@ -437,6 +438,7 @@ export type RealtimeServerMessage =
           | "failed"
           | "mfaRequired";
         message: string;
+        messageTranslation?: HostLifecycleMessage;
         createdAt?: string;
         upgradeProgress?: HostUpgradeProgress | null;
       };

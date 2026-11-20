@@ -14,7 +14,7 @@ const catalog = useGatewayCatalogStore();
 const { t } = useI18n();
 // The sidebar and management share lifecycle state. Upload counters are the server's existing
 // log snapshot, refreshed over the same WS by the visible management page.
-const connection = computed(() => catalog.hostConnectionStatuses[props.hostId]);
+const connection = computed(() => catalog.localizedHostConnectionStatuses[props.hostId]);
 const progress = computed(() => connection.value?.upgradeProgress);
 const status = computed(() =>
   progress.value != null

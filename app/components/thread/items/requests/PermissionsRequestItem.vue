@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { threadItemStatusLabel } from "@/utils/thread-item-status";
 import type { ThreadHistoryItem } from "~~/shared/types";
 import { ShieldQuestionIcon } from "@lucide/vue";
 import { computed } from "vue";
@@ -60,7 +61,7 @@ async function respond(result: unknown) {
     <template #title>
       <ShieldQuestionIcon class="size-4 shrink-0" />
       <span class="font-medium">{{ t("app.permissionsRequest") }}</span>
-      <Badge variant="outline">{{ item.status }}</Badge>
+      <Badge variant="outline">{{ threadItemStatusLabel(item.status, t) }}</Badge>
     </template>
     <div v-if="params.reason" class="mt-2 text-accent-orange-deep">{{ params.reason }}</div>
     <div class="mt-3 grid gap-2">

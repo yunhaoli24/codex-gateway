@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { threadItemStatusLabel } from "@/utils/thread-item-status";
 import type { ThreadHistoryItem } from "~~/shared/types";
 import { MessageSquareIcon } from "@lucide/vue";
 import { computed, reactive } from "vue";
@@ -43,7 +44,7 @@ async function submit() {
     <div class="flex items-center gap-2">
       <MessageSquareIcon class="size-4 shrink-0" />
       <span class="font-medium">{{ t("app.userInputRequest") }}</span>
-      <Badge variant="outline">{{ item.status }}</Badge>
+      <Badge variant="outline">{{ threadItemStatusLabel(item.status, t) }}</Badge>
     </div>
     <div class="mt-3 space-y-3">
       <div v-for="question in questions" :key="question.id" class="rounded-md bg-surface/80 p-3">

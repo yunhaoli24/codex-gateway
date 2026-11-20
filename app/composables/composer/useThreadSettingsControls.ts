@@ -15,6 +15,7 @@ import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
 import { useGatewayProjectDefaultsStore } from "@/stores/gateway-project-defaults";
 
 export function useThreadSettingsControls() {
+  const { t } = useI18n();
   const gateway = useGatewayCatalogStore();
   const composer = useGatewayComposerStore();
   const navigation = useGatewayNavigationStore();
@@ -183,14 +184,17 @@ export function useThreadSettingsControls() {
 
   function compactEffortLabel(value: string) {
     if (value === "") return "";
-    const normalized = value.toLowerCase().replaceAll("_", "-");
+    const normalized = value.toLowerCase().replaceAll(/[_\s]+/g, "-");
     const knownLabels: Record<string, string> = {
-      low: "Light",
-      light: "Light",
-      medium: "Medium",
-      high: "High",
-      "extra-high": "Extra High",
-      xhigh: "Extra High",
+      default: t("app.effortHostDefault"),
+      none: t("app.effortNone"),
+      minimal: t("app.effortMinimal"),
+      low: t("app.effortLow"),
+      light: t("app.effortLow"),
+      medium: t("app.effortMedium"),
+      high: t("app.effortHigh"),
+      "extra-high": t("app.effortExtraHigh"),
+      xhigh: t("app.effortExtraHigh"),
     };
     const knownLabel = knownLabels[normalized];
     if (knownLabel !== undefined) return knownLabel;

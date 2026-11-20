@@ -3,6 +3,9 @@ import { Loader2Icon } from "@lucide/vue";
 
 import type { HTMLAttributes } from "vue";
 import { cn } from "../utils";
+import { useUiMessages } from "../i18n";
+
+const messages = useUiMessages();
 
 const props = defineProps<{
   class?: HTMLAttributes["class"];
@@ -10,5 +13,9 @@ const props = defineProps<{
 </script>
 
 <template>
-  <Loader2Icon role="status" aria-label="Loading" :class="cn('size-4 animate-spin', props.class)" />
+  <Loader2Icon
+    role="status"
+    :aria-label="messages.loading"
+    :class="cn('size-4 animate-spin', props.class)"
+  />
 </template>

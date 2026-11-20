@@ -1,3 +1,5 @@
+import type { NotificationTranslation } from "../notifications/messages";
+
 export type ServerNotificationTarget =
   | {
       kind: "thread";
@@ -15,6 +17,7 @@ export interface ServerNotification {
   key: string;
   title: string;
   body: string;
+  translation?: NotificationTranslation;
   group?: string | null;
   target: ServerNotificationTarget;
 }
