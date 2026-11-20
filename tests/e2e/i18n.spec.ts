@@ -61,6 +61,33 @@ test("ignores an unsupported saved interface language", async ({ page }) => {
   await expect(page.getByTestId("settings-toggle")).toHaveText("设置");
 });
 
+test("switches to German and remembers the choice across reloads and new tabs", async ({
+  page,
+}) => {
+  await openApp(page, { interceptRealtime: false });
+  await page.getByTestId("settings-toggle").click();
+  await page.getByRole("tab", { name: "外观", exact: true }).click();
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "Deutsch", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Einstellungen", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Darstellung", exact: true })).toBeVisible();
+  await expect(page.getByTestId("settings-close-button")).toHaveAccessibleName("Schließen");
+
+  await reloadApp(page);
+  await expect(page.getByTestId("settings-toggle")).toHaveText("Einstellungen");
+  const secondPage = await page.context().newPage();
+  await openApp(secondPage, { resetConfig: false, interceptRealtime: false });
+  await expect(secondPage.getByTestId("settings-toggle")).toHaveText("Einstellungen");
+  await secondPage.close();
+
+  await page.getByTestId("settings-toggle").click();
+  await page.getByRole("tab", { name: "Darstellung", exact: true }).click();
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "English", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+  await expect(page.getByTestId("settings-close-button")).toHaveAccessibleName("Close");
+});
+
 test("updates existing host connection details when the interface language changes", async ({
   page,
   remoteWorkspace,
@@ -84,34 +111,58 @@ test("updates existing host connection details when the interface language chang
 
   await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "Deutsch", exact: true }).click();
+  await page.getByRole("tab", { name: "Hosts", exact: true }).click();
+  await expect(status).toContainText("Mit");
+  await expect(status).toContainText("verbunden");
+  await expect(status).toContainText(host.name);
+  await expect(status).not.toContainText("Connected to Codex");
+
+  await page.getByRole("tab", { name: "Darstellung", exact: true }).click();
+  await page.getByRole("combobox").first().click();
   await page.getByRole("option", { name: "中文", exact: true }).click();
   await page.getByRole("tab", { name: "主机", exact: true }).click();
   await expect(status).toContainText("已连接");
   await expect(status).not.toContainText("Connected to Codex");
 });
 
-test("translates a real turn completion notification into the selected interface language", async ({
-  page,
-  remoteWorkspace,
-}) => {
-  await openApp(page, { interceptRealtime: false });
-  const { host, project } = await remoteWorkspace.provision({
-    hostName: `notification-translation-${Date.now()}`,
+for (const translation of [
+  {
+    language: "English",
+    placeholder: "Ask for follow-up changes",
+    title: "Turn ended",
+    body: "The conversation on",
+  },
+  {
+    language: "Deutsch",
+    placeholder: "Weitere Änderungswünsche eingeben",
+    title: "Durchgang beendet",
+    body: "Status der Unterhaltung auf",
+  },
+]) {
+  test(`translates a real turn completion notification into ${translation.language}`, async ({
+    page,
+    remoteWorkspace,
+  }) => {
+    await openApp(page, { interceptRealtime: false });
+    const { host, project } = await remoteWorkspace.provision({
+      hostName: `notification-translation-${Date.now()}`,
+    });
+    await remoteWorkspace.startThread(project.remotePath);
+    await page.getByTestId("settings-toggle").click();
+    await page.getByRole("tab", { name: "外观", exact: true }).click();
+    await page.getByRole("combobox").first().click();
+    await page.getByRole("option", { name: translation.language, exact: true }).click();
+    await page.getByTestId("settings-close-button").click();
+    await page.getByPlaceholder(translation.placeholder).fill("Reply with: translation-ready");
+    await page.getByTestId("send-turn-button").click();
+    const notification = page.locator("[data-sonner-toast]").filter({ hasText: translation.title });
+    await expect(notification).toBeVisible({ timeout: 180_000 });
+    await expect(notification).toContainText(host.name);
+    await expect(notification).toContainText(translation.body);
+    await expect(notification).not.toContainText("会话状态");
   });
-  await remoteWorkspace.startThread(project.remotePath);
-  await page.getByTestId("settings-toggle").click();
-  await page.getByRole("tab", { name: "外观", exact: true }).click();
-  await page.getByRole("combobox").first().click();
-  await page.getByRole("option", { name: "English" }).click();
-  await page.getByTestId("settings-close-button").click();
-  await page.getByPlaceholder("Ask for follow-up changes").fill("Reply with: translation-ready");
-  await page.getByTestId("send-turn-button").click();
-  const notification = page.locator("[data-sonner-toast]").filter({ hasText: "Turn ended" });
-  await expect(notification).toBeVisible({ timeout: 180_000 });
-  await expect(notification).toContainText(host.name);
-  await expect(notification).toContainText("The conversation on");
-  await expect(notification).not.toContainText("会话状态");
-});
+}
 
 test("returns to login when the current session is revoked", async ({ page }) => {
   await openApp(page);

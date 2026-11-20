@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { hostLifecycleMessageSchema } from "../shared/host-lifecycle-message.ts";
 import { notificationTranslationSchema } from "../shared/notifications/messages.ts";
+import { gatewayLocales } from "../shared/locales.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 function flatten(value: unknown, prefix = ""): Record<string, string> {
@@ -20,11 +21,9 @@ function flatten(value: unknown, prefix = ""): Record<string, string> {
 }
 
 const locales = await Promise.all(
-  ["en", "zh"].map(async (locale) => ({
+  gatewayLocales.map(async ({ code: locale, file }) => ({
     locale,
-    messages: flatten(
-      JSON.parse(await readFile(path.join(root, `i18n/locales/${locale}.json`), "utf8")),
-    ),
+    messages: flatten(JSON.parse(await readFile(path.join(root, "i18n/locales", file), "utf8"))),
   })),
 );
 const errors: string[] = [];
@@ -75,5 +74,5 @@ if (errors.length) {
   process.exitCode = 1;
 } else
   console.log(
-    `Checked ${keys.size} translation keys in both locales and literal interface references.`,
+    `Checked ${keys.size} translation keys in all ${locales.length} locales and literal interface references.`,
   );
