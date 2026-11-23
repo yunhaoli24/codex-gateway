@@ -2,6 +2,8 @@ import pLimit from "p-limit";
 import type { FileEntryWithStats, SFTPWrapper, Stats } from "ssh2";
 import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
+import { createError } from "h3";
+import { isWorkspaceDirectory, workspaceRootsForHost } from "../../state/workspace-scope";
 import { remoteLoginShellCommand } from "../ssh/remote-command";
 import { shellQuote } from "../ssh/shell";
 import type { SshConnectionPool } from "../ssh/ssh-connection";
@@ -19,7 +21,16 @@ export class RemoteFileService {
   constructor(private readonly ssh: SshConnectionPool) {}
 
   async listDirectories(host: HostWithSecret, path: string) {
+    if (path === "" || path === "." || path === "~") {
+      path = workspaceRootsForHost(host.id)?.[0]?.remotePath ?? path;
+    }
     const resolvedPath = await this.resolveRemoteDirectory(host, path);
+    if (!isWorkspaceDirectory(host.id, resolvedPath)) {
+      throw createError({
+        statusCode: 403,
+        message: "Directory is outside this account's workspace",
+      });
+    }
     const sftp = await this.ssh.sftp(host);
     const entries = await new Promise<FileEntryWithStats[]>((resolve, reject) => {
       sftp.readdir(resolvedPath, (readError, entries) => {
@@ -30,7 +41,11 @@ export class RemoteFileService {
         resolve(entries);
       });
     });
-    return directoryResult(sftp, resolvedPath, entries);
+    const result = await directoryResult(sftp, resolvedPath, entries);
+    return {
+      ...result,
+      entries: result.entries.filter((entry) => isWorkspaceDirectory(host.id, entry.path)),
+    };
   }
 
   async uploadFile(host: HostWithSecret, localPath: string, remotePath: string) {

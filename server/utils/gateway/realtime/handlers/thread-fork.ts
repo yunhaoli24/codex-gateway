@@ -11,7 +11,7 @@ export async function forkThread(
   request: Extract<RealtimeClientMessage, { type: "thread.fork" }>,
 ) {
   const host = requireRecord(hostStore.getWithSecret(request.hostId), "Host not found");
-  const client = await threadBroker.getHostClient(host);
+  const client = await threadBroker.getThreadClient(host, request.threadId);
   const result = await client.request(
     "thread/fork",
     {

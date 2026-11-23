@@ -1,4 +1,4 @@
-import type { HostRecord } from "./records";
+import type { HostRecord, ProjectCreateInput } from "./records";
 
 export interface PinnedThreadRecord {
   hostId: number;
@@ -24,6 +24,8 @@ export interface GatewayNotificationSettings {
 export interface GatewayConfig {
   version: 2;
   hosts: HostRecord[];
+  /** Configured navigation roots; absent keeps upstream automatic discovery. */
+  workspaceRoots?: ProjectCreateInput[];
   pinnedThreads: PinnedThreadRecord[];
   notifications: GatewayNotificationSettings;
 }

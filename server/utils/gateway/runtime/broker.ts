@@ -17,6 +17,7 @@ import { McpRuntimeService } from "./mcp-runtime";
 import { AppServerFileService } from "./app-server-files";
 import { providerAdapterFor } from "../agent/provider-registry";
 import { ThreadAttachmentService } from "./thread-attachments";
+import { assertWorkspacePath, workspaceRootsForHost } from "../state/workspace-scope";
 
 class ThreadBroker {
   private readonly registry = new ControllerRegistry();
@@ -45,6 +46,12 @@ class ThreadBroker {
     params: Record<string, unknown>,
     providerId: AgentProviderId = "codex",
   ) {
+    const roots = workspaceRootsForHost(host.id);
+    if (roots !== undefined) {
+      const cwd = typeof params.cwd === "string" ? params.cwd : roots[0]?.remotePath;
+      assertWorkspacePath(host.id, cwd);
+      params = { ...params, cwd };
+    }
     const client = await this.registry.getHostClient(host, providerId);
     // Paginated history is the current App Server storage model that can hydrate indexed Turn
     // pages without replaying an entire rollout JSONL. Keep this policy at the protocol boundary so
@@ -176,6 +183,11 @@ class ThreadBroker {
     input: { threadId: string; attachmentType: string; identityKey: string },
   ) {
     return this.attachments.remove(host, input);
+  }
+
+  async getThreadClient(host: HostRecord, threadId: string) {
+    await this.registry.assertThreadWorkspace(host, threadId);
+    return this.registry.getHostClient(host);
   }
 
   async getHostClient(host: HostRecord) {

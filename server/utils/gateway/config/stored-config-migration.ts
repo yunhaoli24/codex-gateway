@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseGatewayConfig } from "../http/validation/config";
+import { projectCreateSchema } from "../http/validation/hosts-projects";
 
 const previousConfig = z
   .object({
@@ -14,13 +15,19 @@ const previousConfig = z
 export function migrateStoredConfig(value: unknown) {
   const old = previousConfig.safeParse(value);
   if (!old.success) return { config: parseGatewayConfig(value), migrated: false };
-  const { projects: _projects, ...retained } = old.data;
+  const { projects, ...retained } = old.data;
+  const workspaceRoots = projects?.map((project) => projectCreateSchema.parse(project));
   const pinnedThreads = (old.data.pinnedThreads ?? []).map((pin) => {
     const { projectId: _projectId, ...thread } = pin;
     return thread;
   });
   return {
-    config: parseGatewayConfig({ ...retained, version: 2, pinnedThreads }),
+    config: parseGatewayConfig({
+      ...retained,
+      version: 2,
+      pinnedThreads,
+      ...(workspaceRoots === undefined ? {} : { workspaceRoots }),
+    }),
     migrated: true,
   };
 }

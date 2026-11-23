@@ -15,6 +15,7 @@ import { withAllThreadSources } from "../../utils/gateway/protocol/thread-list";
 import { threadProjectDiscovery } from "../../utils/gateway/runtime/thread-project-discovery";
 import type { AppServerThread, GatewayThread } from "~~/shared/types";
 import { trimmedOrNull } from "~~/shared/utils/strings";
+import { isWorkspacePath } from "../../utils/gateway/state/workspace-scope";
 import { gatewayThreadFromAppServer } from "../../utils/gateway/protocol/gateway-thread";
 
 export default defineGatewayEventHandler(async (event) => {
@@ -66,7 +67,7 @@ export default defineGatewayEventHandler(async (event) => {
   // Listing them needs no SFTP existence check; actual file operations report their own errors.
   return {
     ...page,
-    data: gatewayThreads,
+    data: gatewayThreads.filter((thread) => isWorkspacePath(host.id, thread.cwd)),
     projects,
   };
 });

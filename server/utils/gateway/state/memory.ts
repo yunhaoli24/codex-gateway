@@ -35,6 +35,7 @@ export interface SubAgentThreadRecord {
 
 export interface GatewayMemoryState {
   hosts: StoredHostRecord[];
+  workspaceRoots?: GatewayConfig["workspaceRoots"];
   projects: ProjectRecord[];
   pinnedThreads: PinnedThreadRecord[];
   notifications: GatewayConfig["notifications"];
@@ -106,6 +107,12 @@ export function bindGatewayUser<Args extends unknown[], Result>(
 export function buildGatewayMemoryState(config: GatewayConfig): GatewayMemoryState {
   return {
     ...createGatewayMemoryState(),
+    workspaceRoots: config.workspaceRoots,
+    projects: (config.workspaceRoots ?? []).map((root) => ({
+      ...root,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    })),
     hosts: config.hosts.map((host) => ({
       ...host,
       proxyUrl: trimmedOrNull(host.proxyUrl),

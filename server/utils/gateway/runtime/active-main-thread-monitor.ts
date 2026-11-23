@@ -1,3 +1,4 @@
+import { isWorkspacePath } from "../state/workspace-scope";
 import pLimit from "p-limit";
 import type { AgentProviderId, AppServerThread, HostRecord } from "~~/shared/types";
 import {
@@ -177,7 +178,7 @@ class ActiveMainThreadMonitor {
     hostKey: HostRuntimeKey,
     generation: number,
   ) {
-    const threads = await activeLoadedMainThreads(context.client);
+    const threads = await activeLoadedMainThreads(context.client, context.host.id);
     const limit = pLimit(RECOVERY_CONCURRENCY);
     await Promise.all(
       threads.map((thread) =>
@@ -241,7 +242,12 @@ class ActiveMainThreadMonitor {
     const hostKey = this.hostKey(context.host.id, context.providerId);
     if (!this.isCurrent(hostKey, generation) || context.hasController(threadId)) return;
 
-    if (thread === null || isAppServerSubAgentThread(thread) || !isActive(thread)) {
+    if (
+      thread === null ||
+      !isWorkspacePath(context.host.id, thread.cwd) ||
+      isAppServerSubAgentThread(thread) ||
+      !isActive(thread)
+    ) {
       await this.unsubscribe(context, threadId);
       return;
     }
@@ -317,7 +323,7 @@ async function loadedThreadIds(client: AgentRpcClient) {
   return threadIds;
 }
 
-async function activeLoadedMainThreads(client: AgentRpcClient) {
+async function activeLoadedMainThreads(client: AgentRpcClient, hostId: number) {
   const loadedIds = await loadedThreadIds(client);
   if (loadedIds.size === 0) return [];
 
@@ -344,7 +350,12 @@ async function activeLoadedMainThreads(client: AgentRpcClient) {
     );
     for (const thread of page.data) {
       if (!unresolvedIds.delete(thread.id)) continue;
-      if (isActive(thread) && !isAppServerSubAgentThread(thread)) activeThreads.push(thread);
+      if (
+        isWorkspacePath(hostId, thread.cwd) &&
+        isActive(thread) &&
+        !isAppServerSubAgentThread(thread)
+      )
+        activeThreads.push(thread);
     }
     const nextCursor: string | null = page.nextCursor;
     if (

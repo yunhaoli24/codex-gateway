@@ -102,6 +102,7 @@ export function runtimeConfigFromMemory(): GatewayConfig {
   const state = currentGatewayMemoryState();
   return {
     version: 2,
+    ...(state.workspaceRoots === undefined ? {} : { workspaceRoots: state.workspaceRoots }),
     hosts: state.hosts.map((host) => ({
       ...host,
       hasPassword: Boolean(host.password),

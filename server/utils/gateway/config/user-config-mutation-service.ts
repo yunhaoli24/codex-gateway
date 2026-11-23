@@ -34,6 +34,15 @@ export class UserConfigMutationService {
     replaceCurrentGatewayMemoryState(previousState);
     userStore.saveConfig(userId, nextConfig);
     replaceCurrentGatewayMemoryState(draftState);
+    for (const host of previousState.hosts) {
+      const previousRoots = previousState.workspaceRoots?.filter((root) => root.hostId === host.id);
+      const nextRoots = draftState.workspaceRoots?.filter((root) => root.hostId === host.id);
+      if (JSON.stringify(previousRoots) !== JSON.stringify(nextRoots)) {
+        attemptRuntimeReconciliation(userId, `host:${host.id}:workspace`, () =>
+          hostResourceLifecycle.workspaceChanged(userId, host.id),
+        );
+      }
+    }
     this.reconcileCommittedConfig(
       userId,
       previousState.hosts,
@@ -107,5 +116,6 @@ function pruneDanglingHostRelations(state: ReturnType<typeof currentGatewayMemor
   // lifecycle callbacks run after commit and must never mutate durable configuration: doing so
   // would make memory look correct until the next restart restores orphaned rows from SQLite.
   state.projects = state.projects.filter((project) => hostIds.has(project.hostId));
+  state.workspaceRoots = state.workspaceRoots?.filter((root) => hostIds.has(root.hostId));
   state.pinnedThreads = state.pinnedThreads.filter((thread) => hostIds.has(thread.hostId));
 }

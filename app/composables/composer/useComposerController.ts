@@ -7,6 +7,7 @@ import { useComposerSlashActions } from "./useComposerSlashActions";
 import { useComposerTurnSubmit } from "./useComposerTurnSubmit";
 import { useThreadSettingsControls } from "./useThreadSettingsControls";
 import { useGatewayCatalogStore } from "@/stores/gateway-catalog";
+import { useGatewayConfigStore } from "@/stores/gateway-config";
 import { useGatewayBootstrapStore } from "@/stores/gateway-bootstrap";
 import { useGatewayComposerStore } from "@/stores/gateway-composer";
 import { useGatewayNavigationStore } from "@/stores/gateway-navigation";
@@ -18,6 +19,8 @@ import { useComposerSlashMenu } from "./useComposerSlashMenu";
 
 export function useComposerController() {
   const modelProvidersOpen = ref(false);
+  const config = useGatewayConfigStore();
+  const canManageModelProviders = computed(() => config.gatewayConfig.workspaceRoots === undefined);
   const gateway = useGatewayCatalogStore();
   const bootstrap = useGatewayBootstrapStore();
   const composer = useGatewayComposerStore();
@@ -115,7 +118,7 @@ export function useComposerController() {
   });
   const slashActions = useComposerSlashActions({
     openModelProviders: () => {
-      modelProvidersOpen.value = true;
+      if (canManageModelProviders.value) modelProvidersOpen.value = true;
     },
     text: turnText,
     selectedThreadId,
@@ -129,6 +132,7 @@ export function useComposerController() {
     selectedThreadId,
     selectedThreadGoal,
     enabled: composerInputEnabled,
+    canManageModelProviders,
     onSelect: slashActions.runSlashCommand,
   });
 

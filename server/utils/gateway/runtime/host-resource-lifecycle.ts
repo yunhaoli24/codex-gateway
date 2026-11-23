@@ -13,6 +13,12 @@ import { hostMetricsManager } from "../infra/host-services";
 import { threadRuntimeStatusHub } from "./thread-runtime-status-hub";
 
 export const hostResourceLifecycle = {
+  workspaceChanged(userId: number, hostId: number) {
+    threadProjectDiscovery.invalidateHost(userId, hostId);
+    closeEphemeralResources(userId, hostId);
+    clearThreadRuntime(userId, hostId);
+  },
+
   changed(userId: number, previous: StoredHostRecord, next: StoredHostRecord) {
     if (hostRuntimeFingerprint(previous) === hostRuntimeFingerprint(next)) return;
     closeEphemeralResources(userId, previous.id);
