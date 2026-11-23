@@ -29,10 +29,12 @@ export class ThreadHistoryReader {
   ) {
     // Official history is independent of our disposable snapshot. A reader may expand an old
     // Turn after its idle cache expired; authorization/existence still belong to Host/RPC.
+    await this.registry.assertThreadWorkspace(host, threadId);
     return this.fetchTimelinePage(host, threadId, cursor, limit);
   }
 
   async readItems(host: HostRecord, threadId: string, turnId: string, itemIds: string[]) {
+    await this.registry.assertThreadWorkspace(host, threadId);
     const client = await this.registry.getHostClient(host);
     // Details must come from the requested persisted items, not a walk from the latest timeline
     // page. Do not populate the history cache or infer missing events from this separate read.

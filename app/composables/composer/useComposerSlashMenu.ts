@@ -9,16 +9,21 @@ export function useComposerSlashMenu(input: {
   selectedThreadId: Ref<string | null>;
   selectedThreadGoal: ComputedRef<ThreadGoal | null>;
   enabled: ComputedRef<boolean>;
+  canManageModelProviders: ComputedRef<boolean>;
   onSelect: (command: SlashMenuItem) => Promise<void>;
 }) {
   const { t } = useI18n();
   const rootCommands = computed<SlashMenuItem[]>(() => [
-    {
-      id: "provider",
-      command: "/provider",
-      title: t("app.modelProviders.title"),
-      description: t("app.modelProviders.commandDescription"),
-    },
+    ...(input.canManageModelProviders.value
+      ? [
+          {
+            id: "provider" as const,
+            command: "/provider",
+            title: t("app.modelProviders.title"),
+            description: t("app.modelProviders.commandDescription"),
+          },
+        ]
+      : []),
     {
       id: "new",
       command: t("app.slashCommandNew"),

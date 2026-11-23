@@ -9,6 +9,9 @@ import { pendingServerRequests } from "./pending-server-requests";
 import { mcpEventSubscriptions } from "./mcp-event-subscriptions";
 import { stringFromUnknown, recordFromUnknown } from "~~/shared/utils/records";
 import type { AgentRpcClient, ProviderAdapter } from "../agent/provider-adapter";
+import { appServerThreadFromUnknown } from "~~/shared/runtime/app-server";
+import { threadMetadataStore } from "../state/thread-metadata";
+import { isWorkspacePath, workspaceRootsForHost } from "../state/workspace-scope";
 import { threadSectionEvents } from "./thread-section-events";
 
 export class HostRpcSession {
@@ -74,9 +77,14 @@ export class HostRpcSession {
   }
 
   private routeNotification(message: RpcEnvelope) {
+    const threadId = threadIdFromNotification(message) ?? this.mcpEventStreamThreadId(message);
+    if (threadId !== null && workspaceRootsForHost(this.host.id) !== undefined) {
+      const thread = appServerThreadFromUnknown(recordFromUnknown(message.params)?.thread);
+      const cwd = thread?.cwd ?? threadMetadataStore.get(this.host.id, threadId)?.cwd;
+      if (!isWorkspacePath(this.host.id, cwd)) return;
+    }
     if (message.method === "thread/section/changed") {
       const params = recordFromUnknown(message.params);
-      const threadId = stringFromUnknown(params?.threadId);
       if (
         threadId !== null &&
         (params?.sectionId === null || typeof params?.sectionId === "string")
@@ -96,7 +104,6 @@ export class HostRpcSession {
       },
       message,
     );
-    const threadId = threadIdFromNotification(message) ?? this.mcpEventStreamThreadId(message);
     if (threadId === null) {
       return;
     }
@@ -117,6 +124,9 @@ export class HostRpcSession {
       // Provider-level requests with no thread routing land on the gateway
       // scope; no thread notification resolvers apply there.
       this.recordUnownedNotification("gateway", message, "request", false);
+      return;
+    }
+    if (!isWorkspacePath(this.host.id, threadMetadataStore.get(this.host.id, threadId)?.cwd)) {
       return;
     }
     pendingServerRequests.track(this.host.id, threadId, message);

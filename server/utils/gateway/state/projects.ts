@@ -1,5 +1,7 @@
 import type { ProjectCreateInput, ProjectRecord } from "~~/shared/types";
+import { posix } from "node:path";
 import { currentGatewayMemoryState, nowIso } from "./memory";
+import { assertWorkspacePath, workspaceRootsForHost } from "./workspace-scope";
 
 // Directory groups are navigation state, not a second persistent project catalog. Codex owns
 // thread cwd; pins identify threads independently, so neither needs a Gateway-generated ID.
@@ -27,6 +29,11 @@ export const projectStore = {
   },
 
   create(input: ProjectCreateInput): ProjectRecord {
+    assertWorkspacePath(input.hostId, input.remotePath);
+    const roots = workspaceRootsForHost(input.hostId);
+    if (roots !== undefined && !roots.some((root) => root.remotePath === input.remotePath.trim())) {
+      throw new Error("Only configured workspace folders can be added");
+    }
     const existing = this.get(input.hostId, input.remotePath);
     const timestamp = nowIso();
     const project = {
@@ -46,7 +53,16 @@ export const projectStore = {
   },
 
   ensureForPath(hostId: number, remotePath: string): ProjectRecord {
-    const cwd = remotePath.trim();
+    assertWorkspacePath(hostId, remotePath);
+    const cwd = posix.normalize(remotePath.trim());
+    const roots = workspaceRootsForHost(hostId);
+    if (roots !== undefined) {
+      const root = roots.find(
+        (root) =>
+          cwd === root.remotePath || cwd.startsWith(`${root.remotePath.replace(/\/$/, "")}/`),
+      );
+      if (root !== undefined) return this.get(hostId, root.remotePath) ?? this.create(root);
+    }
     return (
       this.get(hostId, cwd) ??
       this.create({

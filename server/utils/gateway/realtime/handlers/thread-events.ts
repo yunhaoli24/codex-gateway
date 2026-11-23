@@ -34,10 +34,20 @@ export async function subscribeThread(
   try {
     if (activation.signal.aborted) return;
     const host = requireRecord(hostStore.getWithSecret(hostId), "Host not found");
-    await threadBroker.getHostClient(host);
-    if (activation.signal.aborted) return;
-    const afterId = Number(message.afterId ?? 0);
-    subscribeThreadEvents(peer, host, threadId, afterId, message.afterEpoch);
+    const lease = threadBroker.retainThreadActivation(host, threadId);
+    let transferred = false;
+    try {
+      const controller = await lease.ready;
+      if (activation.signal.aborted) return;
+      const afterId = Number(message.afterId ?? 0);
+      subscribeThreadEvents(peer, host, threadId, afterId, message.afterEpoch, {
+        lease,
+        controller,
+      });
+      transferred = true;
+    } finally {
+      if (!transferred) lease.release();
+    }
   } finally {
     finishThreadActivation(peer, key, activation);
   }

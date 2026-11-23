@@ -28,7 +28,7 @@ export const useGatewayConfigStore = defineStore("gateway-config", () => {
 
   function setCatalog(hosts: GatewayConfig["hosts"]) {
     gatewayConfig.value = {
-      version: 2,
+      ...gatewayConfig.value,
       hosts: [...hosts],
       pinnedThreads: gatewayConfig.value.pinnedThreads,
       notifications: normalizeNotificationSettings(gatewayConfig.value.notifications),

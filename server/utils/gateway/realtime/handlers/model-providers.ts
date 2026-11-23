@@ -1,3 +1,4 @@
+import { createError } from "h3";
 import { match } from "ts-pattern";
 import { z } from "zod";
 import type { RealtimeClientMessage } from "~~/shared/types";
@@ -11,6 +12,7 @@ import {
 import { requireRecord } from "../../http/validation/common";
 import { hostStore } from "../../state/hosts";
 import { threadBroker } from "../../runtime/broker";
+import { workspaceRootsForHost } from "../../state/workspace-scope";
 import { sendRealtimePeerMessage, type RealtimePeer } from "../peer-state";
 
 export async function manageModelProvider(
@@ -18,6 +20,12 @@ export async function manageModelProvider(
   request: Extract<RealtimeClientMessage, { type: "modelProvider.request" }>,
 ) {
   const host = requireRecord(hostStore.getWithSecret(request.hostId), "Host not found");
+  if (workspaceRootsForHost(host.id) !== undefined) {
+    throw createError({
+      statusCode: 403,
+      message: "Model providers are managed for the whole host",
+    });
+  }
   const client = await threadBroker.getHostClient(host);
   const result: ModelProviderResult = await match(request.operation)
     .with({ method: "list" }, async () => ({

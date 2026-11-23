@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { posix } from "node:path";
 import type { GatewayConfig } from "~~/shared/types";
 import { DEFAULT_BARK_GROUP, DEFAULT_BARK_SERVER_URL } from "~~/shared/config";
 import { trimmedOrFallback, trimmedOrNull } from "~~/shared/utils/strings";
-import { hostBaseSchema, validateHostProxy } from "./hosts-projects";
+import { hostBaseSchema, projectCreateSchema, validateHostProxy } from "./hosts-projects";
 
 export const pinnedThreadSchema = z
   .object({
@@ -51,6 +52,19 @@ export const gatewayConfigSchema = z
       )
       .default([]),
     pinnedThreads: z.array(pinnedThreadSchema).default([]),
+    workspaceRoots: z
+      .array(
+        projectCreateSchema
+          .extend({
+            remotePath: z
+              .string()
+              .trim()
+              .startsWith("/")
+              .transform((path) => posix.normalize(path).replace(/\/+$/, "") || "/"),
+          })
+          .strict(),
+      )
+      .optional(),
     notifications: notificationSettingsSchema.default({
       webPush: { enabled: false },
       bark: {
@@ -68,6 +82,7 @@ export function parseGatewayConfig(body: unknown): GatewayConfig {
   const timestamp = new Date().toISOString();
   return {
     version: 2,
+    ...(input.workspaceRoots === undefined ? {} : { workspaceRoots: input.workspaceRoots }),
     hosts: input.hosts.map((host) => ({
       id: host.id,
       name: host.name.trim(),

@@ -6,6 +6,7 @@ import { threadMetadataStore } from "../state/thread-metadata";
 import { threadBroker } from "./broker";
 import type { ThreadListPage } from "./thread-catalog";
 import { gatewayLog } from "../logging";
+import { isWorkspacePath } from "../state/workspace-scope";
 
 export class ThreadProjectDiscoveryService {
   private readonly pending = new Map<string, Promise<void>>();
@@ -15,6 +16,7 @@ export class ThreadProjectDiscoveryService {
     for (const value of page.data) {
       const thread = appServerThreadFromUnknown(value);
       if (thread === null || typeof thread.cwd !== "string" || thread.cwd.trim() === "") continue;
+      if (!isWorkspacePath(hostId, thread.cwd)) continue;
       try {
         projectStore.ensureForPath(hostId, thread.cwd);
         threadMetadataStore.record(hostId, thread);

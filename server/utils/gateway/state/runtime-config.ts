@@ -11,6 +11,14 @@ export const runtimeConfigStore = {
   replace(config: GatewayConfig) {
     hostStore.replaceHosts(config.hosts);
     const hostIds = hostStore.hostIds();
+    currentGatewayMemoryState().workspaceRoots = config.workspaceRoots;
+    if (config.workspaceRoots !== undefined) {
+      currentGatewayMemoryState().projects = config.workspaceRoots.map((root) => ({
+        ...root,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+    }
     projectStore.pruneToHosts(hostIds);
     threadMetadataStore.pruneToHosts(hostIds);
     subAgentThreadStore.pruneToHosts(hostIds);
@@ -34,6 +42,11 @@ export const runtimeConfigStore = {
   export(): GatewayConfig {
     return {
       version: 2,
+      ...(currentGatewayMemoryState().workspaceRoots === undefined
+        ? {}
+        : {
+            workspaceRoots: currentGatewayMemoryState().workspaceRoots,
+          }),
       hosts: hostStore.listWithSecret().map((host) => ({
         ...host,
         hasPassword: Boolean(host.password),

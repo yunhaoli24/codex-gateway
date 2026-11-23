@@ -11,7 +11,7 @@ export async function listThreadItems(
   request: Extract<RealtimeClientMessage, { type: "thread.items.list" }>,
 ) {
   const host = requireRecord(hostStore.getWithSecret(request.hostId), "Host not found");
-  const client = await threadBroker.getHostClient(host);
+  const client = await threadBroker.getThreadClient(host, request.threadId);
   // Only single-Turn disclosure uses output deferral. Timeline order and history pagination
   // remain authoritative in thread/timeline/list, whose protocol has no deferOutput option.
   const result = await client.request(

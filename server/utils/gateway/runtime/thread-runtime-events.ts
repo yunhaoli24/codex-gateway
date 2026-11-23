@@ -12,6 +12,8 @@ import { idFromUnknown, recordFromUnknown } from "~~/shared/utils/records";
 import { threadRuntimeStatusHub } from "./thread-runtime-status-hub";
 import { runtimeLog } from "./runtime-log";
 import { remoteHosts } from "../state/remote-hosts";
+import { threadMetadataStore } from "../state/thread-metadata";
+import { isWorkspacePath } from "../state/workspace-scope";
 
 type ThreadEventSubscriber = (event: GatewayEvent) => void;
 export type ThreadGoalResolver = () => Promise<unknown>;
@@ -97,7 +99,9 @@ class ThreadRuntimeEventBus {
       this.publish(gatewayEvent);
       return gatewayEvent;
     }
+    const cwd = threadMetadataStore.get(hostId, threadId)?.cwd;
     remoteHosts.forEachAlias(remoteKey, (aliasHostId) => {
+      if (!isWorkspacePath(aliasHostId, cwd)) return;
       // Only the small transport envelope changes. Every alias uses the same provider payload,
       // snapshot, replay cursor and history pages; user settings and delivery remain scoped here.
       const aliasEvent = { ...gatewayEvent, hostId: aliasHostId };

@@ -6,6 +6,9 @@ import { hostSessionEvents } from "./host-session-events";
 import { ThreadController } from "./thread-controller";
 import { runtimeLog } from "./runtime-log";
 import { providerAdapterFor } from "../agent/provider-registry";
+import { parseThreadReadResult } from "~~/shared/runtime/app-server";
+import { threadMetadataStore } from "../state/thread-metadata";
+import { assertWorkspacePath, workspaceRootsForHost } from "../state/workspace-scope";
 import {
   hostRuntimeKey,
   hostRuntimePrefix,
@@ -49,6 +52,7 @@ export class ControllerRegistry {
     providerId: AgentProviderId = "codex",
   ) {
     const userId = this.userKey();
+    await this.assertThreadWorkspace(host, threadId, providerId);
     const key = this.key(userId, host.id, providerId, threadId);
     let controller = this.controllers.get(key);
     if (!controller) {
@@ -74,6 +78,28 @@ export class ControllerRegistry {
     }
     await controller.ensureConnected();
     return controller;
+  }
+
+  async assertThreadWorkspace(
+    host: HostRecord,
+    threadId: string,
+    providerId: AgentProviderId = "codex",
+  ) {
+    if (workspaceRootsForHost(host.id) !== undefined) {
+      const known = threadMetadataStore.get(host.id, threadId);
+      let cwd = known?.cwd;
+      if (known === null) {
+        const client = await this.getHostClient(host, providerId);
+        const result = await client.request(
+          "thread/read",
+          { threadId, includeTurns: false },
+          120_000,
+          parseThreadReadResult,
+        );
+        cwd = result.thread.cwd;
+      }
+      assertWorkspacePath(host.id, cwd);
+    }
   }
 
   async getHostClient(host: HostRecord, providerId: AgentProviderId = "codex") {
