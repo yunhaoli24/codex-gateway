@@ -7,7 +7,7 @@ import { classifyRemoteDirectoryError } from "./remote-file-errors";
 import { isWithinDirectory, realPathFor } from "./workspace-paths";
 
 const MAX_ZIP_ENTRIES = 10_000;
-const MAX_ZIP_INPUT_BYTES = 512 * 1024 * 1024;
+const MAX_ZIP_INPUT_BYTES = 2 * 1024 * 1024 * 1024;
 
 interface ZipEntry {
   path: string;
@@ -127,6 +127,6 @@ export function outsideWorkspace() {
 function zipTooLarge() {
   return createError({
     statusCode: 413,
-    statusMessage: "Folder ZIP is limited to 512 MiB and 10,000 entries",
+    statusMessage: "Folder ZIP is limited to 2 GiB and 10,000 entries",
   });
 }
