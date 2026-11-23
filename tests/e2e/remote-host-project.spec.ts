@@ -296,6 +296,42 @@ test("references real project files as structured turn context", async ({
   );
 });
 
+test("scrolls through all folders in the Add Project dialog", async ({ page, remoteWorkspace }) => {
+  await page.setViewportSize({ width: 1024, height: 560 });
+  await openApp(page);
+  const { remote } = remoteWorkspace;
+  const { id } = await remoteWorkspace.addHost("Folder picker");
+  const parent = `/home/${remote.username}/media/folder-picker-${randomUUID()}`;
+  const folders = Array.from(
+    { length: 30 },
+    (_, index) => `folder-${String(index + 1).padStart(2, "0")}`,
+  );
+  const lastName = "folder-30";
+  await execRemoteSsh(
+    remote,
+    `mkdir -p -- ${folders.map((name) => shellQuote(`${parent}/${name}`)).join(" ")}`,
+  );
+
+  await page.getByTestId(`host-button-${id}`).click({ button: "right" });
+  await page.getByRole("menuitem", { name: /添加项目|Add project/ }).click();
+  const dialog = page.getByRole("dialog");
+  const browse = dialog.getByRole("button", { name: /浏览|Browse/ });
+  await dialog.getByTestId("project-browse-path-input").fill(parent);
+  await browse.click();
+  const folderButtons = dialog.getByRole("button", { name: /^folder-\d\d$/ });
+  const lastFolder = folderButtons.last();
+  await expect(folderButtons).toHaveText(folders);
+  await expect(lastFolder).not.toBeInViewport();
+  await folderButtons.first().hover();
+  await page.mouse.wheel(0, 1000);
+  await expect(lastFolder).toBeInViewport();
+  await expect(browse).toBeInViewport();
+  await lastFolder.click();
+  await expect(dialog.getByTestId("project-name-input")).toHaveValue(lastName);
+  await expect(dialog.getByTestId("project-path-input")).toHaveValue(`${parent}/${lastName}`);
+  await expect(dialog.getByTestId("add-project-button")).toBeInViewport();
+});
+
 test("connects to a real SSH Codex host and lists a project thread created by app-server", async ({
   page,
   remoteWorkspace,

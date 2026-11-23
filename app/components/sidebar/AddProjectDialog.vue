@@ -30,7 +30,7 @@ const directoryError = ref("");
 const browsing = ref(false);
 const saving = ref(false);
 const visibleDirectories = computed(() =>
-  directories.value.filter((entry) => entry.type === "directory").slice(0, 12),
+  directories.value.filter((entry) => entry.type === "directory"),
 );
 
 watch(open, (isOpen) => {
@@ -95,7 +95,7 @@ function resetForm() {
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent class="flex max-h-[min(42rem,calc(100vh-2rem))] flex-col overflow-hidden">
+    <DialogContent class="flex max-h-[min(42rem,calc(100dvh-2rem))] flex-col overflow-hidden">
       <DialogHeader>
         <DialogTitle>{{ t("app.addProject") }}</DialogTitle>
         <DialogDescription>
@@ -121,7 +121,10 @@ function resetForm() {
           </Button>
         </div>
 
-        <div v-if="visibleDirectories.length" class="grid grid-cols-2 gap-1">
+        <div
+          v-if="visibleDirectories.length"
+          class="grid max-h-[min(14rem,40dvh)] grid-cols-2 gap-1 overflow-y-auto overscroll-y-contain"
+        >
           <Button
             v-for="entry in visibleDirectories"
             :key="entry.path"
