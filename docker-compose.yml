@@ -23,6 +23,7 @@ services:
       BROWSER_PREVIEW_DOMAIN: ${BROWSER_PREVIEW_DOMAIN:-cloudawn.top}
       CODEX_GATEWAY_DB_PATH: /data/codex-gateway.db
       CODEX_GATEWAY_CONFIG_SECRET: ${CODEX_GATEWAY_CONFIG_SECRET:?CODEX_GATEWAY_CONFIG_SECRET is required}
+      CODEX_GATEWAY_MAX_UPLOAD_FILE_MIB: ${CODEX_GATEWAY_MAX_UPLOAD_FILE_MIB:-25}
     volumes:
       - ./data:/data
     # Keep liveness probes side-effect free. Nitro owns periodic GC so probe retries or Docker
