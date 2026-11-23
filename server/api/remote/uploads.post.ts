@@ -12,8 +12,8 @@ import { streamMultipartUploads } from "../../utils/gateway/http/multipart-uploa
 import { requireRecord } from "../../utils/gateway/http/validation/common";
 import { remoteFileSchema } from "../../utils/gateway/http/validation/remote";
 import { sshConnections } from "../../utils/gateway/infra/host-services";
+import { isWithinDirectory } from "../../utils/gateway/infra/files/workspace-paths";
 import {
-  isWithinDirectory,
   resolveUploadDirectory,
   uploadWorkspaceFile,
 } from "../../utils/gateway/infra/files/workspace-uploads";
