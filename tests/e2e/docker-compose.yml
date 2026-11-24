@@ -21,6 +21,9 @@ services:
       - bark-requests:/requests
 
   ssh-target:
+    networks:
+      default:
+        aliases: [ssh-target-external-codex]
     build:
       context: ./docker
       target: empty-runtime
@@ -90,6 +93,7 @@ services:
       HOST: 0.0.0.0
       PORT: "3100"
       CODEX_GATEWAY_CONFIG_SECRET: e2e-config-secret
+      CODEX_GATEWAY_EXTERNAL_CODEX_HOSTS: ssh-target-external-codex
       CODEX_GATEWAY_DB_PATH: /workspace/codex-gateway/.data-e2e/codex-gateway.db
       NUXT_IGNORE_LOCK: "1"
       # Preview origins enter through the nginx sidecar below. This mirrors production so remote

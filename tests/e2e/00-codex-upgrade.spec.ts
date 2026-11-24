@@ -36,6 +36,50 @@ test("parses current Codex CLI and app-server user-agent versions", () => {
   );
 });
 
+test("keeps a supported Codex on an externally managed SSH host", async ({ page }) => {
+  const environments = await readUpgradeRemoteEnvs();
+  const fixture = environments.find(({ runtimeFixture }) => runtimeFixture === "empty-runtime")!;
+  const remote = { ...fixture, host: "ssh-target-external-codex" };
+  await openApp(page, { interceptRealtime: false });
+  const install = await execRemoteSsh(
+    remote,
+    `set -eu
+test ! -e "$HOME/.local/bin/codex"
+mkdir -p "$HOME/.cache/e2e-external-codex" "$HOME/.local/bin"
+tar -xzf /opt/codex-upgrade-package.tar.gz -C "$HOME/.cache/e2e-external-codex"
+ln -s "$HOME/.cache/e2e-external-codex/bin/codex" "$HOME/.local/bin/codex"
+`,
+  );
+  expect(install.code).toBe(0);
+  let host: UiHost | undefined;
+  try {
+    host = await addRemoteHost(page, remote, "Externally managed Codex");
+    const check = await execRemoteSsh(
+      remote,
+      `set -eu
+test "$(readlink "$HOME/.local/bin/codex")" = "$HOME/.cache/e2e-external-codex/bin/codex"
+test ! -e "$HOME/.codex/packages/standalone"
+"$HOME/.local/bin/codex" --version
+`,
+    );
+    expect(check.code).toBe(0);
+    expect(check.stdout).toContain(`codex-cli ${remote.supportedCodexVersion}`);
+  } finally {
+    if (host) {
+      await authenticatedFetch(
+        page,
+        { url: `/api/hosts/${host.id}`, method: "DELETE" },
+        () => undefined,
+      );
+    }
+    await resetRemoteAppServer(remote);
+    await execRemoteSsh(
+      remote,
+      'rm -f "$HOME/.local/bin/codex"; rm -rf "$HOME/.cache/e2e-external-codex"',
+    );
+  }
+});
+
 test("upgrades SSH runtimes and shows shared-target progress across browser pages", async ({
   page,
   browser,
