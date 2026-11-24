@@ -42,6 +42,7 @@ const gitWorkspace = useFileGitWorkspace({
 const fileActions = useRemoteFileTreeActions({
   hostId: () => props.hostId,
   threadId: () => props.threadId,
+  rootPath: () => props.rootPath,
 });
 const selected = ref<FileTreeNode>();
 const { t } = useI18n();
@@ -264,6 +265,7 @@ function fileTreeNode(value: unknown) {
           "
           @open="emit('open', $event)"
           @download="fileActions.downloadFile"
+          @download-folder="fileActions.downloadFolder"
           @copy-path="fileActions.copyAbsolutePath"
           @delete="fileActions.requestDelete"
         />

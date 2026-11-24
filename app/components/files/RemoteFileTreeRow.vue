@@ -38,6 +38,7 @@ defineProps<{
 const emit = defineEmits<{
   open: [path: string];
   download: [path: string];
+  downloadFolder: [path: string];
   copyPath: [path: string];
   delete: [path: string];
 }>();
@@ -100,6 +101,10 @@ const { longPressContextMenuHandlers } = useLongPressContextMenu({ menuWidthEsti
       <ContextMenuItem v-if="node.type === 'file'" @select="emit('download', node.path)">
         <DownloadIcon class="size-4" />
         {{ $t("app.downloadFile") }}
+      </ContextMenuItem>
+      <ContextMenuItem v-if="node.type === 'directory'" @select="emit('downloadFolder', node.path)">
+        <DownloadIcon class="size-4" />
+        {{ $t("app.downloadFolderZip") }}
       </ContextMenuItem>
       <ContextMenuItem @select="emit('copyPath', node.path)">
         <CopyIcon class="size-4" />

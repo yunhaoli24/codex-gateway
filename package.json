@@ -73,6 +73,7 @@
     "echarts": "^6.1.0",
     "embla-carousel-vue": "^8.6.0",
     "ensure-error": "^5.0.0",
+    "fflate": "^0.8.3",
     "h3": "1.15.11",
     "isbinaryfile": "^6.0.0",
     "klona": "^2.0.6",
