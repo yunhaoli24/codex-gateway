@@ -95,6 +95,7 @@ services:
       CODEX_GATEWAY_CONFIG_SECRET: e2e-config-secret
       CODEX_GATEWAY_EXTERNAL_CODEX_HOSTS: ssh-target-external-codex
       CODEX_GATEWAY_DB_PATH: /workspace/codex-gateway/.data-e2e/codex-gateway.db
+      CODEX_GATEWAY_MAX_UPLOAD_FILE_MIB: ${CODEX_GATEWAY_MAX_UPLOAD_FILE_MIB:-25}
       NUXT_IGNORE_LOCK: "1"
       # Preview origins enter through the nginx sidecar below. This mirrors production so remote
       # /_nuxt/* assets cannot be intercepted as Gateway public assets before reaching the proxy.
@@ -146,6 +147,7 @@ services:
       CI: ${CI:-}
       E2E_CONTAINERIZED: "1"
       E2E_DATABASE_PREPARED: "1"
+      CODEX_GATEWAY_MAX_UPLOAD_FILE_MIB: ${CODEX_GATEWAY_MAX_UPLOAD_FILE_MIB:-25}
       E2E_SOURCE_DIR: /workspace/source
       E2E_CODEX_HOME: /codex-auth
       E2E_REMOTE_HOST: ssh-target

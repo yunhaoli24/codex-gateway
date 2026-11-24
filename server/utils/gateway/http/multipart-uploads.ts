@@ -7,7 +7,15 @@ import { createError, type H3Event } from "h3";
 import ensureError from "ensure-error";
 
 const MAX_UPLOAD_FILES = 8;
-const MAX_UPLOAD_FILE_BYTES = 25 * 1024 * 1024;
+const maxUploadFileMiB = Number(process.env.CODEX_GATEWAY_MAX_UPLOAD_FILE_MIB ?? 25);
+const maxUploadFileBytes = maxUploadFileMiB * 1024 * 1024;
+if (
+  !Number.isInteger(maxUploadFileMiB) ||
+  maxUploadFileMiB < 1 ||
+  !Number.isSafeInteger(maxUploadFileBytes)
+) {
+  throw new Error("CODEX_GATEWAY_MAX_UPLOAD_FILE_MIB must be a positive integer in MiB");
+}
 
 export interface ParsedUploadFile {
   originalName: string;
@@ -26,7 +34,7 @@ export function streamMultipartUploads(event: H3Event, tempDir: string) {
       headers: { ...event.node.req.headers, "content-type": contentType },
       limits: {
         files: MAX_UPLOAD_FILES,
-        fileSize: MAX_UPLOAD_FILE_BYTES,
+        fileSize: maxUploadFileBytes,
         fields: 0,
         parts: MAX_UPLOAD_FILES,
       },
@@ -80,9 +88,7 @@ export function streamMultipartUploads(event: H3Event, tempDir: string) {
         file.size += chunk.length;
       });
       stream.once("limit", () => {
-        limitError = uploadLimitError(
-          `Upload file exceeds ${Math.round(MAX_UPLOAD_FILE_BYTES / 1024 / 1024)} MB`,
-        );
+        limitError = uploadLimitError(`Upload file exceeds ${maxUploadFileMiB} MiB`);
       });
       writes.push(
         writeUpload(stream, localPath).catch((error) => {

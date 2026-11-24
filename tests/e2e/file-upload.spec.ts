@@ -83,11 +83,18 @@ test("uploads project files through the picker and folder drop without replacing
 
     // Exercise the authenticated HTTP boundary too: forged destinations, symlinks, duplicate
     // names and concurrent requests must not escape the project or replace existing bytes.
-    const upload = async (path: string, fileName: string, contents: string, claimedRoot = root) => {
+    const upload = async (
+      path: string,
+      fileName: string,
+      contents: string | number,
+      claimedRoot = root,
+    ) => {
       const result = await page.evaluate(
         async (input) => {
           const form = new FormData();
-          form.append("files", new File([input.contents], input.fileName));
+          const contents =
+            typeof input.contents === "number" ? new Uint8Array(input.contents) : input.contents;
+          form.append("files", new File([contents], input.fileName));
           const query = new URLSearchParams({
             hostId: String(input.hostId),
             rootPath: input.root,
@@ -120,6 +127,27 @@ test("uploads project files through the picker and folder drop without replacing
           : [];
       return { status: result.status, files };
     };
+    const maximumBytes = Number(process.env.CODEX_GATEWAY_MAX_UPLOAD_FILE_MIB ?? 25) * 1024 * 1024;
+    const maximum = await upload(directory, "maximum.bin", maximumBytes);
+    expect(maximum.status).toBe(200);
+    expect(maximum.files).toEqual([{ name: "maximum.bin", path: `${directory}/maximum.bin` }]);
+    expect(
+      (
+        await execRemoteSsh(
+          remoteWorkspace.remote,
+          `stat -c %s ${shellQuote(`${directory}/maximum.bin`)}`,
+        )
+      ).stdout.trim(),
+    ).toBe(String(maximumBytes));
+    expect((await upload(directory, "oversized.bin", maximumBytes + 1)).status).toBe(413);
+    expect(
+      (
+        await execRemoteSsh(
+          remoteWorkspace.remote,
+          `find ${shellQuote(directory)} -name oversized.bin`,
+        )
+      ).stdout,
+    ).toBe("");
     const duplicate = await upload(directory, "picked.txt", "must not replace");
     expect(duplicate.status).toBe(200);
     expect(duplicate.files[0]).toMatchObject({
