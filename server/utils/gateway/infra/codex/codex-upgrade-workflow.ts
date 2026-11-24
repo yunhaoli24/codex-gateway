@@ -8,6 +8,13 @@ import type { CodexVersionChecker } from "./codex-version-checker";
 import { codexUpgradeLog } from "./codex-upgrade-log";
 import { hostUpgradeState } from "../../state/host-upgrades";
 
+const externallyManagedCodexHosts = new Set(
+  (process.env.CODEX_GATEWAY_EXTERNAL_CODEX_HOSTS ?? "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
+);
+
 export class CodexUpgradeWorkflow {
   private readonly coordinator = new CodexUpgradeCoordinator();
 
@@ -26,10 +33,16 @@ export class CodexUpgradeWorkflow {
       try {
         const installed = await this.versionChecker.readVersionOrRecoverableMissing(host);
         const beforeVersion = installed.version;
+        const externallyManaged = externallyManagedCodexHosts.has(host.sshHost.toLowerCase());
+        const supported = isCodexVersionAtLeast(beforeVersion, SUPPORTED_CODEX_VERSION);
+        if (externallyManaged && !supported) {
+          throw new Error(
+            `${host.sshHost} requires a system-managed Codex ${SUPPORTED_CODEX_VERSION} or newer (found ${beforeVersion})`,
+          );
+        }
         const installRequired =
-          repair ||
-          installed.installationLayout !== "standalone" ||
-          !isCodexVersionAtLeast(beforeVersion, SUPPORTED_CODEX_VERSION);
+          !externallyManaged &&
+          (repair || installed.installationLayout !== "standalone" || !supported);
         let version = beforeVersion;
         codexUpgradeLog("remote version inspected", host, {
           observedVersion: beforeVersion,
@@ -76,7 +89,7 @@ export class CodexUpgradeWorkflow {
         hostUpgradeState.finish(host, false);
         return {
           version,
-          installationLayout: "standalone",
+          installationLayout: installRequired ? "standalone" : installed.installationLayout,
           appServerVersion: daemon.version,
           supportedVersion: SUPPORTED_CODEX_VERSION,
           beforeVersion,

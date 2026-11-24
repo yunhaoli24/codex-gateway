@@ -215,6 +215,8 @@
     "remoteFileUploadFailed": "文件上传失败",
     "downloadFile": "下载文件",
     "downloadFileFailed": "下载文件失败",
+    "downloadFolderZip": "将文件夹下载为 ZIP",
+    "downloadFolderZipFailed": "下载文件夹失败",
     "copyAbsolutePath": "复制绝对路径",
     "absolutePathCopied": "已复制绝对路径",
     "copyAbsolutePathFailed": "复制绝对路径失败",

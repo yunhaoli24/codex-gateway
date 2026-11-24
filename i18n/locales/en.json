@@ -215,6 +215,8 @@
     "remoteFileUploadFailed": "File upload failed",
     "downloadFile": "Download file",
     "downloadFileFailed": "Failed to download file",
+    "downloadFolderZip": "Download folder as ZIP",
+    "downloadFolderZipFailed": "Failed to download folder",
     "copyAbsolutePath": "Copy absolute path",
     "absolutePathCopied": "Absolute path copied",
     "copyAbsolutePathFailed": "Failed to copy absolute path",

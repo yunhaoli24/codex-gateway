@@ -255,6 +255,7 @@ Environment variables:
 | `CODEX_GATEWAY_DB_PATH` | No | SQLite database path, default `/data/codex-gateway.db`. Set a writable path for local development. |
 | `HOST` | No | Nuxt listen host. Docker uses `0.0.0.0`. |
 | `PORT` | No | Nuxt listen port. Docker uses `3000`. |
+| `CODEX_GATEWAY_EXTERNAL_CODEX_HOSTS` | No | Comma-separated SSH hostnames or IP addresses as configured in Gateway. For these hosts, install and update the Codex CLI externally (for example, with npm). Gateway requires a compatible CLI version and continues to manage the app-server lifecycle. |
 | `BROWSER_PREVIEW_DOMAIN` | Browser preview | Parent domain for isolated preview origins such as `p-<hmac>.example.com`; configure wildcard DNS and TLS for `*.example.com`. |
 | `BROWSER_PREVIEW_SECRET` | No | HMAC secret for stable per-user/Host/target preview origins. Defaults to `CODEX_GATEWAY_CONFIG_SECRET`. |
 | `BROWSER_PREVIEW_SCHEME` | No | Public preview scheme, `https` by default. Use `http` only for local E2E/development. |

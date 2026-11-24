@@ -3,11 +3,12 @@ import { ref, toValue, type MaybeRefOrGetter } from "vue";
 import { toast } from "@codex-gateway/ui/sonner";
 import ensureError from "ensure-error";
 import { useGatewayFileWorkspaceStore } from "@/stores/file-workspace";
-import { downloadRemoteFile } from "@/utils/remote-file-transport";
+import { downloadRemoteFile, downloadRemoteFolder } from "@/utils/remote-file-transport";
 
 export function useRemoteFileTreeActions(options: {
   hostId: MaybeRefOrGetter<number>;
   threadId: MaybeRefOrGetter<string>;
+  rootPath: MaybeRefOrGetter<string>;
 }) {
   const { t } = useI18n();
   const fileWorkspace = useGatewayFileWorkspaceStore();
@@ -30,6 +31,19 @@ export function useRemoteFileTreeActions(options: {
       saveBlob(blob, fileName(path));
     } catch (error) {
       toast.error(t("app.downloadFileFailed"), { description: errorMessage(error) });
+    }
+  }
+
+  async function downloadFolder(path: string) {
+    try {
+      const blob = await downloadRemoteFolder(
+        toValue(options.hostId),
+        toValue(options.rootPath),
+        path,
+      );
+      saveBlob(blob, `${fileName(path)}.zip`);
+    } catch (error) {
+      toast.error(t("app.downloadFolderZipFailed"), { description: errorMessage(error) });
     }
   }
 
@@ -61,6 +75,7 @@ export function useRemoteFileTreeActions(options: {
     deleting,
     copyAbsolutePath,
     downloadFile,
+    downloadFolder,
     requestDelete,
     cancelDelete,
     confirmDelete,

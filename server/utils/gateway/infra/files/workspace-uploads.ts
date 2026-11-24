@@ -5,11 +5,7 @@ import { pipeline } from "node:stream/promises";
 import { createError } from "h3";
 import type { SFTPWrapper } from "ssh2";
 import { isMissingSftpPath } from "./remote-file-errors";
-
-export function isWithinDirectory(root: string, path: string) {
-  const relative = posix.relative(root, path);
-  return relative !== ".." && !relative.startsWith("../") && !posix.isAbsolute(relative);
-}
+import { isWithinDirectory, realPathFor } from "./workspace-paths";
 
 export async function resolveUploadDirectory(sftp: SFTPWrapper, root: string, path: string) {
   if (!isWithinDirectory(root, path)) throw outsideProject();
@@ -46,12 +42,6 @@ export async function uploadWorkspaceFile(
     throw error;
   }
   return destination;
-}
-
-function realPathFor(sftp: SFTPWrapper, path: string) {
-  return new Promise<string>((resolve, reject) =>
-    sftp.realpath(path, (error, resolved) => (error ? reject(error) : resolve(resolved))),
-  );
 }
 
 async function pathExists(sftp: SFTPWrapper, path: string) {

@@ -46,6 +46,16 @@ export async function downloadRemoteFile(hostId: number, path: string) {
   return response.blob;
 }
 
+export async function downloadRemoteFolder(hostId: number, rootPath: string, path: string) {
+  const query = new URLSearchParams({ hostId: String(hostId), rootPath, path });
+  const response = await fetch(`/api/remote/folder-zip?${query}`, {
+    headers: authorizationHeaders(),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(await responseErrorMessage(response));
+  return response.blob();
+}
+
 export async function fetchRemoteFile(
   hostId: number,
   path: string,

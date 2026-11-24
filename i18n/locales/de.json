@@ -215,6 +215,8 @@
     "remoteFileUploadFailed": "Datei konnte nicht hochgeladen werden",
     "downloadFile": "Datei herunterladen",
     "downloadFileFailed": "Datei konnte nicht heruntergeladen werden",
+    "downloadFolderZip": "Ordner als ZIP laden",
+    "downloadFolderZipFailed": "Ordner konnte nicht heruntergeladen werden",
     "copyAbsolutePath": "Absoluten Pfad kopieren",
     "absolutePathCopied": "Absoluter Pfad kopiert",
     "copyAbsolutePathFailed": "Absoluter Pfad konnte nicht kopiert werden",
